@@ -1,0 +1,22 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+
+# Hub runtime state and generated secrets
+data/
+deploy/nats/nats.conf
+deploy/nats/tls/
+deploy/secrets/
+*.creds
+*.nk
+
+# A team's real mesh config stays out of this (open-source) repo; only the examples are tracked.
+/config/*
+!/config/examples/
+
+# The Claude Code plugin ships its bundled server so laptops need no npm install.
+!plugins/agentmesh/dist/

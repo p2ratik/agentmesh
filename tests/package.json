@@ -1,0 +1,14 @@
+{
+  "name": "@agentmesh/integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests: real NATS, the hub, and the bundled plugin over MCP.",
+  "dependencies": {
+    "@agentmesh/bus": "workspace:*",
+    "@agentmesh/common": "workspace:*",
+    "@agentmesh/protocol": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@nats-io/nkeys": "2.0.3"
+  }
+}

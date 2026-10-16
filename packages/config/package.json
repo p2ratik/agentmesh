@@ -1,0 +1,16 @@
+{
+  "name": "@agentmesh/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Loads, validates and indexes mesh configuration (team, workflows, rules, integrations).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@agentmesh/common": "workspace:*",
+    "@agentmesh/protocol": "workspace:*",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  }
+}

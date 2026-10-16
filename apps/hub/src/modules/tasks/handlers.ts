@@ -1,0 +1,89 @@
+import { MeshError } from '@agentmesh/common';
+import type { RpcHandlerMap } from '../../contracts';
+import { internalId } from '../../core/ids';
+import type { TaskServiceImpl } from './tasks.service';
+
+type TaskHandlers = Pick<
+  RpcHandlerMap,
+  'task.create' | 'task.get' | 'task.list' | 'task.act' | 'review.request' | 'review.submit'
+>;
+
+const taskId = (raw: string) => internalId('task', raw);
+
+/** RPC surface of the task module: protocol ids in, protocol shapes out. */
+export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
+  return {
+    'task.create': (params, call) =>
+      tasks.create(
+        {
+          title: params.title,
+          description: params.description,
+          repo: params.repo,
+          area: params.area,
+          assignee: params.assignee,
+          priority: params.priority,
+          labels: params.labels,
+          doneWhen: params.doneWhen,
+          dependsOn: params.dependsOn.map(taskId),
+          baseBranch: params.baseBranch,
+          workflow: params.workflow,
+          parentThreadId: params.parentThreadId
+            ? internalId('thread', params.parentThreadId)
+            : undefined,
+        },
+        call.actor,
+      ),
+
+    'task.get': (params, call) => tasks.get(taskId(params.taskId), call.actor),
+
+    'task.list': (params, call) => {
+      const assignee = params.assignee === 'me' ? call.actor.id : params.assignee;
+      return {
+        tasks: tasks.list({
+          assignee: assignee && assignee !== 'unassigned' ? assignee : null,
+          unassigned: assignee === 'unassigned',
+          states: params.state ?? null,
+          area: params.area ?? null,
+          planId: params.planId ? internalId('plan', params.planId) : null,
+          includeTerminal: params.includeTerminal,
+          limit: params.limit,
+        }),
+      };
+    },
+
+    'task.act': (params, call) =>
+      tasks.act(
+        taskId(params.taskId),
+        params.action,
+        { note: params.note, prUrl: params.prUrl, branch: params.branch, to: params.to },
+        call.actor,
+      ),
+
+    /** A stand-alone PR review: the requester (if an agent) owns it; reviewers are picked or given. */
+    'review.request': (params, call) => {
+      const { actor } = call;
+      if (!tasks.views.index.workflow('review')) {
+        throw new MeshError('invalid_request', 'This mesh has no "review" workflow configured');
+      }
+      return tasks.create(
+        {
+          title: params.title ?? `Review ${params.prUrl}`,
+          description: params.focus ?? '',
+          repo: params.repo,
+          area: params.area,
+          assignee: actor.kind === 'agent' ? actor.id : undefined,
+          priority: 'normal',
+          labels: [],
+          dependsOn: [],
+          workflow: 'review',
+          prUrl: params.prUrl,
+          reviewers: (params.reviewers ?? []).filter((id) => id !== actor.id),
+        },
+        actor,
+      );
+    },
+
+    'review.submit': (params, call) =>
+      tasks.submitReview(taskId(params.taskId), params.verdict, params.body, call.actor),
+  };
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@agentmesh/plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Code channel plugin: connects a local session to the AgentMesh hub.",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@agentmesh/bus": "workspace:*",
+    "@agentmesh/common": "workspace:*",
+    "@agentmesh/protocol": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "4.6.7"
+  }
+}

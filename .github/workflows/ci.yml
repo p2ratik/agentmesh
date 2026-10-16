@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, agents]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm check:size
+      - run: pnpm test
+
+  # Real NATS + hub + the bundled plugin over MCP, with and without nkey auth.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Download nats-server for the authenticated test
+        run: |
+          curl -sSL https://github.com/nats-io/nats-server/releases/download/v2.15.1/nats-server-v2.15.1-linux-amd64.tar.gz | tar xz
+          echo "AGENTMESH_TEST_NATS_BIN=$PWD/nats-server-v2.15.1-linux-amd64/nats-server" >> "$GITHUB_ENV"
+      - name: Start JetStream for the open test
+        run: |
+          "$AGENTMESH_TEST_NATS_BIN" -js -p 4333 -sd "$RUNNER_TEMP/js" &
+          sleep 1
+      - run: pnpm test:integration
+        env:
+          AGENTMESH_TEST_NATS: nats://127.0.0.1:4333

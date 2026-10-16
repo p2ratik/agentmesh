@@ -1,0 +1,42 @@
+# An urgent-fix workflow for production incidents: triage → fixing → in_review → done.
+# Use it from a rule (create_task: { workflow: incident }) or task_create.
+# Effects are built-ins; see docs/workflows.md for the full list.
+id: incident
+description: Production incident — fix fast, still peer-reviewed.
+initial: triage
+states:
+  triage:
+    label: Triage
+    onEnter: [auto_assign]
+  fixing:
+    label: Fixing
+    onEnter:
+      - notify_assignee
+      - post_notice: { channel: alerts, text: "🚑 {{task.id}} is being fixed by {{task.assignee}}" }
+  in_review:
+    label: In review
+    onEnter: [request_reviews]
+  approved:
+    label: Approved
+    onEnter: [notify_assignee]
+  done:
+    label: Done
+    terminal: true
+    onEnter:
+      - release_leases
+      - notify_creator
+      - close_thread
+      - post_notice: { channel: alerts, text: "✅ {{task.id}} resolved: {{task.title}}" }
+  cancelled:
+    label: Cancelled
+    terminal: true
+    onEnter: [release_leases, close_thread]
+transitions:
+  - { action: assign, from: [triage], to: fixing, by: [system, human], requires: [to] }
+  - { action: claim, from: [triage], to: fixing, by: [agent] }
+  - { action: handoff, from: [fixing], to: fixing, by: [assignee], requires: [to, note] }
+  - { action: submit, from: [fixing], to: in_review, by: [assignee], requires: [prUrl] }
+  - { action: approve, from: [in_review], to: approved, by: [system] }
+  - { action: request_changes, from: [in_review], to: fixing, by: [system] }
+  - { action: complete, from: [approved], to: done, by: [assignee, human] }
+  - { action: cancel, from: "*", to: cancelled, by: [creator, human] }

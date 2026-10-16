@@ -1,0 +1,26 @@
+{
+  "name": "@agentmesh/discord-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mirrors the AgentMesh activity feed into Discord and relays humans' commands and replies.",
+  "bin": {
+    "agentmesh-discord": "./dist/main.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@agentmesh/bus": "workspace:*",
+    "@agentmesh/common": "workspace:*",
+    "@agentmesh/config": "workspace:*",
+    "@agentmesh/protocol": "workspace:*",
+    "discord.js": "14.27.0",
+    "zod": "4.6.7"
+  },
+  "files": [
+    "dist"
+  ]
+}

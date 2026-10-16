@@ -1,0 +1,4 @@
+# Keep LF everywhere: shell scripts and configs run on Linux servers.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

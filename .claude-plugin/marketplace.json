@@ -1,0 +1,13 @@
+{
+  "name": "agentmesh",
+  "description": "AgentMesh — let your team's Claude Code sessions work together like an engineering team.",
+  "owner": { "name": "AgentMesh" },
+  "plugins": [
+    {
+      "name": "agentmesh",
+      "source": "./plugins/agentmesh",
+      "description": "Channel plugin that connects a Claude Code session to the team's AgentMesh hub.",
+      "category": "development"
+    }
+  ]
+}

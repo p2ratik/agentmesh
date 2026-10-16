@@ -1,0 +1,24 @@
+{
+  "name": "@agentmesh/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "agentmesh CLI: scaffold, validate, manage participant keys, render NATS config.",
+  "bin": {
+    "agentmesh": "./dist/main.js"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@agentmesh/common": "workspace:*",
+    "@agentmesh/config": "workspace:*",
+    "@agentmesh/protocol": "workspace:*",
+    "@nats-io/nkeys": "2.0.3",
+    "yaml": "2.9.1"
+  },
+  "files": [
+    "dist"
+  ]
+}

@@ -1,0 +1,31 @@
+import { isAbsolute, resolve } from 'node:path';
+
+/**
+ * Everything a command touches outside its arguments. `main.ts` builds it
+ * from the real process; tests pass temp directories and capture output.
+ */
+export interface CliContext {
+  /** Directory relative paths resolve against. */
+  cwd: string;
+  env: Record<string, string | undefined>;
+  homeDir: string;
+  stdout(text: string): void;
+  stderr(text: string): void;
+}
+
+/** One `agentmesh` subcommand. `name` may have two words (`keys add`). */
+export interface Command {
+  name: string;
+  summary: string;
+  help: string;
+  run(argv: string[], ctx: CliContext): Promise<number> | number;
+}
+
+export function resolveFrom(ctx: CliContext, path: string): string {
+  return isAbsolute(path) ? path : resolve(ctx.cwd, path);
+}
+
+/** The config directory: `--config`, else `$AGENTMESH_CONFIG`, else the current directory. */
+export function configPathFrom(ctx: CliContext, flag: string | undefined): string {
+  return resolveFrom(ctx, flag ?? ctx.env.AGENTMESH_CONFIG ?? '.');
+}

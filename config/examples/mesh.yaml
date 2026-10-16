@@ -1,0 +1,128 @@
+# AgentMesh configuration — one directory describes your team, how work flows and
+# how the hub reaches everyone. Secrets come from the environment: ${NAME} or
+# ${NAME:-fallback}. Check it with:  agentmesh validate --config <this dir>
+version: 1
+
+mesh:
+  name: acme # shown in Discord and in every agent's instructions
+  prefix: mesh # NATS subject prefix; use another one to run several meshes on one NATS
+
+nats:
+  # How processes reach NATS. AGENTMESH_NATS_URL overrides this at runtime
+  # (docker compose sets it to nats://nats:4222 for the hub and the bridge).
+  servers: nats://localhost:4222
+
+hub:
+  dataDir: ./data # hub.sqlite lives here (AGENTMESH_DATA_DIR overrides)
+  http:
+    enabled: true # GET /healthz and POST /v1/ingest/<source>
+    host: 0.0.0.0
+    port: 8787
+  # nkey: U…   # written by `agentmesh keys add hub`
+
+# People. Their Discord user ids let them run slash commands and reply in threads.
+# (Discord: Settings → Advanced → Developer Mode, then right-click a user → Copy User ID.)
+humans:
+  - id: alice
+    displayName: Alice
+    discordUserId: "100000000000000001"
+    roles: [admin] # admins may /mesh pause and /mesh resume
+  - id: bob
+    displayName: Bob
+    discordUserId: "100000000000000002"
+  - id: carol
+    displayName: Carol
+    discordUserId: "100000000000000003"
+
+# One Claude Code session per person, each running the agentmesh plugin.
+# In Discord each agent posts under its own name and picture: displayName defaults to
+# "<owner>'s agent", and without avatarUrl every agent gets a distinct built-in avatar.
+agents:
+  - id: alice-agent
+    owner: alice
+    skills: [backend, api, aws]
+    # displayName: "Alice's Claude"
+    # avatarUrl: https://github.com/alice.png   # any public https image
+  - id: bob-agent
+    owner: bob
+    skills: [frontend, react]
+  - id: carol-agent
+    owner: carol
+    skills: [backend, infra]
+
+# Non-human participants: the Discord bridge, and producers of external events.
+services:
+  - id: discord-bridge
+    role: bridge
+    canActAsHumans: true # relays commands and replies from the humans listed above
+  - id: hermes
+    role: ingest # may also publish events straight to NATS (mesh.ingest.hermes)
+
+# Code ownership drives task routing ("hybrid": owner → least loaded → board)
+# and reviewer selection.
+areas:
+  - id: api
+    description: Backend API and workers
+    repos: [acme/api]
+    paths: ["src/**"]
+    owners: [alice-agent, carol-agent]
+    skills: [backend]
+  - id: web
+    description: Web app
+    repos: [acme/web]
+    owners: [bob-agent]
+    skills: [frontend]
+
+git:
+  integrationBranch: agents # agents open PRs into this and merge after peer review
+  protectedBranches: [main] # only humans merge here — enforce it with branch protection
+  branchTemplate: "agent/{owner}/{task}-{slug}"
+  agentsMayMergeInto: [agents]
+
+policy:
+  instructionsFile: policy/team-policy.md # appended to every agent's channel instructions
+
+assignment:
+  maxActiveTasksPerAgent: 3
+  preferOnline: true
+  boardAnnounce: matching-skills # who hears about unowned tasks: matching-skills | online | none
+
+review:
+  requiredApprovals: 1
+  maxReviewers: 2
+
+planning:
+  facilitator: initiator # the agent of whoever ran /plan — or a fixed agent id
+  requireApproval: false # true: a human must /plan approve before tasks are created
+  quorum: 1 # share of online participants whose contributions end a round early
+
+limits:
+  maxThreadDepth: 3 # A→B→C→D: deeper chains of agent-created threads are refused
+  perThreadPerHour: 40
+  perSenderPerDay: 500
+
+tasks:
+  defaultWorkflow: feature # built-ins: feature, review — add your own in workflows/
+
+ingest:
+  sources:
+    # A Hermes bot (cron + event-driven) posting IngestEvent JSON with a bearer token.
+    - id: hermes
+      auth: { type: bearer, token: "${HERMES_INGEST_TOKEN}" }
+    # GitHub webhooks straight to the hub: the payload becomes `payload`,
+    # the type is "<x-github-event>.<action>" (e.g. workflow_run.completed).
+    - id: github
+      format: raw
+      typeHeader: x-github-event
+      typeField: action
+      idHeader: x-github-delivery
+      auth: { type: hmac-sha256, secret: "${GITHUB_WEBHOOK_SECRET}" }
+
+discord:
+  enabled: false # set to true once the bot exists (docs/discord.md)
+  token: ${DISCORD_BOT_TOKEN:-}
+  applicationId: ${DISCORD_APP_ID:-}
+  guildId: ${DISCORD_GUILD_ID:-}
+  provision: { enabled: true, category: "Agent Mesh" }
+  # channels: override names per purpose (council, tasks, reviews, planning,
+  # escalations, events, alerts) — defaults in docs/configuration.md

@@ -1,0 +1,242 @@
+/**
+ * Contracts between hub modules. Modules depend on these interfaces, never on
+ * each other's internals or tables. Internal ids are integers; protocol ids
+ * (`thr-12`, `task-42`, `plan-7`) are produced only at the edges.
+ */
+import type {
+  DomainEventData,
+  DomainEventType,
+  IngestEvent,
+  MeshMessage,
+  MessageKind,
+  MessageRefs,
+  ParticipantKind,
+  PeerInfo,
+  Plan,
+  PresenceStatus,
+  ReplyStatus,
+  RpcMethodName,
+  RpcParams,
+  RpcResult,
+  TaskDetail,
+  ThreadKind,
+  ThreadSummary,
+  Trust,
+} from '@agentmesh/protocol';
+
+/** Who is acting. For bridge calls with `actAs`, this is the human, not the bridge. */
+export interface Actor {
+  id: string;
+  kind: ParticipantKind;
+  roles: string[];
+  /** Set when a trusted service relays on behalf of a human. */
+  viaService?: string;
+}
+
+// ---------------------------------------------------------------- RPC
+
+export interface CallContext {
+  actor: Actor;
+  /** The authenticated NATS identity (the bridge, for relayed human calls). */
+  caller: Actor;
+  method: RpcMethodName;
+}
+
+export type RpcHandler<M extends RpcMethodName> = (
+  params: RpcParams<M>,
+  call: CallContext,
+) => RpcResult<M> | Promise<RpcResult<M>>;
+
+export type RpcHandlerMap = { [M in RpcMethodName]: RpcHandler<M> };
+
+// ---------------------------------------------------------------- lifecycle
+
+export interface TickJob {
+  name: string;
+  run(now: Date): void | Promise<void>;
+}
+
+/** What every module factory returns. `app.ts` wires them together. */
+export interface HubModule<S> {
+  service: S;
+  handlers: Partial<RpcHandlerMap>;
+  ticks?: TickJob[];
+  start?(): Promise<void>;
+  stop?(): Promise<void>;
+}
+
+// ---------------------------------------------------------------- outbox
+
+/**
+ * Transactional outbox: services write deliveries/events inside the same DB
+ * transaction as their state change; a dispatcher publishes them to NATS.
+ */
+export interface Outbox {
+  enqueueDelivery(message: MeshMessage, recipientId: string, held: boolean): void;
+  enqueueEvent<T extends DomainEventType>(type: T, data: DomainEventData<T>): void;
+  /** Schedules a flush without awaiting it. Call after committing. */
+  kick(): void;
+  flush(): Promise<void>;
+  /** Kill-switch resume: held deliveries become pending. Returns how many. */
+  releaseHeld(): number;
+  heldCount(): number;
+}
+
+// ---------------------------------------------------------------- control
+
+export interface ControlService {
+  isPaused(): boolean;
+  pausedReason(): string | null;
+  pause(by: string, reason: string | null): void;
+  /** Returns how many held deliveries were released. */
+  resume(by: string): number;
+  setRef(system: string, entityType: string, entityId: string, ref: string): void;
+  getRef(system: string, entityType: string, entityId: string): string | null;
+  findRef(system: string, ref: string): { entityType: string; entityId: string } | null;
+}
+
+// ---------------------------------------------------------------- presence
+
+export interface PresenceService {
+  /** Mark online and refresh last-seen (heartbeats and every RPC call). */
+  touch(participantId: string, info?: { repo?: string; branch?: string }): void;
+  setDeclared(participantId: string, status: 'online' | 'busy' | 'away', note: string | null): void;
+  markOffline(participantId: string): void;
+  isOnline(participantId: string): boolean;
+  status(participantId: string): PresenceStatus;
+  peer(participantId: string): PeerInfo;
+  peers(kind?: ParticipantKind | 'all'): PeerInfo[];
+  lastAssignedAt(participantId: string): string | null;
+  markAssigned(participantId: string, at: Date): void;
+  /** Wired by app.ts once the task module exists (avoids a module cycle). */
+  setLoadReader(reader: () => Map<string, number>): void;
+}
+
+// ---------------------------------------------------------------- messaging
+
+export interface ThreadRecord {
+  id: number;
+  kind: ThreadKind;
+  subject: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  depth: number;
+  parentId: number | null;
+  taskId: number | null;
+  planId: number | null;
+  status: 'open' | 'closed';
+  messageCount: number;
+}
+
+export interface CreateThreadInput {
+  kind: ThreadKind;
+  subject: string;
+  createdBy: string;
+  participants: string[];
+  parentThreadId?: number | null;
+  taskId?: number | null;
+  planId?: number | null;
+}
+
+export interface PostInput {
+  threadId: number;
+  /** Participant id, or the hub's own service id for system notices. */
+  senderId: string;
+  kind: MessageKind;
+  body: string;
+  status?: ReplyStatus | null;
+  trust?: Trust;
+  refs?: MessageRefs;
+  /**
+   * Recipients. Omitted: every thread participant except the sender.
+   * An explicit empty array stores the message (history, feed) but delivers to nobody.
+   */
+  to?: string[];
+  /** Whether explicit recipients join the thread (default true). Board announcements pass false. */
+  addToThread?: boolean;
+  /** Hub-generated messages skip rate limits and dedup. */
+  system?: boolean;
+}
+
+export interface PostResult {
+  message: MeshMessage;
+  deliveredTo: string[];
+  held: boolean;
+}
+
+export interface MessagingService {
+  /** The hub's own sender id for system messages. */
+  readonly hubId: string;
+  createThread(input: CreateThreadInput): ThreadRecord;
+  /** Stores, redacts, enforces limits, enqueues deliveries and the feed event. Sync (DB only). */
+  post(input: PostInput): PostResult;
+  addParticipants(threadId: number, participantIds: string[]): void;
+  participants(threadId: number): string[];
+  closeThread(threadId: number, by: string): ThreadSummary;
+  thread(threadId: number): ThreadRecord;
+  summary(threadId: number): ThreadSummary;
+  linkThread(threadId: number, link: { taskId?: number; planId?: number }): void;
+  /** Threads with unread messages for this participant. */
+  unreadThreadCount(participantId: string): number;
+}
+
+// ---------------------------------------------------------------- leases
+
+export interface LeaseService {
+  releaseForTask(taskId: number): number;
+  releaseAll(holder: string): number;
+}
+
+// ---------------------------------------------------------------- tasks
+
+export interface TaskCreateInput {
+  title: string;
+  description: string;
+  repo?: string | undefined;
+  area?: string | undefined;
+  assignee?: string | undefined;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  labels: string[];
+  doneWhen?: string | undefined;
+  /** Internal task ids. */
+  dependsOn: number[];
+  baseBranch?: string | undefined;
+  workflow?: string | undefined;
+  parentThreadId?: number | undefined;
+  planId?: number | undefined;
+  prUrl?: string | undefined;
+  /** Explicit reviewers (review workflow). */
+  reviewers?: string[] | undefined;
+  trust?: Trust;
+}
+
+export interface TaskActInput {
+  note?: string | undefined;
+  prUrl?: string | undefined;
+  branch?: string | undefined;
+  to?: string | undefined;
+}
+
+export interface TaskService {
+  create(input: TaskCreateInput, actor: Actor): TaskDetail;
+  act(taskId: number, action: string, input: TaskActInput, actor: Actor): TaskDetail;
+  get(taskId: number, actor: Actor): TaskDetail;
+  /** Load per agent: number of non-terminal tasks assigned to it. */
+  activeLoad(): Map<string, number>;
+  openCount(): number;
+}
+
+// ---------------------------------------------------------------- planning
+
+export interface PlanningService {
+  get(planId: number): Plan;
+  activeCount(): number;
+}
+
+// ---------------------------------------------------------------- ingest
+
+export interface IngestService {
+  /** Stores (dedup by id), evaluates rules, runs actions. */
+  accept(source: string, event: IngestEvent): Promise<{ id: string; duplicate: boolean }>;
+}

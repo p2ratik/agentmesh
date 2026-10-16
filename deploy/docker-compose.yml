@@ -1,0 +1,66 @@
+# The hub VM: NATS JetStream + the AgentMesh hub (+ the Discord bridge).
+#
+#   cp .env.example .env              # fill in secrets
+#   docker compose up -d              # nats + hub
+#   docker compose --profile discord up -d   # also the Discord bridge
+#
+# Expects (relative to this directory):
+#   nats/nats.conf    from `agentmesh nats-config [--tls] --out deploy/nats/nats.conf`
+#   nats/tls/         fullchain.pem + privkey.pem when NATS requires TLS (see deploy/azure)
+#   secrets/*.nk      from `agentmesh keys add … --secrets deploy/secrets`
+#   the mesh config   at $AGENTMESH_CONFIG_DIR (default ../config)
+name: agentmesh
+
+services:
+  nats:
+    image: nats:2.15.1-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes:
+      - ./nats/nats.conf:/etc/nats/nats.conf:ro
+      - ./nats/tls:/etc/nats/tls:ro
+      - nats-data:/data
+    ports:
+      # Tailscale: the VM's tailnet IP. Public TLS endpoint: 0.0.0.0 (nats.conf must use --tls).
+      - "${NATS_BIND:-127.0.0.1}:4222:4222"
+    networks:
+      default:
+        # With TLS the hub must connect by the certificate's name; this alias resolves it
+        # to this container from inside the compose network.
+        aliases: ["${NATS_PUBLIC_HOST:-nats}"]
+    restart: unless-stopped
+
+  hub:
+    build: { context: .., dockerfile: deploy/Dockerfile, target: hub }
+    env_file: .env
+    environment:
+      AGENTMESH_CONFIG: /config
+      AGENTMESH_DATA_DIR: /data
+      AGENTMESH_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
+      AGENTMESH_NKEY_SEED: /secrets/hub.nk
+    volumes:
+      - ${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
+      - ./secrets:/secrets:ro
+      - hub-data:/data
+    ports:
+      # Ingest endpoint for Hermes/GitHub. Keep it private, or put a TLS proxy in front.
+      - "${HUB_HTTP_BIND:-127.0.0.1}:8787:8787"
+    depends_on: [nats]
+    restart: unless-stopped
+
+  discord-bridge:
+    profiles: [discord]
+    build: { context: .., dockerfile: deploy/Dockerfile, target: discord-bridge }
+    env_file: .env
+    environment:
+      AGENTMESH_CONFIG: /config
+      AGENTMESH_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
+      AGENTMESH_NKEY_SEED: /secrets/discord-bridge.nk
+    volumes:
+      - ${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
+      - ./secrets:/secrets:ro
+    depends_on: [hub]
+    restart: unless-stopped
+
+volumes:
+  nats-data: {}
+  hub-data: {}

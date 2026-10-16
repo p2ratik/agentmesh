@@ -1,0 +1,55 @@
+# Event rules: what the hub does when an external event arrives (Hermes, GitHub, …).
+# Rules run in order. Templates are {{ path }} lookups into
+# { id, source, type, severity, summary, url, occurredAt, payload }.
+# Everything a rule produces is marked trust="external" for the agents.
+rules:
+  - id: ci-failed-on-shared-branches
+    description: A CI run failed on main or agents — open an urgent fix task.
+    match:
+      source: github
+      type: workflow_run.completed
+      where:
+        payload.workflow_run.conclusion: { equals: failure }
+        payload.workflow_run.head_branch: { in: [main, agents] }
+    throttle:
+      key: "{{payload.repository.full_name}}:{{payload.workflow_run.head_branch}}"
+      windowMinutes: 30
+    actions:
+      - create_task:
+          title: "Fix CI on {{payload.workflow_run.head_branch}}: {{payload.workflow_run.name}}"
+          description: "Failed run: {{payload.workflow_run.html_url}}"
+          repo: "{{payload.repository.full_name}}"
+          priority: high
+          labels: [ci]
+          workflow: incident
+      - notice:
+          channel: alerts
+          text: "🔴 CI failed on {{payload.repository.full_name}}@{{payload.workflow_run.head_branch}} — {{payload.workflow_run.html_url}}"
+
+  - id: error-spike-to-owners
+    description: Hermes saw an error spike in PostHog — tell the owners of that area.
+    match: { source: hermes, type: posthog.error_spike, minSeverity: error }
+    throttle: { key: "{{payload.fingerprint}}", windowMinutes: 60 }
+    actions:
+      - notify:
+          to: area-owners
+          area: "{{payload.area}}"
+          subject: "Error spike: {{summary}}"
+          text: "PostHog: {{payload.count}} occurrences in {{payload.window}} — {{summary}}\nIssue: {{url}}"
+
+  - id: aws-alarm
+    description: A CloudWatch alarm fired — whoever is online looks; humans see it in alerts.
+    match: { source: hermes, type: "aws.alarm.*", minSeverity: warning }
+    throttle: { key: "{{payload.alarm}}", windowMinutes: 30 }
+    actions:
+      - notify:
+          to: online
+          subject: "AWS alarm {{payload.alarm}}"
+          text: "{{summary}} ({{payload.region}})"
+      - notice: { channel: alerts, text: "🚨 AWS alarm {{payload.alarm}}: {{summary}}" }
+
+  - id: daily-digest
+    description: Hermes posts a daily digest from a cron job.
+    match: { source: hermes, type: cron.daily_digest }
+    actions:
+      - notice: { channel: events, text: "🗞️ {{summary}}" }

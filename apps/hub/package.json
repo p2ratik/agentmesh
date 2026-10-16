@@ -1,0 +1,25 @@
+{
+  "name": "@agentmesh/hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AgentMesh coordinator: routing, threads, tasks, workflows, planning, leases, event rules.",
+  "bin": {
+    "agentmesh-hub": "./dist/main.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@agentmesh/bus": "workspace:*",
+    "@agentmesh/common": "workspace:*",
+    "@agentmesh/config": "workspace:*",
+    "@agentmesh/protocol": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "files": [
+    "dist"
+  ]
+}

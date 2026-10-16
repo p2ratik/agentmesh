@@ -1,0 +1,150 @@
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { loadConfig } from '@agentmesh/config';
+import { describe, expect, it } from 'vitest';
+import type { CliContext } from './context';
+import { findExamplesDir } from './lib/repo-paths';
+import { runCli } from './main';
+import { permissionsFor } from './render/permissions';
+
+const SECRETS = {
+  HERMES_INGEST_TOKEN: 'hermes-token-0123456789abcdef',
+  GITHUB_WEBHOOK_SECRET: 'github-secret-0123456789abcdef',
+};
+
+function harness(env: Record<string, string | undefined> = {}) {
+  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-cli-'));
+  const out: string[] = [];
+  const err: string[] = [];
+  const ctx: CliContext = {
+    cwd,
+    env,
+    homeDir: join(cwd, 'home'),
+    stdout: (t) => out.push(t),
+    stderr: (t) => err.push(t),
+  };
+  return { cwd, ctx, out, err, run: (...argv: string[]) => runCli(argv, ctx) };
+}
+
+describe('config/examples', () => {
+  it('loads cleanly, including the incident workflow and the example rules', () => {
+    const { config } = loadConfig(findExamplesDir(), { env: SECRETS });
+    expect(config.workflows.map((w) => w.id)).toEqual(['feature', 'review', 'incident']);
+    expect(config.rules.map((r) => r.id)).toContain('ci-failed-on-shared-branches');
+    expect(config.git.integrationBranch).toBe('agents');
+  });
+});
+
+describe('agentmesh CLI', () => {
+  it('scaffolds, validates, issues keys and renders NATS config end to end', async () => {
+    const h = harness(SECRETS);
+    expect(await h.run('init', 'mesh')).toBe(0);
+    expect(await h.run('init', 'mesh')).toBe(1);
+    expect(await h.run('validate', '--config', 'mesh')).toBe(0);
+    expect(h.out.at(-1)).toContain('Agents:      3 (alice-agent, bob-agent, carol-agent)');
+
+    expect(await h.run('nats-config', '--config', 'mesh')).toBe(2);
+    expect(h.err.at(-1)).toMatch(/No nkey for: hub, alice-agent/);
+
+    for (const id of [
+      'hub',
+      'alice-agent',
+      'bob-agent',
+      'carol-agent',
+      'discord-bridge',
+      'hermes',
+    ]) {
+      expect(await h.run('keys', 'add', id, '--config', 'mesh')).toBe(0);
+    }
+    const mesh = readFileSync(join(h.cwd, 'mesh', 'mesh.yaml'), 'utf8');
+    expect(mesh).toContain('# One Claude Code session per person');
+    expect(mesh).toMatch(
+      /- id: alice-agent\n {4}owner: alice\n {4}skills: \[backend, api, aws\]\n {4}nkey: U[A-Z2-7]{55}/,
+    );
+    expect(readFileSync(join(h.cwd, 'secrets', 'alice-agent.nk'), 'utf8')).toMatch(
+      /^SU[A-Z2-7]{56}\n$/,
+    );
+    expect(await h.run('keys', 'add', 'alice-agent', '--config', 'mesh')).toBe(1);
+    expect(await h.run('keys', 'add', 'alice', '--config', 'mesh')).toBe(2);
+
+    expect(await h.run('nats-config', '--config', 'mesh', '--out', 'nats.conf')).toBe(0);
+    const conf = readFileSync(join(h.cwd, 'nats.conf'), 'utf8');
+    expect(conf).toContain('"mesh.rpc.alice-agent.>"');
+    expect(conf).toContain('"$JS.ACK.MESH_DELIVERY.inbox-alice-agent.>"');
+    expect(conf).toContain('"_INBOX_bob-agent.>"');
+    expect(conf).not.toContain('tls {');
+    expect(await h.run('nats-config', '--config', 'mesh', '--out', 'tls.conf', '--tls')).toBe(0);
+    const tls = readFileSync(join(h.cwd, 'tls.conf'), 'utf8');
+    expect(tls).toContain('tls {\n  cert_file: "/etc/nats/tls/fullchain.pem"');
+    expect(await h.run('nats-config', '--config', 'mesh', '--tls', '--dev')).toBe(2);
+    expect(await h.run('validate', '--config', 'mesh')).toBe(0);
+
+    expect(await h.run('keys', 'list', '--config', 'mesh')).toBe(0);
+    expect(h.out.at(-1)).toContain('Every participant has a key.');
+  });
+
+  it('prints and optionally writes an agent setup', async () => {
+    const h = harness(SECRETS);
+    await h.run('init', 'mesh');
+    expect(
+      await h.run(
+        'agent-setup',
+        'bob-agent',
+        '--config',
+        'mesh',
+        '--nats-url',
+        'nats://hub.tail:4222',
+        '--write',
+      ),
+    ).toBe(0);
+    const text = h.out.at(-1) ?? '';
+    expect(text).toContain(
+      'claude --dangerously-load-development-channels plugin:agentmesh@agentmesh',
+    );
+    expect(text).toContain('mcp__plugin_agentmesh_mesh__*');
+    const written = JSON.parse(
+      readFileSync(join(h.ctx.homeDir, '.agentmesh', 'agent.json'), 'utf8'),
+    );
+    expect(written).toMatchObject({
+      agentId: 'bob-agent',
+      natsUrl: 'nats://hub.tail:4222',
+      prefix: 'mesh',
+    });
+    expect(await h.run('agent-setup', 'nobody', '--config', 'mesh')).toBe(1);
+  });
+
+  it('reports config problems with paths and usage errors with exit 2', async () => {
+    const h = harness();
+    writeFileSync(join(h.cwd, 'mesh.yaml'), 'version: 1\nmesh: { name: x }\nhumans: []\n');
+    expect(await h.run('validate')).toBe(1);
+    expect(h.err.at(-1)).toContain('humans:');
+    expect(await h.run('validate', '--bogus')).toBe(2);
+    expect(await h.run('frobnicate')).toBe(2);
+    expect(await h.run('--help')).toBe(0);
+  });
+});
+
+describe('NATS permissions', () => {
+  it('scopes each kind of participant to its own subjects', () => {
+    expect(permissionsFor({ id: 'a', kind: 'agent' }, 'mesh')).toEqual({
+      publish: [
+        'mesh.rpc.a.>',
+        'mesh.presence.a',
+        '$JS.API.INFO',
+        '$JS.API.STREAM.INFO.MESH_DELIVERY',
+        '$JS.API.CONSUMER.INFO.MESH_DELIVERY.inbox-a',
+        '$JS.API.CONSUMER.MSG.NEXT.MESH_DELIVERY.inbox-a',
+        '$JS.ACK.MESH_DELIVERY.inbox-a.>',
+      ],
+      subscribe: ['_INBOX_a.>'],
+    });
+    expect(permissionsFor({ id: 'h', kind: 'ingest' }, 'acme').publish).toEqual([
+      'acme.ingest.h',
+      '$JS.API.INFO',
+    ]);
+    expect(permissionsFor({ id: 'b', kind: 'bridge' }, 'mesh').publish).toContain(
+      '$JS.API.CONSUMER.MSG.NEXT.MESH_EVENTS.feed-b',
+    );
+  });
+});
