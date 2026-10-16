@@ -7,7 +7,7 @@
 # Idempotent: safe to re-run. Expects the repo at $AGENTMESH_DIR (default /opt/agentmesh).
 set -euo pipefail
 
-: "${PUBLIC_HOST:?set PUBLIC_HOST to the VM's DNS name}"
+: "${PUBLIC_HOST:?set PUBLIC_HOST to the DNS name of the VM}"
 : "${AGENTMESH_DIR:=/opt/agentmesh}"
 : "${MESH_USER:=${SUDO_USER:-root}}"
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo" >&2; exit 1; }
