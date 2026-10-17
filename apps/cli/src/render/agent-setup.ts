@@ -3,7 +3,7 @@ export interface AgentSetupInput {
   displayName: string;
   owner: string;
   natsUrl: string;
-  /** Absolute path of the agent's nkey seed file. */
+  /** Path of the agent's nkey seed file; `~/…` is expanded on the machine that reads it. */
   seedFile: string;
   seedFound: boolean;
   prefix: string;

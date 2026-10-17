@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { Logger } from '@agentmesh/common';
+import { expandHome, type Logger } from '@agentmesh/common';
 import {
   type Authenticator,
   connect,
@@ -32,11 +32,11 @@ export interface ConnectBusOptions {
 
 const SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 
-/** Accepts a literal seed or a path to a seed file. */
+/** Accepts a literal seed or a path to a seed file (`~/…` allowed). */
 export function resolveSeed(seedOrPath: string): string {
   const value = seedOrPath.trim();
   if (SEED_PATTERN.test(value)) return value;
-  const fromFile = readFileSync(value, 'utf8').trim();
+  const fromFile = readFileSync(expandHome(value), 'utf8').trim();
   if (!SEED_PATTERN.test(fromFile))
     throw new Error(`File ${value} does not contain an nkey user seed`);
   return fromFile;

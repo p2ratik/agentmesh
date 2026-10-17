@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
+import { expandHome, MeshError } from '@agentmesh/common';
 import { ConfigIndex } from '@agentmesh/config';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom, resolveFrom } from '../context';
@@ -42,16 +42,16 @@ Prints the exact steps for the developer who owns <agent-id>. --write saves
           .join(', ')}`,
       );
     }
-    const seedFile = values['seed-file']
-      ? resolveFrom(ctx, values['seed-file'])
-      : join(ctx.homeDir, '.agentmesh', `${agentId}.nk`);
+    // `~/…` stays as written: the steps are often for a teammate's machine, not this one.
+    const given = values['seed-file'] ?? `~/.agentmesh/${agentId}.nk`;
+    const seedFile = given.startsWith('~') ? given : resolveFrom(ctx, given);
     const input: AgentSetupInput = {
       agentId,
       displayName: index.displayName(agentId),
       owner: agent.owner,
       natsUrl: values['nats-url'] ?? config.nats.servers[0] ?? 'nats://localhost:4222',
       seedFile,
-      seedFound: existsSync(seedFile),
+      seedFound: existsSync(expandHome(seedFile, ctx.homeDir)),
       prefix: config.mesh.prefix,
       marketplace: values.marketplace ?? findRepoRoot() ?? '<path or GitHub repo of AgentMesh>',
       wroteConfig: null,
