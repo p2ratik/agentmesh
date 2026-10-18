@@ -5,10 +5,12 @@
   "type": "module",
   "description": "Thin NATS/JetStream layer: connections, topology, typed RPC, durable consumers.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./permissions": "./src/permissions.ts"
   },
   "dependencies": {
     "@agentmesh/common": "workspace:*",
+    "@agentmesh/config": "workspace:*",
     "@agentmesh/protocol": "workspace:*",
     "@nats-io/jetstream": "3.4.0",
     "@nats-io/transport-node": "3.4.0"

@@ -1,5 +1,7 @@
+import type { NatsUser } from '@agentmesh/bus/permissions';
 import { MeshError } from '@agentmesh/common';
-import { type NatsUser, permissionsFor } from './permissions';
+import { type CalloutKeys, renderCalloutAuth } from './nats-callout';
+import { quote, renderUser } from './nats-users';
 
 export interface NatsConfigInput {
   meshName: string;
@@ -16,6 +18,11 @@ export interface NatsConfigInput {
    * connection must use TLS — required when NATS is reachable from the internet.
    */
   tls?: { certFile: string; keyFile: string };
+  /**
+   * Account mode: agents connect through the hub's auth callout instead of
+   * being listed; the hub and services stay static users.
+   */
+  authCallout?: CalloutKeys;
 }
 
 export interface NatsConfigResult {
@@ -29,34 +36,16 @@ export interface NatsConfigResult {
 export const DEFAULT_MAX_FILE_STORE = '5GB';
 const SIZE_PATTERN = /^\d+(?:[KMGT]B?)?$/i;
 
-/** NATS config strings are double-quoted so `$JS…` is never read as a variable. */
-const quote = (value: string): string => JSON.stringify(value);
-
-function list(values: string[], indent: string): string {
-  return `[\n${values.map((v) => `${indent}  ${quote(v)}`).join(',\n')}\n${indent}]`;
-}
-
-function renderUser(user: NatsUser & { nkey: string }, prefix: string): string {
-  const perms = permissionsFor(user, prefix);
-  const label = user.kind === 'hub' ? 'hub' : `${user.kind} ${user.id}`;
-  return [
-    `    # ${label}`,
-    '    {',
-    `      nkey: ${quote(user.nkey)}`,
-    '      permissions: {',
-    `        publish: { allow: ${list(perms.publish, '        ')} }`,
-    `        subscribe: { allow: ${list(perms.subscribe, '        ')} }`,
-    '      }',
-    '    }',
-  ].join('\n');
-}
-
 function withKeys(input: NatsConfigInput): {
   users: Array<NatsUser & { nkey: string }>;
   skipped: string[];
 } {
-  const users = input.users.flatMap((u) => (u.nkey ? [{ ...u, nkey: u.nkey }] : []));
-  const skipped = input.users.filter((u) => !u.nkey).map((u) => u.id);
+  // In callout mode agents are admitted by the hub, so their keys do not belong here.
+  const candidates = input.authCallout
+    ? input.users.filter((u) => u.kind !== 'agent')
+    : input.users;
+  const users = candidates.flatMap((u) => (u.nkey ? [{ ...u, nkey: u.nkey }] : []));
+  const skipped = candidates.filter((u) => !u.nkey).map((u) => u.id);
   if (skipped.length > 0 && !input.allowMissing) {
     throw new MeshError(
       'invalid_request',
@@ -107,14 +96,16 @@ export function renderNatsConfig(input: NatsConfigInput): NatsConfigResult {
     return { text: `${[...header, '', warning].join('\n')}\n`, skipped: [], included: [] };
   }
   const { users, skipped } = withKeys(input);
-  const auth = [
-    '',
-    'authorization {',
-    '  users: [',
-    users.map((u) => renderUser(u, input.prefix)).join(',\n'),
-    '  ]',
-    '}',
-  ];
+  const auth = input.authCallout
+    ? renderCalloutAuth(users, input.prefix, input.authCallout)
+    : [
+        '',
+        'authorization {',
+        '  users: [',
+        users.map((u) => renderUser(u, input.prefix)).join(',\n'),
+        '  ]',
+        '}',
+      ];
   return {
     text: `${[...header, ...auth].join('\n')}\n`,
     skipped,

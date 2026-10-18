@@ -12,6 +12,7 @@
     "build": "tsup"
   },
   "dependencies": {
+    "@agentmesh/bus": "workspace:*",
     "@agentmesh/common": "workspace:*",
     "@agentmesh/config": "workspace:*",
     "@agentmesh/protocol": "workspace:*",

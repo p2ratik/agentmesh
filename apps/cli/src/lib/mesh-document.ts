@@ -1,13 +1,22 @@
 import { MeshError } from '@agentmesh/common';
 import { type Document, isMap, isSeq, parseDocument } from 'yaml';
 
-/** Who can hold a NATS nkey: agents, services, and the hub's own user. */
-export type KeyHolderKind = 'agent' | 'service' | 'hub';
+/** Who can hold a NATS nkey: agents, services, the hub's own user and its auth-callout keys. */
+export type KeyHolderKind = 'agent' | 'service' | 'hub' | 'callout';
+
+/** The hub's auth-callout keys: the JWT issuer account, the xkey curve and the sys user. */
+export type CalloutKeyRole = 'issuer' | 'xkey' | 'sys';
+
+const CALLOUT_FIELDS: Record<CalloutKeyRole, string> = {
+  issuer: 'issuer',
+  xkey: 'xkey',
+  sys: 'sysNkey',
+};
 
 export interface KeyHolder {
   id: string;
   kind: KeyHolderKind;
-  /** Service role (`bridge`, `ingest`, `custom`); absent for agents and the hub. */
+  /** Service role (`bridge`, `ingest`, `custom`) or callout key role; absent for agents and the hub. */
   role?: string;
   nkey: string | null;
   /** Where the public key lives in mesh.yaml, e.g. `agents[2].nkey`. */
@@ -43,9 +52,22 @@ function listEntries(doc: Document, section: 'agents' | 'services' | 'humans') {
   });
 }
 
-/** Every participant that can hold a key, read straight from the YAML (no env needed). */
-export function listKeyHolders(text: string): KeyHolder[] {
-  const doc = parse(text);
+/** `<hub>-issuer`, `<hub>-xkey` and `<hub>-sys`, whether or not they have keys yet. */
+function calloutHolders(doc: Document, hubId: string): KeyHolder[] {
+  return (Object.keys(CALLOUT_FIELDS) as CalloutKeyRole[]).map((role) => {
+    const field = CALLOUT_FIELDS[role];
+    return {
+      id: `${hubId}-${role}`,
+      kind: 'callout',
+      role,
+      nkey: stringOrNull(doc.getIn(['hub', 'authCallout', field])),
+      path: `hub.authCallout.${field}`,
+      yamlPath: ['hub', 'authCallout', field],
+    };
+  });
+}
+
+function keyHolders(doc: Document, withCallout: boolean): KeyHolder[] {
   const holders: KeyHolder[] = [];
   const hubId = stringOrNull(doc.getIn(['hub', 'serviceId'])) ?? 'hub';
   holders.push({
@@ -55,6 +77,9 @@ export function listKeyHolders(text: string): KeyHolder[] {
     path: 'hub.nkey',
     yamlPath: ['hub', 'nkey'],
   });
+  if (withCallout || isMap(doc.getIn(['hub', 'authCallout'], true))) {
+    holders.push(...calloutHolders(doc, hubId));
+  }
   for (const a of listEntries(doc, 'agents')) {
     const path = `agents[${a.index}].nkey`;
     holders.push({
@@ -78,12 +103,21 @@ export function listKeyHolders(text: string): KeyHolder[] {
   return holders;
 }
 
+/**
+ * Every participant that can hold a key, read straight from the YAML (no env
+ * needed). The hub's callout keys are listed once `hub.authCallout` exists.
+ */
+export function listKeyHolders(text: string): KeyHolder[] {
+  return keyHolders(parse(text), false);
+}
+
 /** Finds a key holder or explains why the id cannot hold a key. */
 export function findKeyHolder(text: string, participantId: string): KeyHolder {
-  const holders = listKeyHolders(text);
+  const doc = parse(text);
+  const holders = keyHolders(doc, true);
   const holder = holders.find((h) => h.id === participantId);
   if (holder) return holder;
-  if (listEntries(parse(text), 'humans').some((h) => h.id === participantId)) {
+  if (listEntries(doc, 'humans').some((h) => h.id === participantId)) {
     throw new MeshError(
       'invalid_request',
       `"${participantId}" is a human. Humans act through the Discord bridge; give a key to their agent instead.`,

@@ -39,6 +39,21 @@ export const MeshConfigSchema = z.object({
         .string()
         .regex(/^U[A-Z2-7]{55}$/)
         .optional(),
+      /**
+       * Public keys for NATS auth-callout mode (`agentmesh nats-config --auth-callout`);
+       * generate each with `agentmesh keys add <hub>-issuer|-xkey|-sys`.
+       */
+      authCallout: z
+        .object({
+          /** Account key that signs callout responses and user JWTs. */
+          issuer: z.string().regex(/^A[A-Z2-7]{55}$/, 'a NATS account public key (A…)'),
+          /** Curve key that seals auth requests, hiding invite codes on the wire. */
+          xkey: z.string().regex(/^X[A-Z2-7]{55}$/, 'a NATS curve public key (X…)'),
+          /** The hub's system-account user, limited to kicking connections. */
+          sysNkey: z.string().regex(/^U[A-Z2-7]{55}$/, 'a NATS user public key (U…)'),
+        })
+        .partial()
+        .optional(),
       dataDir: z.string().default('./data'),
       http: z
         .object({
