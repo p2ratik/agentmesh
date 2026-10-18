@@ -1,5 +1,5 @@
 import { ManualClock, MeshError, MINUTE_MS } from '@agentmesh/common';
-import { encodeInvite, type MemberRecord } from '@agentmesh/protocol';
+import { encodeInvite, type InvitePayload, type MemberRecord } from '@agentmesh/protocol';
 import { createAccount, createServer, createUser, type KeyPair } from '@nats-io/nkeys';
 import { describe, expect, it } from 'vitest';
 import type { RedeemInput } from '../../contracts';
@@ -11,8 +11,16 @@ const NOW = new Date('2026-10-16T09:00:00.000Z');
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64url');
 const sign = (kp: KeyPair, nonce: string) => b64(kp.sign(new TextEncoder().encode(nonce)));
 const SECRET = 'A'.repeat(43);
+// Client-side hints the callout never reads; included so the code decodes with or without them.
+const HINTS = { agentId: 'dana-agent', prefix: 'mesh' };
 const invite = (inviteId = 'inv-1') =>
-  encodeInvite({ v: 1, natsUrl: 'tls://mesh.example.com:4222', inviteId, secret: SECRET });
+  encodeInvite({
+    v: 1,
+    natsUrl: 'tls://mesh.example.com:4222',
+    inviteId,
+    secret: SECRET,
+    ...HINTS,
+  } as InvitePayload);
 
 function request(user: KeyPair, opts: { token?: string; signer?: KeyPair } = {}): AuthRequest {
   return {
