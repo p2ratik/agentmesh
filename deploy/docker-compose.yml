@@ -16,8 +16,9 @@ services:
     image: nats:2.15.1-alpine
     command: ["-c", "/etc/nats/nats.conf"]
     volumes:
-      - ./nats/nats.conf:/etc/nats/nats.conf:ro
-      - ./nats/tls:/etc/nats/tls:ro
+      # Mount the directory, not nats.conf itself: a replaced file gets a new inode that a
+      # single-file bind mount never sees, so `kill -s HUP` would reload the stale config.
+      - ./nats:/etc/nats:ro
       - nats-data:/data
     ports:
       # Tailscale: the VM's tailnet IP. Public TLS endpoint: 0.0.0.0 (nats.conf must use --tls).
