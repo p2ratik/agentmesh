@@ -261,7 +261,13 @@ Pieces: a hub `enrollment` module, an auth-callout service, a plugin `join` comm
 - New config option: schema in `packages/config` with a default → validation → example in
   `config/examples` → `docs/configuration.md`.
 - After changing anything the plugin bundles, rebuild `plugins/agentmesh/dist/server.js` and
-  commit it.
+  commit it. Bump the version in `plugin.json`, `package.json` and `src/server.ts` (`VERSION`):
+  Claude Code caches plugins by version, so `claude plugin update` ignores same-version changes.
+- Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with
+  the channel flag, and pushes sent before it subscribes. The handshake doesn't reveal either
+  case. The hub's unread cursor and the `inbox` tool are the source of truth.
+- MCP server instructions are truncated at 4096 characters. Keep session state first, and keep
+  the test in `instructions.test.ts`.
 - Git: the default branch is `main`. Agents work on `agent/*` branches and merge into `agents`.
   Commit or push only when asked.
 - Never commit `config/` (the real team config), `deploy/.env`, `deploy/secrets/`, `*.nk`,
