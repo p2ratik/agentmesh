@@ -100,8 +100,8 @@ itself.
 
 ## Invite codes
 
-*The hub's enrollment module and auth callout implement these rules; ADR-0005 will give the full
-threat model.*
+*The hub's enrollment module and auth callout implement these rules. The design and its
+trade-offs are in [ADR-0005](adr/0005-team-registry-and-auth-callout.md).*
 
 An invite code (`/mesh invite`) is a **bearer token**. Whoever presents it first enrolls, so the
 Discord id on the invite only labels the member: redeeming the code does not prove that Discord
@@ -128,3 +128,39 @@ identity.
   (`enrollment.inviteTtlHours`), and rate-limited redemption (`enrollment.redeemAttemptsPerMinute`).
 - **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is
   restricted to services with the `bridge` role.
+- **Threat: the Discord DM as the delivery channel.** Anyone who can read the invitee's DMs
+  (a compromised Discord account, a shared screen) can enroll first.
+  **Mitigation (required of the bridge's `/mesh invite`, task-10):** send the code by DM only,
+  never in a channel, an `editReply`, logs or events, and cancel the invite if the DM fails. The
+  code is single use, with a
+  short TTL. An admin who sees an unexpected `member.joined` runs `/mesh remove`, which kicks at
+  once.
+  **Residual risk:** whoever redeems first wins. Prefer a short `enrollment.inviteTtlHours` for
+  sensitive teams.
+- **Threat: the code in a model transcript.** If the invitee pastes the code into Claude, it is in
+  the session transcript.
+  **Mitigation (required of the plugin's join, task-7):** read the code from a file or a terminal
+  command, never from the model. After it is used once the code is worthless.
+
+## Member keys on laptops
+
+*Requirements for the plugin's `/agentmesh:join` (task-7).*
+
+- **Where keys come from.** Join generates the member's nkey on the laptop, and only the public key
+  reaches the hub. No seed is ever sent over Discord or chat.
+- **Protecting the seed file.** On macOS and Linux the seed file is written with mode `600`.
+  **On Windows that mode is ignored:** the file is protected only by the NTFS permissions of the
+  user's profile directory (the user, Administrators and SYSTEM). Keep `~/.agentmesh` inside the
+  profile, never in a synced or shared folder.
+- **If a laptop is lost**, `/mesh remove` the member: their key is refused from then on. To
+  rejoin, they redeem a new invite and get a new key.
+
+## The hub in the authentication path (auth-callout mode)
+
+- **While the hub is down,** agents cannot connect or reconnect. Agents already connected keep
+  working until their JWT expires. The hub, the bridge and ingest are static users and are
+  unaffected.
+- **The hub's issuer seed signs every agent's credentials.** Anyone holding it can mint access for
+  any agent id, so treat it like the hub's own seed: `deploy/secrets/` only, never in
+  `mesh.yaml`, `nats.conf`, git or chat.
+- **The kick-only sys seed** can disconnect clients but cannot read or publish mesh traffic.
