@@ -25,7 +25,9 @@ export type Decision = { agentId: string } | { refused: string };
 export function serverRequest(claims: Claims | null): AuthRequest | null {
   const request = claims?.nats as AuthRequest | undefined;
   if (!request?.server_id?.id || typeof request.user_nkey !== 'string') return null;
-  // xkey hides the request but anyone can seal to it: the signature proves the sender.
+  // A consistency check, not proof of origin: anyone can mint a server key. What keeps forged
+  // requests out is that no client may publish to the auth subject (only the hub's static user
+  // has `>`; every other user carries explicit permissions).
   return claims?.iss === request.server_id.id ? request : null;
 }
 

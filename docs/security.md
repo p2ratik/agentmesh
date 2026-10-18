@@ -29,7 +29,8 @@ the irreversible decisions.
     source for both `nats.conf` and the JWTs the callout issues.
   - **The hub's callout is the only nkey signature check** (`apps/hub/src/modules/callout`):
     nats-server forwards the signature unchecked. For every connect the callout:
-    1. verifies that the request JWT is signed by the server it names;
+    1. checks that the request JWT is signed by the server it names. That is only a consistency
+       check: requests can't be forged because no client may publish to `$SYS.REQ.USER.AUTH`;
     2. verifies the agent's nkey signature over the nonce;
     3. admits a key that mesh.yaml or an active member holds;
     4. otherwise redeems the invite in `auth_token`;
