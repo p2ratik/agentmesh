@@ -3,7 +3,7 @@
 // Usage: node packages/bus/scripts/auth-callout-spike.mjs <path-to-nats-server> [--xkey]
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect, nkeys } from '@nats-io/transport-node';
@@ -18,33 +18,55 @@ const b64u = (bytes) => Buffer.from(bytes).toString('base64url');
 // ---- keys -------------------------------------------------------------------------------------
 const issuer = nkeys.createAccount(); // signs every callout response and user JWT
 const hub = nkeys.createUser(); // static user: bypasses the callout
+const bridge = nkeys.createUser(); // static, least-privilege (like permissionsFor('bridge'))
+const sysKey = nkeys.createUser(); // system account: KICK only
 const curve = useXkey ? nkeys.createCurve() : null;
-const sysPass = b64u(randomBytes(12));
 const port = 14_000 + Math.floor(Math.random() * 1000);
 
 // ---- minimal account-mode config ----------------------------------------------------------------
+// Every static user except the hub carries explicit permissions: a user without them gets `>`.
 const dir = mkdtempSync(join(tmpdir(), 'callout-'));
 const conf = `
 listen: 127.0.0.1:${port}
 jetstream { store_dir: "${join(dir, 'js').replaceAll('\\', '/')}" }
 accounts {
-  APP { jetstream: enabled, users: [ { nkey: ${hub.getPublicKey()} } ] }
-  SYS { users: [ { user: sys, password: "${sysPass}" } ] }
+  APP {
+    jetstream: enabled
+    users: [
+      { nkey: ${hub.getPublicKey()} }
+      { nkey: ${bridge.getPublicKey()},
+        permissions: { publish: ["mesh.rpc.discord-bridge.>"], subscribe: ["_INBOX_discord-bridge.>"] } }
+    ]
+  }
+  SYS {
+    users: [
+      { nkey: ${sysKey.getPublicKey()},
+        permissions: { publish: ["$SYS.REQ.SERVER.*.KICK"], subscribe: ["_INBOX.>"] } }
+    ]
+  }
 }
 system_account: SYS
 authorization {
   auth_callout {
     issuer: ${issuer.getPublicKey()}
     account: APP
-    auth_users: [ ${hub.getPublicKey()}, sys ]
+    auth_users: [ ${hub.getPublicKey()}, ${bridge.getPublicKey()}, ${sysKey.getPublicKey()} ]
     ${curve ? `xkey: ${curve.getPublicKey()}` : ''}
   }
 }
 `;
 writeFileSync(join(dir, 'nats.conf'), conf);
 const server = spawn(bin, ['-c', join(dir, 'nats.conf')], { stdio: ['ignore', 'ignore', 'pipe'] });
+process.on('exit', () => {
+  server.kill();
+  rmSync(dir, { recursive: true, force: true });
+});
 await new Promise((resolve, reject) => {
-  server.stderr.on('data', (d) => String(d).includes('Server is ready') && resolve());
+  const timer = setTimeout(() => reject(new Error('nats-server not ready after 10s')), 10_000);
+  server.stderr.on(
+    'data',
+    (d) => String(d).includes('Server is ready') && resolve(clearTimeout(timer)),
+  );
   server.on('exit', (code) => reject(new Error(`nats-server exited ${code}`)));
 });
 const url = `nats://127.0.0.1:${port}`;
@@ -205,7 +227,7 @@ record(
 
 // (d) $SYS kick by client id
 const cid = req0.client_info.id;
-const sys = await connect({ servers: url, user: 'sys', pass: sysPass });
+const sys = await connect({ servers: url, authenticator: nkeyAuth(sysKey) });
 const closed = nc.closed();
 registry.delete(dana.getPublicKey()); // revoke first, so a reconnect is refused
 const kick = await sys.request(
@@ -221,6 +243,29 @@ const wasClosed = await Promise.race([
 record('d: KICK by cid disconnects', wasClosed, JSON.stringify(kickReply).slice(0, 120));
 const again = await tryConnect('revoked', { authenticator: nkeyAuth(dana) });
 record('d: revoked key reconnect refused', !again.connected, again.error ?? '');
+const sysPing = await sys
+  .request('$SYS.REQ.SERVER.PING.CONNZ', '', { timeout: 1000 })
+  .then(() => 'answered')
+  .catch((e) => e.message);
+record('d: restricted sys user can only KICK', sysPing !== 'answered', sysPing);
+
+// static least-privilege users stay confined (a static user without permissions would get `>`)
+const bridgeConn = await connect({ servers: url, authenticator: nkeyAuth(bridge) });
+const bridgeErrors = [];
+(async () => {
+  for await (const s of bridgeConn.status())
+    if (s.type === 'error') bridgeErrors.push(String(s.error?.message ?? s.error));
+})();
+bridgeConn.subscribe('$SYS.REQ.USER.AUTH');
+bridgeConn.publish('mesh.rpc.dana-agent.ping');
+await bridgeConn.flush().catch(() => {});
+await new Promise((r) => setTimeout(r, 300));
+record(
+  'b: bridge cannot read auth requests or act as an agent',
+  bridgeErrors.filter((e) => /permission/i.test(e)).length >= 2,
+  bridgeErrors.join(' | '),
+);
+await bridgeConn.close();
 
 // fail closed: callout down -> callout users refused, static users still connect
 calloutSub.unsubscribe();
@@ -235,4 +280,3 @@ for (const r of results)
   console.log(`${String(r.answer).padEnd(5)} | ${r.q}${r.detail ? `  (${r.detail})` : ''}`);
 console.log(`xkey: ${useXkey ? 'on' : 'off'} · nats-server ${req0.server_id.version}`);
 await Promise.allSettled([hubConn.close(), sys.close(), hub2.nc?.close()]);
-server.kill();
