@@ -17,6 +17,7 @@
     "@agentmesh/common": "workspace:*",
     "@agentmesh/config": "workspace:*",
     "@agentmesh/protocol": "workspace:*",
+    "@nats-io/nkeys": "2.0.3",
     "zod": "4.6.7"
   },
   "files": [

@@ -49,7 +49,7 @@ export interface BuiltModules {
 export function buildModules(
   ctx: HubContext,
   transport: IngestTransport | null,
-  inboxes: InboxPort | null,
+  nats: { inboxes: InboxPort | null; kick: ((agentId: string) => Promise<void>) | null },
 ): BuiltModules {
   let messaging: MessagingModule | null = null;
   let tasks: TaskService | null = null;
@@ -57,7 +57,7 @@ export function buildModules(
   let presenceService: PresenceService | null = null;
 
   const enrollment = createEnrollmentModule(ctx, {
-    inboxes,
+    ...nats,
     onMembersChanged: () => presenceService?.syncFromConfig(),
   });
   const presence = createPresenceModule(ctx, {
