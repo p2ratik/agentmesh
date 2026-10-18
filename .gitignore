@@ -20,3 +20,4 @@ deploy/secrets/
 
 # The Claude Code plugin ships its bundled server so laptops need no npm install.
 !plugins/agentmesh/dist/
+CLAUDE.local.md
