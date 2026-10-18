@@ -16,7 +16,8 @@ export const agentSetupCommand: Command = {
                              [--seed-file <path>] [--marketplace <src>] [--write]
 
 Prints the exact steps for the developer who owns <agent-id>. --write saves
-~/.agentmesh/agent.json, which the plugin reads when its options are empty.`,
+~/.agentmesh/agent.json, which fills in options left empty (such as the
+seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
   run(argv, ctx) {
     const { values, positionals } = parseCommandArgs(
       argv,

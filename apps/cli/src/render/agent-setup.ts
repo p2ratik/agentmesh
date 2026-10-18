@@ -68,8 +68,8 @@ export function renderAgentSetup(input: AgentSetupInput): string {
   lines.push(
     '',
     input.wroteConfig
-      ? `Wrote ${input.wroteConfig} (the plugin's fallback when its options are empty).`
-      : 'Tip: add --write to save these values to ~/.agentmesh/agent.json (the plugin fallback).',
+      ? `Wrote ${input.wroteConfig} (fills in empty options such as the seed; agent_id and nats_url must still be entered in the plugin options).`
+      : 'Tip: add --write to save these values to ~/.agentmesh/agent.json (fills in empty options such as the seed).',
   );
   return lines.join('\n');
 }

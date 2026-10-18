@@ -156,6 +156,11 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
   - Channel `meta` keys must be identifiers.
   - Never declare `claude/channel/permission`: the mesh never relays tool-approval prompts.
 - **Users need an allow rule:** `mcp__plugin_agentmesh_mesh__*`.
+- **Required plugin options:** Claude Code does not start the plugin's MCP server until the
+  required options (`agent_id`, `nats_url`) are set; they are stored in `settings.json` under
+  `pluginConfigs`. `~/.agentmesh/agent.json` only fills in options left empty, such as the seed.
+- **Two Claude accounts on one machine:** set `CLAUDE_CONFIG_DIR` to a second folder. It gets its
+  own login, plugins and settings.
 - **TLS:** the NATS client upgrades to TLS automatically and verifies the hostname. Inside
   compose, the hub reaches NATS through a network alias equal to the public hostname.
 - **Windows dev box:** `python3` is a Store stub, so use node. Writing files through bash heredocs
