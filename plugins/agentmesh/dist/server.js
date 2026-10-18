@@ -48034,17 +48034,23 @@ async function enroll(summary, code, seed, clientVersion) {
 }
 function refusedOrUnreachable(error63, hub) {
   const text2 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
-  if (/authori[sz]ation|ECONNRESET|auth/i.test(text2))
-    return new MeshError("unauthenticated", REFUSED);
+  if (/authori[sz]ation/i.test(text2)) return new MeshError("unauthenticated", REFUSED);
   if (/tls/i.test(text2)) {
     return new MeshError(
       "unavailable",
       `${hub} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
     );
   }
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text2)) {
+    return new MeshError(
+      "unavailable",
+      `Could not reach the hub at ${hub}. Check your network and try again.`
+    );
+  }
   return new MeshError(
-    "unavailable",
-    `Could not reach the hub at ${hub}. Check your network and try again.`
+    "unauthenticated",
+    `${REFUSED} (The connection dropped, so this is not certain; the new key was kept in ~/.agentmesh in case the hub did accept it.)`,
+    { mayBeEnrolled: true }
   );
 }
 
@@ -48077,7 +48083,7 @@ async function runJoin(request) {
   try {
     hello = await enroll(summary, request.code, key.seed, request.clientVersion);
   } catch (error63) {
-    staged.discard();
+    if (!(isMeshError(error63) && error63.details?.mayBeEnrolled)) staged.discard();
     throw error63;
   }
   const seedFile = staged.commit();

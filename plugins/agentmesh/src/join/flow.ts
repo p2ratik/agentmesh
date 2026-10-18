@@ -1,4 +1,5 @@
 import { generateUserKey } from '@agentmesh/bus';
+import { isMeshError } from '@agentmesh/common';
 import { enroll, type Greeting } from './enroll';
 import { assertCanJoin, type SavedEnrollment, saveConfig, stageSeed } from './files';
 import { type InviteSummary, readInvite } from './invite';
@@ -35,7 +36,8 @@ export async function runJoin(request: JoinRequest): Promise<JoinOutcome> {
   try {
     hello = await enroll(summary, request.code, key.seed, request.clientVersion);
   } catch (error) {
-    staged.discard();
+    // Only a clear refusal proves the hub did not enroll this key; otherwise keep it staged.
+    if (!(isMeshError(error) && error.details?.mayBeEnrolled)) staged.discard();
     throw error;
   }
   const seedFile = staged.commit();

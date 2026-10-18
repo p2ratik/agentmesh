@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { MeshError } from '@agentmesh/common';
 import { encodeInvite, type InvitePayload } from '@agentmesh/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConfig } from '../config';
@@ -102,6 +103,16 @@ describe('saving the key', () => {
       'refused',
     );
     expect(readdirSync(seedDir)).toEqual([]);
+  });
+
+  it('keeps the staged key when the failure is ambiguous (a reset after admission)', async () => {
+    const dir = home();
+    enrollMock.mockRejectedValueOnce(
+      new MeshError('unauthenticated', 'x', { mayBeEnrolled: true }),
+    );
+    const request = { code: CODE, home: dir, clientVersion: 't', replace: false };
+    await expect(runJoin({ ...request, confirmedHub: 'mesh.example.com:4222' })).rejects.toThrow();
+    expect(readdirSync(join(dir, '.agentmesh'))).toEqual(['dana-agent.nk.joining']);
   });
 
   it('still saves everything when the hub admitted us but did not say hello in time', async () => {

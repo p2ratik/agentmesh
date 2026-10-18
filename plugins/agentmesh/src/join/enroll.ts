@@ -43,19 +43,30 @@ export async function enroll(
   }
 }
 
-/** Auth failures show up as `Authorization Violation` or a reset; never echo the server text. */
+/**
+ * Maps a failed connect without echoing the server text. A refusal arrives as
+ * `Authorization Violation` or as a reset, but a reset (or a timeout) can also
+ * come after the hub admitted the key: those are ambiguous and carry
+ * `details.mayBeEnrolled`, so the caller keeps the staged key.
+ */
 function refusedOrUnreachable(error: unknown, hub: string): MeshError {
   const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
-  if (/authori[sz]ation|ECONNRESET|auth/i.test(text))
-    return new MeshError('unauthenticated', REFUSED);
+  if (/authori[sz]ation/i.test(text)) return new MeshError('unauthenticated', REFUSED);
   if (/tls/i.test(text)) {
     return new MeshError(
       'unavailable',
       `${hub} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`,
     );
   }
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text)) {
+    return new MeshError(
+      'unavailable',
+      `Could not reach the hub at ${hub}. Check your network and try again.`,
+    );
+  }
   return new MeshError(
-    'unavailable',
-    `Could not reach the hub at ${hub}. Check your network and try again.`,
+    'unauthenticated',
+    `${REFUSED} (The connection dropped, so this is not certain; the new key was kept in ~/.agentmesh in case the hub did accept it.)`,
+    { mayBeEnrolled: true },
   );
 }
