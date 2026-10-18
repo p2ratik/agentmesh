@@ -4,6 +4,7 @@ import { DiscordConfig, IngestConfig } from './integrations';
 import { PlanningConfig } from './planning';
 import {
   AssignmentConfig,
+  EnrollmentConfig,
   GitConfig,
   LeaseConfig,
   LimitsConfig,
@@ -61,6 +62,7 @@ export const MeshConfigSchema = z.object({
   review: ReviewConfig.prefault({}),
   leases: LeaseConfig.prefault({}),
   presence: PresenceConfig.prefault({}),
+  enrollment: EnrollmentConfig.prefault({}),
   planning: PlanningConfig.prefault({}),
   tasks: z.object({ defaultWorkflow: z.string().default('feature') }).prefault({}),
   /** Inline definitions; files from `include` directories are merged in by the loader. */

@@ -46811,6 +46811,46 @@ var GitPolicy = external_exports.object({
   agentsMayMergeInto: external_exports.array(external_exports.string())
 });
 
+// ../../packages/protocol/src/enrollment.ts
+var PublicNkey = external_exports.string().regex(/^U[A-Z2-7]{55}$/, "a NATS user public key (U\u2026)");
+var DiscordUserId = external_exports.string().regex(/^\d{5,25}$/, "a Discord user id");
+var InviteId = external_exports.string().regex(/^inv-[0-9A-Za-z]{1,40}$/, "an invite id (inv-\u2026)");
+var LOOPBACK_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]"]);
+function isSafeInviteUrl(raw) {
+  let url2;
+  try {
+    url2 = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (!url2.hostname || url2.username || url2.password) return false;
+  const scheme = url2.protocol.slice(0, -1);
+  if (scheme === "tls" || scheme === "wss") return true;
+  return (scheme === "nats" || scheme === "ws") && LOOPBACK_HOSTS.has(url2.hostname);
+}
+var InvitePayload = external_exports.object({
+  v: external_exports.literal(1),
+  natsUrl: external_exports.string().max(300).refine(isSafeInviteUrl, "a tls:// or wss:// URL (nats:// and ws:// only for localhost)"),
+  inviteId: InviteId,
+  /** 32 random bytes, base64url. The hub stores only its sha256. */
+  secret: external_exports.string().regex(/^[A-Za-z0-9_-]{43}$/, "32 bytes, base64url")
+});
+var MemberStatus = external_exports.enum(["active", "revoked"]);
+var MemberRecord = external_exports.object({
+  humanId: ParticipantId,
+  agentId: ParticipantId,
+  displayName: external_exports.string().min(1),
+  discordUserId: DiscordUserId.nullable(),
+  roles: external_exports.array(external_exports.string()),
+  skills: external_exports.array(external_exports.string()),
+  /** The agent's public nkey, generated on the member's laptop. */
+  nkey: PublicNkey,
+  status: MemberStatus,
+  invitedBy: external_exports.string(),
+  joinedAt: IsoDate,
+  removedAt: IsoDate.nullable()
+});
+
 // ../../packages/protocol/src/ingest.ts
 var IngestEvent = external_exports.object({
   /** Producer-side id; repeated ids inside the dedup window are dropped. */
@@ -47053,7 +47093,9 @@ var DomainEvent = external_exports.discriminatedUnion("type", [
   ),
   event("mesh.paused", external_exports.object({ by: external_exports.string(), reason: external_exports.string().nullable() })),
   event("mesh.resumed", external_exports.object({ by: external_exports.string(), released: external_exports.number().int() })),
-  event("presence.changed", external_exports.object({ peer: PeerInfo }))
+  event("presence.changed", external_exports.object({ peer: PeerInfo })),
+  event("member.joined", external_exports.object({ member: MemberRecord })),
+  event("member.removed", external_exports.object({ member: MemberRecord, by: external_exports.string() }))
 ]);
 
 // ../../packages/protocol/src/leases.ts
@@ -47136,6 +47178,55 @@ var adminMethods = {
     result: external_exports.object({
       entity: external_exports.object({ entityType: external_exports.string(), entityId: external_exports.string() }).nullable()
     })
+  })
+};
+
+// ../../packages/protocol/src/rpc/enrollment.ts
+var enrollmentMethods = {
+  "enrollment.invite": defineMethod({
+    description: "Create a one-time invite for a new member. The code in the result is a secret: DM it to the invitee, never post or log it.",
+    callers: ["human"],
+    requiresRole: "admin",
+    // The result holds the invite secret: never store it in the idempotency cache.
+    cacheResponse: false,
+    params: external_exports.object({
+      humanId: ParticipantId,
+      displayName: external_exports.string().min(1).max(80),
+      /** The invitee's Discord account, recorded on the member. Redemption does not prove it: the code is a bearer token. */
+      discordUserId: DiscordUserId,
+      roles: external_exports.array(external_exports.string().min(1).max(40)).max(10).default([]),
+      skills: external_exports.array(external_exports.string().min(1).max(40)).max(20).default([]),
+      /** Defaults to `{humanId}-agent`. */
+      agentId: ParticipantId.optional()
+    }),
+    result: external_exports.object({
+      inviteId: InviteId,
+      code: external_exports.string(),
+      humanId: ParticipantId,
+      agentId: ParticipantId,
+      expiresAt: IsoDate
+    })
+  }),
+  "enrollment.cancelInvite": defineMethod({
+    description: "Revoke an unused invite (e.g. when the DM could not be delivered).",
+    callers: ["human"],
+    requiresRole: "admin",
+    params: external_exports.object({ inviteId: InviteId }),
+    result: external_exports.object({ cancelled: external_exports.boolean() })
+  }),
+  "enrollment.remove": defineMethod({
+    description: "Remove an enrolled member: their agent is disconnected and refused from now on.",
+    callers: ["human"],
+    requiresRole: "admin",
+    params: external_exports.object({ humanId: ParticipantId }),
+    result: external_exports.object({ removed: external_exports.boolean(), agentIds: external_exports.array(ParticipantId) })
+  }),
+  "enrollment.list": defineMethod({
+    description: "Bridges only: every enrolled member (active and revoked), to build their index.",
+    callers: ["service"],
+    requiresRole: "bridge",
+    params: external_exports.object({}),
+    result: external_exports.object({ members: external_exports.array(MemberRecord) })
   })
 };
 
@@ -47456,7 +47547,8 @@ var RPC_METHODS = {
   ...taskMethods,
   ...planningMethods,
   ...leaseMethods,
-  ...adminMethods
+  ...adminMethods,
+  ...enrollmentMethods
 };
 
 // ../../packages/protocol/src/subjects.ts
@@ -50413,7 +50505,7 @@ function error62(text) {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.1";
+var VERSION = "0.1.2";
 function createMcpServer(instructions, deps) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },

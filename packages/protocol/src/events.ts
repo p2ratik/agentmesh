@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MemberRecord } from './enrollment';
 import { StoredIngestEvent } from './ingest';
 import { MeshMessage, ThreadSummary } from './messages';
 import { Plan, PlanState } from './planning';
@@ -53,6 +54,8 @@ export const DomainEvent = z.discriminatedUnion('type', [
   event('mesh.paused', z.object({ by: z.string(), reason: z.string().nullable() })),
   event('mesh.resumed', z.object({ by: z.string(), released: z.number().int() })),
   event('presence.changed', z.object({ peer: PeerInfo })),
+  event('member.joined', z.object({ member: MemberRecord })),
+  event('member.removed', z.object({ member: MemberRecord, by: z.string() })),
 ]);
 
 export type DomainEvent = z.infer<typeof DomainEvent>;

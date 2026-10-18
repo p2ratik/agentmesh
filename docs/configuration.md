@@ -84,6 +84,9 @@ areas:
 | `limits.dedupWindowSeconds` | `120` | Same body, same sender, same thread → rejected as duplicate. |
 | `limits.maxBodyChars` | `32000` | Message size limit. |
 | `limits.deliveryRetentionDays` | `14` | How long undelivered messages wait in JetStream. |
+| `enrollment.inviteTtlHours` | `24` | How long an unused `/mesh invite` code stays valid (max 720). |
+| `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). |
+| `enrollment.redeemAttemptsPerMinute` | `5` | Failed invite redemptions allowed per minute, per invite and per client IP. |
 
 ## Tasks, workflows, planning
 

@@ -9,7 +9,7 @@ import { callTool, listTools } from './tools/registry';
 import type { ToolDeps } from './tools/types';
 
 export const SERVER_NAME = 'mesh';
-export const VERSION = '0.1.1';
+export const VERSION = '0.1.2';
 
 /**
  * The MCP server Claude Code talks to. It declares the `claude/channel`

@@ -1,8 +1,5 @@
-import { ParticipantId } from '@agentmesh/protocol';
+import { ParticipantId, PublicNkey } from '@agentmesh/protocol';
 import { z } from 'zod';
-
-/** NATS public user nkey (starts with U). Public keys are safe to commit. */
-const PublicNkey = z.string().regex(/^U[A-Z2-7]{55}$/, 'a NATS user public key (U…)');
 
 export const HumanConfig = z.object({
   id: ParticipantId,

@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { adminMethods } from './admin';
+import { enrollmentMethods } from './enrollment';
 import { leaseMethods } from './leases';
 import { messagingMethods } from './messaging';
 import { planningMethods } from './planning';
@@ -17,6 +18,7 @@ export const RPC_METHODS = {
   ...planningMethods,
   ...leaseMethods,
   ...adminMethods,
+  ...enrollmentMethods,
 } as const;
 
 export type RpcMethods = typeof RPC_METHODS;
