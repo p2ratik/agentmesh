@@ -29,6 +29,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@agentmesh/bus':
+        specifier: workspace:*
+        version: link:../../packages/bus
       '@agentmesh/common':
         specifier: workspace:*
         version: link:../../packages/common
@@ -89,6 +92,9 @@ importers:
       '@agentmesh/common':
         specifier: workspace:*
         version: link:../common
+      '@agentmesh/config':
+        specifier: workspace:*
+        version: link:../config
       '@agentmesh/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -167,6 +173,9 @@ importers:
       '@nats-io/nkeys':
         specifier: 2.0.3
         version: 2.0.3
+      '@nats-io/transport-node':
+        specifier: 3.4.0
+        version: 3.4.0
 
 packages:
 

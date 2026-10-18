@@ -9,6 +9,7 @@
     "@agentmesh/common": "workspace:*",
     "@agentmesh/protocol": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@nats-io/nkeys": "2.0.3"
+    "@nats-io/nkeys": "2.0.3",
+    "@nats-io/transport-node": "3.4.0"
   }
 }

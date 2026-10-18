@@ -13,6 +13,22 @@ the irreversible decisions.
   under its own id, read only its own inbox and receive only its own replies. The hub therefore
   trusts the caller named in the subject — one agent cannot act as another (covered by the
   authenticated end-to-end test).
+- `agentmesh nats-config --auth-callout` renders account mode for invite-only onboarding (see
+  `docs/specs/auth-callout-spike.md`). Agents are no longer listed: the hub's callout admits each
+  connect and fails closed when the hub is down. The hub, the bridge and every other service stay
+  static users, so the hub can never lock itself out.
+  - Every static user except the hub keeps explicit `permissionsFor()` permissions. A NATS user
+    without permissions gets `>`, which would let the bridge read every auth request on
+    `$SYS.REQ.USER.AUTH` and publish any agent's RPC subject. The callout integration test checks
+    that the bridge is refused both.
+  - The hub's system-account user is an nkey that may only publish `$SYS.REQ.SERVER.*.KICK`;
+    `CONNZ` and the other system requests are refused.
+  - `xkey` is always rendered, so auth requests (which carry invite codes) are sealed.
+  - The issuer, xkey and sys seeds are new hub secrets in `deploy/secrets/`; `nats.conf` and
+    `mesh.yaml` hold only their public keys. `permissionsFor()` lives in `packages/bus`, the one
+    source for both `nats.conf` and the JWTs the callout will issue.
+  - Do not deploy this mode until the hub's callout service exists: until then no agent can
+    connect.
 - Only the bridge service with `canActAsHumans` may act for humans, and only for humans listed in
   config, mapped from their Discord user ids.
 - Keep NATS and the ingest endpoint on a private network (Tailscale); expose nothing but SSH.

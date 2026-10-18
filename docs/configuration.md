@@ -23,6 +23,7 @@ numbers are not coerced from strings — write them literally.
 | --- | --- | --- |
 | `serviceId` | `hub` | The hub's id as message sender and NATS user. |
 | `nkey` | — | Public key of the hub's NATS user (`agentmesh keys add hub`). |
+| `authCallout.issuer` / `xkey` / `sysNkey` | — | Public keys for auth-callout mode (`agentmesh nats-config --auth-callout`): the account key that signs user JWTs, the curve key that seals auth requests, and the hub's kick-only system user. Generate each with `agentmesh keys add hub-issuer`, `hub-xkey` and `hub-sys`; the seeds stay in `deploy/secrets`. |
 | `dataDir` | `./data` | Directory of `hub.sqlite`, relative to the config dir. `AGENTMESH_DATA_DIR` overrides. |
 | `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz`, `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |

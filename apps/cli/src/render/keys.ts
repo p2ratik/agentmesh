@@ -6,7 +6,7 @@ export interface KeyRow {
 }
 
 const shortKey = (key: string): string => `${key.slice(0, 6)}…${key.slice(-4)}`;
-const kindLabel = (h: KeyHolder): string => (h.kind === 'service' ? `service/${h.role}` : h.kind);
+const kindLabel = (h: KeyHolder): string => (h.role ? `${h.kind}/${h.role}` : h.kind);
 
 /** A table of who has a public key in mesh.yaml and whether a seed is in the secrets dir. */
 export function renderKeyTable(rows: KeyRow[], secretsDir: string): string {
