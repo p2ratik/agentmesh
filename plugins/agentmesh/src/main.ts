@@ -10,6 +10,7 @@ import { createMcpServer, pushEvent, VERSION } from './server';
 
 const HELLO_WAIT_MS = 4000;
 const SHUTDOWN_MS = 250;
+const CHANNEL_READY_MS = 2000;
 
 /**
  * Entry point Claude Code spawns over stdio. Never blocks startup on the
@@ -52,6 +53,12 @@ async function run(config: PluginConfig, logger: Logger): Promise<void> {
   const abort = new AbortController();
   server.oninitialized = () => {
     presence.start();
+    // Claude Code subscribes to channel notifications just after the handshake and silently
+    // drops earlier ones, so queued messages would be acked into the void at startup.
+    // ponytail: fixed delay, no ready signal exists; missed pushes still show up via inbox.
+    setTimeout(() => startPushes(), CHANNEL_READY_MS).unref();
+  };
+  const startPushes = () => {
     void runInbox({ hub, logger, signal: abort.signal, push: (event) => pushEvent(server, event) });
     if (!hello) {
       void hub.whenConnected().then(() => sayHello(hub, presence.git, 10_000, logger));
