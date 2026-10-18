@@ -15,6 +15,19 @@ export interface Permissions {
   subscribe: string[];
 }
 
+/**
+ * Auth-callout mode: the account every mesh participant lives in (the callout's
+ * user JWTs use it as `aud`) and the system account the hub kicks through.
+ */
+export const APP_ACCOUNT = 'APP';
+export const SYS_ACCOUNT = 'SYS';
+
+/** The hub's system-account user may only kick connections; `CONNZ` and the rest are refused. */
+export const SYS_USER_PERMISSIONS: Permissions = {
+  publish: ['$SYS.REQ.SERVER.*.KICK'],
+  subscribe: ['_INBOX.>'],
+};
+
 /** The hub first, then agents, then services, in config order. */
 export function natsUsersFromConfig(config: MeshConfig): NatsUser[] {
   return [

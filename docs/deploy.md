@@ -68,6 +68,9 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
   discord-bridge`. New agents get their NATS inbox automatically on restart.
 - **New participant**: `agentmesh keys add <id>`, `agentmesh nats-config`, then
   `docker compose kill -s HUP nats` (reload) and restart the hub.
+- **Auth-callout mode** (invite-only onboarding, in progress): `agentmesh keys add hub-issuer`,
+  `hub-xkey` and `hub-sys`, then `agentmesh nats-config --auth-callout`. Agents are then admitted
+  by the hub instead of `nats.conf`; see `docs/security.md` before switching a live deploy.
 - **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
 - **Backups**: the state is in two volumes. Stop the hub for a consistent copy
   (`docker compose stop hub`, then start it again):
