@@ -1,9 +1,11 @@
 import type { Db } from './database';
 import { MIGRATION_001 } from './migrations/001-init';
+import { MIGRATION_002 } from './migrations/002-idempotency-withheld';
 
 /** Append-only. Never edit a shipped migration; add a new one. */
 const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
   { version: 1, sql: MIGRATION_001 },
+  { version: 2, sql: MIGRATION_002 },
 ];
 
 export function migrate(db: Db, now: () => Date = () => new Date()): number {

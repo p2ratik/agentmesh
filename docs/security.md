@@ -53,3 +53,18 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
 The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/OpenAI tokens, Discord
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
 or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
+
+## Secrets in RPC results
+
+The hub caches RPC results in `rpc_idempotency` for a day, so a retried call can be replayed safely.
+That cache must never hold a secret, and redaction can't help here: the caller needs the secret
+itself.
+
+- **Threat:** a method that returns a secret, such as an invite code, would leave the plaintext in
+  SQLite. Anyone who can read the hub's data volume or a backup could then recover it.
+- **Mitigation:** contracts for such methods set `cacheResponse: false`. The router then stores only
+  the key, with `withheld = 1` and no result. A retry with the same key fails with `conflict`, so the
+  method neither runs twice nor replays the secret.
+- **Residual risk:** if the response is lost in transit, the secret is gone and the caller has to
+  start over, for example by cancelling and re-issuing the invite. This is accepted on purpose:
+  losing an invite is better than storing it.
