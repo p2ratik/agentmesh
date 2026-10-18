@@ -9,10 +9,12 @@ export const enrollmentMethods = {
       'Create a one-time invite for a new member. The code in the result is a secret: DM it to the invitee, never post or log it.',
     callers: ['human'],
     requiresRole: 'admin',
+    // The result holds the invite secret: never store it in the idempotency cache.
+    cacheResponse: false,
     params: z.object({
       humanId: ParticipantId,
       displayName: z.string().min(1).max(80),
-      /** The invite is bound to this Discord account. */
+      /** The invitee's Discord account, recorded on the member. Redemption does not prove it: the code is a bearer token. */
       discordUserId: DiscordUserId,
       roles: z.array(z.string().min(1).max(40)).max(10).default([]),
       skills: z.array(z.string().min(1).max(40)).max(20).default([]),
@@ -44,6 +46,7 @@ export const enrollmentMethods = {
   'enrollment.list': defineMethod({
     description: 'Bridges only: every enrolled member (active and revoked), to build their index.',
     callers: ['service'],
+    requiresRole: 'bridge',
     params: z.object({}),
     result: z.object({ members: z.array(MemberRecord) }),
   }),

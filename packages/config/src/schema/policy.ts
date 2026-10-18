@@ -53,7 +53,7 @@ export const EnrollmentConfig = z.object({
   /** How long an unused invite code stays valid. */
   inviteTtlHours: z.number().positive().max(720).default(24),
   /** Lifetime of the NATS user JWT the hub issues on connect; a backstop if a kick is lost. */
-  userJwtTtlMinutes: z.number().int().min(5).default(60),
+  userJwtTtlMinutes: z.number().int().min(5).max(1440).default(60),
   /** Failed invite redemptions allowed per minute, per invite and per client IP. */
   redeemAttemptsPerMinute: z.number().int().min(1).default(5),
 });

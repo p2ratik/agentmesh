@@ -63,8 +63,33 @@ itself.
 - **Threat:** a method that returns a secret, such as an invite code, would leave the plaintext in
   SQLite. Anyone who can read the hub's data volume or a backup could then recover it.
 - **Mitigation:** contracts for such methods set `cacheResponse: false`. The router then stores only
-  the key, with `withheld = 1` and no result. A retry with the same key fails with `conflict`, so the
-  method neither runs twice nor replays the secret.
+  the key, with `withheld = 1` and no result. A retry with the same key, sent after the first call
+  completes, fails with `conflict` and does not replay the secret. Two calls with the same key that
+  overlap in flight can both run, because the key is only recorded afterwards. Reserving the key
+  before running the handler is a follow-up for the enrollment module (task-6).
 - **Residual risk:** if the response is lost in transit, the secret is gone and the caller has to
   start over, for example by cancelling and re-issuing the invite. This is accepted on purpose:
   losing an invite is better than storing it.
+
+## Invite codes
+
+*Contracts only so far. The hub enrollment and auth-callout work (plan-1) builds on these rules,
+and ADR-0005 will give the full threat model.*
+
+An invite code (`/mesh invite`) is a **bearer token**. Whoever presents it first enrolls, so the
+Discord id on the invite only labels the member: redeeming the code does not prove that Discord
+identity.
+
+- **Threat: a TLS-stripping attacker on the network path.** The secret travels in the NATS
+  CONNECT. With a `nats://` URL, the client upgrades to TLS only if the server's INFO asks for it,
+  and an attacker can rewrite that INFO. They can then read the secret, relay the nonce signature
+  and enroll as the new member.
+  **Mitigation:** the protocol accepts `tls://` and `wss://` invite URLs only. Plaintext
+  `nats://` and `ws://` are allowed for localhost only, and URLs carrying credentials are refused.
+- **Threat: the code at rest.** **Mitigation:** the hub stores only sha256(secret), the result is
+  never written to the idempotency cache (`cacheResponse: false`), and decode errors never echo
+  the code.
+- **Threat: guessing.** **Mitigation:** 256-bit secret, single use, a short TTL
+  (`enrollment.inviteTtlHours`), and rate-limited redemption (`enrollment.redeemAttemptsPerMinute`).
+- **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is
+  restricted to services with the `bridge` role.

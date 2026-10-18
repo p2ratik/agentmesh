@@ -56,10 +56,13 @@ start over with a new key.
 | `mesh.pause` · `mesh.resume` | human (admin) | Kill switch |
 | `refs.set` · `refs.get` · `refs.find` | service | External ids for bridges (e.g. Discord thread ids) |
 | `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. *Contract only; the hub handlers are in progress.* |
-| `enrollment.list` | service | Enrolled members, for a bridge to build its index. *Contract only.* |
+| `enrollment.list` | service (bridge) | Enrolled members, for a bridge to build its index. *Contract only.* |
 
 An invite code is base64url JSON `{ v: 1, natsUrl, inviteId, secret }`: `encodeInvite` /
-`decodeInvite` in `packages/protocol/src/enrollment.ts`. The hub stores only the secret's sha256.
+`decodeInvite` in `packages/protocol/src/enrollment.ts`. The hub stores only the secret's sha256,
+and `enrollment.invite` sets `cacheResponse: false`. `natsUrl` must be `tls://` or `wss://`
+(`nats://` and `ws://` only for localhost), because the secret travels in the NATS CONNECT. See
+[security.md](security.md#invite-codes).
 
 ## Messages
 

@@ -9,10 +9,33 @@ export const DiscordUserId = z.string().regex(/^\d{5,25}$/, 'a Discord user id')
 
 export const InviteId = z.string().regex(/^inv-[0-9A-Za-z]{1,40}$/, 'an invite id (inv-…)');
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * The invite secret travels in the CONNECT, so it must never go over plaintext:
+ * `nats://` only upgrades to TLS if the server's (strippable) INFO asks for it.
+ * Plaintext schemes are allowed for loopback dev setups only.
+ */
+export function isSafeInviteUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (!url.hostname || url.username || url.password) return false;
+  const scheme = url.protocol.slice(0, -1);
+  if (scheme === 'tls' || scheme === 'wss') return true;
+  return (scheme === 'nats' || scheme === 'ws') && LOOPBACK_HOSTS.has(url.hostname);
+}
+
 /** What an invite code carries: where to connect, which invite, and its one-time secret. */
 export const InvitePayload = z.object({
   v: z.literal(1),
-  natsUrl: z.url({ protocol: /^(nats|tls|ws|wss)$/, error: 'a nats://, tls:// or wss:// URL' }),
+  natsUrl: z
+    .string()
+    .max(300)
+    .refine(isSafeInviteUrl, 'a tls:// or wss:// URL (nats:// and ws:// only for localhost)'),
   inviteId: InviteId,
   /** 32 random bytes, base64url. The hub stores only its sha256. */
   secret: z.string().regex(/^[A-Za-z0-9_-]{43}$/, '32 bytes, base64url'),
