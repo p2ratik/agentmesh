@@ -23,6 +23,7 @@ const member = (overrides: Partial<MemberRecord> = {}): MemberRecord => ({
 
 describe('withMembers', () => {
   const yaml = testTeamConfig({
+    hub: { authCallout: { sysNkey: KEY('S') } },
     agents: [{ id: 'alice-agent', owner: 'alice', nkey: KEY('A') }],
     areas: [],
   }).config;
@@ -51,6 +52,7 @@ describe('withMembers', () => {
     ['the hub id', { humanId: 'hub' }],
     ['a Discord id', { discordUserId: '100000000000000002' }],
     ['an agent key', { nkey: KEY('A') }],
+    ["the hub's system-account key", { nkey: KEY('S') }],
   ])('lets mesh.yaml win when a member reuses %s', (_label, overrides) => {
     const { config, shadowed } = withMembers(yaml, [member(overrides)]);
     const index = new ConfigIndex(config);

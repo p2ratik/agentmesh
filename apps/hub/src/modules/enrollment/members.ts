@@ -24,6 +24,8 @@ export function claimedByConfig(config: MeshConfig): {
     nkeys: new Set(
       [
         config.hub.nkey,
+        // The hub's system-account user may kick connections: never hand it to a member.
+        config.hub.authCallout?.sysNkey,
         ...config.agents.map((a) => a.nkey),
         ...config.services.map((s) => s.nkey),
       ].filter((k): k is string => !!k),
