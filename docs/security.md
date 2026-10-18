@@ -141,7 +141,9 @@ identity.
 - **Threat: the agent key leaving the laptop.** **Mitigation:** the plugin generates the nkey
   locally and only the public key reaches the hub, through the signed CONNECT. The seed goes to
   `~/.agentmesh/<agent>.nk` and `agent.json` only points at it (both mode 600; on Windows the
-  profile ACL). The join never logs or prints it.
+  profile ACL). The seed is written before anything connects and only moved into place once the
+  hub admits the key, so a laptop that cannot save it never spends the single-use invite. The
+  join never logs or prints it.
 - **Threat: silently switching meshes.** **Mitigation:** joining refuses to replace an existing
   `~/.agentmesh/agent.json` unless the user explicitly asks to replace it.
 - The invite's `agentId` and `prefix` are hints for the client, which needs them before the first

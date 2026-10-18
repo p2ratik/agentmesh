@@ -1,4 +1,12 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { MeshError } from '@agentmesh/common';
@@ -69,19 +77,32 @@ export interface SavedEnrollment {
 }
 
 /**
- * Saves the new key and the connection settings the plugin reads at start.
- * The seed goes in its own file; agent.json only points at it.
+ * Writes the new seed next to its final place before anything connects, so
+ * a laptop that cannot save it never spends the single-use invite.
+ * `commit` moves it into place; `discard` removes it after a refusal.
  */
-export function saveEnrollment(
+export function stageSeed(
   home: string,
-  payload: InvitePayload,
+  agentId: string,
   seed: string,
-): SavedEnrollment {
+): { commit(): string; discard(): void } {
   const dir = agentmeshDir(home);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const seedFile = join(dir, `${payload.agentId}.nk`);
-  const configFile = join(dir, 'agent.json');
-  writePrivate(seedFile, `${seed}\n`);
+  const seedFile = join(dir, `${agentId}.nk`);
+  const staged = `${seedFile}.joining`;
+  writePrivate(staged, `${seed}\n`);
+  return {
+    commit: () => {
+      renameSync(staged, seedFile);
+      return seedFile;
+    },
+    discard: () => rmSync(staged, { force: true }),
+  };
+}
+
+/** The connection settings the plugin reads at start; agent.json only points at the seed file. */
+export function saveConfig(home: string, payload: InvitePayload, seedFile: string): string {
+  const configFile = join(agentmeshDir(home), 'agent.json');
   const config = {
     agentId: payload.agentId,
     natsUrl: payload.natsUrl,
@@ -89,5 +110,15 @@ export function saveEnrollment(
     prefix: payload.prefix,
   };
   writePrivate(configFile, `${JSON.stringify(config, null, 2)}\n`);
-  return { configFile, seedFile };
+  return configFile;
+}
+
+/** Seed and settings in one go (tests, and setups that already hold a key). */
+export function saveEnrollment(
+  home: string,
+  payload: InvitePayload,
+  seed: string,
+): SavedEnrollment {
+  const seedFile = stageSeed(home, payload.agentId, seed).commit();
+  return { seedFile, configFile: saveConfig(home, payload, seedFile) };
 }

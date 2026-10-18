@@ -47733,7 +47733,15 @@ import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 
 // src/join/files.ts
-import { chmodSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync as existsSync2,
+  mkdirSync,
+  readFileSync as readFileSync2,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join3 } from "node:path";
 var agentmeshDir = (home = homedir3()) => join3(home, ".agentmesh");
@@ -47779,13 +47787,23 @@ function writePrivate(path, content) {
   } catch {
   }
 }
-function saveEnrollment(home, payload, seed) {
+function stageSeed(home, agentId, seed) {
   const dir = agentmeshDir(home);
   mkdirSync(dir, { recursive: true, mode: 448 });
-  const seedFile = join3(dir, `${payload.agentId}.nk`);
-  const configFile = join3(dir, "agent.json");
-  writePrivate(seedFile, `${seed}
+  const seedFile = join3(dir, `${agentId}.nk`);
+  const staged = `${seedFile}.joining`;
+  writePrivate(staged, `${seed}
 `);
+  return {
+    commit: () => {
+      renameSync(staged, seedFile);
+      return seedFile;
+    },
+    discard: () => rmSync(staged, { force: true })
+  };
+}
+function saveConfig(home, payload, seedFile) {
+  const configFile = join3(agentmeshDir(home), "agent.json");
   const config2 = {
     agentId: payload.agentId,
     natsUrl: payload.natsUrl,
@@ -47794,7 +47812,7 @@ function saveEnrollment(home, payload, seed) {
   };
   writePrivate(configFile, `${JSON.stringify(config2, null, 2)}
 `);
-  return { configFile, seedFile };
+  return configFile;
 }
 
 // ../../packages/bus/src/index.ts
@@ -47994,24 +48012,22 @@ var MINUTE_MS2 = 60 * 1e3;
 
 // src/join/enroll.ts
 var REFUSED = "The hub did not accept this invite. It may be used, expired or cancelled, or not meant for this hub. Ask your admin for a new one.";
-async function enroll(summary, code, clientVersion) {
+async function enroll(summary, code, seed, clientVersion) {
   const { payload } = summary;
-  const key = generateUserKey();
   let nc;
   try {
     nc = await connectOnce({
       servers: [payload.natsUrl],
       name: `agentmesh-join:${payload.agentId}`,
       inboxPrefix: inboxPrefix(payload.agentId),
-      credentials: { nkeySeed: key.seed, token: code.trim() }
+      credentials: { nkeySeed: seed, token: code.trim() }
     });
   } catch (error63) {
     throw refusedOrUnreachable(error63, summary.hub);
   }
   try {
     const rpc = new RpcClient(nc, payload.prefix, payload.agentId, 1e4);
-    const hello = await rpc.call("session.hello", { clientVersion });
-    return { seed: key.seed, publicKey: key.publicKey, hello };
+    return await rpc.call("session.hello", { clientVersion }).catch(() => null);
   } finally {
     await nc.close().catch(() => void 0);
   }
@@ -48054,9 +48070,19 @@ async function runJoin(request) {
   const summary = readInvite(request.code);
   assertCanJoin(request.home, request.replace);
   if (request.confirmedHub?.trim() !== summary.hub) return { kind: "confirm", summary };
-  const enrolled = await enroll(summary, request.code, request.clientVersion);
-  const saved = saveEnrollment(request.home, summary.payload, enrolled.seed);
-  return { kind: "joined", summary, saved, hello: enrolled.hello };
+  const { payload } = summary;
+  const key = generateUserKey();
+  const staged = stageSeed(request.home, payload.agentId, key.seed);
+  let hello;
+  try {
+    hello = await enroll(summary, request.code, key.seed, request.clientVersion);
+  } catch (error63) {
+    staged.discard();
+    throw error63;
+  }
+  const seedFile = staged.commit();
+  const configFile = saveConfig(request.home, payload, seedFile);
+  return { kind: "joined", summary, saved: { seedFile, configFile }, hello };
 }
 
 // src/join/cli.ts
@@ -48084,7 +48110,7 @@ function parseJoinArgs(argv) {
 function joinedText(done) {
   const { agentId, natsUrl } = done.summary.payload;
   return [
-    `Joined "${done.hello.mesh.name}" as ${done.hello.self.id}.`,
+    `Joined${done.hello ? ` "${done.hello.mesh.name}"` : " the mesh"} as ${agentId}.`,
     `  key       ${done.saved.seedFile} (generated here, private)`,
     `  settings  ${done.saved.configFile}`,
     "",
@@ -48795,9 +48821,9 @@ Ask your human whether ${outcome.summary.hub} is your team's hub. Only if they s
     }
     deleteInviteFile(file2);
     await deps.onJoined(outcome.summary.payload.agentId);
-    const { self: self2, mesh } = outcome.hello;
+    const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : "";
     return text(
-      `Joined the AgentMesh "${mesh.name}" as ${self2.id}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already.`
+      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already.`
     );
   } catch (error63) {
     return text(isMeshError(error63) ? error63.message : `join failed: ${String(error63)}`, true);

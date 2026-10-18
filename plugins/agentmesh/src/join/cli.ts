@@ -40,7 +40,7 @@ function parseJoinArgs(argv: string[]): JoinArgs | string {
 function joinedText(done: Extract<JoinOutcome, { kind: 'joined' }>): string {
   const { agentId, natsUrl } = done.summary.payload;
   return [
-    `Joined "${done.hello.mesh.name}" as ${done.hello.self.id}.`,
+    `Joined${done.hello ? ` "${done.hello.mesh.name}"` : ' the mesh'} as ${agentId}.`,
     `  key       ${done.saved.seedFile} (generated here, private)`,
     `  settings  ${done.saved.configFile}`,
     '',

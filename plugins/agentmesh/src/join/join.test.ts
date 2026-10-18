@@ -1,4 +1,11 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeInvite, type InvitePayload } from '@agentmesh/protocol';
@@ -36,11 +43,7 @@ function inviteFile(dir: string, code = CODE): string {
 
 beforeEach(() => {
   enrollMock.mockReset();
-  enrollMock.mockResolvedValue({
-    seed: SEED,
-    publicKey: `U${'C'.repeat(55)}`,
-    hello: { self: { id: 'dana-agent' }, mesh: { name: 'acme' } },
-  });
+  enrollMock.mockResolvedValue({ self: { id: 'dana-agent' }, mesh: { name: 'acme' } });
 });
 
 describe('invites', () => {
@@ -82,6 +85,32 @@ describe('runJoin', () => {
     const request = { code: CODE, home: dir, clientVersion: 't', replace: false };
     await expect(runJoin(request)).rejects.toThrow(/already set up as old-agent/);
     expect((await runJoin({ ...request, replace: true })).kind).toBe('confirm');
+  });
+});
+
+describe('saving the key', () => {
+  it('has the seed on disk before connecting, and removes it if the hub refuses', async () => {
+    const dir = home();
+    const seedDir = join(dir, '.agentmesh');
+    enrollMock.mockImplementationOnce(async (_summary, _code, seed: string) => {
+      expect(readFileSync(join(seedDir, 'dana-agent.nk.joining'), 'utf8')).toBe(`${seed}
+`);
+      throw new Error('refused');
+    });
+    const request = { code: CODE, home: dir, clientVersion: 't', replace: false };
+    await expect(runJoin({ ...request, confirmedHub: 'mesh.example.com:4222' })).rejects.toThrow(
+      'refused',
+    );
+    expect(readdirSync(seedDir)).toEqual([]);
+  });
+
+  it('still saves everything when the hub admitted us but did not say hello in time', async () => {
+    const dir = home();
+    enrollMock.mockResolvedValueOnce(null);
+    const request = { code: CODE, home: dir, clientVersion: 't', replace: false };
+    const done = await runJoin({ ...request, confirmedHub: 'mesh.example.com:4222' });
+    expect(done.kind === 'joined' && existsSync(done.saved.configFile)).toBe(true);
+    expect(readdirSync(join(dir, '.agentmesh')).sort()).toEqual(['agent.json', 'dana-agent.nk']);
   });
 });
 

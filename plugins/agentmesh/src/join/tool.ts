@@ -64,9 +64,9 @@ export async function callJoinTool(rawArgs: unknown, deps: JoinToolDeps): Promis
     }
     deleteInviteFile(file);
     await deps.onJoined(outcome.summary.payload.agentId);
-    const { self, mesh } = outcome.hello;
+    const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : '';
     return text(
-      `Joined the AgentMesh "${mesh.name}" as ${self.id}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already.`,
+      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already.`,
     );
   } catch (error) {
     return text(isMeshError(error) ? error.message : `join failed: ${String(error)}`, true);

@@ -1,46 +1,43 @@
-import { connectOnce, generateUserKey, RpcClient } from '@agentmesh/bus';
+import { connectOnce, RpcClient } from '@agentmesh/bus';
 import { MeshError } from '@agentmesh/common';
 import { inboxPrefix, type RpcResult } from '@agentmesh/protocol';
 import type { InviteSummary } from './invite';
 
-export interface Enrolled {
-  seed: string;
-  publicKey: string;
-  hello: RpcResult<'session.hello'>;
-}
+/** The hub's greeting, or null if it was slow: the connect alone already enrolled us. */
+export type Greeting = RpcResult<'session.hello'> | null;
 
 /** Same words for every refusal: the hub never says why, so neither can we. */
 export const REFUSED =
   'The hub did not accept this invite. It may be used, expired or cancelled, or not meant for this hub. Ask your admin for a new one.';
 
 /**
- * Redeems an invite: generates the key here, then connects once with the key
- * and the invite code in the same CONNECT. The hub's auth callout checks the
- * key signature, redeems the invite and admits this agent. A `session.hello`
- * proves the hub now knows us. Later connects use the key alone.
+ * Redeems an invite: connects once with the locally generated key and the
+ * invite code in the same CONNECT. The hub's auth callout checks the key
+ * signature, redeems the invite and admits this agent, so a successful
+ * connect means enrolled; it throws only when the connect fails. Later
+ * connects use the key alone.
  */
 export async function enroll(
   summary: InviteSummary,
   code: string,
+  seed: string,
   clientVersion: string,
-): Promise<Enrolled> {
+): Promise<Greeting> {
   const { payload } = summary;
-  const key = generateUserKey();
   let nc: Awaited<ReturnType<typeof connectOnce>>;
   try {
     nc = await connectOnce({
       servers: [payload.natsUrl],
       name: `agentmesh-join:${payload.agentId}`,
       inboxPrefix: inboxPrefix(payload.agentId),
-      credentials: { nkeySeed: key.seed, token: code.trim() },
+      credentials: { nkeySeed: seed, token: code.trim() },
     });
   } catch (error) {
     throw refusedOrUnreachable(error, summary.hub);
   }
   try {
     const rpc = new RpcClient(nc, payload.prefix, payload.agentId, 10_000);
-    const hello = await rpc.call('session.hello', { clientVersion });
-    return { seed: key.seed, publicKey: key.publicKey, hello };
+    return await rpc.call('session.hello', { clientVersion }).catch(() => null);
   } finally {
     await nc.close().catch(() => undefined);
   }

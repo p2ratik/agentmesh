@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:net';
+import { generateUserKey } from '@agentmesh/bus';
 import { encodeInvite, type InvitePayload } from '@agentmesh/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import { enroll } from './enroll';
@@ -45,7 +46,9 @@ describe('enroll', () => {
       secret: `${'S'.repeat(42)}Q`,
     };
     const code = encodeInvite(payload);
-    await expect(enroll(readInvite(code), code, 'test')).rejects.toThrow(/did not offer TLS/);
+    await expect(enroll(readInvite(code), code, generateUserKey().seed, 'test')).rejects.toThrow(
+      /did not offer TLS/,
+    );
     const sent = fake.received.join('');
     expect(sent).not.toContain(payload.secret);
     expect(sent).not.toContain(code);

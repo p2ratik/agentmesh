@@ -1,6 +1,6 @@
-import type { RpcResult } from '@agentmesh/protocol';
-import { enroll } from './enroll';
-import { assertCanJoin, type SavedEnrollment, saveEnrollment } from './files';
+import { generateUserKey } from '@agentmesh/bus';
+import { enroll, type Greeting } from './enroll';
+import { assertCanJoin, type SavedEnrollment, saveConfig, stageSeed } from './files';
 import { type InviteSummary, readInvite } from './invite';
 
 export interface JoinRequest {
@@ -15,12 +15,7 @@ export interface JoinRequest {
 
 export type JoinOutcome =
   | { kind: 'confirm'; summary: InviteSummary }
-  | {
-      kind: 'joined';
-      summary: InviteSummary;
-      saved: SavedEnrollment;
-      hello: RpcResult<'session.hello'>;
-    };
+  | { kind: 'joined'; summary: InviteSummary; saved: SavedEnrollment; hello: Greeting };
 
 /**
  * The whole join, shared by the `join` tool and `server.js join`: decode,
@@ -32,7 +27,18 @@ export async function runJoin(request: JoinRequest): Promise<JoinOutcome> {
   const summary = readInvite(request.code);
   assertCanJoin(request.home, request.replace);
   if (request.confirmedHub?.trim() !== summary.hub) return { kind: 'confirm', summary };
-  const enrolled = await enroll(summary, request.code, request.clientVersion);
-  const saved = saveEnrollment(request.home, summary.payload, enrolled.seed);
-  return { kind: 'joined', summary, saved, hello: enrolled.hello };
+  const { payload } = summary;
+  const key = generateUserKey();
+  // The seed is on disk before the invite is spent, and removed again if the hub refuses.
+  const staged = stageSeed(request.home, payload.agentId, key.seed);
+  let hello: Greeting;
+  try {
+    hello = await enroll(summary, request.code, key.seed, request.clientVersion);
+  } catch (error) {
+    staged.discard();
+    throw error;
+  }
+  const seedFile = staged.commit();
+  const configFile = saveConfig(request.home, payload, seedFile);
+  return { kind: 'joined', summary, saved: { seedFile, configFile }, hello };
 }
