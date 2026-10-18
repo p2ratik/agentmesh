@@ -11,9 +11,14 @@ const SECRET = 'invite-plaintext-s3cret';
 function setup(cacheResponse?: boolean) {
   const h = createServiceHarness(testTeamConfig());
   let calls = 0;
+  const failures = { next: 0 };
   const handlers = {
     'mesh.status': async () => {
       calls += 1;
+      if (failures.next > 0) {
+        failures.next -= 1;
+        throw new Error('handler failed');
+      }
       return { secret: SECRET, call: calls };
     },
   } as unknown as Partial<RpcHandlerMap>;
@@ -22,7 +27,7 @@ function setup(cacheResponse?: boolean) {
     'mesh.status': { ...RPC_METHODS['mesh.status'], cacheResponse },
   };
   const dispatch = createRpcRouter({
-    index: h.ctx.index,
+    index: () => h.ctx.index,
     handlers,
     idempotency: new IdempotencyStore(h.ctx.db, h.clock),
     logger: h.ctx.logger,
@@ -41,7 +46,7 @@ function setup(cacheResponse?: boolean) {
     h.ctx.db
       .all<{ response: string }>('SELECT response FROM rpc_idempotency')
       .map((r) => r.response);
-  return { call, stored, calls: () => calls };
+  return { call, stored, calls: () => calls, failures };
 }
 
 describe('RPC router idempotency', () => {
@@ -70,6 +75,25 @@ describe('RPC router idempotency', () => {
     const { call, calls } = setup(false);
     await call('k1');
     expect(await call('k2')).toEqual({ secret: SECRET, call: 2 });
+    expect(calls()).toBe(2);
+  });
+
+  it.each([true, false])(
+    'runs the handler once when two calls with one key overlap (cacheResponse %s)',
+    async (cacheResponse) => {
+      const { call, calls } = setup(cacheResponse);
+      const [first, second] = await Promise.allSettled([call('k1'), call('k1')]);
+      expect(first.status).toBe('fulfilled');
+      expect(second).toMatchObject({ status: 'rejected', reason: { code: 'conflict' } });
+      expect(calls()).toBe(1);
+    },
+  );
+
+  it('frees the key when the handler fails, so the same key can retry', async () => {
+    const { call, calls, failures } = setup(false);
+    failures.next = 1;
+    await expect(call('k1')).rejects.toThrowError('handler failed');
+    expect(await call('k1')).toEqual({ secret: SECRET, call: 2 });
     expect(calls()).toBe(2);
   });
 });

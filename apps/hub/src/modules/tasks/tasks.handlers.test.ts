@@ -14,7 +14,7 @@ function setup(loaded = testTeamConfig()) {
   });
   h.presence.setLoadReader(() => module.service.activeLoad());
   const dispatch = createRpcRouter({
-    index: h.ctx.index,
+    index: () => h.ctx.index,
     handlers: module.handlers,
     idempotency: new IdempotencyStore(h.ctx.db, h.clock),
     logger: h.ctx.logger,

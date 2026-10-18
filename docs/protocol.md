@@ -32,7 +32,9 @@ result.
 Methods whose result carries a secret (such as an invite code) set `cacheResponse: false` in their
 contract. The hub records only that the key was used, never the result. A retry with the same key
 then fails with `conflict` instead of running again or replaying the secret. The caller should
-start over with a new key.
+start over with a new key. For every method, a call that arrives while another with the same key is
+still running also gets `conflict`; a call that fails frees its key for a retry. Use one key per
+method call (e.g. `${interactionId}:${method}`), never one key for several methods.
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
@@ -55,8 +57,13 @@ start over with a new key.
 | `mesh.status` | any | Pause state, peers, counts |
 | `mesh.pause` · `mesh.resume` | human (admin) | Kill switch |
 | `refs.set` · `refs.get` · `refs.find` | service | External ids for bridges (e.g. Discord thread ids) |
-| `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. *Contract only; the hub handlers are in progress.* |
-| `enrollment.list` | service (bridge) | Enrolled members, for a bridge to build its index. *Contract only.* |
+| `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. `remove` emits `member.removed`; members defined in mesh.yaml are refused. |
+| `enrollment.list` | service (bridge) | Enrolled members, active and revoked, for a bridge to build its index. |
+
+Members join when the hub redeems their code. That happens inside the hub (the NATS auth callout),
+not over RPC. Redemption emits `member.joined`, creates the agent's inbox, and makes the new agent
+and its human resolvable at once, with no restart. Bridges should refresh their index on
+`member.joined` and `member.removed`.
 
 An invite code is base64url JSON `{ v: 1, natsUrl, inviteId, secret }`: `encodeInvite` /
 `decodeInvite` in `packages/protocol/src/enrollment.ts`. The hub stores only the secret's sha256,

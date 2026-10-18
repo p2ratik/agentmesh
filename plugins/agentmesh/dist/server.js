@@ -25393,11 +25393,21 @@ function isValidParticipantId(id) {
 
 // ../../packages/common/src/logger.ts
 var import_pino = __toESM(require_pino(), 1);
+var SECRET_FIELDS = ["invite", "inviteCode", "secret", "token", "auth_token"];
+var REDACTED_LOG_PATHS = SECRET_FIELDS.flatMap((f) => [f, `*.${f}`]);
 function createLogger(name, options = {}) {
   const level = options.level ?? process.env.AGENTMESH_LOG_LEVEL ?? "info";
   const destination = options.destination ?? "stdout";
   const stream = destination === "stdout" ? import_pino.default.destination(1) : destination === "stderr" ? import_pino.default.destination(2) : import_pino.default.destination({ dest: destination.file, mkdir: true, sync: false });
-  return (0, import_pino.default)({ name, level, base: { component: name } }, stream);
+  return (0, import_pino.default)(
+    {
+      name,
+      level,
+      base: { component: name },
+      redact: { paths: REDACTED_LOG_PATHS, censor: "[redacted]" }
+    },
+    stream
+  );
 }
 
 // ../../packages/common/src/paths.ts
@@ -50505,7 +50515,7 @@ function error62(text) {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.2";
+var VERSION = "0.1.3";
 function createMcpServer(instructions, deps) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },

@@ -141,6 +141,7 @@ export class FakePresence implements PresenceService {
     for (const id of online) this.online.add(id);
   }
 
+  syncFromConfig(): void {}
   touch(id: string): void {
     this.online.add(id);
   }

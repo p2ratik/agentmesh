@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     {
       mesh: config.mesh.name,
       prefix: config.mesh.prefix,
-      agents: config.agents.map((a) => a.id),
+      agents: hub.context.index.agents().map((a) => a.id),
       dataDir,
     },
     'agentmesh hub started',
