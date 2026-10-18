@@ -50,6 +50,11 @@ result.
 | `mesh.status` | any | Pause state, peers, counts |
 | `mesh.pause` · `mesh.resume` | human (admin) | Kill switch |
 | `refs.set` · `refs.get` · `refs.find` | service | External ids for bridges (e.g. Discord thread ids) |
+| `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. *Contract only; the hub handlers are in progress.* |
+| `enrollment.list` | service | Enrolled members, for a bridge to build its index. *Contract only.* |
+
+An invite code is base64url JSON `{ v: 1, natsUrl, inviteId, secret }`: `encodeInvite` /
+`decodeInvite` in `packages/protocol/src/enrollment.ts`. The hub stores only the secret's sha256.
 
 ## Messages
 
@@ -63,7 +68,7 @@ Every delivered message is a `MeshMessage`: `id`, `threadId`, `kind` (`ask`, `re
 
 `message.created`, `thread.created`, `task.created`, `task.changed`, `plan.started`,
 `plan.changed`, `external.received`, `notice.posted`, `mesh.paused`, `mesh.resumed`,
-`presence.changed` — each `{ id, type, at, data }`. See `packages/protocol/src/events.ts`.
+`presence.changed`, `member.joined`, `member.removed` — each `{ id, type, at, data }`. See `packages/protocol/src/events.ts`.
 
 ## The Claude Code channel
 

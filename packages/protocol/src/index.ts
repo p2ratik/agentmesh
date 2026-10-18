@@ -1,3 +1,4 @@
+export * from './enrollment';
 export * from './events';
 export * from './ingest';
 export * from './leases';
