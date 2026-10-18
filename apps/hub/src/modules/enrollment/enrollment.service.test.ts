@@ -57,7 +57,12 @@ describe('enrollment invites', () => {
     const { invite, ctx } = setup();
     const result = invite();
     const payload = decodeInvite(result.code);
-    expect(payload).toMatchObject({ natsUrl: NATS_URL, inviteId: result.inviteId });
+    expect(payload).toMatchObject({
+      natsUrl: NATS_URL,
+      inviteId: result.inviteId,
+      agentId: 'dana-agent',
+      prefix: ctx.loaded.config.mesh.prefix,
+    });
     expect(result).toMatchObject({ humanId: 'dana', agentId: 'dana-agent' });
     const row = ctx.db.get<{ secret_sha256: string }>('SELECT * FROM enrollment_invites');
     const dump = JSON.stringify(ctx.db.all('SELECT * FROM enrollment_invites'));

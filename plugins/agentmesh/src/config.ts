@@ -15,7 +15,10 @@ export interface PluginConfig {
   logFile?: string;
 }
 
-export type ConfigResult = { ok: true; config: PluginConfig } | { ok: false; problems: string[] };
+export type ConfigResult =
+  | { ok: true; config: PluginConfig }
+  /** `unenrolled`: neither agent_id nor nats_url is set anywhere, so `join` is the way in. */
+  | { ok: false; problems: string[]; unenrolled: boolean };
 
 /** ~/.agentmesh/agent.json — written by `agentmesh agent-setup --write`. */
 const FileConfig = z.object({
@@ -51,7 +54,9 @@ export function resolveConfig(
   if (!PREFIX_PATTERN.test(prefix)) problems.push(`prefix "${prefix}" is not valid`);
   if (!Number.isFinite(heartbeat) || heartbeat < 5)
     problems.push('AGENTMESH_HEARTBEAT_SECONDS must be >= 5');
-  if (problems.length > 0 || !agentId || !urls) return { ok: false, problems };
+  if (problems.length > 0 || !agentId || !urls) {
+    return { ok: false, problems, unenrolled: !agentId && !urls };
+  }
 
   const logFile = usable(env.AGENTMESH_LOG_FILE);
   return {

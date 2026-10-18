@@ -77,6 +77,14 @@ export async function callTool(
   }
 }
 
+/** The mesh tools against the hub, or each one reporting the setup problem. */
+export function meshToolHandler(deps: ToolDeps | { problems: string[] }) {
+  return {
+    list: () => listTools(),
+    call: (name: string, args: unknown) => callTool(name, args, deps),
+  };
+}
+
 function error(text: string): ToolResult {
   return { content: [{ type: 'text', text }], isError: true };
 }

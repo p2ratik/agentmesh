@@ -82,7 +82,14 @@ export class EnrollmentServiceImpl implements EnrollmentService {
       expiresAt,
     });
     this.#ctx.logger.info({ inviteId, humanId, agentId, by: actor.id }, 'invite created');
-    const code = encodeInvite({ v: 1, natsUrl: enrollment.natsUrl, inviteId, secret });
+    const code = encodeInvite({
+      v: 1,
+      natsUrl: enrollment.natsUrl,
+      inviteId,
+      agentId,
+      prefix: this.#ctx.loaded.config.mesh.prefix,
+      secret,
+    });
     return { inviteId, code, humanId, agentId, expiresAt };
   }
 

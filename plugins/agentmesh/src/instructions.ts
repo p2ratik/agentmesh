@@ -5,7 +5,15 @@ export interface InstructionsInput {
   hello: RpcResult<'session.hello'> | null;
   /** Configuration problems; when present the tools only explain how to fix them. */
   problems: string[];
+  /** No mesh configured at all: only the `join` tool is offered. */
+  unenrolled?: boolean;
 }
+
+const UNENROLLED = `AgentMesh is installed, but this laptop has not joined a mesh yet; the only tool is join.
+To join, your human needs the invite code their mesh admin sent by Discord DM:
+1. Ask them to save the code to ~/.agentmesh/invite.txt. Never ask them to paste it into this chat: it is a one-time secret.
+2. Call join. It shows which hub the invite points at; ask your human to confirm that hub, then call join again with confirm_hub.
+After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
 
 /** Claude Code truncates MCP server instructions beyond this many characters. */
 export const MAX_INSTRUCTIONS = 4096;
@@ -24,6 +32,7 @@ const PROTOCOL = `How the mesh works:
 
 /** The MCP `instructions` string Claude Code shows the model when the plugin connects. */
 export function buildInstructions(input: InstructionsInput): string {
+  if (input.unenrolled) return UNENROLLED;
   if (input.problems.length > 0) {
     return [
       'AgentMesh is installed but not configured, so mesh tools only report this setup problem:',
