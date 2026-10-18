@@ -33,8 +33,9 @@ Methods whose result carries a secret (such as an invite code) set `cacheRespons
 contract. The hub records only that the key was used, never the result. A retry with the same key
 then fails with `conflict` instead of running again or replaying the secret. The caller should
 start over with a new key. For every method, a call that arrives while another with the same key is
-still running also gets `conflict`; a call that fails frees its key for a retry. Use one key per
-method call (e.g. `${interactionId}:${method}`), never one key for several methods.
+still running also gets `conflict`; a call that fails frees its key for a retry. Keys are scoped
+per caller and method, so one interaction may use the same key for, say, `invite` and then
+`cancelInvite`.
 
 | Method | Callers | Purpose |
 | --- | --- | --- |

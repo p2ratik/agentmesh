@@ -70,7 +70,7 @@ async function runOnce(
   try {
     result = await run();
   } catch (error) {
-    store.release(callerId, key);
+    store.release(callerId, key, method);
     throw error;
   }
   store.put(callerId, key, method, result, { withhold });

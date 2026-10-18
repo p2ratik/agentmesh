@@ -89,6 +89,19 @@ describe('RPC router idempotency', () => {
     },
   );
 
+  it('keeps keys per method: reusing one for another method neither skips nor clobbers', () => {
+    const h = createServiceHarness(testTeamConfig());
+    const store = new IdempotencyStore(h.ctx.db, h.clock);
+    store.put('alice-agent', 'k1', 'task.get', { first: true });
+    store.reserve('alice-agent', 'k1', 'task.act');
+    expect(store.get('alice-agent', 'k1', 'task.act')).toEqual({ found: true, pending: true });
+    store.release('alice-agent', 'k1', 'task.act');
+    expect(store.get('alice-agent', 'k1', 'task.get')).toMatchObject({
+      found: true,
+      response: { first: true },
+    });
+  });
+
   it('frees the key when the handler fails, so the same key can retry', async () => {
     const { call, calls, failures } = setup(false);
     failures.next = 1;

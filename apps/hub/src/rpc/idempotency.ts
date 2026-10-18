@@ -20,16 +20,12 @@ export class IdempotencyStore {
   }
 
   get(caller: string, key: string, method: string): IdempotencyLookup {
-    const row = this.#db.get<{
-      method: string;
-      response: string;
-      withheld: number;
-      pending: number;
-    }>(
-      'SELECT method, response, withheld, pending FROM rpc_idempotency WHERE caller = $caller AND key = $key',
-      { caller, key },
+    const row = this.#db.get<{ response: string; withheld: number; pending: number }>(
+      `SELECT response, withheld, pending FROM rpc_idempotency
+       WHERE caller = $caller AND key = $key AND method = $method`,
+      { caller, key, method },
     );
-    if (!row || row.method !== method) return { found: false };
+    if (!row) return { found: false };
     if (row.pending) return { found: true, pending: true };
     if (row.withheld) return { found: true, pending: false, withheld: true };
     return { found: true, pending: false, withheld: false, response: JSON.parse(row.response) };
@@ -38,7 +34,7 @@ export class IdempotencyStore {
   /**
    * Claims the key before the handler runs, so an overlapping call with the
    * same key sees `pending` instead of running the handler a second time.
-   * Leaves an existing row (another method's) untouched.
+   * Keys are per method: the same key on another method is a separate call.
    */
   reserve(caller: string, key: string, method: string): void {
     this.#db.run(
@@ -49,10 +45,11 @@ export class IdempotencyStore {
   }
 
   /** Drops a reservation whose handler failed, so the caller can retry with the same key. */
-  release(caller: string, key: string): void {
+  release(caller: string, key: string, method: string): void {
     this.#db.run(
-      'DELETE FROM rpc_idempotency WHERE caller = $caller AND key = $key AND pending = 1',
-      { caller, key },
+      `DELETE FROM rpc_idempotency
+       WHERE caller = $caller AND key = $key AND method = $method AND pending = 1`,
+      { caller, key, method },
     );
   }
 

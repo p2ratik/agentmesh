@@ -73,9 +73,22 @@ describe('enrollment invites', () => {
     ['a mesh.yaml human', { humanId: 'bob', agentId: 'bob-2' }],
     ['a mesh.yaml agent', { agentId: 'alice-agent' }],
     ['a mesh.yaml Discord account', { discordUserId: '100000000000000002' }],
+    ['a mesh.yaml service', { agentId: 'discord-bridge' }],
+    ['the hub', { humanId: 'hub' }],
+    ['the human themself', { agentId: 'dana' }],
   ])('refuses ids already used by %s', (_label, params) => {
     const { invite } = setup();
     expect(() => invite(params)).toThrowError(MeshError);
+  });
+
+  it("refuses an active member's ids and Discord account, and a removed member's agent id", async () => {
+    const s = setup();
+    await s.redeemCode(s.invite().code);
+    expect(() => s.invite({ humanId: 'dan', agentId: 'dana-agent' })).toThrowError(/already/);
+    expect(() => s.invite({ humanId: 'dan' })).toThrowError(/Discord account/);
+    await s.service.remove('dana', ALICE);
+    const reuse = { humanId: 'dan', agentId: 'dana-agent', discordUserId: '200000000000000002' };
+    expect(() => s.invite(reuse)).toThrowError(/removed member/);
   });
 
   it('refuses a second open invite for the same person until the first is cancelled', () => {

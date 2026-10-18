@@ -1,11 +1,25 @@
 /**
  * Invite-only onboarding: invites (only the secret's sha256 is kept) and the
- * team registry of enrolled members. Also lets the router reserve an
- * idempotency key before running the handler (`pending = 1`), so two
- * overlapping calls with the same key cannot both run.
+ * team registry of enrolled members. Also rebuilds `rpc_idempotency` keyed
+ * by (caller, key, method) with a `pending` flag, so the router can reserve a
+ * key before running the handler and a key reused for another method never
+ * touches the first method's row.
  */
 export const MIGRATION_003 = `
-ALTER TABLE rpc_idempotency ADD COLUMN pending INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE rpc_idempotency_v3 (
+  caller TEXT NOT NULL,
+  key TEXT NOT NULL,
+  method TEXT NOT NULL,
+  response TEXT NOT NULL,
+  withheld INTEGER NOT NULL DEFAULT 0,
+  pending INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (caller, key, method)
+);
+INSERT INTO rpc_idempotency_v3 (caller, key, method, response, withheld, created_at)
+  SELECT caller, key, method, response, withheld, created_at FROM rpc_idempotency;
+DROP TABLE rpc_idempotency;
+ALTER TABLE rpc_idempotency_v3 RENAME TO rpc_idempotency;
 
 CREATE TABLE enrollment_invites (
   id TEXT PRIMARY KEY,
