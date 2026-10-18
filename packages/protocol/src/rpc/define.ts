@@ -12,6 +12,12 @@ export interface MethodDef<P extends z.ZodType = z.ZodType, R extends z.ZodType 
   callers: readonly ParticipantKind[];
   /** Restricts the method to humans holding this role (e.g. `admin`). */
   requiresRole?: string;
+  /**
+   * Set to false for responses that carry secrets (e.g. an invite code): the
+   * hub never stores them, and a retry with the same idempotency key is
+   * refused with `conflict` instead of being replayed. Default: true.
+   */
+  cacheResponse?: boolean;
 }
 
 export const defineMethod = <P extends z.ZodType, R extends z.ZodType>(

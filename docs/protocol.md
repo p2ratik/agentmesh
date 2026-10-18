@@ -29,6 +29,11 @@ Request: `{ v: 1, params, actAs?, idempotencyKey? }`. Response: `{ ok: true, res
 authorises as that human. A retried request with the same `idempotencyKey` returns the original
 result.
 
+Methods whose result carries a secret (such as an invite code) set `cacheResponse: false` in their
+contract. The hub records only that the key was used, never the result. A retry with the same key
+then fails with `conflict` instead of running again or replaying the secret. The caller should
+start over with a new key.
+
 | Method | Callers | Purpose |
 | --- | --- | --- |
 | `session.hello` | agent, service | Register a session; returns self, git policy, team policy, unread count |
