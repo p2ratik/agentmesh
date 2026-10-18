@@ -85,6 +85,7 @@ areas:
 | `limits.dedupWindowSeconds` | `120` | Same body, same sender, same thread → rejected as duplicate. |
 | `limits.maxBodyChars` | `32000` | Message size limit. |
 | `limits.deliveryRetentionDays` | `14` | How long undelivered messages wait in JetStream. |
+| `enrollment.natsUrl` | — | The NATS URL new members' laptops connect to, written into every invite code. Must be `tls://` or `wss://` (`nats://` and `ws://` only for localhost). Without it, `/mesh invite` is refused. |
 | `enrollment.inviteTtlHours` | `24` | How long an unused `/mesh invite` code stays valid (max 720). |
 | `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). |
 | `enrollment.redeemAttemptsPerMinute` | `5` | Failed invite redemptions allowed per minute, per invite and per client IP. |

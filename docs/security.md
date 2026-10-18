@@ -79,18 +79,18 @@ itself.
 - **Threat:** a method that returns a secret, such as an invite code, would leave the plaintext in
   SQLite. Anyone who can read the hub's data volume or a backup could then recover it.
 - **Mitigation:** contracts for such methods set `cacheResponse: false`. The router then stores only
-  the key, with `withheld = 1` and no result. A retry with the same key, sent after the first call
-  completes, fails with `conflict` and does not replay the secret. Two calls with the same key that
-  overlap in flight can both run, because the key is only recorded afterwards. Reserving the key
-  before running the handler is a follow-up for the enrollment module (task-6).
+  the key, with `withheld = 1` and no result. A retry with the same key fails with `conflict` and
+  does not replay the secret. The router reserves the key (`pending = 1`) before the handler runs,
+  so two overlapping calls with the same key cannot both run (one gets `conflict`). A failed call
+  frees its key.
 - **Residual risk:** if the response is lost in transit, the secret is gone and the caller has to
   start over, for example by cancelling and re-issuing the invite. This is accepted on purpose:
   losing an invite is better than storing it.
 
 ## Invite codes
 
-*Contracts only so far. The hub enrollment and auth-callout work (plan-1) builds on these rules,
-and ADR-0005 will give the full threat model.*
+*The hub's enrollment module implements these rules. The auth callout that redeems codes is
+still in progress (plan-1), and ADR-0005 will give the full threat model.*
 
 An invite code (`/mesh invite`) is a **bearer token**. Whoever presents it first enrolls, so the
 Discord id on the invite only labels the member: redeeming the code does not prove that Discord
@@ -102,9 +102,17 @@ identity.
   and enroll as the new member.
   **Mitigation:** the protocol accepts `tls://` and `wss://` invite URLs only. Plaintext
   `nats://` and `ws://` are allowed for localhost only, and URLs carrying credentials are refused.
-- **Threat: the code at rest.** **Mitigation:** the hub stores only sha256(secret), the result is
-  never written to the idempotency cache (`cacheResponse: false`), and decode errors never echo
-  the code.
+- **Threat: the code at rest.** **Mitigation:** the hub stores only sha256(secret) and compares
+  it in constant time. The result is never written to the idempotency cache
+  (`cacheResponse: false`), decode errors never echo the code, and every logger redacts fields
+  named `invite`, `inviteCode`, `secret`, `token` and `auth_token`.
+- **Threat: replay or a race on one code.** **Mitigation:** redemption marks the invite used and
+  inserts the member in one transaction, guarded by `used_at IS NULL` and by the member's unique
+  id and key. Every refusal (unknown, wrong secret, used, cancelled, expired, key in use) returns
+  the same `unauthenticated` error; the reason goes only to the hub log.
+- **Threat: a registry entry shadowing mesh.yaml.** **Mitigation:** invites refuse ids, Discord
+  ids and keys that mesh.yaml or an active member already uses. If mesh.yaml later adds a
+  colliding entry, mesh.yaml wins and the member is ignored (logged as shadowed).
 - **Threat: guessing.** **Mitigation:** 256-bit secret, single use, a short TTL
   (`enrollment.inviteTtlHours`), and rate-limited redemption (`enrollment.redeemAttemptsPerMinute`).
 - **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is

@@ -3,9 +3,11 @@ import type { Db } from '../db/database';
 
 export type IdempotencyLookup =
   | { found: false }
-  | { found: true; withheld: false; response: unknown }
+  | { found: true; pending: false; withheld: false; response: unknown }
   /** The call completed, but its response was deliberately not stored. */
-  | { found: true; withheld: true };
+  | { found: true; pending: false; withheld: true }
+  /** A call with this key is still running. */
+  | { found: true; pending: true };
 
 /** Remembers RPC results per (caller, idempotency key) so retries are safe. */
 export class IdempotencyStore {
@@ -18,13 +20,37 @@ export class IdempotencyStore {
   }
 
   get(caller: string, key: string, method: string): IdempotencyLookup {
-    const row = this.#db.get<{ method: string; response: string; withheld: number }>(
-      'SELECT method, response, withheld FROM rpc_idempotency WHERE caller = $caller AND key = $key',
-      { caller, key },
+    const row = this.#db.get<{ response: string; withheld: number; pending: number }>(
+      `SELECT response, withheld, pending FROM rpc_idempotency
+       WHERE caller = $caller AND key = $key AND method = $method`,
+      { caller, key, method },
     );
-    if (!row || row.method !== method) return { found: false };
-    if (row.withheld) return { found: true, withheld: true };
-    return { found: true, withheld: false, response: JSON.parse(row.response) };
+    if (!row) return { found: false };
+    if (row.pending) return { found: true, pending: true };
+    if (row.withheld) return { found: true, pending: false, withheld: true };
+    return { found: true, pending: false, withheld: false, response: JSON.parse(row.response) };
+  }
+
+  /**
+   * Claims the key before the handler runs, so an overlapping call with the
+   * same key sees `pending` instead of running the handler a second time.
+   * Keys are per method: the same key on another method is a separate call.
+   */
+  reserve(caller: string, key: string, method: string): void {
+    this.#db.run(
+      `INSERT OR IGNORE INTO rpc_idempotency (caller, key, method, response, withheld, pending, created_at)
+       VALUES ($caller, $key, $method, 'null', 0, 1, $at)`,
+      { caller, key, method, at: this.#clock.now().toISOString() },
+    );
+  }
+
+  /** Drops a reservation whose handler failed, so the caller can retry with the same key. */
+  release(caller: string, key: string, method: string): void {
+    this.#db.run(
+      `DELETE FROM rpc_idempotency
+       WHERE caller = $caller AND key = $key AND method = $method AND pending = 1`,
+      { caller, key, method },
+    );
   }
 
   /** Records a completed call. With `withhold`, only the key is kept, never the response. */
@@ -37,8 +63,8 @@ export class IdempotencyStore {
   ): void {
     const withhold = options.withhold ?? false;
     this.#db.run(
-      `INSERT OR REPLACE INTO rpc_idempotency (caller, key, method, response, withheld, created_at)
-       VALUES ($caller, $key, $method, $response, $withheld, $at)`,
+      `INSERT OR REPLACE INTO rpc_idempotency (caller, key, method, response, withheld, pending, created_at)
+       VALUES ($caller, $key, $method, $response, $withheld, 0, $at)`,
       {
         caller,
         key,

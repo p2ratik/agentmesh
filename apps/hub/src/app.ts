@@ -1,8 +1,13 @@
 import { join } from 'node:path';
-import { type RpcDispatcher, serveRpc } from '@agentmesh/bus';
+import {
+  deleteInboxConsumer,
+  ensureInboxConsumer,
+  type RpcDispatcher,
+  serveRpc,
+} from '@agentmesh/bus';
 import { type Clock, createLogger, DAY_MS, type Logger, systemClock } from '@agentmesh/common';
 import { ConfigIndex, type LoadedConfig } from '@agentmesh/config';
-import type { HubContext } from './context';
+import { createHubContext, type HubContext } from './context';
 import { NatsPorts } from './core/nats-ports';
 import { SqliteOutbox } from './core/outbox';
 import { Db } from './db/database';
@@ -57,13 +62,27 @@ export async function createHub(options: HubOptions): Promise<Hub> {
   const delivery: DeliveryPort = natsPorts ?? options.ports?.delivery ?? fallback;
   const events: EventPort = natsPorts ?? options.ports?.events ?? fallback;
   const outbox = new SqliteOutbox(db, clock, logger, delivery, events);
-  const context: HubContext = { loaded, index: new ConfigIndex(config), db, clock, logger, outbox };
+  const context = createHubContext({
+    loaded,
+    index: new ConfigIndex(config),
+    db,
+    clock,
+    logger,
+    outbox,
+  });
 
-  const transport = nats ? createNatsIngestTransport(nats.js, config.mesh.prefix, logger) : null;
-  const built = buildModules(context, transport);
+  const prefix = config.mesh.prefix;
+  const transport = nats ? createNatsIngestTransport(nats.js, prefix, logger) : null;
+  const inboxes = nats
+    ? {
+        ensure: (agentId: string) => ensureInboxConsumer(nats.jsm, prefix, agentId),
+        remove: (agentId: string) => deleteInboxConsumer(nats.jsm, prefix, agentId),
+      }
+    : null;
+  const built = buildModules(context, transport, inboxes);
   const idempotency = new IdempotencyStore(db, clock);
   const dispatch = createRpcRouter({
-    index: context.index,
+    index: () => context.index,
     handlers: built.handlers,
     idempotency,
     logger,
@@ -91,7 +110,8 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     tick: () => scheduler.tick(),
     async start() {
       if (nats) {
-        await provisionTopology(nats, config, logger);
+        // The merged config, so enrolled members keep their inboxes across restarts.
+        await provisionTopology(nats, context.index.config, logger);
         subscriptions.push(serveRpc(nats.nc, dispatch, { prefix: config.mesh.prefix, logger }));
         subscriptions.push(
           startPresenceListener(nats.nc, config.mesh.prefix, built.services.presence, logger),

@@ -12,7 +12,8 @@ import { resolveActAs, resolveCaller } from './actor';
 import type { IdempotencyStore } from './idempotency';
 
 export interface RouterDeps {
-  index: ConfigIndex;
+  /** Read on every call: enrolled members join and leave without a restart. */
+  index: () => ConfigIndex;
   handlers: Partial<RpcHandlerMap>;
   idempotency: IdempotencyStore;
   logger: Logger;
@@ -37,27 +38,46 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
       throw new MeshError('not_found', `Method "${method}" is not available on this hub`);
     }
     const def = (deps.methods ?? RPC_METHODS)[method];
-    const { caller, actor } = authorize(deps.index, def, ctx, method);
+    const { caller, actor } = authorize(deps.index(), def, ctx, method);
     const params = parseParams(def, method, rawParams);
 
     deps.onCall?.(caller);
-    const key = ctx.idempotencyKey;
-    if (key) {
-      const cached = replayable(deps.idempotency, caller.id, key, method);
-      if (cached.found) return cached.response;
-    }
     const call: CallContext = { actor, caller, method };
-    const result = await handler(params as never, call);
-    if (key) {
-      deps.idempotency.put(caller.id, key, method, result, {
-        withhold: def.cacheResponse === false,
-      });
-    }
-    return result;
+    const run = async () => handler(params as never, call);
+    const key = ctx.idempotencyKey;
+    if (!key) return run();
+    return runOnce(deps.idempotency, caller.id, key, method, def.cacheResponse === false, run);
   };
 }
 
-/** A stored response to replay, or a conflict when the response was withheld. */
+/**
+ * Runs a call at most once per (caller, key): replays or refuses a known key,
+ * otherwise reserves it first. The lookup and the reservation happen in the
+ * same tick, so no overlapping call can slip in between.
+ */
+async function runOnce(
+  store: IdempotencyStore,
+  callerId: string,
+  key: string,
+  method: RpcMethodName,
+  withhold: boolean,
+  run: () => Promise<unknown>,
+): Promise<unknown> {
+  const cached = replayable(store, callerId, key, method);
+  if (cached.found) return cached.response;
+  store.reserve(callerId, key, method);
+  let result: unknown;
+  try {
+    result = await run();
+  } catch (error) {
+    store.release(callerId, key, method);
+    throw error;
+  }
+  store.put(callerId, key, method, result, { withhold });
+  return result;
+}
+
+/** A stored response to replay, or a conflict when the response is pending or withheld. */
 function replayable(
   store: IdempotencyStore,
   callerId: string,
@@ -66,6 +86,9 @@ function replayable(
 ): { found: false } | { found: true; response: unknown } {
   const cached = store.get(callerId, key, method);
   if (!cached.found) return cached;
+  if (cached.pending) {
+    throw new MeshError('conflict', `${method} is still running for this idempotency key`);
+  }
   if (cached.withheld) {
     throw new MeshError(
       'conflict',

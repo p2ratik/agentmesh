@@ -7,6 +7,7 @@ import type {
   DomainEventData,
   DomainEventType,
   IngestEvent,
+  MemberRecord,
   MeshMessage,
   MessageKind,
   MessageRefs,
@@ -98,6 +99,8 @@ export interface ControlService {
 // ---------------------------------------------------------------- presence
 
 export interface PresenceService {
+  /** Re-reads participants from `ctx.index` (after members join or leave). */
+  syncFromConfig(): void;
   /** Mark online and refresh last-seen (heartbeats and every RPC call). */
   touch(participantId: string, info?: { repo?: string; branch?: string }): void;
   setDeclared(participantId: string, status: 'online' | 'busy' | 'away', note: string | null): void;
@@ -232,6 +235,26 @@ export interface TaskService {
 export interface PlanningService {
   get(planId: number): Plan;
   activeCount(): number;
+}
+
+// ---------------------------------------------------------------- enrollment
+
+/** What the auth callout passes on from a connecting laptop's invite code and key. */
+export interface RedeemInput {
+  inviteId: string;
+  secret: string;
+  /** The public nkey the laptop proved it holds (the callout verifies the signature). */
+  nkey: string;
+}
+
+export interface EnrollmentService {
+  /**
+   * Single use: marks the invite used, adds the member and emits `member.joined`.
+   * Any problem is refused as `unauthenticated` with no detail.
+   */
+  redeem(input: RedeemInput): Promise<MemberRecord>;
+  /** Every member, active and revoked. */
+  list(): MemberRecord[];
 }
 
 // ---------------------------------------------------------------- ingest
