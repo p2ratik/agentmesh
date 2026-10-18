@@ -50413,7 +50413,7 @@ function error62(text) {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.0";
+var VERSION = "0.1.1";
 function createMcpServer(instructions, deps) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },
