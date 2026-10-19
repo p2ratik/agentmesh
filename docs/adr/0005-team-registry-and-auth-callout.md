@@ -87,9 +87,11 @@ edit, no restart, and a key that never leaves the member's laptop.
    - On start the hub provisions fresh streams in `APP`.
    - Check that the hub's log shows no seed errors and that an existing agent reconnects.
    - Then run `/mesh resume`.
-7. **Clean up.** Once everything works, the old `$G` streams hold nothing anyone reads. Delete them
-   with the `nats` CLI as the system user, or remove `$G` from the JetStream store directory while
-   NATS is stopped.
+7. **Clean up.** Once everything works, the old `$G` streams hold nothing anyone reads.
+   - No user is in `$G` any more, and the sys user may only kick, so the `nats` CLI cannot delete
+     them.
+   - Stop NATS and remove the `$G` directory from the JetStream store (in the `nats-data` volume,
+     under `jetstream/`), then start NATS again.
 8. **Roll back** by rendering without `--auth-callout` and restarting both, with the same pause
    and drain first.
    - Data queued in `APP` is then stranded the same way.
