@@ -51,6 +51,49 @@ describe('resolveConfig', () => {
     });
   });
 
+  it("keeps agent.json's prefix over the option Claude Code stored by default", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
+    const file = join(dir, 'agent.json');
+    writeFileSync(
+      file,
+      JSON.stringify({ agentId: 'dana-agent', natsUrl: 'tls://hub:4222', prefix: 'acme' }),
+    );
+    const result = resolveConfig({ AGENTMESH_PREFIX: 'mesh' }, file);
+    expect(result.ok && result.config.prefix).toBe('acme');
+    expect(result.ok && result.warnings).toEqual([
+      'ignoring the prefix option "mesh": ~/.agentmesh/agent.json sets "acme"',
+    ]);
+    const sameHub = resolveConfig(
+      { AGENTMESH_NATS_URL: 'tls://hub:4222', AGENTMESH_PREFIX: 'mesh' },
+      file,
+    );
+    expect(sameHub.ok && sameHub.config.prefix).toBe('acme');
+  });
+
+  it('keeps the option prefix when the options point at another hub than agent.json', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
+    const file = join(dir, 'agent.json');
+    writeFileSync(
+      file,
+      JSON.stringify({ agentId: 'dana-agent', natsUrl: 'tls://hub:4222', prefix: 'acme' }),
+    );
+    const result = resolveConfig(
+      {
+        AGENTMESH_AGENT_ID: 'e2e-agent',
+        AGENTMESH_NATS_URL: 'nats://127.0.0.1:4333',
+        AGENTMESH_PREFIX: 'e2e',
+      },
+      file,
+    );
+    expect(result.ok && result.config.prefix).toBe('e2e');
+    expect(result.ok && result.warnings).toBeUndefined();
+  });
+
+  it('keeps the log file for an unenrolled plugin', () => {
+    const result = resolveConfig({ AGENTMESH_LOG_FILE: '/tmp/mesh.log' }, missingFile);
+    expect(result).toMatchObject({ ok: false, unenrolled: true, logFile: '/tmp/mesh.log' });
+  });
+
   it('lists every problem when unconfigured', () => {
     const result = resolveConfig(
       { AGENTMESH_AGENT_ID: 'Bad Id', AGENTMESH_PREFIX: '9x' },
