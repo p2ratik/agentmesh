@@ -176,8 +176,8 @@ identity.
 
 ## The hub in the authentication path (auth-callout mode)
 
-- **While the hub is down,** agents cannot connect or reconnect. Agents already connected keep
-  working until their JWT expires. The hub, the bridge and ingest are static users and are
+- **While the hub is down,** agents cannot connect or reconnect. Agents already connected stay
+  connected until their JWT expires, but their RPCs fail, since the hub answers them. The hub, the bridge and ingest are static users and are
   unaffected.
 - **The hub's issuer seed signs every agent's credentials.** Anyone holding it can mint access for
   any agent id, so treat it like the hub's own seed: `deploy/secrets/` only, never in

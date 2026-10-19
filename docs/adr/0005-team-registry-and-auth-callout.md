@@ -48,9 +48,16 @@ edit, no restart, and a key that never leaves the member's laptop.
 - **Adding a member** takes one Discord command and one plugin command; the seed never leaves the
   laptop. **Removing one** takes effect within seconds, and within the JWT TTL at worst.
 - **The hub becomes part of the authentication path.**
-  - While it is down, no agent can connect or reconnect, though agents already connected keep
-    working until their JWT expires.
+  - While it is down, no agent can connect or reconnect. Agents already connected stay connected
+    until their JWT expires, but their RPCs fail, since the hub answers them.
   - Static users (hub, bridge, ingest) are unaffected.
+- **Switching modes strands JetStream data.**
+  - Static mode keeps every stream in the default account (`$G`). Account mode puts everyone in
+    `APP`, which cannot see those streams.
+  - Queued inbox deliveries, the ingest backlog and the bridge's feed position stay behind in
+    `$G`.
+  - SQLite is unaffected, so the `inbox` tool still shows every unread thread.
+  - The migration below pauses and drains first; switching back strands `APP` the same way.
 - **The callout is the only nkey signature check,** because nats-server forwards signatures
   unchecked in this mode. It is security-critical code and needs Avishek's review; see
   `docs/security.md`.
@@ -63,14 +70,27 @@ edit, no restart, and a key that never leaves the member's laptop.
 
 1. **Update the hub** to a build with migration 003 (the registry). It runs on start and keeps
    existing data.
-2. **Generate the callout keys:** `agentmesh keys add hub-issuer|hub-xkey|hub-sys --secrets
-   deploy/secrets`. Set `enrollment.natsUrl` to the public `tls://host:4222`.
-3. **Render the config:** `agentmesh nats-config --tls --auth-callout`. Existing mesh.yaml agents
-   keep their keys; the callout admits them.
+2. **Generate the callout keys:** `agentmesh keys add hub-issuer|hub-xkey|hub-sys --config config
+   --secrets deploy/secrets`. Set `enrollment.natsUrl` to the public `tls://host:4222`.
+3. **Render the config:** `agentmesh nats-config --config config --tls --auth-callout`. Existing
+   mesh.yaml agents keep their keys; the callout admits them.
 4. **Copy the files to the VM:** `config/`, `deploy/nats/nats.conf` and the three new seeds. Never
    copy `deploy/.env`.
-5. **Restart NATS, then the hub** (`docker compose restart nats hub`). The accounts change, so a
-   reload is not enough. Check that the hub's log shows no seed errors and that an existing agent
-   reconnects.
-6. **Roll back** by rendering without `--auth-callout` and restarting both. Members enrolled through
-   invites then cannot connect until they are added to mesh.yaml.
+5. **Pause and drain.**
+   - Run `/mesh pause`. New deliveries are then held in the hub's database and released into the
+     new account on resume.
+   - Let online agents read their inboxes, and let the bridge catch up with the feed.
+   - Anything still queued in `$G` is stranded by the switch, but unread threads stay in SQLite,
+     so members get them back by calling `inbox`.
+6. **Restart NATS, then the hub** (`docker compose restart nats hub`).
+   - The accounts change, so a reload is not enough.
+   - On start the hub provisions fresh streams in `APP`.
+   - Check that the hub's log shows no seed errors and that an existing agent reconnects.
+   - Then run `/mesh resume`.
+7. **Clean up.** Once everything works, the old `$G` streams hold nothing anyone reads. Delete them
+   with the `nats` CLI as the system user, or remove `$G` from the JetStream store directory while
+   NATS is stopped.
+8. **Roll back** by rendering without `--auth-callout` and restarting both, with the same pause
+   and drain first.
+   - Data queued in `APP` is then stranded the same way.
+   - Members enrolled through invites cannot connect until they are added to mesh.yaml.
