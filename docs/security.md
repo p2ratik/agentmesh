@@ -26,9 +26,21 @@ the irreversible decisions.
   - `xkey` is always rendered, so auth requests (which carry invite codes) are sealed.
   - The issuer, xkey and sys seeds are new hub secrets in `deploy/secrets/`; `nats.conf` and
     `mesh.yaml` hold only their public keys. `permissionsFor()` lives in `packages/bus`, the one
-    source for both `nats.conf` and the JWTs the callout will issue.
-  - Do not deploy this mode until the hub's callout service exists: until then no agent can
-    connect.
+    source for both `nats.conf` and the JWTs the callout issues.
+  - **The hub's callout is the only nkey signature check** (`apps/hub/src/modules/callout`):
+    nats-server forwards the signature unchecked. For every connect the callout:
+    1. checks that the request JWT is signed by the server it names. That is only a consistency
+       check: requests can't be forged because no client may publish to `$SYS.REQ.USER.AUTH`;
+    2. verifies the agent's nkey signature over the nonce;
+    3. admits a key that mesh.yaml or an active member holds;
+    4. otherwise redeems the invite in `auth_token`;
+    5. anything else is refused, and so is any error. An unanswered request is a refusal too.
+    Admitted agents get a user JWT with `permissionsFor()` and `exp` from
+    `enrollment.userJwtTtlMinutes`. Failed redemptions are rate-limited per invite and per client
+    address (`enrollment.redeemAttemptsPerMinute`, in memory). The refusal reason goes only to the
+    hub log; the response says `not authorized`, and tokens are never logged.
+  - Removing a member revokes them first, then kicks every connection the callout admitted them
+    on. Connections admitted before a hub restart are not tracked; the JWT's `exp` ends them.
 - Only the bridge service with `canActAsHumans` may act for humans, and only for humans listed in
   config, mapped from their Discord user ids.
 - Keep NATS and the ingest endpoint on a private network (Tailscale); expose nothing but SSH.
@@ -89,8 +101,8 @@ itself.
 
 ## Invite codes
 
-*The hub's enrollment module implements these rules. The auth callout that redeems codes is
-still in progress (plan-1), and ADR-0005 will give the full threat model.*
+*The hub's enrollment module and auth callout implement these rules; ADR-0005 will give the full
+threat model.*
 
 An invite code (`/mesh invite`) is a **bearer token**. Whoever presents it first enrolls, so the
 Discord id on the invite only labels the member: redeeming the code does not prove that Discord

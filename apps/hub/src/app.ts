@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import {
+  connectBus,
   deleteInboxConsumer,
   ensureInboxConsumer,
   type RpcDispatcher,
@@ -12,6 +13,7 @@ import { NatsPorts } from './core/nats-ports';
 import { SqliteOutbox } from './core/outbox';
 import { Db } from './db/database';
 import { migrate } from './db/migrate';
+import { CalloutService, type LoadedCalloutKeys } from './modules/callout';
 import { createNatsIngestTransport } from './modules/ingest';
 import { type Subscription, startPresenceListener } from './modules/presence';
 import { type DeliveryPort, type EventPort, MemoryPorts } from './ports';
@@ -28,6 +30,8 @@ export interface HubOptions {
   /** Null runs without NATS (tests, embedding): use `dispatch` and `ports`. */
   nats: NatsSettings | null;
   ports?: { delivery: DeliveryPort; events: EventPort };
+  /** Auth-callout mode: the hub admits agents itself (see `loadCalloutKeys`). Needs `nats`. */
+  callout?: LoadedCalloutKeys | null;
   clock?: Clock;
   logger?: Logger;
 }
@@ -44,6 +48,26 @@ export interface Hub {
 }
 
 const OUTBOX_RETENTION_MS = 7 * DAY_MS;
+
+/** What the modules need from NATS: none of it exists without a connection. */
+async function natsAdapters(nats: HubNats | null, options: HubOptions, logger: Logger) {
+  if (!nats) return { transport: null, inboxes: null, sys: null };
+  const prefix = options.loaded.config.mesh.prefix;
+  const inboxes = {
+    ensure: (agentId: string) => ensureInboxConsumer(nats.jsm, prefix, agentId),
+    remove: (agentId: string) => deleteInboxConsumer(nats.jsm, prefix, agentId),
+  };
+  // Auth-callout mode: a second connection as the hub's kick-only system-account user.
+  const sys = options.callout
+    ? await connectBus({
+        servers: options.nats?.servers ?? [],
+        name: 'agentmesh-hub-sys',
+        credentials: { nkeySeed: options.callout.sysSeed },
+        logger,
+      })
+    : null;
+  return { transport: createNatsIngestTransport(nats.js, prefix, logger), inboxes, sys };
+}
 
 /** Assembles the hub. With NATS settings it connects (waiting for the server) before returning. */
 export async function createHub(options: HubOptions): Promise<Hub> {
@@ -71,15 +95,14 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     outbox,
   });
 
-  const prefix = config.mesh.prefix;
-  const transport = nats ? createNatsIngestTransport(nats.js, prefix, logger) : null;
-  const inboxes = nats
-    ? {
-        ensure: (agentId: string) => ensureInboxConsumer(nats.jsm, prefix, agentId),
-        remove: (agentId: string) => deleteInboxConsumer(nats.jsm, prefix, agentId),
-      }
-    : null;
-  const built = buildModules(context, transport, inboxes);
+  const { transport, inboxes, sys } = await natsAdapters(nats, options, logger);
+  let callout: CalloutService | null = null;
+  const kick = (agentId: string) => callout?.kick(agentId) ?? Promise.resolve();
+  const built = buildModules(context, transport, { inboxes, kick: sys ? kick : null });
+  if (sys && options.callout) {
+    const { enrollment } = built.services;
+    callout = new CalloutService(context, { keys: options.callout, enrollment, sys });
+  }
   const idempotency = new IdempotencyStore(db, clock);
   const dispatch = createRpcRouter({
     index: () => context.index,
@@ -112,6 +135,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       if (nats) {
         // The merged config, so enrolled members keep their inboxes across restarts.
         await provisionTopology(nats, context.index.config, logger);
+        if (callout) subscriptions.push(callout.start(nats.nc));
         subscriptions.push(serveRpc(nats.nc, dispatch, { prefix: config.mesh.prefix, logger }));
         subscriptions.push(
           startPresenceListener(nats.nc, config.mesh.prefix, built.services.presence, logger),
@@ -126,6 +150,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       for (const module of [...built.modules].reverse()) await module.stop?.();
       for (const sub of subscriptions) sub.unsubscribe();
       await outbox.flush().catch((err) => logger.warn({ err }, 'final outbox flush failed'));
+      if (sys) await sys.drain().catch(() => undefined);
       if (nats) await nats.nc.drain().catch(() => undefined);
       db.close();
     },
