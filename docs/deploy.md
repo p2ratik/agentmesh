@@ -69,14 +69,19 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
 - **New participant**: `agentmesh keys add <id>`, `agentmesh nats-config`, then
   `docker compose kill -s HUP nats` (reload) and restart the hub.
 - **Auth-callout mode** (invite-only onboarding): the hub admits agents itself instead of
-  `nats.conf` listing them. Read `docs/security.md` before switching a live deploy. To switch:
+  `nats.conf` listing them. Read `docs/security.md` and the migration steps in
+  [ADR-0005](adr/0005-team-registry-and-auth-callout.md) before switching a live deploy. In short:
   1. Run `agentmesh keys add hub-issuer`, `hub-xkey` and `hub-sys`
-     (`--secrets deploy/secrets`), and set `enrollment.natsUrl` to the public `tls://` address.
-  2. Render `agentmesh nats-config --tls --auth-callout`.
+     (`--config config --secrets deploy/secrets`), and set `enrollment.natsUrl` to the public
+     `tls://` address.
+  2. Render `agentmesh nats-config --config config --tls --auth-callout`.
   3. Copy `config/`, `nats.conf` and the three new seeds to the VM.
-  4. Restart NATS, then the hub. A full restart, not a reload: the accounts change. The hub reads
-     the seeds from `AGENTMESH_SECRETS_DIR` (compose sets it to `/secrets`) and refuses to start if
-     one is missing or does not match `hub.authCallout`.
+  4. **`/mesh pause` and let queues drain.** Account mode moves everyone from the default
+     account (`$G`) to `APP`, so streams in `$G` are left behind. Unread threads stay in the hub's
+     database and come back through `inbox`.
+  5. Restart NATS, then the hub, then `/mesh resume`. A full restart, not a reload: the accounts
+     change. The hub reads the seeds from `AGENTMESH_SECRETS_DIR` (compose sets it to `/secrets`)
+     and refuses to start if one is missing or does not match `hub.authCallout`.
   Existing agents keep their keys: the callout admits every key in mesh.yaml.
 - **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
 - **Backups**: the state is in two volumes. Stop the hub for a consistent copy

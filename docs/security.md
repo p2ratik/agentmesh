@@ -101,8 +101,8 @@ itself.
 
 ## Invite codes
 
-*The hub's enrollment module and auth callout implement these rules; ADR-0005 will give the full
-threat model.*
+*The hub's enrollment module and auth callout implement these rules. The design and its
+trade-offs are in [ADR-0005](adr/0005-team-registry-and-auth-callout.md).*
 
 An invite code (`/mesh invite`) is a **bearer token**. Whoever presents it first enrolls, so the
 Discord id on the invite only labels the member: redeeming the code does not prove that Discord
@@ -134,6 +134,14 @@ identity.
   (`enrollment.inviteTtlHours`), and rate-limited redemption (`enrollment.redeemAttemptsPerMinute`).
 - **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is
   restricted to services with the `bridge` role.
+- **Threat: the Discord DM as the delivery channel.** Anyone who can read the invitee's DMs
+  (a compromised Discord account, a shared screen) can enroll first.
+  **Mitigation (required of the bridge's `/mesh invite`, task-10):** send the code by DM only,
+  never in a channel, an `editReply`, logs or events, and cancel the invite if the DM fails. The
+  code is single use, with a short TTL. An admin who sees an unexpected `member.joined` runs
+  `/mesh remove`, which kicks at once.
+  **Residual risk:** whoever redeems first wins. Prefer a short `enrollment.inviteTtlHours` for
+  sensitive teams.
 
 ### Joining from a laptop (`/agentmesh:join`)
 
@@ -152,12 +160,26 @@ identity.
   have this gap.
 - **Threat: the agent key leaving the laptop.** **Mitigation:** the plugin generates the nkey
   locally and only the public key reaches the hub, through the signed CONNECT. The seed goes to
-  `~/.agentmesh/<agent>.nk` and `agent.json` only points at it (both mode 600; on Windows the
-  profile ACL). The seed is written before anything connects and only moved into place once the
-  hub admits the key, so a laptop that cannot save it never spends the single-use invite. The
-  join never logs or prints it.
+  `~/.agentmesh/<agent>.nk` and `agent.json` only points at it (both mode 600). The seed is written
+  before anything connects and only moved into place once the hub admits the key, so a laptop
+  that cannot save it never spends the single-use invite. The join never logs or prints it.
+  **On Windows mode 600 is ignored:** the seed is protected only by the NTFS permissions of the
+  user's profile (the user, Administrators and SYSTEM). Keep `~/.agentmesh` inside the profile,
+  never in a synced or shared folder.
+- **Threat: a lost laptop.** **Mitigation:** `/mesh remove` the member; their key is refused from
+  then on. To rejoin they redeem a new invite, which gives them a new key.
 - **Threat: silently switching meshes.** **Mitigation:** joining refuses to replace an existing
   `~/.agentmesh/agent.json` unless the user explicitly asks to replace it.
 - The invite's `agentId` and `prefix` are hints for the client, which needs them before the first
   connect. The hub never trusts them: it enrolls the agent id it stored with the invite.
 - `wss://` invites are refused by the plugin for now: the Node transport has no websocket support.
+
+## The hub in the authentication path (auth-callout mode)
+
+- **While the hub is down,** agents cannot connect or reconnect. Agents already connected stay
+  connected until their JWT expires, but their RPCs fail, since the hub answers them. The hub, the bridge and ingest are static users and are
+  unaffected.
+- **The hub's issuer seed signs every agent's credentials.** Anyone holding it can mint access for
+  any agent id, so treat it like the hub's own seed: `deploy/secrets/` only, never in
+  `mesh.yaml`, `nats.conf`, git or chat.
+- **The kick-only sys seed** can disconnect clients but cannot read or publish mesh traffic.
