@@ -21,11 +21,11 @@ Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-se
 | `nkey_seed` | path to your `.nk` file (stored in secure storage) |
 | `prefix` | `mesh` (empty means `mesh`) |
 
-Empty options fall back to `~/.agentmesh/agent.json`. The prefix is the exception. When
-`agent.json` is for the hub in use (`nats_url` is empty or the same URL), its prefix wins over the
-option, because `join` and `agent-setup --write` copy it from the hub. When the two differ, the
-plugin logs a warning naming both. If `nats_url` points at another hub, the option's prefix is
-used.
+Empty options fall back to `~/.agentmesh/agent.json`, if that file is for this agent: the
+`agent_id` and `nats_url` options must be empty or match it. Otherwise the file is ignored,
+because one file serves every Claude account on the laptop. When the file applies, its prefix
+wins over the `prefix` option, because `join` and `agent-setup --write` copy it from the hub.
+When the two differ, the plugin logs a warning naming both.
 
 ### Join with an invite instead
 
