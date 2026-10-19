@@ -114,6 +114,11 @@ identity.
   and enroll as the new member.
   **Mitigation:** the protocol accepts `tls://` and `wss://` invite URLs only. Plaintext
   `nats://` and `ws://` are allowed for localhost only, and URLs carrying credentials are refused.
+  The URL scheme alone is not enough: nats.js ignores it and still upgrades only when INFO asks.
+  So `connectBus`/`connectOnce` pass `tls: {}` whenever a server URL is `tls://` or `wss://`, and
+  the client then refuses a server that does not offer TLS before sending CONNECT. A test with a
+  fake plaintext server checks that nothing (no CONNECT, no secret) is sent. This also hardens
+  every later connect to a `tls://` hub URL.
 - **Threat: the code at rest.** **Mitigation:** the hub stores only sha256(secret) and compares
   it in constant time. The result is never written to the idempotency cache
   (`cacheResponse: false`), decode errors never echo the code, and every logger redacts fields
@@ -129,3 +134,30 @@ identity.
   (`enrollment.inviteTtlHours`), and rate-limited redemption (`enrollment.redeemAttemptsPerMinute`).
 - **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is
   restricted to services with the `bridge` role.
+
+### Joining from a laptop (`/agentmesh:join`)
+
+- **Threat: the code in a model transcript.** A code pasted into a chat ends up in the session
+  transcript and in model context. **Mitigation:** the plugin's `join` tool takes only a file
+  path (default `~/.agentmesh/invite.txt`) and never prints the code; `/agentmesh:join` tells
+  Claude never to ask for it. Errors never echo it, and the file is deleted after a successful
+  join. `node <plugin>/dist/server.js join` is a terminal path that bypasses the model entirely.
+  **Residual risk:** a user can still paste the code into a chat. It is single use and short-lived,
+  so joining promptly spends it.
+- **Threat: a crafted invite pointing at an attacker's hub.** That hub could push messages that
+  look like team traffic. **Mitigation:** nothing connects until the human confirms the decoded
+  `host:port`. The terminal path asks y/N. The tool path returns the host and needs a second call
+  with `confirm_hub` set to exactly that host. **Residual risk:** in the tool path, the model relays
+  the question, so a model that skipped asking would defeat the check. The terminal path does not
+  have this gap.
+- **Threat: the agent key leaving the laptop.** **Mitigation:** the plugin generates the nkey
+  locally and only the public key reaches the hub, through the signed CONNECT. The seed goes to
+  `~/.agentmesh/<agent>.nk` and `agent.json` only points at it (both mode 600; on Windows the
+  profile ACL). The seed is written before anything connects and only moved into place once the
+  hub admits the key, so a laptop that cannot save it never spends the single-use invite. The
+  join never logs or prints it.
+- **Threat: silently switching meshes.** **Mitigation:** joining refuses to replace an existing
+  `~/.agentmesh/agent.json` unless the user explicitly asks to replace it.
+- The invite's `agentId` and `prefix` are hints for the client, which needs them before the first
+  connect. The hub never trusts them: it enrolls the agent id it stored with the invite.
+- `wss://` invites are refused by the plugin for now: the Node transport has no websocket support.

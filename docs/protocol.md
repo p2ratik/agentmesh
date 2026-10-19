@@ -66,8 +66,11 @@ not over RPC. Redemption emits `member.joined`, creates the agent's inbox, and m
 and its human resolvable at once, with no restart. Bridges should refresh their index on
 `member.joined` and `member.removed`.
 
-An invite code is base64url JSON `{ v: 1, natsUrl, inviteId, secret }`: `encodeInvite` /
-`decodeInvite` in `packages/protocol/src/enrollment.ts`. The hub stores only the secret's sha256,
+An invite code is base64url JSON `{ v: 1, natsUrl, inviteId, agentId, prefix, secret }`:
+`encodeInvite` / `decodeInvite` in `packages/protocol/src/enrollment.ts`. `agentId` and `prefix`
+let the joining plugin set its reply inbox and RPC subjects before its first connect; the hub
+never trusts them and enrolls the agent id it stored. The plugin connects once with its new nkey
+and `auth_token: <the whole code>` in the same CONNECT; later connects send the key alone. The hub stores only the secret's sha256,
 and `enrollment.invite` sets `cacheResponse: false`. `natsUrl` must be `tls://` or `wss://`
 (`nats://` and `ws://` only for localhost), because the secret travels in the NATS CONNECT. See
 [security.md](security.md#invite-codes).

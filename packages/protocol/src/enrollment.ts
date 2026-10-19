@@ -1,6 +1,7 @@
 import { MeshError } from '@agentmesh/common';
 import { z } from 'zod';
 import { IsoDate, ParticipantId } from './primitives';
+import { PREFIX_PATTERN } from './subjects';
 
 /** NATS user public key (starts with U). Public keys are safe to store and show. */
 export const PublicNkey = z.string().regex(/^U[A-Z2-7]{55}$/, 'a NATS user public key (U…)');
@@ -37,6 +38,13 @@ export const InvitePayload = z.object({
     .max(300)
     .refine(isSafeInviteUrl, 'a tls:// or wss:// URL (nats:// and ws:// only for localhost)'),
   inviteId: InviteId,
+  /**
+   * The agent id the laptop connects as (its reply inbox and RPC subjects need it
+   * before the first connect). A hint only: the hub enrolls the id it stored.
+   */
+  agentId: ParticipantId,
+  /** The mesh subject prefix (`mesh.prefix`). */
+  prefix: z.string().regex(PREFIX_PATTERN),
   /** 32 random bytes, base64url. The hub stores only its sha256. */
   secret: z.string().regex(/^[A-Za-z0-9_-]{43}$/, '32 bytes, base64url'),
 });
