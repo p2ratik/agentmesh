@@ -53,7 +53,9 @@ docker compose ps
 curl http://<tailscale-ip>:8787/healthz           # {"ok":true}
 ```
 
-Laptops use `nats_url = nats://<vm-tailnet-name>:4222`.
+Laptops use `nats_url = nats://<vm-tailnet-name>:4222`. For invite-only onboarding, NATS needs a
+public TLS endpoint instead; see
+[Switching an existing deploy to invites](#switching-an-existing-deploy-to-invites---auth-callout).
 
 ## Public webhooks (optional)
 
@@ -66,23 +68,12 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
 - **Logs**: `docker compose logs -f hub` (JSON lines; `AGENTMESH_LOG_LEVEL=debug` for more).
 - **Config changes**: edit `config/`, run `agentmesh validate`, then `docker compose restart hub
   discord-bridge`. New agents get their NATS inbox automatically on restart.
-- **New participant**: `agentmesh keys add <id>`, `agentmesh nats-config`, then
-  `docker compose kill -s HUP nats` (reload) and restart the hub.
-- **Auth-callout mode** (invite-only onboarding): the hub admits agents itself instead of
-  `nats.conf` listing them. Read `docs/security.md` and the migration steps in
-  [ADR-0005](adr/0005-team-registry-and-auth-callout.md) before switching a live deploy. In short:
-  1. Run `agentmesh keys add hub-issuer`, `hub-xkey` and `hub-sys`
-     (`--config config --secrets deploy/secrets`), and set `enrollment.natsUrl` to the public
-     `tls://` address.
-  2. Render `agentmesh nats-config --config config --tls --auth-callout`.
-  3. Copy `config/`, `nats.conf` and the three new seeds to the VM.
-  4. **`/mesh pause` and let queues drain.** Account mode moves everyone from the default
-     account (`$G`) to `APP`, so streams in `$G` are left behind. Unread threads stay in the hub's
-     database and come back through `inbox`.
-  5. Restart NATS, then the hub, then `/mesh resume`. A full restart, not a reload: the accounts
-     change. The hub reads the seeds from `AGENTMESH_SECRETS_DIR` (compose sets it to `/secrets`)
-     and refuses to start if one is missing or does not match `hub.authCallout`.
-  Existing agents keep their keys: the callout admits every key in mesh.yaml.
+- **New member**:
+  - In auth-callout mode, an admin runs `/mesh invite` in Discord and the member runs
+    `/agentmesh:join` ([getting-started.md](getting-started.md#join-with-an-invite)). Nothing
+    changes on the VM. `/mesh remove` takes them off again.
+  - Otherwise, and for every new service: `agentmesh keys add <id>`, `agentmesh nats-config`,
+    then `docker compose kill -s HUP nats` (reload) and restart the hub.
 - **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
 - **Backups**: the state is in two volumes. Stop the hub for a consistent copy
   (`docker compose stop hub`, then start it again):
@@ -96,3 +87,34 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
 
 - **Upgrades**: `git pull && docker compose up -d --build`. Hub migrations run on start
   (append-only), and JetStream streams/consumers are updated in place.
+
+## Switching an existing deploy to invites (`--auth-callout`)
+
+With `nats-config --auth-callout`, the hub admits agents itself (an auth callout) instead of
+`nats.conf` listing every agent. That is what lets `/mesh invite` add members without a YAML
+edit or a restart.
+
+What you need:
+- NATS on a public TLS endpoint;
+- the three callout keys (`hub-issuer`, `hub-xkey`, `hub-sys`);
+- `enrollment.natsUrl` set to the `tls://` address laptops use.
+
+What stays the same:
+- Agents already in mesh.yaml keep their keys: the callout admits them.
+- The hub, the bridge and ingest stay static NATS users.
+
+The switch moves everyone from NATS's default account (`$G`) to `APP`, so it needs a full restart
+and a pause first.
+
+**Follow [Migrating a live deploy in ADR-0005](adr/0005-team-registry-and-auth-callout.md#migrating-a-live-deploy).**
+It is the single source for the steps: pausing and draining, the restart order, removing the old
+`$G` streams, and rolling back. Read the threat notes in [security.md](security.md) first.
+
+In this compose setup:
+- The hub reads the three seeds from `AGENTMESH_SECRETS_DIR` (compose sets it to `/secrets`, which
+  is `deploy/secrets`).
+- The hub refuses to start if a seed is missing or does not match `hub.authCallout`.
+- The JetStream store is in the `agentmesh_nats-data` volume.
+
+While the hub is down, no agent can connect or reconnect; see
+[security.md](security.md#the-hub-in-the-authentication-path-auth-callout-mode).

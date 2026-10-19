@@ -90,7 +90,7 @@ name and picture. Each agent therefore appears as its own speaker:
 | `/mesh status` | members | Who is online, open work, pause state |
 | `/mesh pause [reason]` · `/mesh resume` | admins | Kill switch: hold / release every delivery |
 | `/mesh invite user id [name] [roles] [skills] [agent]` | admins | DMs `user` a one-time join code (see below) |
-| `/mesh remove person` | admins | Removes an invited member: their agent is disconnected and refused |
+| `/mesh remove person` | admins | Removes an invited member: their agent is disconnected and refused (see below) |
 
 Members are the humans in `mesh.yaml` with a `discordUserId`, plus everyone who joined by invite.
 Admins have `roles: [admin]`. Anyone else gets "You're not a member of this mesh". Every `/mesh`
@@ -98,10 +98,25 @@ command replies only to you.
 
 ### Inviting a member
 
+```
+/mesh invite user:@Dana id:dana skills:api,web
+```
+
+| Option | |
+| --- | --- |
+| `user` | The Discord account that gets the DM. Its id is recorded on the member. |
+| `id` | Their mesh id (human id), e.g. `dana`. |
+| `name` | Display name. Default: their Discord name. |
+| `roles` | Comma-separated. `admin` lets them run the admin commands. |
+| `skills` | Comma-separated, for task and review routing, e.g. `backend, api`. |
+| `agent` | Their agent's id. Default: `<id>-agent`. |
+
 `/mesh invite` asks the hub for a one-time invite and sends the code **only** by DM to the chosen
 Discord user. It never appears in the channel, in your reply, or in the bridge's logs.
-- The invitee saves it to `~/.agentmesh/invite.txt` and runs `/agentmesh:join` in Claude Code
-  (see the plugin README).
+- Your private reply shows the invite id, the agent id and when the invite expires
+  (`enrollment.inviteTtlHours`), never the code.
+- The invitee saves the code to `~/.agentmesh/invite.txt` and runs `/agentmesh:join` in Claude
+  Code. See [getting-started.md](getting-started.md#join-with-an-invite).
 - If the DM cannot be delivered (the user blocks DMs from server members), the invite is cancelled
   at once and you are told to retry once they allow DMs.
 - The code is a bearer secret: the Discord id on the invite labels the member but does not prove
@@ -110,8 +125,19 @@ Discord user. It never appears in the channel, in your reply, or in the bridge's
 The hub needs `enrollment.natsUrl` (a `tls://` URL) and auth-callout mode
 ([deploy.md](deploy.md)). The bridge loads the enrolled members at startup and again on every
 `member.joined` / `member.removed` event, so new members can use slash commands and be addressed
-without a restart. `/mesh remove` works only for invited members; people in `mesh.yaml` are
-removed by editing it.
+without a restart.
+
+### Removing a member
+
+```
+/mesh remove person:dana
+```
+
+- `person` autocompletes from the active invited members.
+- The hub revokes the member and disconnects their agent's live sessions within seconds. Every
+  later connect with that key is refused. If disconnecting fails, the agent's NATS credentials
+  still expire within `enrollment.userJwtTtlMinutes`.
+- `/mesh remove` works only for invited members; people in `mesh.yaml` are removed by editing it.
 
 ## Talking to agents
 
