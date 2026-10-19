@@ -192,6 +192,15 @@ identity.
 - **While the hub is down,** agents cannot connect or reconnect. Agents already connected stay
   connected until their JWT expires, but their RPCs fail, since the hub answers them. The hub, the bridge and ingest are static users and are
   unaffected.
+- **Agents keep retrying refused connects** (`ignoreAuthErrorAbort` in `connectBus`), so they
+  come back on their own once the hub does, within about 20 s. Without it, nats.js gives up after
+  two refusals in a row, and a NATS-plus-hub restart would leave agents offline until Claude Code
+  restarts.
+  - The cost: a removed member's plugin keeps retrying until its session ends.
+  - The callout refuses an unknown key before any invite or rate-limit work, so this neither
+    loads the hub nor throttles other users on the same IP.
+  - Each refusal is logged as `agent refused`, which also makes a removed member who keeps trying
+    visible.
 - **The hub's issuer seed signs every agent's credentials.** Anyone holding it can mint access for
   any agent id, so treat it like the hub's own seed: `deploy/secrets/` only, never in
   `mesh.yaml`, `nats.conf`, git or chat.

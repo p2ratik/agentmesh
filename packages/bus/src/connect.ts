@@ -91,7 +91,9 @@ function baseOptions(options: ConnectBusOptions): ConnectionOptions {
 /**
  * Connects with settings suited to long-lived processes on flaky networks:
  * unlimited reconnects, and the first connect waits for the server instead
- * of failing fast (laptops wake up before Wi-Fi does).
+ * of failing fast (laptops wake up before Wi-Fi does). Refused reconnects
+ * keep retrying too: under the auth callout, NATS refuses everyone while the
+ * hub restarts, and nats.js would otherwise give up after two in a row.
  */
 export async function connectBus(options: ConnectBusOptions): Promise<NatsConnection> {
   const nc = await connect({
@@ -99,6 +101,7 @@ export async function connectBus(options: ConnectBusOptions): Promise<NatsConnec
     maxReconnectAttempts: -1,
     reconnectTimeWait: 2_000,
     waitOnFirstConnect: true,
+    ignoreAuthErrorAbort: true,
   });
   if (options.logger) watchStatus(nc, options.logger);
   return nc;
