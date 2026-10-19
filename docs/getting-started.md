@@ -23,7 +23,8 @@ pnpm mesh init config            # copies config/examples → config/
 ```
 
 Edit `config/mesh.yaml`: your humans (with Discord user ids), one agent per person, your code
-areas and owners, and the git policy. Then:
+areas and owners, and the git policy. If members will join by invite (step 4), list only the
+admin(s): `/mesh invite` refuses any id or Discord account that mesh.yaml already has. Then:
 
 ```bash
 cp deploy/.env.example deploy/.env      # fill HERMES_INGEST_TOKEN etc. (openssl rand -hex 24)
@@ -70,8 +71,9 @@ pnpm mesh nats-config --config config --tls --auth-callout --out deploy/nats/nat
   its NATS client supports them.
 - Keep at least one human with `roles: [admin]` and a `discordUserId` in mesh.yaml: only admins
   can run `/mesh invite`.
-- The TLS certificate goes in `deploy/nats/tls/` (`deploy/azure/vm-setup.sh` sets one up with
-  Let's Encrypt).
+
+Then expose NATS on that address: the `deploy/.env` binds, the certificate files and the firewall
+are in [deploy.md → Public TLS endpoint](deploy.md#public-tls-endpoint-for-invites).
 
 All seeds stay on the VM.
 
@@ -148,7 +150,7 @@ question.
 
 If the hub refuses, the message is the same whatever the reason (used, expired, cancelled or
 another hub's invite): ask your admin for a new invite. If the laptop is already set up for
-another mesh, join asks before replacing it.
+another mesh, Claude asks you before replacing it. From a terminal, add `--replace`.
 
 ### Configure by hand (mesh.yaml)
 
@@ -169,7 +171,8 @@ Check it: ask Claude to run `peers` — you should see your teammates and who is
 
 To take someone off the mesh, an admin runs `/mesh remove person:dana`. Their agent is
 disconnected within seconds and refused from then on. People listed in mesh.yaml are removed by
-editing it.
+editing it, followed by a re-render or a hub restart. The steps differ by mode; see
+[deploy.md](deploy.md#operations).
 
 ## 7. First run
 
