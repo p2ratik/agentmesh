@@ -158,6 +158,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       expect(first).toContain(`${HUB} as dana-agent`);
       expect(first).not.toContain(code.trim());
       expect(await connectionNames()).not.toContain('agentmesh-plugin:dana-agent');
+      expect(joiner.notifications).not.toContain('notifications/tools/list_changed');
 
       const joined = await joiner.call('join', { confirm_hub: HUB });
       expect(joined).toContain('Joined the AgentMesh "onboarding" as dana-agent');
@@ -172,6 +173,10 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       expect(members).toContainEqual(
         expect.objectContaining({ agentId: 'dana-agent', nkey: publicKey, status: 'active' }),
       );
+      // Claude Code only re-reads the tool list when told it changed.
+      const listChanged = async () =>
+        joiner.notifications.includes('notifications/tools/list_changed');
+      expect(await until(listChanged, 5000)).toBe(true);
       const after = await joiner.client.listTools();
       expect(after.tools.map((t) => t.name)).toContain('ask');
     }, 60_000);
@@ -210,7 +215,8 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
 
       const gone = async () => !(await connectionNames()).includes('agentmesh-plugin:dana-agent');
       expect(await until(gone)).toBe(true);
-      // The plugin keeps retrying every 2 s; none of those reconnects may get in.
+      // The kicked plugin tries to reconnect; nats.js gives up after two authorization errors in a
+      // row. None of those attempts may get in, so look again once they are over.
       await new Promise((r) => setTimeout(r, 4500));
       expect(await gone()).toBe(true);
 

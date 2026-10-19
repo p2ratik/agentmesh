@@ -13,6 +13,8 @@ export interface Channel {
 export interface Agent {
   client: Client;
   events: Channel[];
+  /** The method of every notification the plugin sent, in order. */
+  notifications: string[];
   /** Everything the plugin logged so far (it logs to stderr). */
   stderr(): string;
   call(name: string, args: Record<string, unknown>): Promise<string>;
@@ -49,13 +51,16 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
   transport.stderr?.on('data', (chunk: Buffer) => logged.push(chunk.toString('utf8')));
   const client = new Client({ name: `e2e-${env.agentId || 'joiner'}`, version: '0.0.0' });
   const events: Channel[] = [];
+  const notifications: string[] = [];
   client.fallbackNotificationHandler = async (n) => {
+    notifications.push(n.method);
     if (n.method === 'notifications/claude/channel') events.push(n.params as unknown as Channel);
   };
   await client.connect(transport);
   return {
     client,
     events,
+    notifications,
     stderr: () => logged.join(''),
     async call(name, args) {
       const result = await client.callTool({ name, arguments: args });
