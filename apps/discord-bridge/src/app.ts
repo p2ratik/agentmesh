@@ -89,7 +89,11 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
     threads,
     logger,
   });
-  client.on(Events.InteractionCreate, createInteractionHandler({ rpc, index, directory, logger }));
+  const members = () => team.members;
+  client.on(
+    Events.InteractionCreate,
+    createInteractionHandler({ rpc, index, members, directory, logger }),
+  );
   client.on(Events.MessageCreate, createReplyRelay({ rpc, index, threads, echo, logger }));
 
   const abort = new AbortController();

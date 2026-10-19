@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { authorize } from '../auth';
 import { actAs, type MeshRpc } from '../rpc';
 import { TeamIndex } from '../team';
+import { suggest } from './autocomplete';
 import { inviteParams, runInvite, runRemove } from './enrollment';
 
 const CODE = 'eyJ2IjoxLCJzZWNyZXQiOiJTRUNSRVQifQ';
@@ -163,5 +164,16 @@ describe('TeamIndex', () => {
     await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('active')] } }).rpc);
     await expect(team.refresh(fakeRpc({}, 'enrollment.list').rpc)).rejects.toThrow();
     expect(team.current.agent('dana-agent')).toBeDefined();
+  });
+
+  it('offers only active invited members to /mesh remove, never mesh.yaml humans', async () => {
+    const team = new TeamIndex(yaml);
+    const people = () =>
+      suggest(team.current, 'mesh', 'remove', 'person', '', team.members).map((c) => c.value);
+    expect(people()).toEqual([]);
+    await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('active')] } }).rpc);
+    expect(people()).toEqual(['dana']);
+    await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('revoked')] } }).rpc);
+    expect(people()).toEqual([]);
   });
 });

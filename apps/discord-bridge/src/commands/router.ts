@@ -1,5 +1,6 @@
 import type { Logger } from '@agentmesh/common';
 import type { ConfigIndex } from '@agentmesh/config';
+import type { MemberRecord } from '@agentmesh/protocol';
 import {
   type AutocompleteInteraction,
   type ButtonInteraction,
@@ -20,6 +21,8 @@ export interface InteractionDeps extends CommandContext {
   rpc: MeshRpc;
   /** Read per interaction: the team changes when members join or leave. */
   index: () => ConfigIndex;
+  /** Active invited members (for `/mesh remove` autocomplete); read per interaction too. */
+  members: () => readonly MemberRecord[];
   logger: Logger;
 }
 
@@ -39,7 +42,9 @@ export function createInteractionHandler(deps: InteractionDeps) {
 async function autocomplete(i: AutocompleteInteraction, deps: InteractionDeps): Promise<void> {
   const focused = i.options.getFocused(true);
   const sub = i.options.getSubcommand(false);
-  await i.respond(suggest(deps.index(), i.commandName, sub, focused.name, String(focused.value)));
+  await i.respond(
+    suggest(deps.index(), i.commandName, sub, focused.name, String(focused.value), deps.members()),
+  );
 }
 
 async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): Promise<void> {
