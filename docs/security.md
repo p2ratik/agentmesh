@@ -29,7 +29,8 @@ the irreversible decisions.
     source for both `nats.conf` and the JWTs the callout issues.
   - **The hub's callout is the only nkey signature check** (`apps/hub/src/modules/callout`):
     nats-server forwards the signature unchecked. For every connect the callout:
-    1. verifies that the request JWT is signed by the server it names;
+    1. checks that the request JWT is signed by the server it names. That is only a consistency
+       check: requests can't be forged because no client may publish to `$SYS.REQ.USER.AUTH`;
     2. verifies the agent's nkey signature over the nonce;
     3. admits a key that mesh.yaml or an active member holds;
     4. otherwise redeems the invite in `auth_token`;
@@ -113,6 +114,11 @@ identity.
   and enroll as the new member.
   **Mitigation:** the protocol accepts `tls://` and `wss://` invite URLs only. Plaintext
   `nats://` and `ws://` are allowed for localhost only, and URLs carrying credentials are refused.
+  The URL scheme alone is not enough: nats.js ignores it and still upgrades only when INFO asks.
+  So `connectBus`/`connectOnce` pass `tls: {}` whenever a server URL is `tls://` or `wss://`, and
+  the client then refuses a server that does not offer TLS before sending CONNECT. A test with a
+  fake plaintext server checks that nothing (no CONNECT, no secret) is sent. This also hardens
+  every later connect to a `tls://` hub URL.
 - **Threat: the code at rest.** **Mitigation:** the hub stores only sha256(secret) and compares
   it in constant time. The result is never written to the idempotency cache
   (`cacheResponse: false`), decode errors never echo the code, and every logger redacts fields
@@ -132,28 +138,41 @@ identity.
   (a compromised Discord account, a shared screen) can enroll first.
   **Mitigation (required of the bridge's `/mesh invite`, task-10):** send the code by DM only,
   never in a channel, an `editReply`, logs or events, and cancel the invite if the DM fails. The
-  code is single use, with a
-  short TTL. An admin who sees an unexpected `member.joined` runs `/mesh remove`, which kicks at
-  once.
+  code is single use, with a short TTL. An admin who sees an unexpected `member.joined` runs
+  `/mesh remove`, which kicks at once.
   **Residual risk:** whoever redeems first wins. Prefer a short `enrollment.inviteTtlHours` for
   sensitive teams.
-- **Threat: the code in a model transcript.** If the invitee pastes the code into Claude, it is in
-  the session transcript.
-  **Mitigation (required of the plugin's join, task-7):** read the code from a file or a terminal
-  command, never from the model. After it is used once the code is worthless.
 
-## Member keys on laptops
+### Joining from a laptop (`/agentmesh:join`)
 
-*Requirements for the plugin's `/agentmesh:join` (task-7).*
-
-- **Where keys come from.** Join generates the member's nkey on the laptop, and only the public key
-  reaches the hub. No seed is ever sent over Discord or chat.
-- **Protecting the seed file.** On macOS and Linux the seed file is written with mode `600`.
-  **On Windows that mode is ignored:** the file is protected only by the NTFS permissions of the
-  user's profile directory (the user, Administrators and SYSTEM). Keep `~/.agentmesh` inside the
-  profile, never in a synced or shared folder.
-- **If a laptop is lost**, `/mesh remove` the member: their key is refused from then on. To
-  rejoin, they redeem a new invite and get a new key.
+- **Threat: the code in a model transcript.** A code pasted into a chat ends up in the session
+  transcript and in model context. **Mitigation:** the plugin's `join` tool takes only a file
+  path (default `~/.agentmesh/invite.txt`) and never prints the code; `/agentmesh:join` tells
+  Claude never to ask for it. Errors never echo it, and the file is deleted after a successful
+  join. `node <plugin>/dist/server.js join` is a terminal path that bypasses the model entirely.
+  **Residual risk:** a user can still paste the code into a chat. It is single use and short-lived,
+  so joining promptly spends it.
+- **Threat: a crafted invite pointing at an attacker's hub.** That hub could push messages that
+  look like team traffic. **Mitigation:** nothing connects until the human confirms the decoded
+  `host:port`. The terminal path asks y/N. The tool path returns the host and needs a second call
+  with `confirm_hub` set to exactly that host. **Residual risk:** in the tool path, the model relays
+  the question, so a model that skipped asking would defeat the check. The terminal path does not
+  have this gap.
+- **Threat: the agent key leaving the laptop.** **Mitigation:** the plugin generates the nkey
+  locally and only the public key reaches the hub, through the signed CONNECT. The seed goes to
+  `~/.agentmesh/<agent>.nk` and `agent.json` only points at it (both mode 600). The seed is written
+  before anything connects and only moved into place once the hub admits the key, so a laptop
+  that cannot save it never spends the single-use invite. The join never logs or prints it.
+  **On Windows mode 600 is ignored:** the seed is protected only by the NTFS permissions of the
+  user's profile (the user, Administrators and SYSTEM). Keep `~/.agentmesh` inside the profile,
+  never in a synced or shared folder.
+- **Threat: a lost laptop.** **Mitigation:** `/mesh remove` the member; their key is refused from
+  then on. To rejoin they redeem a new invite, which gives them a new key.
+- **Threat: silently switching meshes.** **Mitigation:** joining refuses to replace an existing
+  `~/.agentmesh/agent.json` unless the user explicitly asks to replace it.
+- The invite's `agentId` and `prefix` are hints for the client, which needs them before the first
+  connect. The hub never trusts them: it enrolls the agent id it stored with the invite.
+- `wss://` invites are refused by the plugin for now: the Node transport has no websocket support.
 
 ## The hub in the authentication path (auth-callout mode)
 

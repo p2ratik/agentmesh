@@ -7,7 +7,9 @@ const payload: InvitePayload = {
   v: 1,
   natsUrl: 'tls://mesh.example.com:4222',
   inviteId: 'inv-01J9ZK3Q8X7M2N4P6R8T0V2W4Y',
-  secret: 'A'.repeat(42) + 'Q',
+  agentId: 'dana-agent',
+  prefix: 'mesh',
+  secret: `${'A'.repeat(42)}Q`,
 };
 
 const encodeRaw = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');

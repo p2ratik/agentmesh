@@ -1,7 +1,8 @@
 # ADR 0005 — A team registry in the hub and a NATS auth callout
 
-**Status:** proposed · 2026-10-19. This is an architecture change, so team policy needs Aheen's
-approval before it counts as accepted.
+**Status:** accepted for the `agents` branch when Pratik merges this ADR · 2026-10-19. It is an
+architecture change, and Aheen signs off those under team policy. He is away, so his sign-off is
+due before this reaches `main`.
 
 ## Context
 
