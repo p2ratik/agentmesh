@@ -1,16 +1,16 @@
-import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import type { ChildProcess } from 'node:child_process';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { natsUsersFromConfig, RpcClient } from '@agentmesh/bus';
+import { RpcClient } from '@agentmesh/bus';
 import { createLogger } from '@agentmesh/common';
 import { inboxPrefix } from '@agentmesh/protocol';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { connect, type NatsConnection, nkeyAuthenticator } from '@nats-io/transport-node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { renderNatsConfig } from '../../apps/cli/src/render/nats-config';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
+import { startCalloutNats } from './callout-server';
 
 /**
  * The hub's auth callout against a real nats-server in account mode: agents
@@ -95,22 +95,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
 
   beforeAll(async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentmesh-hub-callout-'));
-    const conf = renderNatsConfig({
-      meshName: 'hub-callout',
-      prefix: PREFIX,
-      users: natsUsersFromConfig(loaded.config),
-      dev: false,
-      maxFileStore: '256MB',
-      allowMissing: true,
-      authCallout: loaded.config.hub.authCallout ?? {},
-    })
-      .text.replace('port: 4222', `port: ${PORT}`)
-      .replace('http: "127.0.0.1:8222"', '')
-      .replace('"/data/jetstream"', JSON.stringify(join(dir, 'js')));
-    writeFileSync(join(dir, 'nats.conf'), conf);
-    server = spawn(NATS_BIN, ['-c', join(dir, 'nats.conf'), '-a', '127.0.0.1'], {
-      stdio: 'ignore',
-    });
+    server = startCalloutNats({ bin: NATS_BIN, loaded, dir, port: PORT });
     hub = await createHub({
       loaded,
       dataDir: ':memory:',

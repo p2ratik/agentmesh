@@ -13,15 +13,20 @@ export interface Channel {
 export interface Agent {
   client: Client;
   events: Channel[];
+  /** Everything the plugin logged so far (it logs to stderr). */
+  stderr(): string;
   call(name: string, args: Record<string, unknown>): Promise<string>;
   waitFor(match: (e: Channel) => boolean, timeoutMs?: number): Promise<Channel>;
 }
 
 export interface AgentEnv {
+  /** Empty, with an empty natsUrl, starts an unenrolled plugin that offers only `join`. */
   agentId: string;
   natsUrl: string;
   prefix: string;
   nkeySeed?: string;
+  /** Home directory holding `.agentmesh` (agent.json, keys, invite.txt). */
+  home?: string;
 }
 
 /** Starts one plugin process over MCP stdio and records its channel events. */
@@ -31,14 +36,18 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
     args: [PLUGIN],
     env: {
       ...process.env,
+      ...(env.home ? { HOME: env.home, USERPROFILE: env.home } : {}),
       AGENTMESH_AGENT_ID: env.agentId,
       AGENTMESH_NATS_URL: env.natsUrl,
       AGENTMESH_PREFIX: env.prefix,
       AGENTMESH_NKEY_SEED: env.nkeySeed ?? '',
+      AGENTMESH_LOG_FILE: '',
     },
-    stderr: 'ignore',
+    stderr: 'pipe',
   });
-  const client = new Client({ name: `e2e-${env.agentId}`, version: '0.0.0' });
+  const logged: string[] = [];
+  transport.stderr?.on('data', (chunk: Buffer) => logged.push(chunk.toString('utf8')));
+  const client = new Client({ name: `e2e-${env.agentId || 'joiner'}`, version: '0.0.0' });
   const events: Channel[] = [];
   client.fallbackNotificationHandler = async (n) => {
     if (n.method === 'notifications/claude/channel') events.push(n.params as unknown as Channel);
@@ -47,6 +56,7 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
   return {
     client,
     events,
+    stderr: () => logged.join(''),
     async call(name, args) {
       const result = await client.callTool({ name, arguments: args });
       const text = (result.content as Array<{ text: string }>)[0]?.text ?? '';
