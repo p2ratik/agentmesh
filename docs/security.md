@@ -96,8 +96,8 @@ itself.
   so two overlapping calls with the same key cannot both run (one gets `conflict`). A failed call
   frees its key.
 - **Residual risk:** if the response is lost in transit, the secret is gone and the caller has to
-  start over, for example by cancelling and re-issuing the invite. This is accepted on purpose:
-  losing an invite is better than storing it.
+  start over: `/mesh uninvite` cancels the invite, then `/mesh invite` issues a new one. This is
+  accepted on purpose: losing an invite is better than storing it.
 
 ## Invite codes
 
@@ -133,7 +133,16 @@ identity.
 - **Threat: guessing.** **Mitigation:** 256-bit secret, single use, a short TTL
   (`enrollment.inviteTtlHours`), and rate-limited redemption (`enrollment.redeemAttemptsPerMinute`).
 - **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is
-  restricted to services with the `bridge` role.
+  restricted to services with the `bridge` role. It also returns open invites for `/mesh uninvite`
+  autocomplete, but only their metadata: id, person, agent, Discord id, inviter and expiry. Never
+  the code, the secret or its hash.
+- **Threat: a leaked or lost code that stays valid.** A code pasted into a chat, or a DM that went
+  to the wrong place, would otherwise work until `enrollment.inviteTtlHours` runs out, and the hub
+  refuses a second invite for that person meanwhile. **Mitigation:** admins run
+  `/mesh uninvite person:<id>` (`enrollment.cancelInvite`, admin only). The hub cancels the open
+  invite, so redeeming it is refused, and the person can be invited again. Cancelling is
+  idempotent: a used, expired or already cancelled invite is reported and left alone. If the code
+  was already redeemed, `/mesh remove` takes the member off.
 - **Threat: the Discord DM as the delivery channel.** Anyone who can read the invitee's DMs
   (a compromised Discord account, a shared screen) can enroll first.
   **Mitigation (required of the bridge's `/mesh invite`, task-10):** send the code by DM only,

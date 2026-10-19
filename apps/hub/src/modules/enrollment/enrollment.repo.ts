@@ -67,6 +67,28 @@ export class EnrollmentRepo {
     return this.#db.get<InviteRow>('SELECT * FROM enrollment_invites WHERE id = $id', { id });
   }
 
+  /**
+   * The person's newest invite. A person has at most one open invite at a
+   * time, so if any is open, this is it.
+   */
+  latestInviteFor(humanId: string): InviteRow | undefined {
+    return this.#db.get<InviteRow>(
+      `SELECT * FROM enrollment_invites WHERE human_id = $humanId
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+      { humanId },
+    );
+  }
+
+  /** Every unused, uncancelled, unexpired invite, oldest first. */
+  openInvites(now: string): InviteRow[] {
+    return this.#db.all<InviteRow>(
+      `SELECT * FROM enrollment_invites
+       WHERE used_at IS NULL AND cancelled_at IS NULL AND expires_at > $now
+       ORDER BY created_at, rowid`,
+      { now },
+    );
+  }
+
   /** Unused, uncancelled, unexpired invites that claim this id or Discord id. */
   openInviteClaiming(now: string, ids: string[], discordUserId: string): InviteRow | undefined {
     return this.#db.get<InviteRow>(

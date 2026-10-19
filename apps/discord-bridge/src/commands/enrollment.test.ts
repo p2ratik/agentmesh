@@ -1,12 +1,12 @@
 import { configFromObject } from '@agentmesh/config';
-import type { MemberRecord, RpcMethodName } from '@agentmesh/protocol';
+import type { MemberRecord, OpenInvite, RpcMethodName } from '@agentmesh/protocol';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { authorize } from '../auth';
 import { actAs, type MeshRpc } from '../rpc';
 import { TeamIndex } from '../team';
 import { suggest } from './autocomplete';
-import { inviteParams, runInvite, runRemove } from './enrollment';
+import { inviteParams, runInvite, runRemove, runUninvite, uninviteReply } from './enrollment';
 
 const CODE = 'eyJ2IjoxLCJzZWNyZXQiOiJTRUNSRVQifQ';
 const INVITE = {
@@ -89,7 +89,7 @@ describe('/mesh invite', () => {
   it('cancels the invite when the DM fails, without revealing the code', async () => {
     const { rpc, calls } = fakeRpc({
       'enrollment.invite': INVITE,
-      'enrollment.cancelInvite': { cancelled: true },
+      'enrollment.cancelInvite': { cancelled: true, status: 'cancelled', inviteId: 'inv-abc' },
     });
     const i = interaction({ id: 'dana' }, async () => {
       throw new Error('Cannot send messages to this user');
@@ -127,6 +127,46 @@ describe('/mesh remove', () => {
   });
 });
 
+describe('/mesh uninvite', () => {
+  it("cancels the person's invite as the admin, keyed by the interaction", async () => {
+    const { rpc, calls } = fakeRpc({
+      'enrollment.cancelInvite': { cancelled: true, status: 'cancelled', inviteId: 'inv-abc' },
+    });
+    const i = interaction({ person: ' dana ' }, async () => undefined);
+    const reply = await runUninvite(i, actAs(rpc, 'alice', i.id));
+    expect(reply).toContain('Cancelled invite **inv-abc** for **dana**');
+    expect(calls).toEqual([
+      {
+        method: 'enrollment.cancelInvite',
+        params: { humanId: 'dana' },
+        key: 'int-1:enrollment.cancelInvite',
+      },
+    ]);
+  });
+
+  it('passes a refusal through (non-admins are refused by the hub)', async () => {
+    const { rpc } = fakeRpc({}, 'enrollment.cancelInvite');
+    const i = interaction({ person: 'dana' }, async () => undefined);
+    await expect(runUninvite(i, actAs(rpc, 'bob', i.id))).rejects.toThrow('hub said no');
+  });
+
+  it.each([
+    ['used', 'already joined', '/mesh remove'],
+    ['expired', 'had already expired', '/mesh invite'],
+    ['already_cancelled', 'was already cancelled', 'inv-abc'],
+  ] as const)('explains a %s invite and changes nothing', (status, says, also) => {
+    const reply = uninviteReply('dana', { cancelled: false, status, inviteId: 'inv-abc' });
+    expect(reply).toContain(says);
+    expect(reply).toContain(also);
+  });
+
+  it('says when the person has no invite at all', () => {
+    expect(uninviteReply('zed', { cancelled: false, status: 'not_found' })).toBe(
+      '**zed** has no invite to cancel.',
+    );
+  });
+});
+
 describe('TeamIndex', () => {
   const yaml = configFromObject({
     version: 1,
@@ -146,22 +186,32 @@ describe('TeamIndex', () => {
     joinedAt: '2026-10-19T09:00:00.000Z',
     removedAt: null,
   });
+  const open: OpenInvite = {
+    inviteId: 'inv-erin',
+    humanId: 'erin',
+    agentId: 'erin-agent',
+    displayName: 'Erin',
+    discordUserId: '100000000000000010',
+    invitedBy: 'alice',
+    expiresAt: '2026-10-20T09:00:00.000Z',
+  };
+  const listed = (members: MemberRecord[], invites: OpenInvite[] = []) =>
+    fakeRpc({ 'enrollment.list': { members, invites } }).rpc;
+  const NOW = new Date('2026-10-19T12:00:00.000Z');
 
   it('lets an enrolled member use the bridge after a refresh, and drops them once removed', async () => {
     const team = new TeamIndex(yaml);
     expect(authorize(team.current, '100000000000000009')).toBeNull();
-    expect(
-      await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('active')] } }).rpc),
-    ).toBe(1);
+    expect(await team.refresh(listed([member('active')]))).toBe(1);
     expect(authorize(team.current, '100000000000000009')?.id).toBe('dana');
     expect(team.current.agent('dana-agent')?.owner).toBe('dana');
-    await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('revoked')] } }).rpc);
+    await team.refresh(listed([member('revoked')]));
     expect(authorize(team.current, '100000000000000009')).toBeNull();
   });
 
   it('keeps the previous team when the hub does not answer', async () => {
     const team = new TeamIndex(yaml);
-    await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('active')] } }).rpc);
+    await team.refresh(listed([member('active')]));
     await expect(team.refresh(fakeRpc({}, 'enrollment.list').rpc)).rejects.toThrow();
     expect(team.current.agent('dana-agent')).toBeDefined();
   });
@@ -169,11 +219,22 @@ describe('TeamIndex', () => {
   it('offers only active invited members to /mesh remove, never mesh.yaml humans', async () => {
     const team = new TeamIndex(yaml);
     const people = () =>
-      suggest(team.current, 'mesh', 'remove', 'person', '', team.members).map((c) => c.value);
+      suggest(team.current, 'mesh', 'remove', 'person', '', team.enrolled(NOW)).map((c) => c.value);
     expect(people()).toEqual([]);
-    await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('active')] } }).rpc);
+    await team.refresh(listed([member('active')], [open]));
     expect(people()).toEqual(['dana']);
-    await team.refresh(fakeRpc({ 'enrollment.list': { members: [member('revoked')] } }).rpc);
+    await team.refresh(listed([member('revoked')]));
     expect(people()).toEqual([]);
+  });
+
+  it('offers only open, unexpired invites to /mesh uninvite', async () => {
+    const team = new TeamIndex(yaml);
+    await team.refresh(listed([member('active')], [open]));
+    const people = (now: Date) =>
+      suggest(team.current, 'mesh', 'uninvite', 'person', '', team.enrolled(now)).map(
+        (c) => c.value,
+      );
+    expect(people(NOW)).toEqual(['erin']);
+    expect(people(new Date('2026-10-20T09:00:00.000Z'))).toEqual([]);
   });
 });

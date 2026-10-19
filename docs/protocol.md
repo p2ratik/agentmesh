@@ -58,8 +58,8 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `mesh.status` | any | Pause state, peers, counts |
 | `mesh.pause` · `mesh.resume` | human (admin) | Kill switch |
 | `refs.set` · `refs.get` · `refs.find` | service | External ids for bridges (e.g. Discord thread ids) |
-| `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. `remove` emits `member.removed`; members defined in mesh.yaml are refused. |
-| `enrollment.list` | service (bridge) | Enrolled members, active and revoked, for a bridge to build its index. |
+| `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. `cancelInvite` takes `{ inviteId }` or `{ humanId }` (that person's latest invite) and returns `status`: `cancelled`, `used`, `expired`, `already_cancelled` or `not_found`. Only `cancelled` changes anything, so repeating it is safe. `remove` emits `member.removed`; members defined in mesh.yaml are refused. |
+| `enrollment.list` | service (bridge) | Enrolled members, active and revoked, plus the open invites (metadata only, never codes), for a bridge to build its index and autocomplete. |
 
 Members join when the hub redeems their code. That happens inside the hub (the NATS auth callout),
 not over RPC. Redemption emits `member.joined`, creates the agent's inbox, and makes the new agent

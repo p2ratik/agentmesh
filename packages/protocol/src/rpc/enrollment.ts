@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DiscordUserId, InviteId, MemberRecord } from '../enrollment';
+import { CancelStatus, DiscordUserId, InviteId, MemberRecord, OpenInvite } from '../enrollment';
 import { IsoDate, ParticipantId } from '../primitives';
 import { defineMethod } from './define';
 
@@ -30,11 +30,17 @@ export const enrollmentMethods = {
     }),
   }),
   'enrollment.cancelInvite': defineMethod({
-    description: 'Revoke an unused invite (e.g. when the DM could not be delivered).',
+    description:
+      "Revoke an unused invite by its id, or a person's latest invite by their human id (a lost or leaked code, an undelivered DM). Idempotent: `status` says what was found.",
     callers: ['human'],
     requiresRole: 'admin',
-    params: z.object({ inviteId: InviteId }),
-    result: z.object({ cancelled: z.boolean() }),
+    params: z.union([z.object({ inviteId: InviteId }), z.object({ humanId: ParticipantId })]),
+    result: z.object({
+      cancelled: z.boolean(),
+      status: CancelStatus,
+      /** The invite that was looked at; absent for `not_found`. */
+      inviteId: InviteId.optional(),
+    }),
   }),
   'enrollment.remove': defineMethod({
     description: 'Remove an enrolled member: their agent is disconnected and refused from now on.',
@@ -44,10 +50,14 @@ export const enrollmentMethods = {
     result: z.object({ removed: z.boolean(), agentIds: z.array(ParticipantId) }),
   }),
   'enrollment.list': defineMethod({
-    description: 'Bridges only: every enrolled member (active and revoked), to build their index.',
+    description:
+      'Bridges only: every enrolled member (active and revoked), to build their index, and the open invites (no codes).',
     callers: ['service'],
     requiresRole: 'bridge',
     params: z.object({}),
-    result: z.object({ members: z.array(MemberRecord) }),
+    result: z.object({
+      members: z.array(MemberRecord),
+      invites: z.array(OpenInvite).default([]),
+    }),
   }),
 } as const;

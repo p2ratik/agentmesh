@@ -46914,6 +46914,22 @@ var MemberRecord = external_exports.object({
   joinedAt: IsoDate,
   removedAt: IsoDate.nullable()
 });
+var OpenInvite = external_exports.object({
+  inviteId: InviteId,
+  humanId: ParticipantId,
+  agentId: ParticipantId,
+  displayName: external_exports.string().min(1),
+  discordUserId: DiscordUserId,
+  invitedBy: external_exports.string(),
+  expiresAt: IsoDate
+});
+var CancelStatus = external_exports.enum([
+  "cancelled",
+  "used",
+  "expired",
+  "already_cancelled",
+  "not_found"
+]);
 
 // ../../packages/protocol/src/ingest.ts
 var IngestEvent = external_exports.object({
@@ -47272,11 +47288,16 @@ var enrollmentMethods = {
     })
   }),
   "enrollment.cancelInvite": defineMethod({
-    description: "Revoke an unused invite (e.g. when the DM could not be delivered).",
+    description: "Revoke an unused invite by its id, or a person's latest invite by their human id (a lost or leaked code, an undelivered DM). Idempotent: `status` says what was found.",
     callers: ["human"],
     requiresRole: "admin",
-    params: external_exports.object({ inviteId: InviteId }),
-    result: external_exports.object({ cancelled: external_exports.boolean() })
+    params: external_exports.union([external_exports.object({ inviteId: InviteId }), external_exports.object({ humanId: ParticipantId })]),
+    result: external_exports.object({
+      cancelled: external_exports.boolean(),
+      status: CancelStatus,
+      /** The invite that was looked at; absent for `not_found`. */
+      inviteId: InviteId.optional()
+    })
   }),
   "enrollment.remove": defineMethod({
     description: "Remove an enrolled member: their agent is disconnected and refused from now on.",
@@ -47286,11 +47307,14 @@ var enrollmentMethods = {
     result: external_exports.object({ removed: external_exports.boolean(), agentIds: external_exports.array(ParticipantId) })
   }),
   "enrollment.list": defineMethod({
-    description: "Bridges only: every enrolled member (active and revoked), to build their index.",
+    description: "Bridges only: every enrolled member (active and revoked), to build their index, and the open invites (no codes).",
     callers: ["service"],
     requiresRole: "bridge",
     params: external_exports.object({}),
-    result: external_exports.object({ members: external_exports.array(MemberRecord) })
+    result: external_exports.object({
+      members: external_exports.array(MemberRecord),
+      invites: external_exports.array(OpenInvite).default([])
+    })
   })
 };
 
@@ -50617,7 +50641,7 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.5";
+var VERSION = "0.1.6";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },

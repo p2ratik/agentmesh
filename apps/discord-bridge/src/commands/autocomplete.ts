@@ -1,5 +1,5 @@
 import type { ConfigIndex } from '@agentmesh/config';
-import type { MemberRecord } from '@agentmesh/protocol';
+import type { Enrolled } from '../team';
 
 export interface Choice {
   name: string;
@@ -12,8 +12,9 @@ const AGENT_OPTIONS = new Set(['facilitator', 'assignee', 'agent']);
 /**
  * Autocomplete answers come straight from config (Discord allows 3 seconds
  * and no deferring, so no hub round trip). `task list` also offers "unassigned".
- * `person` (`/mesh remove`) lists only active invited `members`: the hub
- * refuses to remove anyone from mesh.yaml.
+ * `person` lists only active invited members for `/mesh remove` (the hub
+ * refuses to remove anyone from mesh.yaml), and only open invites for
+ * `/mesh uninvite`.
  */
 export function suggest(
   index: ConfigIndex,
@@ -21,7 +22,7 @@ export function suggest(
   subcommand: string | null,
   option: string,
   typed: string,
-  members: readonly MemberRecord[] = [],
+  enrolled: Enrolled = { members: [], invites: [] },
 ): Choice[] {
   const needle = typed.trim().toLowerCase();
   let choices: Choice[] = [];
@@ -33,7 +34,8 @@ export function suggest(
       choices.unshift({ name: 'unassigned (the board)', value: 'unassigned' });
     }
   } else if (option === 'person') {
-    choices = members.map((m) => ({ name: `${m.humanId} — ${m.displayName}`, value: m.humanId }));
+    const people = subcommand === 'uninvite' ? enrolled.invites : enrolled.members;
+    choices = people.map((p) => ({ name: `${p.humanId} — ${p.displayName}`, value: p.humanId }));
   } else if (option === 'area') {
     choices = index.config.areas.map((a) => ({
       name: a.description ? `${a.id} — ${a.description}` : a.id,

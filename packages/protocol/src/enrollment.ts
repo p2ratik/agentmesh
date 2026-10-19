@@ -94,3 +94,25 @@ export const MemberRecord = z.object({
   removedAt: IsoDate.nullable(),
 });
 export type MemberRecord = z.infer<typeof MemberRecord>;
+
+/** An unused, uncancelled, unexpired invite. Never carries the code or its secret. */
+export const OpenInvite = z.object({
+  inviteId: InviteId,
+  humanId: ParticipantId,
+  agentId: ParticipantId,
+  displayName: z.string().min(1),
+  discordUserId: DiscordUserId,
+  invitedBy: z.string(),
+  expiresAt: IsoDate,
+});
+export type OpenInvite = z.infer<typeof OpenInvite>;
+
+/** What `enrollment.cancelInvite` found: only `cancelled` changed anything. */
+export const CancelStatus = z.enum([
+  'cancelled',
+  'used',
+  'expired',
+  'already_cancelled',
+  'not_found',
+]);
+export type CancelStatus = z.infer<typeof CancelStatus>;

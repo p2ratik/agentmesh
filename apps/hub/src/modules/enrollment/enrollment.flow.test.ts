@@ -86,4 +86,28 @@ describe('enrollment through the hub (no NATS)', () => {
       call('discord-bridge', 'enrollment.invite', params, { actAs: 'bob' }),
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
+
+  it('lists open invites to the bridge and lets only admins cancel them', async () => {
+    const { call } = await start();
+    const params = { humanId: 'dana', displayName: 'Dana', discordUserId: '200000000000000001' };
+    const { inviteId } = await call<{ inviteId: string }>(
+      'discord-bridge',
+      'enrollment.invite',
+      params,
+      { actAs: 'alice' },
+    );
+    const listed = await call<{ invites: Array<{ inviteId: string }> }>(
+      'discord-bridge',
+      'enrollment.list',
+    );
+    expect(listed.invites.map((i) => i.inviteId)).toEqual([inviteId]);
+
+    const cancel = (actAs: string) =>
+      call('discord-bridge', 'enrollment.cancelInvite', { humanId: 'dana' }, { actAs });
+    await expect(cancel('bob')).rejects.toMatchObject({ code: 'forbidden' });
+    expect(await cancel('alice')).toMatchObject({ cancelled: true, status: 'cancelled' });
+    await expect(
+      call('discord-bridge', 'enrollment.invite', params, { actAs: 'alice' }),
+    ).resolves.toMatchObject({ humanId: 'dana' });
+  });
 });

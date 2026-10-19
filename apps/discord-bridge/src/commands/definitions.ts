@@ -155,6 +155,14 @@ const mesh = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
+      .setName('uninvite')
+      .setDescription("Cancel someone's open invite, so its code stops working (admins)")
+      .addStringOption((o) =>
+        o.setName('person').setDescription('Their mesh id').setRequired(true).setAutocomplete(true),
+      ),
+  )
+  .addSubcommand((s) =>
+    s
       .setName('remove')
       .setDescription('Remove an invited member: their agent is disconnected and refused (admins)')
       .addStringOption((o) =>
