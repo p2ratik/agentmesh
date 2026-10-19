@@ -10,7 +10,9 @@ export interface FeedOptions {
   js: JetStreamClient;
   prefix: string;
   serviceId: string;
-  index: ConfigIndex;
+  index: () => ConfigIndex;
+  /** Re-reads the team after a member joins or leaves; throwing retries the event. */
+  onMembersChanged(): Promise<void>;
   executor: Executor;
   echo: EchoGuard;
   logger: Logger;
@@ -51,7 +53,10 @@ export async function handleFeedMessage(
   if (event.type === 'message.created' && (await options.echo.isEcho(event.data.message.id))) {
     return 'ack';
   }
-  for (const intent of routeEvent(event, options.index)) {
+  if (event.type === 'member.joined' || event.type === 'member.removed') {
+    await options.onMembersChanged();
+  }
+  for (const intent of routeEvent(event, options.index())) {
     await performSkippingPermanentFailures(options, intent, event.type);
   }
   return 'ack';

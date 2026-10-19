@@ -28,6 +28,8 @@ export function suggest(
     if (command === 'task' && subcommand === 'list' && option === 'assignee') {
       choices.unshift({ name: 'unassigned (the board)', value: 'unassigned' });
     }
+  } else if (option === 'person') {
+    choices = index.config.humans.map((h) => ({ name: `${h.id} — ${h.displayName}`, value: h.id }));
   } else if (option === 'area') {
     choices = index.config.areas.map((a) => ({
       name: a.description ? `${a.id} — ${a.description}` : a.id,

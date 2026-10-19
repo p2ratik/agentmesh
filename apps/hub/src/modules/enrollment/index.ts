@@ -3,7 +3,6 @@ import type { EnrollmentService, HubModule, RpcHandlerMap } from '../../contract
 import { type EnrollmentDeps, EnrollmentServiceImpl } from './enrollment.service';
 
 export type { EnrollmentDeps, InboxPort } from './enrollment.service';
-export { withMembers } from './members';
 
 type EnrollmentHandlers = Pick<
   RpcHandlerMap,

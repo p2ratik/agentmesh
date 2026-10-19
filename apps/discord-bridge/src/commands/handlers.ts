@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { ChannelDirectory } from '../discord/directory';
 import type { HumanCall } from '../rpc';
+import { runInvite, runRemove } from './enrollment';
 import {
   askParams,
   planStartParams,
@@ -92,6 +93,8 @@ export const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
     return asked(agent, result.threadId, ctx.directory.channelFor('council'));
   },
   'mesh.status': async (_i, call) => meshStatus(await call('mesh.status', {})),
+  'mesh.invite': (i, call) => runInvite(i, call),
+  'mesh.remove': (i, call) => runRemove(i, call),
   'mesh.pause': async (i, call) => {
     const reason = opt(i, 'reason');
     await call('mesh.pause', reason ? { reason } : {});
