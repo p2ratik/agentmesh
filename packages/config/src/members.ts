@@ -1,5 +1,5 @@
-import type { MeshConfig } from '@agentmesh/config';
 import type { MemberRecord } from '@agentmesh/protocol';
+import type { MeshConfig } from './schema/mesh';
 
 export interface MergedTeam {
   config: MeshConfig;

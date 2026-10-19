@@ -134,17 +134,21 @@ describe('feed handling', () => {
       perform: async (i: PostIntent) => void performed.push(i),
     } as unknown as Executor;
     const echo = new EchoGuard();
+    const refreshes = { count: 0 };
     const options = {
       js: null as never,
       prefix: 'mesh',
       serviceId: 'discord-bridge',
-      index,
+      index: () => index,
+      onMembersChanged: async () => {
+        refreshes.count += 1;
+      },
       executor,
       echo,
       logger,
       signal: new AbortController().signal,
     };
-    return { performed, echo, options };
+    return { performed, echo, options, refreshes };
   };
 
   it('performs routed intents, skips echoes and drops garbage', async () => {
@@ -168,6 +172,32 @@ describe('feed handling', () => {
     };
     expect(await echo.isEcho('msg-echo')).toBe(true);
     expect(await handleFeedMessage(feedMessage(echoed), options)).toBe('drop');
+  });
+
+  it('re-reads the team on member events and posts nothing for them', async () => {
+    const { performed, options, refreshes } = setup();
+    const member = {
+      humanId: 'dana',
+      agentId: 'dana-agent',
+      displayName: 'Dana',
+      discordUserId: '100000000000000009',
+      roles: [],
+      skills: [],
+      nkey: `U${'A'.repeat(55)}`,
+      status: 'revoked',
+      invitedBy: 'alice',
+      joinedAt: '2026-10-19T09:00:00.000Z',
+      removedAt: '2026-10-19T10:00:00.000Z',
+    };
+    const event = {
+      id: 'evt-3',
+      type: 'member.removed',
+      at: '2026-10-19T10:00:00.000Z',
+      data: { member, by: 'alice' },
+    };
+    expect(await handleFeedMessage(feedMessage(event), options)).toBe('ack');
+    expect(refreshes.count).toBe(1);
+    expect(performed).toEqual([]);
   });
 
   it('waits for in-flight relays before deciding an event is not an echo', async () => {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { HOUR_MS, isValidParticipantId, MeshError } from '@agentmesh/common';
-import { ConfigIndex } from '@agentmesh/config';
+import { ConfigIndex, claimedByConfig, withMembers } from '@agentmesh/config';
 import {
   encodeInvite,
   type MemberRecord,
@@ -11,7 +11,6 @@ import {
 import type { HubContext } from '../../context';
 import type { Actor, EnrollmentService, RedeemInput } from '../../contracts';
 import { EnrollmentRepo, type InviteRow } from './enrollment.repo';
-import { claimedByConfig, withMembers } from './members';
 
 /** Creates and deletes agents' durable inboxes (JetStream); null without NATS. */
 export interface InboxPort {

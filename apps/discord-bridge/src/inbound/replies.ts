@@ -9,7 +9,7 @@ import type { MeshRpc } from '../rpc';
 
 export interface ReplyRelayDeps {
   rpc: MeshRpc;
-  index: ConfigIndex;
+  index: () => ConfigIndex;
   threads: ThreadMirror;
   echo: EchoGuard;
   logger: Logger;
@@ -29,7 +29,7 @@ export function createReplyRelay(deps: ReplyRelayDeps) {
       !message.channel.isThread()
     )
       return;
-    const human = authorize(deps.index, message.author.id);
+    const human = authorize(deps.index(), message.author.id);
     if (!human) return;
     const body = [message.content, ...message.attachments.map((a) => a.url)]
       .filter(Boolean)

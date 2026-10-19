@@ -18,7 +18,8 @@ import { COMMAND_HANDLERS, type CommandContext } from './handlers';
 
 export interface InteractionDeps extends CommandContext {
   rpc: MeshRpc;
-  index: ConfigIndex;
+  /** Read per interaction: the team changes when members join or leave. */
+  index: () => ConfigIndex;
   logger: Logger;
 }
 
@@ -38,11 +39,11 @@ export function createInteractionHandler(deps: InteractionDeps) {
 async function autocomplete(i: AutocompleteInteraction, deps: InteractionDeps): Promise<void> {
   const focused = i.options.getFocused(true);
   const sub = i.options.getSubcommand(false);
-  await i.respond(suggest(deps.index, i.commandName, sub, focused.name, String(focused.value)));
+  await i.respond(suggest(deps.index(), i.commandName, sub, focused.name, String(focused.value)));
 }
 
 async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): Promise<void> {
-  const human = authorize(deps.index, i.user.id);
+  const human = authorize(deps.index(), i.user.id);
   if (!human) {
     await i.reply({ content: NOT_A_MEMBER, flags: MessageFlags.Ephemeral });
     return;
@@ -68,7 +69,7 @@ async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): P
 async function button(i: ButtonInteraction, deps: InteractionDeps): Promise<void> {
   const parsed = parsePlanButtonId(i.customId);
   if (!parsed) return;
-  const human = authorize(deps.index, i.user.id);
+  const human = authorize(deps.index(), i.user.id);
   if (!human) {
     await i.reply({ content: NOT_A_MEMBER, flags: MessageFlags.Ephemeral });
     return;

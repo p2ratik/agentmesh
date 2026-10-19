@@ -1,8 +1,7 @@
-import { ConfigIndex } from '@agentmesh/config';
+import { ConfigIndex, withMembers } from '@agentmesh/config';
 import type { MemberRecord } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import { testTeamConfig } from '../../testing/fixtures';
-import { withMembers } from './members';
 
 const KEY = (c: string) => `U${c.repeat(55)}`;
 
