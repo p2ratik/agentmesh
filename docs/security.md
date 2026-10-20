@@ -99,6 +99,16 @@ The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/Open
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
 or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
 
+- **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
+  to 32 KB), including rule notices built from external event text. Before 2026-10-20 the
+  `key=value` and JWT patterns were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s,
+  stalling the hub.
+- **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
+  bounds the key to 64 characters on each side of the keyword. `redact.test.ts` keeps the 32 KB
+  worst cases under 250 ms; they run in about 1 ms.
+- **Cost:** a key with more than 64 characters before or after the keyword is no longer
+  recognised.
+
 ## Secrets in RPC results
 
 The hub caches RPC results in `rpc_idempotency` for a day, so a retried call can be replayed safely.
