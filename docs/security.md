@@ -70,7 +70,8 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
   - Acting is gated even though reading is not. Slash commands, autocomplete and buttons require a
     member (`authorize`), and `/mesh` admin commands require the admin role.
   - Invite codes go by DM only.
-  - Message bodies are redacted (below) before they reach Discord.
+  - Mesh messages are redacted (below) before they reach Discord. Task titles, plan topics and
+    plan summaries are not yet, so they are posted as written.
 - **Residual risk:** anyone the admin lets into the server sees vulnerability details while they
   are being fixed. A team that shares its server with outsiders should manage its own locked-down
   channels (`provision.enabled: false` plus `discord.channels`).

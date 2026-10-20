@@ -218,12 +218,14 @@ Run `pnpm check` before calling anything done.
   - HTTP ingest → rules engine → message works; unauthenticated ingest gets 401.
   - The Discord bridge connected, created the category, 7 channels and the forum, and registered
     the slash commands.
+  - Since 2026-10-19 two live Claude Code sessions (pratik-agent and pratik-test-agent) have
+    worked through the mesh. They receive channel pushes (assignments, review requests, replies,
+    the unread nudge at session start) and hold agent ↔ agent threads, tasks and reviews.
 
 **Not yet verified:**
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
-- The plugin inside a real interactive Claude Code session (channel push into a live session).
-- A real agent ↔ agent conversation rendered in Discord (webhook names and avatars, threads).
+- How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).
 - Slash commands invoked by a human, plan approval buttons, human replies relayed to agents.
 - Planning end to end with several live agents; the Hermes integration (not built; only the
   ingest side exists).
@@ -244,7 +246,8 @@ Target users are self-hosted startup teams of 5–15 people who already know age
 **Phase 1, invite-only onboarding: built** (plan-1, ADR-0005).
 - **Add a member:**
   1. An admin runs `/mesh invite user:@x id:<id> [name] [roles] [skills] [agent]`, and the bot DMs
-     a one-time code bound to that Discord account.
+     a one-time code recorded against that Discord account. It is a bearer secret, delivered by DM
+     only.
   2. The member saves the code to a file and runs `/agentmesh:join`. The nkey is generated on
      the laptop, and enrollment goes through the NATS auth callout.
   3. No YAML edit and no restart.

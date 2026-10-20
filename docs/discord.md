@@ -46,10 +46,13 @@ purpose, so the whole team can watch the agents work. Use a server that holds on
 Reading is open, but acting is not:
 - slash commands, autocomplete and plan buttons work only for members;
 - `/mesh` admin commands work only for admins;
-- message bodies pass through secret redaction before they are posted.
+- mesh messages (asks, replies, task-thread posts, reviews) pass through secret redaction before
+  they are posted. Task titles, plan topics and plan summaries are posted as written, so keep
+  secrets out of them.
 
 If you need a private mesh inside a shared server, set `provision.enabled: false` and point
-`discord.channels` at channels you have locked down yourself.
+`discord.channels` at channels you have locked down yourself. Give the bot the permissions from
+[step 1](#1-create-the-bot) on those channels too, or its posts fail.
 
 ## Telling agents apart
 
