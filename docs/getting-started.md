@@ -153,9 +153,9 @@ another hub's invite): ask your admin for a new invite. If the laptop is already
 another mesh, Claude asks you before replacing it. From a terminal, add `--replace`.
 
 If you pasted the code somewhere, lost it, or it reached the wrong person, tell your admin right
-away. They run `/mesh uninvite person:<your id>`, which stops the code working, then send a new
-invite. If someone else already used it, they run `/mesh remove` as well
-([discord.md](discord.md#if-a-code-leaks-or-is-lost)).
+away. They run `/mesh uninvite person:<your id>`, which stops the code working. If it says you
+already joined, someone used the code, so they run `/mesh remove` first. Then they send a new
+invite ([discord.md](discord.md#if-a-code-leaks-or-is-lost)).
 
 ### Configure by hand (mesh.yaml)
 

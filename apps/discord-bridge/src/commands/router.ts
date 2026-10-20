@@ -13,7 +13,7 @@ import { chunkMessage } from '../discord/chunk';
 import { errorText } from '../render/format';
 import { actAs, type MeshRpc } from '../rpc';
 import type { Enrolled } from '../team';
-import { suggest } from './autocomplete';
+import { autocompleteFor } from './autocomplete';
 import { isPrivateCommand } from './definitions';
 import { COMMAND_HANDLERS, type CommandContext } from './handlers';
 
@@ -41,10 +41,14 @@ export function createInteractionHandler(deps: InteractionDeps) {
 
 async function autocomplete(i: AutocompleteInteraction, deps: InteractionDeps): Promise<void> {
   const focused = i.options.getFocused(true);
-  const sub = i.options.getSubcommand(false);
-  await i.respond(
-    suggest(deps.index(), i.commandName, sub, focused.name, String(focused.value), deps.enrolled()),
-  );
+  const request = {
+    discordUserId: i.user.id,
+    command: i.commandName,
+    subcommand: i.options.getSubcommand(false),
+    option: focused.name,
+    typed: String(focused.value),
+  };
+  await i.respond(autocompleteFor(deps.index(), request, deps.enrolled()));
 }
 
 async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): Promise<void> {

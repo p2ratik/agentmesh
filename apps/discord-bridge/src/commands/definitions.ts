@@ -175,6 +175,13 @@ export function commandDefinitions(): RESTPostAPIChatInputApplicationCommandsJSO
   return [plan, task, ask, mesh].map((c) => c.toJSON());
 }
 
+const ADMIN_SUBCOMMANDS = new Set(['pause', 'resume', 'invite', 'uninvite', 'remove']);
+
+/** `/mesh` subcommands the hub allows only for admins; their autocomplete is admin-only too. */
+export function isAdminCommand(command: string, subcommand: string | null): boolean {
+  return command === 'mesh' && subcommand !== null && ADMIN_SUBCOMMANDS.has(subcommand);
+}
+
 /** Read-only commands reply only to the person who ran them. */
 export function isPrivateCommand(command: string, subcommand: string | null): boolean {
   return (

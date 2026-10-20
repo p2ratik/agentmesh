@@ -135,7 +135,10 @@ identity.
 - **Threat: other services reading the member list.** **Mitigation:** `enrollment.list` is
   restricted to services with the `bridge` role. It also returns open invites for `/mesh uninvite`
   autocomplete, but only their metadata: id, person, agent, Discord id, inviter and expiry. Never
-  the code, the secret or its hash.
+  the code, the secret or its hash. The bridge's autocomplete for `/mesh uninvite` and
+  `/mesh remove` uses the same gate as the commands: nothing for people who are not members, and
+  nothing on admin subcommands for non-admins. Otherwise anyone in the guild could list pending
+  invitees and invited members.
 - **Threat: a leaked or lost code that stays valid.** A code pasted into a chat, or a DM that went
   to the wrong place, would otherwise work until `enrollment.inviteTtlHours` runs out, and the hub
   refuses a second invite for that person meanwhile. **Mitigation:** admins run
@@ -147,8 +150,9 @@ identity.
   (a compromised Discord account, a shared screen) can enroll first.
   **Mitigation (required of the bridge's `/mesh invite`, task-10):** send the code by DM only,
   never in a channel, an `editReply`, logs or events, and cancel the invite if the DM fails. The
-  code is single use, with a short TTL. An admin who sees an unexpected `member.joined` runs
-  `/mesh remove`, which kicks at once.
+  code is single use, with a short TTL. An admin who suspects a leak runs `/mesh uninvite`; if it
+  reports the invite already used, `/mesh remove` kicks that agent at once. (The bridge does not
+  post `member.joined` to Discord, so a reply like that is the signal.)
   **Residual risk:** whoever redeems first wins. Prefer a short `enrollment.inviteTtlHours` for
   sensitive teams.
 

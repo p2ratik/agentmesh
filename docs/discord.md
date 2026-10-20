@@ -134,13 +134,14 @@ A code pasted into a chat, a DM sent to the wrong account, or a code the invitee
 
 1. Run `/mesh uninvite person:dana`. `person` autocompletes from the open invites. The hub cancels
    the invite, so redeeming its code is refused.
-2. Run `/mesh invite` again to send a new code. The hub refuses a second invite while the first is
-   open, so step 1 comes first.
-3. If `#mesh-events` shows a `member.joined` you did not expect, the code was already used: run
-   `/mesh remove person:dana`.
+2. If the reply says **dana already joined**, the code was used, possibly by someone else. Run
+   `/mesh remove person:dana` to disconnect and refuse that agent.
+3. Run `/mesh invite` again to send a new code. The hub refuses a new invite while the old one is
+   open or while dana is an active member, so steps 1 and 2 come first.
 
 `/mesh uninvite` is safe to repeat. A used, expired or already cancelled invite is reported and
-left alone, and your reply never contains a code.
+left alone, and your reply never contains a code. Its autocomplete, like `/mesh remove`'s, shows
+names only to admins.
 
 ### Removing a member
 
