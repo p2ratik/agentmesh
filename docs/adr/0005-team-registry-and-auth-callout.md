@@ -89,6 +89,10 @@ edit, no restart, and a key that never leaves the member's laptop.
      either: it keeps the old containers, so `.env` changes (the public bind, `NATS_PUBLIC_HOST`)
      never take effect.
    - On start the hub provisions fresh streams in `APP`.
+   - Agents on plugin 0.1.7 or later reconnect on their own within about 20 s. Older plugins
+     may give up after the callout refuses them twice during the restart, so update every
+     member's plugin first (`claude plugin update agentmesh@agentmesh`) or have them restart
+     Claude Code afterwards.
    - Check that the hub's log shows no seed errors and that an existing agent reconnects.
    - Then run `/mesh resume`.
 7. **Clean up.** Once everything works, the old `$G` streams hold nothing anyone reads.

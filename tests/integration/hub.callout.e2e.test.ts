@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RpcClient } from '@agentmesh/bus';
+import { connectBus, RpcClient } from '@agentmesh/bus';
 import { createLogger } from '@agentmesh/common';
 import { inboxPrefix } from '@agentmesh/protocol';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
@@ -93,9 +93,10 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
       )) as { code: string }
     ).code;
 
-  beforeAll(async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-hub-callout-'));
-    server = startCalloutNats({ bin: NATS_BIN, loaded, dir, port: PORT });
+  let dir = '';
+  let hubUp = false;
+  const startServer = () => startCalloutNats({ bin: NATS_BIN, loaded, dir, port: PORT });
+  const startHub = async () => {
     hub = await createHub({
       loaded,
       dataDir: ':memory:',
@@ -104,11 +105,23 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
       logger: createLogger('callout-hub', { level: 'silent', destination: 'stderr' }),
     });
     await hub.start();
+    hubUp = true;
+  };
+  const stopHub = async () => {
+    if (!hubUp) return;
+    hubUp = false;
+    await hub.stop();
+  };
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'agentmesh-hub-callout-'));
+    server = startServer();
+    await startHub();
   }, 30_000);
 
   afterAll(async () => {
     for (const nc of open) await nc.close().catch(() => undefined);
-    await hub?.stop().catch(() => undefined);
+    await stopHub().catch(() => undefined);
     server?.kill();
   });
 
@@ -156,7 +169,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
   }, 30_000);
 
   it('keeps static users connecting while the callout is down, and refuses agents', async () => {
-    await hub.stop();
+    await stopHub();
     const bridge = await connect({
       servers: URL,
       reconnect: false,
@@ -166,4 +179,45 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
     expect(bridge.isClosed()).toBe(false);
     expect(typeof (await asAgent(k.alice, 'alice-agent'))).toBe('string');
   }, 30_000);
+
+  // NATS and the hub restarting together (a deploy, a reboot): until the hub is back, the callout
+  // refuses every reconnect. A long-lived agent connection must outlast that, not give up.
+  // This checks recovery. It cannot pin the old bug down: nats-server only sometimes delivers the
+  // refusal as `-ERR` before closing (with NATS up and the hub down, never), and nats.js gave up
+  // only after two such errors. connect.test.ts reproduces that deterministically.
+  it('reconnects an agent once the callout is back after NATS and the hub restart', async () => {
+    await stopHub();
+    await startHub();
+    const nc = await connectBus({
+      servers: [URL],
+      name: 'agentmesh-plugin:alice-agent',
+      inboxPrefix: inboxPrefix('alice-agent'),
+      credentials: { nkeySeed: seedOf(k.alice) },
+    });
+    open.push(nc);
+    // Disconnects: the restart itself, then one per refused reconnect. nats.js used to close the
+    // connection at the second refusal; later refusals emit no `error` status, so count these.
+    let disconnects = 0;
+    const secondRefusal = (async () => {
+      for await (const s of nc.status()) if (s.type === 'disconnect' && ++disconnects === 3) return;
+    })();
+    await stopHub();
+    const exited = new Promise((r) => server.once('exit', r));
+    server.kill();
+    await exited;
+    server = startServer();
+    await Promise.race([secondRefusal, nc.closed()]);
+    await startHub();
+    // A refused dial can hang until nats.js's 20 s connect timeout, so allow for one of those.
+    const asAlice = new RpcClient(nc, PREFIX, 'alice-agent', 2000);
+    let peers = 0;
+    for (let i = 0; i < 15 && !nc.isClosed() && peers === 0; i++) {
+      peers = await asAlice.call('peers.list', {}).then(
+        (r) => r.peers.length,
+        () => new Promise<number>((r) => setTimeout(() => r(0), 1000)),
+      );
+    }
+    expect(nc.isClosed()).toBe(false);
+    expect(peers).toBeGreaterThan(0);
+  }, 90_000);
 });
