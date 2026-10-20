@@ -11,7 +11,7 @@ import { authorize, NOT_A_MEMBER } from '../auth';
 import { parsePlanButtonId } from '../custom-ids';
 import { chunkMessage } from '../discord/chunk';
 import { errorText } from '../render/format';
-import { actAs, type MeshRpc } from '../rpc';
+import { actAs, type MeshRpc, maskResults } from '../rpc';
 import type { Enrolled } from '../team';
 import { autocompleteFor } from './autocomplete';
 import { isPrivateCommand } from './definitions';
@@ -65,10 +65,10 @@ async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): P
   }
   await i.deferReply(isPrivateCommand(i.commandName, sub) ? { flags: MessageFlags.Ephemeral } : {});
   try {
-    const text = await handler(i, actAs(deps.rpc, human.id, i.id), deps);
+    // Replies echo task titles and plan topics and some are public, so results are masked.
+    const text = await handler(i, maskResults(actAs(deps.rpc, human.id, i.id)), deps);
     await i.editReply({
-      // Replies echo task titles and plan topics; some are public, so mask secrets first.
-      content: chunkMessage(redactSecrets(text))[0] ?? 'Done.',
+      content: chunkMessage(text)[0] ?? 'Done.',
       allowedMentions: { parse: [] },
     });
   } catch (err) {

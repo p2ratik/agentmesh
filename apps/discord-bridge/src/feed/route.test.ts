@@ -128,3 +128,38 @@ describe('routeEvent masks secrets in everything it posts', () => {
     expect(intent?.content).not.toContain('[REDACTED]');
   });
 });
+
+describe('routeEvent masks without mangling the post', () => {
+  const external = (extra: Record<string, unknown>) => ({
+    event: {
+      id: 'x:1',
+      source: 'github',
+      type: 'workflow_run.failed',
+      severity: 'error',
+      payload: {},
+      receivedAt: '',
+      ...extra,
+    },
+    matchedRules: [],
+  });
+
+  it('keeps the brackets of a link whose query string was masked', () => {
+    const url = 'https://ci.example.com/run/7?token=abc123def456';
+    const [intent] = routeEvent(feed('external.received', external({ url })), index);
+    expect(intent?.content).toContain('<https://ci.example.com/run/7?token=[REDACTED]>');
+  });
+
+  it('does not mask the words after an id that contains a keyword', () => {
+    const created = { task: { ...task('Fix flaky retries'), createdBy: 'ci-token-bot' } };
+    const [intent] = routeEvent(feed('task.created', created), index);
+    expect(intent?.content).toContain('ci-token-bot: Fix flaky retries');
+  });
+
+  it('never scans the raw webhook payload, which nothing renders', () => {
+    // Outsiders write payloads (up to 1 MB); this one is slow for the assignment pattern.
+    const payload = { comment: { body: 'token'.repeat(1600) } };
+    const started = Date.now();
+    routeEvent(feed('external.received', external({ payload })), index);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+});

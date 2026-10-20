@@ -111,12 +111,17 @@ or forwarding a message. It is a safety net, not a licence: never send secrets o
 
 The Discord bridge applies the same redaction (`redactSecrets` in `packages/common`) to
 everything it posts, because the mesh channels are readable by the whole server:
-- **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it, so
-  truncating a long title or summary cannot cut a token past recognition. It masks the finished
-  posts again, for text a renderer composes. That covers task titles, plan topics, summaries and
-  draft titles, notices, external events, and anything rendered later.
-- **Slash-command and button replies:** the text is masked before it is chunked, including errors
-  from the hub. The invite code is never in a reply; it goes only into the DM.
+- **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it.
+  That covers task titles, plan topics, summaries and draft titles, notices, external events, and
+  anything rendered later.
+  - It masks before rendering, never after. Renderers truncate, and a cut token is no longer
+    recognised. They also compose text (`<url>`, `id: title`) that a second pass would mangle.
+  - An external event's raw `payload` (the webhook body, up to 1 MB, written by outsiders) is
+    dropped first. No renderer shows it, and scanning it would only cost time.
+- **Slash-command replies:** every RPC result is masked before the command renders its reply
+  (`maskResults`), and hub errors are masked too.
+  - The exception is `enrollment.invite`, whose code goes untouched into the DM and never into a
+    reply.
 
 - **Residual risk:** task titles, plan topics and summaries are still stored in the hub as
   written; only messages are redacted at the hub. Anyone with the hub's database sees them.

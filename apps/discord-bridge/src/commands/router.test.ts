@@ -3,7 +3,7 @@ import { ConfigIndex, configFromObject } from '@agentmesh/config';
 import type { Interaction } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import type { ChannelDirectory } from '../discord/directory';
-import type { MeshRpc } from '../rpc';
+import { type HumanCall, type MeshRpc, maskResults } from '../rpc';
 import { createInteractionHandler } from './router';
 
 /** Assembled at runtime so repository secret scanners never flag this file. */
@@ -70,5 +70,29 @@ describe('slash command replies', () => {
       throw new MeshError('invalid_request', `title may not contain ${TOKEN}`);
     }) as MeshRpc['call']);
     expect(replies[0]).not.toContain(TOKEN);
+  });
+});
+
+describe('maskResults', () => {
+  const hub = (result: unknown): HumanCall => (async () => result) as HumanCall;
+
+  it('masks results before a reply is rendered, so links keep their brackets', async () => {
+    const call = maskResults(
+      hub({ id: 'task-9', title: `Rotate ${TOKEN}`, prUrl: 'https://x/pr/1?token=abc123def456' }),
+    );
+    const task = (await call('task.get', { taskId: 'task-9' })) as unknown as {
+      title: string;
+      prUrl: string;
+    };
+    expect(task.title).toBe('Rotate [REDACTED]');
+    expect(task.prUrl).toBe('https://x/pr/1?token=[REDACTED]');
+  });
+
+  it("passes the invite's code through untouched: it goes into a DM", async () => {
+    // A code that happens to look like a token must still arrive exactly.
+    const code = ['xox', 'b-', '1234567890abcdefghij'].join('');
+    const call = maskResults(hub({ inviteId: 'inv-1', code }));
+    const params = { humanId: 'dana', displayName: 'Dana', discordUserId: '100000000000000009' };
+    expect(await call('enrollment.invite', params)).toMatchObject({ code });
   });
 });
