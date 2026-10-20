@@ -27,15 +27,21 @@ const BEARER = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{16,}=*/g;
 /**
  * `password=…`, `api_key: "…"`, `DB_SECRET=…`, `"token": "…"`: keeps the key,
  * masks the value. Values stop at whitespace, separators and `&` (query strings).
- * A quoted value runs to its closing quote, past backslash escapes: stopping at
- * JSON's `\"` left the rest of a password with a `"` in it in clear. (The two
- * alternatives inside the quotes never overlap, so it stays linear.)
+ * A quoted value, tried in order:
+ * - to its closing quote, past backslash escapes: stopping at JSON's `\"` left
+ *   the rest of a password with a `"` in it in clear. After a value that ends
+ *   in `\` (`"C:\dir\" other="x"`), this masks up to the next quote on the line;
+ * - else plain quote to quote, for a value that ends in `\` with no quote after;
+ * - else an escaped-quote value inside a JSON string (`DB_PASSWORD=\"…\"`);
+ * - else the unquoted value, which may start at an unclosed quote.
+ * Each branch runs only when the one before it fails, and the alternatives
+ * inside the escape-aware branches never overlap, so it stays linear.
  * The key starts where a run of key characters starts and is bounded on both
  * sides of the keyword; unanchored and unbounded, a long run of key characters
  * (`tokentoken…`) backtracked cubically and stalled the hub on one message.
  */
 const ASSIGNMENT =
-  /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}["']?\s*[=:]\s*)("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|[^\s,;'"&]+)/gi;
+  /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}["']?\s*[=:]\s*)("(?:\\.|[^"\\\n])*"|"[^"\n]*"|'(?:\\.|[^'\\\n])*'|'[^'\n]*'|\\"[^"\n]*\\"|["']?[^\s,;'"&]+)/gi;
 
 const TYPE_WORDS = new Set([
   'string',
@@ -55,16 +61,20 @@ const TYPE_WORDS = new Set([
  * type annotations (`token: string`), and values already masked.
  */
 export function isNonSecretValue(value: string): boolean {
-  const bare = value.replace(/^["']|["']$/g, '');
+  const bare = value.replace(/^\\?["']|\\?["']$/g, '');
   if (bare === '' || bare === REDACTED) return true;
   if (/^\$\{?[A-Za-z_]/.test(bare) || bare.startsWith('<')) return true;
   if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(bare)) return true;
   return TYPE_WORDS.has(bare.toLowerCase());
 }
 
+/** Keeps the value's quotes: both when it is closed, only the opening one when it is not. */
 function maskValue(value: string): string {
-  const quote = value[0] === '"' || value[0] === "'" ? value[0] : '';
-  return `${quote}${REDACTED}${quote}`;
+  for (const quote of ['\\"', '"', "'"]) {
+    const closed = value.length >= 2 * quote.length && value.endsWith(quote);
+    if (value.startsWith(quote)) return closed ? `${quote}${REDACTED}${quote}` : quote + REDACTED;
+  }
+  return REDACTED;
 }
 
 /** Masks obvious secrets before a message is stored or published. Idempotent. */

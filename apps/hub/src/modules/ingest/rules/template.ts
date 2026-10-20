@@ -3,6 +3,8 @@ import { lookup } from './match';
 
 const PLACEHOLDER = /\{\{\s*([\w.-]+)\s*\}\}/g;
 const MAX_OBJECT_CHARS = 500;
+const MAX_DEPTH = 1000;
+const TOO_DEEP = '[object too deep]';
 
 /**
  * Fills `{{ path }}` placeholders from the rule context. Lookups only — no
@@ -39,25 +41,35 @@ function stringify(value: unknown, redact: boolean): string {
  * A copy of a JSON value with its secrets masked before it becomes JSON (and is
  * cut): each string and each key on its own, and the whole value under a key
  * that reads as a secret (`password`, `api_key`, `max_tokens`…), whatever its
- * type. The finished JSON is not masked: JSON writes a newline as `\n`, which
- * hides a token after it from the patterns, and the unquoted-value pattern
- * would swallow closing braces.
+ * type, except `true`, `false` and `null`, which are kept. The finished JSON is
+ * not masked: JSON writes a newline as `\n`, which hides a token after it from
+ * the patterns, and the unquoted-value pattern would swallow closing braces.
+ * Below `MAX_DEPTH` levels a subtree becomes `TOO_DEEP`: recursing further would
+ * overflow the stack, and the rule action would be dropped.
  */
-function maskTree(value: unknown): unknown {
+function maskTree(value: unknown, depth = 0): unknown {
   if (typeof value === 'string') return redactSecrets(value);
-  if (Array.isArray(value)) return value.map(maskTree);
   if (value === null || typeof value !== 'object') return value;
+  if (depth >= MAX_DEPTH) return TOO_DEEP;
+  if (Array.isArray(value)) return value.map((item) => maskTree(item, depth + 1));
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => {
-      const masked = maskTree(item);
+      const masked = maskTree(item, depth + 1);
       const maskedKey = redactSecrets(key);
       return [maskedKey, isSecretPair(maskedKey, masked) ? REDACTED : masked];
     }),
   );
 }
 
-/** Whether `key=value` reads as a secret assignment, once the tokens inside it are masked. */
+/**
+ * Whether `key=value` reads as a secret assignment. A scalar is tested as JSON
+ * (so a value starting with `"` or `,` is seen whole), after its tokens are
+ * masked. An object or array is tested as `{`: its children are masked already,
+ * and stringifying them re-scanned each subtree once per ancestor (seconds on a
+ * deep payload) and read a child's `false}` as the parent's secret.
+ */
 function isSecretPair(key: string, value: unknown): boolean {
-  const pair = `${key}=${JSON.stringify(value) ?? ''}`;
+  const shown = value !== null && typeof value === 'object' ? '{' : JSON.stringify(value);
+  const pair = `${key}=${shown ?? ''}`;
   return redactSecrets(pair) !== pair;
 }

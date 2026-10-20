@@ -108,17 +108,21 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
 The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/OpenAI tokens, Discord
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
 or forwarding a message. A quoted assignment value is masked up to its closing quote, past
-backslash escapes, so a password containing `"` in JSON is masked whole. It is a safety net, not a
-licence: never send secrets over the mesh.
+backslash escapes, so a password containing `"` in JSON is masked whole. A quoted value that ends
+in a backslash or is never closed is masked too, and so is an escaped-quote value inside a JSON
+string (`DB_PASSWORD=\"…\"`). After a value that ends in `\` (`"C:\dir\" other="x"`), masking
+can run on to the next quote on the line. It is a safety net, not a licence: never send secrets
+over the mesh.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB) and on every value a rule template fills in, which can be as large as an ingest event
   (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns were
   unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
 - **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
-  bounds the key to 64 characters on each side of the keyword. `redact.test.ts` keeps the 32 KB
-  worst cases under 250 ms; they run in about 1 ms. At 1 MB the same worst cases took 5–56 ms
-  when measured on 2026-10-20.
+  bounds the key to 64 characters on each side of the keyword. Each quoted-value branch runs only
+  when the one before it fails, and the alternatives inside a branch never overlap. `redact.test.ts`
+  keeps the 32 KB worst cases under 250 ms, including unclosed and escaped quoted values. Measured
+  on 2026-10-20, they run in under 5 ms at 32 KB and in up to about 100 ms at 1 MB.
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
 
@@ -137,15 +141,20 @@ per-value masking (below). This covers:
 - each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. An object is
   masked before it becomes JSON and is cut to 500 characters. Each string and each key is masked
   on its own. The whole value under a key that reads as a secret (`password`, `api_key`,
-  `max_tokens`…) is replaced, whatever its type. The finished JSON is not masked, for two reasons:
-  JSON writes a newline as `\n`, which hides a token after it from the patterns, and the
-  unquoted-value pattern would swallow closing braces. The template text is trusted config and is
-  not masked. Masking the finished text would match across the template and a value:
-  `{{alarm}}: {{summary}}` lost the summary's first word after an alarm named `SecretsManager…`.
+  `max_tokens`…) is replaced, whatever its type, except `true`, `false` and `null`, which are
+  kept. This takes time linear in the payload's size, and a subtree nested more than 1000 levels
+  deep becomes `[object too deep]`. The finished JSON is not masked, for two reasons: JSON writes
+  a newline as `\n`, which hides a token after it from the patterns, and the unquoted-value
+  pattern would swallow closing braces. The template text is trusted config and is not masked.
+  Masking the finished text would match across the template and a value: `{{alarm}}: {{summary}}`
+  lost the summary's first word after an alarm named `SecretsManager…`.
   - **Cost:** a keyword in the template, or in a neighbouring value, no longer masks what follows
     it. `Config drift: {{payload.name}}={{payload.value}}` shows `DB_PASSWORD=hunter2…` as is in
-    a notice. Agents see it the same way in a rule-made task title or thread subject. Don't
-    template key/value pairs from payloads.
+    a notice. Agents see it the same way in a rule-made task title or thread subject. The same
+    holds inside one object for name/value entries, such as an ECS or Kubernetes
+    `environment: [{ name: 'DB_PASSWORD', value: '…' }]`: neither `name` nor `value` reads as a
+    secret, so the value is shown. Don't template key/value pairs from payloads, or subtrees that
+    hold such entries.
   - In Discord, per-value masking survives only in notice text. The bridge's `maskEvent` masks
     rule-made task titles and thread subjects again as whole strings, and `post()` does the same
     for notify bodies. There, a value with a keyword can still mask the next word

@@ -49,6 +49,31 @@ describe('redactSecrets', () => {
     expect(redactSecrets("password='ab\\'cd-tail' next")).toBe("password='[REDACTED]' next");
     expect(redactSecrets('token="a\\\\" rest')).toBe('token="[REDACTED]" rest');
   });
+
+  it('masks a quoted value that ends in a backslash, and an unclosed one', () => {
+    // Read as an escape, `\"` never closed the value, and nothing else could match it.
+    expect(redactSecrets('password="hunter2\\" next')).toBe('password="[REDACTED]" next');
+    expect(redactSecrets('password="hunter2\\\\\\" next')).toBe('password="[REDACTED]" next');
+    expect(redactSecrets("$env:DB_PASSWORD='Abc123\\' ;")).toBe("$env:DB_PASSWORD='[REDACTED]' ;");
+    expect(redactSecrets('password="hunter2')).toBe('password="[REDACTED]');
+  });
+
+  it('masks an escaped-quote value inside a JSON string', () => {
+    expect(redactSecrets('{"message":"DB_PASSWORD=\\"hunter2-prod\\" failed"}')).toBe(
+      '{"message":"DB_PASSWORD=\\"[REDACTED]\\" failed"}',
+    );
+  });
+
+  it('stays idempotent on every quoting it masks', () => {
+    for (const text of [
+      'password="hunter2\\" next',
+      'password="hunter2',
+      '{"m":"DB_PASSWORD=\\"hunter2-prod\\" failed"}',
+    ]) {
+      const once = redactSecrets(text);
+      expect(redactSecrets(once)).toBe(once);
+    }
+  });
 });
 
 /** Milliseconds one call takes. */
@@ -69,6 +94,9 @@ describe('redactSecrets on hostile input', () => {
     ['an unclosed quoted value of escapes', `token="${'\\"'.repeat(16_000)}`],
     ['keys inside an unclosed quoted value', `token="${'\\"token="'.repeat(3_500)}`],
     ['both quotes, unclosed', `token='${`"token=\\'`.repeat(3_500)}`],
+    ['values ending in a backslash', 'password="x\\" '.repeat(2_200)],
+    ['an unclosed escaped-quote value', `token=\\"${'a'.repeat(32_000)}`],
+    ['escaped-quote values back to back', 'token=\\"x'.repeat(3_500)],
   ])('stays linear on %s', (_label, text) => {
     expect(timed(text)).toBeLessThan(250);
   });

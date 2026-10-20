@@ -92,27 +92,55 @@ describe('templates', () => {
     );
   });
 
-  it('redacts the whole value under a secret-looking key, whatever its type', () => {
-    const env = { DB_PASSWORD: 'Xy7"kP9-qL2mZ8wR4tN6', auth_token: { id: 7 }, use_token: true };
+  it('redacts the whole value under a secret-looking key, except true, false and null', () => {
+    const env = {
+      DB_PASSWORD: 'Xy7"kP9-qL2mZ8wR4tN6',
+      auth_token: { id: 7 },
+      use_token: true,
+      password: null,
+    };
     expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
-      '{"DB_PASSWORD":"[REDACTED]","auth_token":"[REDACTED]","use_token":true}',
+      '{"DB_PASSWORD":"[REDACTED]","auth_token":"[REDACTED]","use_token":true,"password":null}',
     );
   });
 
-  it('keeps the JSON well-formed', () => {
+  it('tests a value with its JSON quoting, so a leading quote or comma is seen', () => {
+    // As `password="Xy7…` and `api_key=,abc…`, the second was not recognised.
+    const env = { password: '"Xy7kP9qL2', api_key: ',abc123def' };
+    expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
+      '{"password":"[REDACTED]","api_key":"[REDACTED]"}',
+    );
+  });
+
+  it('keeps the JSON well-formed, and a non-secret parent intact', () => {
     // Masking the finished JSON swallowed the `}` after a number: {"a":{"max_tokens":[REDACTED],"b":1}
     const payload = { a: { max_tokens: 1024 }, b: 1 };
     const json = renderTemplate('{{payload}}', { ...ctx, payload });
     expect(JSON.parse(json)).toEqual({ a: { max_tokens: '[REDACTED]' }, b: 1 });
+    // Testing `repo={"name":"acme","has_token":false}` read `false}` as repo's secret.
+    const repo = { repo: { name: 'acme', has_token: false } };
+    expect(renderTemplate('{{payload}}', { ...ctx, payload: repo })).toBe(JSON.stringify(repo));
+  });
+
+  it('masks a deep payload in linear time, and caps its depth', () => {
+    // Testing each key against its stringified subtree scanned each byte once per ancestor.
+    let deep: unknown = {};
+    for (let i = 0; i < 900; i++) deep = { s: 'x'.repeat(1_100), c: deep };
+    const started = performance.now();
+    renderTemplate('{{payload}}', { ...ctx, payload: deep });
+    expect(performance.now() - started).toBeLessThan(500);
+    // Past the stack's depth, the rule action threw and was dropped.
+    let deeper: unknown = {};
+    for (let i = 0; i < 10_000; i++) deeper = { c: deeper };
+    expect(() => renderTemplate('{{payload}}', { ...ctx, payload: deeper })).not.toThrow();
   });
 
   it('redacts an object before cutting it', () => {
-    // The 500-character cut lands five characters into the value. Masking after the cut would
-    // miss it: an unterminated quoted value does not match.
-    const payload = { pad: 'a'.repeat(474), api_key: 'abc123def456ghi789' };
+    // The 500-character cut lands 20 characters into the token, too few to match afterwards.
+    const payload = { pad: 'a'.repeat(463), log: TOKEN };
     const cut = renderTemplate('{{payload}}', { ...ctx, payload });
-    expect(cut).not.toContain('abc12');
-    expect(cut).toContain('"api_key":"[REDA');
+    expect(cut).not.toContain('ghp_');
+    expect(cut).toContain('"log":"[REDACTED]"');
   });
 
   it('renders raw with redact: false, for text that is never shown', () => {

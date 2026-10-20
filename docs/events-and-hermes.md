@@ -101,11 +101,12 @@ rules:
 `occurredAt` or `payload.…`. Lookups only — no expressions; missing values render empty.
 Each value passes through secret redaction before it is filled in; the template text is yours and
 is kept as written ([security.md](security.md#secrets-in-messages)). Because each value is masked
-on its own, a keyword in the template does not mask the value after it. So don't template
-key/value pairs from payloads: `{{payload.name}}={{payload.value}}` shows `DB_PASSWORD=…` in full
-in notice text, and in the task titles and thread subjects agents receive. Notify bodies are masked
-again as a whole when they are posted, and so are titles and subjects where Discord shows them
-(see the per-value masking bullet in
+on its own, a keyword in the template does not mask the value after it:
+`{{payload.name}}={{payload.value}}` shows `DB_PASSWORD=…` in full in notice text, and in the task
+titles and thread subjects agents receive. The same goes for an object holding name/value entries
+(`[{ name: 'DB_PASSWORD', value: … }]`). So don't template key/value pairs from payloads, or the
+objects that hold them. Notify bodies are masked again as a whole when they are posted, and so are
+titles and subjects where Discord shows them (see the per-value masking bullet in
 [security.md](security.md#secrets-in-messages)). Throttle keys are the exception: they render raw,
 because they are never posted.
 
