@@ -11,11 +11,19 @@ import type { Clock } from '@agentmesh/common';
 export class RefusalLog {
   readonly #windowMs: number;
   readonly #clock: Clock;
+  readonly #max: number;
+  /** In window-start order, so the first entries are the oldest. */
   readonly #windows = new Map<string, { start: number; repeats: number }>();
 
-  constructor(windowMs: number, clock: Clock) {
+  /** `max` bounds memory when clients spray new keys at the public port. */
+  constructor(windowMs: number, clock: Clock, max = 10_000) {
     this.#windowMs = windowMs;
     this.#clock = clock;
+    this.#max = max;
+  }
+
+  get size(): number {
+    return this.#windows.size;
   }
 
   note(key: string): { level: 'warn' | 'debug'; repeated?: number } {
@@ -25,16 +33,22 @@ export class RefusalLog {
       window.repeats += 1;
       return { level: 'debug' };
     }
+    this.#windows.delete(key);
     this.#windows.set(key, { start: now, repeats: 0 });
-    if (this.#windows.size > 10_000) this.#sweep(now);
+    if (this.#windows.size > this.#max) this.#evict(now);
     return window && window.repeats > 0
       ? { level: 'warn', repeated: window.repeats }
       : { level: 'warn' };
   }
 
-  #sweep(now: number): void {
+  /** Drops expired windows, then the oldest ones until it is back under the cap. */
+  #evict(now: number): void {
     for (const [key, window] of this.#windows) {
       if (now - window.start >= this.#windowMs) this.#windows.delete(key);
+    }
+    for (const key of this.#windows.keys()) {
+      if (this.#windows.size <= this.#max) break;
+      this.#windows.delete(key);
     }
   }
 }

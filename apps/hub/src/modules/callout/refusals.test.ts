@@ -23,6 +23,14 @@ describe('RefusalLog', () => {
     expect(log.note('UA|unknown key').level).toBe('debug');
   });
 
+  it('stays bounded when a flood of new keys arrives within one window', () => {
+    const log = new RefusalLog(10 * MINUTE_MS, new ManualClock(), 100);
+    for (let i = 0; i < 1000; i++) log.note(`U${i}|unknown key`);
+    expect(log.size).toBeLessThanOrEqual(100);
+    // The newest keys are kept: a repeat of one is still folded.
+    expect(log.note('U999|unknown key').level).toBe('debug');
+  });
+
   it('starts over after a quiet window without reporting repeats', () => {
     const clock = new ManualClock();
     const log = new RefusalLog(10 * MINUTE_MS, clock);
