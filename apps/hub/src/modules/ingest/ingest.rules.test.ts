@@ -92,15 +92,18 @@ describe('templates', () => {
     );
   });
 
-  it('redacts the whole value under a secret-looking key, except true, false and null', () => {
+  it('redacts the whole value under a secret-looking key, unless it reads as a non-secret', () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a literal env reference, kept as is
+    const ref = '${API_TOKEN}';
     const env = {
       DB_PASSWORD: 'Xy7"kP9-qL2mZ8wR4tN6',
       auth_token: { id: 7 },
       use_token: true,
       password: null,
+      api_token: ref,
     };
     expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
-      '{"DB_PASSWORD":"[REDACTED]","auth_token":"[REDACTED]","use_token":true,"password":null}',
+      `{"DB_PASSWORD":"[REDACTED]","auth_token":"[REDACTED]","use_token":true,"password":null,"api_token":"${ref}"}`,
     );
   });
 
@@ -122,16 +125,25 @@ describe('templates', () => {
     expect(renderTemplate('{{payload}}', { ...ctx, payload: repo })).toBe(JSON.stringify(repo));
   });
 
-  it('masks a deep payload in linear time, and caps its depth', () => {
+  it('masks only what it shows of a deep or wide payload', () => {
+    const timed = (payload: unknown) => {
+      const started = performance.now();
+      const json = renderTemplate('{{payload}}', { ...ctx, payload });
+      return { json, ms: performance.now() - started };
+    };
     // Testing each key against its stringified subtree scanned each byte once per ancestor.
     let deep: unknown = {};
     for (let i = 0; i < 900; i++) deep = { s: 'x'.repeat(1_100), c: deep };
-    const started = performance.now();
-    renderTemplate('{{payload}}', { ...ctx, payload: deep });
-    expect(performance.now() - started).toBeLessThan(500);
-    // Past the stack's depth, the rule action threw and was dropped.
+    expect(timed(deep).ms).toBeLessThan(100);
+    // Masking every key of a wide payload took half a second, to show its first 500 characters.
+    const wide = Object.fromEntries(Array.from({ length: 60_000 }, (_, i) => [`key${i}`, 'v']));
+    const { json, ms } = timed(wide);
+    expect(ms).toBeLessThan(100);
+    expect(json.startsWith('{"key0":"v","key1":"v"')).toBe(true);
+    expect(json.endsWith('…')).toBe(true);
+    // Recursing through every level overflowed the stack, and the rule action was dropped.
     let deeper: unknown = {};
-    for (let i = 0; i < 10_000; i++) deeper = { c: deeper };
+    for (let i = 0; i < 10_000; i++) deeper = [deeper];
     expect(() => renderTemplate('{{payload}}', { ...ctx, payload: deeper })).not.toThrow();
   });
 

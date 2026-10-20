@@ -107,22 +107,39 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
 
 The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/OpenAI tokens, Discord
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
-or forwarding a message. A quoted assignment value is masked up to its closing quote, past
-backslash escapes, so a password containing `"` in JSON is masked whole. A quoted value that ends
-in a backslash or is never closed is masked too, and so is an escaped-quote value inside a JSON
-string (`DB_PASSWORD=\"…\"`). After a value that ends in `\` (`"C:\dir\" other="x"`), masking
-can run on to the next quote on the line. It is a safety net, not a licence: never send secrets
-over the mesh.
+or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
+
+Assignments are read two ways, and the hub masks the union of the values both readings find:
+- **The plain reading** is the original one. A quoted value runs from quote to quote (so a value
+  that ends in a backslash is masked whole). Otherwise the value stops at whitespace, separators
+  and `&`.
+- **The extended reading** also finds:
+  - a quoted value up to its closing quote, past backslash escapes, so a password containing `"`
+    in JSON is masked whole;
+  - an escaped-quote value or key inside a JSON string (`DB_PASSWORD=\"…\"`,
+    `{\"password\":\"…\"}`);
+  - the first word of a value whose quote is never closed (`password="hunter2 more` masks only
+    `hunter2`).
+
+Either reading can swallow an assignment the other finds. After a value that ends in `\`
+(`"C:\dir\" --password="x"`), the extended reading runs on to the next quote. The union masks
+that span, including the next key's name, and the plain reading still finds the next value. So
+the hub never masks less than the plain reading alone. Masking a span can join the text around
+it into a new value, so masking repeats (at most four rounds) until nothing changes. That keeps
+`redactSecrets` idempotent, and the bridge's second pass leaves the hub's text as it is.
+`redact.differential.test.ts` checks both properties, against the plain reading as it shipped
+before, on a corpus and on 20,000 seeded fuzz inputs.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB) and on every value a rule template fills in, which can be as large as an ingest event
   (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns were
   unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
 - **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
-  bounds the key to 64 characters on each side of the keyword. Each quoted-value branch runs only
-  when the one before it fails, and the alternatives inside a branch never overlap. `redact.test.ts`
-  keeps the 32 KB worst cases under 250 ms, including unclosed and escaped quoted values. Measured
-  on 2026-10-20, they run in under 5 ms at 32 KB and in up to about 100 ms at 1 MB.
+  bounds the key to 64 characters on each side of the keyword. The alternatives inside each
+  quoted-value branch never overlap. `redact.test.ts` keeps the 32 KB worst cases under 250 ms,
+  including unclosed and escaped quoted values, Windows paths before keys and JSON inside JSON
+  strings. With both readings and the rounds, they ran in under 10 ms at 32 KB and up to about
+  230 ms at 1 MB when measured on 2026-10-21.
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
 
@@ -139,13 +156,15 @@ per-value masking (below). This covers:
 - each contribution in a planning round's digest;
 - the `[source] type` fallback subject and title of rule actions;
 - each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. An object is
-  masked before it becomes JSON and is cut to 500 characters. Each string and each key is masked
-  on its own. The whole value under a key that reads as a secret (`password`, `api_key`,
-  `max_tokens`…) is replaced, whatever its type, except `true`, `false` and `null`, which are
-  kept. This takes time linear in the payload's size, and a subtree nested more than 1000 levels
-  deep becomes `[object too deep]`. The finished JSON is not masked, for two reasons: JSON writes
-  a newline as `\n`, which hides a token after it from the patterns, and the unquoted-value
-  pattern would swallow closing braces. The template text is trusted config and is not masked.
+  masked as its JSON is written, so before it is cut to 500 characters. Each string and each key
+  is masked on its own. The whole value under a key that reads as a secret (`password`,
+  `api_key`, `max_tokens`…) is replaced, whatever its type, unless `redactSecrets` keeps it:
+  `true`, `false`, `null`, empty strings, `${VAR}` and `$VAR` references, `<placeholders>`,
+  dotted names and type words. Writing stops once past the cut, so a wide or deep payload costs
+  little. Measured on 2026-10-21, a 2.9 MB object with 150,000 keys rendered in 34 ms, against
+  1.1 s when the whole tree was masked; 3,000 nested records took under 1 ms, against 96 ms. The
+  finished JSON is not masked, for two reasons: JSON writes a newline as `\n`, which hides a
+  token after it from the patterns, and the unquoted-value pattern would swallow closing braces. The template text is trusted config and is not masked.
   Masking the finished text would match across the template and a value: `{{alarm}}: {{summary}}`
   lost the summary's first word after an alarm named `SecretsManager…`.
   - **Cost:** a keyword in the template, or in a neighbouring value, no longer masks what follows
