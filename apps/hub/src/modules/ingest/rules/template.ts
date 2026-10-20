@@ -31,9 +31,11 @@ function stringify(value: unknown, mask: (text: string) => string): string {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') return mask(value);
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  // The strings inside are masked, not the JSON: JSON writes a newline as `\n`, so a token
-  // right after one no longer starts at a word boundary.
-  const json =
-    JSON.stringify(value, (_key, item) => (typeof item === 'string' ? mask(item) : item)) ?? '';
+  // Masked twice, both before the cut. The strings inside: JSON writes a newline as `\n`, so a
+  // token right after one no longer starts at a word boundary. Then the JSON itself, which
+  // catches keys and `"api_key":"…"` pairs; it is one value, so it cannot match into the template.
+  const json = mask(
+    JSON.stringify(value, (_key, item) => (typeof item === 'string' ? mask(item) : item)) ?? '',
+  );
   return json.length > MAX_OBJECT_CHARS ? `${json.slice(0, MAX_OBJECT_CHARS)}…` : json;
 }

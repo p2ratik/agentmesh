@@ -80,11 +80,24 @@ describe('templates', () => {
     expect(json).toContain('[REDACTED]');
   });
 
-  it('redacts the strings inside an object, not its JSON', () => {
+  it('redacts the strings inside an object, not only its JSON', () => {
     // JSON writes the newline as `\n`, so in the JSON the token no longer starts a word.
     const payload = { log: `step failed\n${TOKEN}`, steps: [{ out: `\t${TOKEN}` }] };
     const json = renderTemplate('{{payload}}', { ...ctx, payload });
     expect(json).toBe('{"log":"step failed\\n[REDACTED]","steps":[{"out":"\\t[REDACTED]"}]}');
+  });
+
+  it('redacts the JSON of an object too: its keys and its key/value pairs', () => {
+    const env = { DB_PASSWORD: 'hunter2-prod-x9', [TOKEN]: 1 };
+    expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
+      '{"DB_PASSWORD":"[REDACTED]","[REDACTED]":1}',
+    );
+    // The 500-character cut lands five characters into the value. Masking after the cut would
+    // miss it: an unterminated quoted value does not match.
+    const payload = { pad: 'a'.repeat(474), api_key: 'abc123def456ghi789' };
+    const cut = renderTemplate('{{payload}}', { ...ctx, payload });
+    expect(cut).not.toContain('abc12');
+    expect(cut).toContain('"api_key":"[REDA');
   });
 
   it('renders raw with redact: false, for text that is never shown', () => {

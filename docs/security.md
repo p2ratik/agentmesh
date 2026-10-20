@@ -71,7 +71,9 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
     member (`authorize`), and `/mesh` admin commands require the admin role.
   - Invite codes go by DM only.
   - Everything the bridge posts is redacted (below) before it reaches Discord, not only mesh
-    messages.
+    messages. There are two exceptions: the template text of a notice (trusted config; the hub
+    masks each value it fills in), and the `/mesh invite` code, which goes untouched into the
+    invitee's DM.
 - **Residual risk:** anyone the admin lets into the server sees vulnerability details while they
   are being fixed. A team that shares its server with outsiders should manage its own locked-down
   channels (`provision.enabled: false` plus `discord.channels`).
@@ -121,16 +123,23 @@ per-value masking (below). This covers:
   redacts the title again before `slugify` cuts it;
 - the one-line note a `request_changes` review leaves on the task's transition;
 - each contribution in a planning round's digest;
-- the event type of a `raw` ingest source, before it is rewritten to `[A-Za-z0-9_.:-]` and cut to
-  120 characters, and the `[source] type` fallback subject and title of rule actions;
-- each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. For an
-  object, each string inside it is masked before its JSON is cut to 500 characters. The template
-  text is trusted config and is not masked. Masking the finished text would match across the
-  template and a value: `{{alarm}}: {{summary}}` lost the summary's first word after an alarm
-  named `SecretsManager…`.
+- the `[source] type` fallback subject and title of rule actions;
+- each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. An object is
+  masked twice, both times before its JSON is cut to 500 characters. First each string inside it
+  is masked: JSON writes a newline as `\n`, which hides a token after it from the patterns. Then
+  its JSON as a whole is masked, which catches keys and `"api_key":"…"` pairs. The template text
+  is trusted config and is not masked. Masking the finished text would match across the template
+  and a value: `{{alarm}}: {{summary}}` lost the summary's first word after an alarm named
+  `SecretsManager…`.
   - **Cost:** a keyword in the template, or in a neighbouring value, no longer masks what follows
     it. `Config drift: {{payload.name}}={{payload.value}}` posts `DB_PASSWORD=hunter2…` as is.
     Don't template key/value pairs from payloads.
+  - Per-value masking survives only in notice text. Rule-made task titles, thread subjects and
+    notify bodies are masked again as whole strings where they are posted: by the bridge's
+    `maskEvent`, and by `post()` for message bodies. There, a value with a keyword can still mask
+    the next word (`SecretsManagerRotationFailed: [REDACTED] failed…`). This is deliberate: masking
+    at the point of posting is the safer default, and older rows were never redacted on the way
+    in.
   - Throttle keys are rendered raw. They are never posted, and masking would merge keys: every
     Secrets Manager ARN would share one, so only one alert would fire per window. They are stored
     in `rule_throttles`, so never throttle on a secret.
@@ -156,6 +165,12 @@ everything it posts, because the mesh channels are readable by the whole server:
   are still stored in the hub as written, and so are task titles created before 2026-10-20. Only
   messages and the texts listed above are redacted at the hub, so anyone with the hub's database
   sees the rest.
+- **Residual risk: raw event types.** The hub does not mask a `raw` source's event type, so rules
+  match it as sent (`token:refresh`). It is never cut either: a type longer than 120 characters is
+  refused with a 400. But characters outside `[A-Za-z0-9_.:-]` become `_`, and that can hide a
+  token from the patterns' word-boundary anchors (`deploy failed ghp_…` becomes
+  `deploy_failed_ghp_…`). Raw types come from a header or field configured on an authenticated
+  source.
 
 ## Secrets in RPC results
 

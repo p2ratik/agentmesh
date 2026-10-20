@@ -52,7 +52,11 @@ source, `413` body over 1 MiB, `503` NATS unavailable (retry later). `GET /healt
 
 **GitHub webhooks directly** (`format: raw`): the whole body becomes `payload`, the type is
 `<x-github-event>.<action>`, the id is `x-github-delivery`, and the `x-hub-signature-256` HMAC is
-verified with your webhook secret:
+verified with your webhook secret. A raw type keeps its text so rules match it as sent. Characters
+outside `[A-Za-z0-9_.:-]` become `_`, and a type over 120 characters is refused with a `400`, not
+cut. The `_` rewrite can hide a token in the type from secret redaction, so point
+`typeHeader`/`typeField` only at fields that name the event
+([security.md](security.md#secrets-in-messages)):
 
 ```yaml
     - id: github

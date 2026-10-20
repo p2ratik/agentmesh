@@ -68,7 +68,9 @@ const rotation = (id: string, secret: string): IngestEvent => ({
   },
 });
 
-describe('rules keep their per-value masking all the way to the thread', () => {
+// Only in the hub and the inbox: where the bridge and post() publish these, they mask the whole
+// title, subject or body again (see docs/security.md).
+describe('the hub keeps a rule’s per-value masking in subjects and titles', () => {
   it('in a notify subject and a create_task title', async () => {
     const s = setup();
     await s.ingest.accept('hermes', rotation('r1', 'prod/db-AbCdEf'));
@@ -106,19 +108,30 @@ describe('rules keep their per-value masking all the way to the thread', () => {
   });
 });
 
-describe('normalizeEvent', () => {
-  it('redacts a raw event type before rewriting and cutting it', () => {
-    const source = {
-      id: 'ci',
-      format: 'raw',
-      typeHeader: 'x-event',
-      auth: { type: 'bearer', token: 'test-token-0123456789abcdef' },
-    } as IngestSource;
-    const result = normalizeEvent(
-      source,
-      { 'x-event': `deploy failed ${TOKEN}` },
-      Buffer.from('{}'),
-    );
-    expect(result.ok && result.event.type).toBe('deploy_failed__REDACTED_');
+describe('normalizeEvent for raw sources', () => {
+  const source = {
+    id: 'ci',
+    format: 'raw',
+    typeHeader: 'x-event',
+    auth: { type: 'bearer', token: 'test-token-0123456789abcdef' },
+  } as IngestSource;
+  const normalize = (type: string) =>
+    normalizeEvent(source, { 'x-event': type }, Buffer.from('{}'));
+
+  it('keeps the type as sent, so rules on it still match', () => {
+    // Masked, `token:refresh` became `token:_REDACTED_`: its rule stopped firing.
+    expect(normalize('token:refresh')).toMatchObject({
+      ok: true,
+      event: { type: 'token:refresh' },
+    });
+  });
+
+  it('refuses a type longer than 120 characters instead of cutting it', () => {
+    expect(normalize('a'.repeat(120))).toMatchObject({ ok: true });
+    // Cut, a token at the end lost its tail and no longer matched where the type is posted.
+    expect(normalize(`deploy.${'a'.repeat(73)}.${TOKEN}`)).toMatchObject({
+      ok: false,
+      error: 'The event type is longer than 120 characters',
+    });
   });
 });

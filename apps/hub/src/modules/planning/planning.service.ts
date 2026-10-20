@@ -157,8 +157,12 @@ export class PlanningServiceImpl implements PlanningService {
         );
       }
       // Draft titles become task titles, which the thread subject and branch name cut: redact
-      // them here, where they come in (a cut token no longer matches).
-      const drafts = tasks.map((draft) => ({ ...draft, title: redactSecrets(draft.title) }));
+      // them here, where they come in (a cut token no longer matches). Masking can lengthen a
+      // title, so it is cut back to the 200 characters `Plan` allows; cutting after is safe.
+      const drafts = tasks.map((draft) => ({
+        ...draft,
+        title: redactSecrets(draft.title).slice(0, 200),
+      }));
       const check = checkDrafts(drafts, {
         isAgent: (id) => index.kindOf(id) === 'agent',
         isArea: (id) => index.area(id) !== undefined,

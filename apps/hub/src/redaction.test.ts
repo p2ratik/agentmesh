@@ -1,5 +1,5 @@
 import { ConfigIndex } from '@agentmesh/config';
-import type { PlanTaskDraft, RpcParams } from '@agentmesh/protocol';
+import { Plan, type PlanTaskDraft, type RpcParams } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { Actor, CallContext } from './contracts';
 import { internalId } from './core/ids';
@@ -140,6 +140,17 @@ describe('the hub redacts text before it cuts it', () => {
     s.planning.submit(1, 'ok', [draft as PlanTaskDraft], alice);
     const task = s.tasks.get(1, alice);
     expectMasked(s.messaging.thread(internalId('thread', task.threadId)).subject);
+  });
+
+  it('keeps a masked plan draft title within the 200 characters a Plan allows', () => {
+    const s = setup();
+    s.planning.start({ topic: 'Render status' }, alice);
+    // Masking lengthens it: `token: expiry` becomes `token: [REDACTED]`, 204 characters in all.
+    // Over 200, the RPC client and the bridge could no longer parse the plan.
+    const draft = { key: 'a', title: `${'a'.repeat(186)} token: expiry`, description: '' };
+    const plan = s.planning.submit(1, 'ok', [{ ...draft, dependsOn: [] } as PlanTaskDraft], alice);
+    expect(() => Plan.parse(plan)).not.toThrow();
+    expect(plan.drafts[0]?.title).not.toContain('expiry');
   });
 
   it('in the branch name the assignment brief suggests (the slug is cut to 40)', () => {
