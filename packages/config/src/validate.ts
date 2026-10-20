@@ -16,14 +16,18 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
 
   const humans = new Set(config.humans.map((h) => h.id));
   const agents = new Set(config.agents.map((a) => a.id));
+  const services = new Set(config.services.map((s) => s.id));
 
   checkUniqueIds(config, add);
   config.agents.forEach((a, i) => {
     if (!humans.has(a.owner)) add(`agents[${i}].owner`, `unknown human "${a.owner}"`);
   });
+  // An owner that is no participant at all is pending: an agent that joins by invite.
   config.areas.forEach((area, i) => {
     for (const owner of area.owners) {
-      if (!agents.has(owner)) add(`areas[${i}].owners`, `"${owner}" is not an agent`);
+      if (humans.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a human, not an agent`);
+      if (services.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a service, not an agent`);
+      if (owner === config.hub.serviceId) add(`areas[${i}].owners`, `"${owner}" is the hub`);
     }
   });
   config.review.humanReviewers.forEach((id) => {
@@ -53,6 +57,16 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
   checkDiscord(config, add);
   checkIngest(config, add);
   return issues;
+}
+
+/**
+ * Area owners mesh.yaml does not list as agents: agents expected to join by
+ * invite. Routing skips them until they do; `agentmesh validate` lists them so
+ * a typo stays visible.
+ */
+export function pendingAreaOwners(config: MeshConfig): string[] {
+  const agents = new Set(config.agents.map((a) => a.id));
+  return [...new Set(config.areas.flatMap((a) => a.owners))].filter((id) => !agents.has(id));
 }
 
 type Add = (path: string, message: string) => void;

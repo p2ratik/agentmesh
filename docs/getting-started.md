@@ -24,7 +24,9 @@ pnpm mesh init config            # copies config/examples → config/
 
 Edit `config/mesh.yaml`: your humans (with Discord user ids), one agent per person, your code
 areas and owners, and the git policy. If members will join by invite (step 4), list only the
-admin(s): `/mesh invite` refuses any id or Discord account that mesh.yaml already has. Then:
+admin(s): `/mesh invite` refuses any id or Discord account that mesh.yaml already has. Areas can
+still name the agents of people you will invite (`owners: [dana-agent]` for `id:dana`). They
+become owners when they join. Then:
 
 ```bash
 cp deploy/.env.example deploy/.env      # fill HERMES_INGEST_TOKEN etc. (openssl rand -hex 24)

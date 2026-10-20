@@ -67,6 +67,8 @@ services:
 
 # Code ownership drives task routing ("hybrid": owner → least loaded → board)
 # and reviewer selection.
+# Owners may be agents of people who join later by invite (e.g. dana-agent for /mesh invite id:dana);
+# until they join, routing, reviews and rule notices fall back to agents with the area's skills.
 areas:
   - id: api
     description: Backend API and workers

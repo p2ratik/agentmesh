@@ -39,6 +39,18 @@ describe('withMembers', () => {
     expect(yaml.agents.map((a) => a.id)).toEqual(['alice-agent']);
   });
 
+  it('makes a member the owner of the areas mesh.yaml named them for once they join', () => {
+    const withArea = testTeamConfig({
+      agents: [{ id: 'alice-agent', owner: 'alice', nkey: KEY('A') }],
+      areas: [{ id: 'web', owners: ['dana-agent', 'alice-agent'] }],
+    }).config;
+    // Before the invite is redeemed, routing only sees owners who are on the team.
+    expect(new ConfigIndex(withArea).area('web')?.owners).toEqual(['alice-agent']);
+    const joined = new ConfigIndex(withMembers(withArea, [member()]).config);
+    expect(joined.area('web')?.owners).toEqual(['dana-agent', 'alice-agent']);
+    expect(joined.areasOwnedBy('dana-agent').map((a) => a.id)).toEqual(['web']);
+  });
+
   it('never merges revoked members', () => {
     const { config } = withMembers(yaml, [member({ status: 'revoked' })]);
     expect(new ConfigIndex(config).kindOf('dana-agent')).toBeUndefined();

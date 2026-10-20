@@ -23,7 +23,10 @@ export class ConfigIndex {
     }
     for (const a of config.agents) this.#agents.set(a.id, a);
     for (const s of config.services) this.#services.set(s.id, s);
-    for (const a of config.areas) this.#areas.set(a.id, a);
+    // Owners that have not joined yet (pending invitees) are left out until they do.
+    for (const a of config.areas) {
+      this.#areas.set(a.id, { ...a, owners: a.owners.filter((id) => this.#agents.has(id)) });
+    }
     for (const w of config.workflows) this.#workflows.set(w.id, w);
     for (const t of config.planning.templates) this.#templates.set(t.id, t);
   }
@@ -80,11 +83,11 @@ export class ConfigIndex {
 
   areasForRepo(repo: string): AreaConfig[] {
     const needle = repo.toLowerCase();
-    return this.config.areas.filter((a) => a.repos.some((r) => r.toLowerCase() === needle));
+    return [...this.#areas.values()].filter((a) => a.repos.some((r) => r.toLowerCase() === needle));
   }
 
   areasOwnedBy(agentId: string): AreaConfig[] {
-    return this.config.areas.filter((a) => a.owners.includes(agentId));
+    return [...this.#areas.values()].filter((a) => a.owners.includes(agentId));
   }
 }
 

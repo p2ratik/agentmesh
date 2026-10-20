@@ -3,6 +3,7 @@ import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
 import { systemActor } from '../../../rpc/actor';
 import type { RuleContext } from './match';
+import { areaRecipients } from './recipients';
 import { renderTemplate } from './template';
 
 export interface ActionDeps {
@@ -85,5 +86,13 @@ function notifyRecipients(
   if (spec.to === 'all-agents') return agents;
   if (spec.to === 'online') return agents.filter((id) => deps.presence.isOnline(id));
   const areaId = render(spec.area) || index.areasForRepo(render(spec.repo))[0]?.id;
-  return areaId ? (index.area(areaId)?.owners ?? []) : [];
+  if (!areaId) return [];
+  const { recipients, pending } = areaRecipients(index, areaId, (id) => deps.presence.isOnline(id));
+  if (pending.length > 0) {
+    deps.ctx.logger.warn(
+      { area: areaId, pendingOwners: pending, recipients },
+      'area owners not on the team yet; notifying agents with the area skills or online',
+    );
+  }
+  return recipients;
 }
