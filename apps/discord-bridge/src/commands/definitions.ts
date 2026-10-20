@@ -121,7 +121,7 @@ const ask = new SlashCommandBuilder()
 
 const mesh = new SlashCommandBuilder()
   .setName('mesh')
-  .setDescription('Mesh status and the kill switch')
+  .setDescription('Mesh status, the kill switch, and members')
   .addSubcommand((s) => s.setName('status').setDescription('Who is online, open work, pause state'))
   .addSubcommand((s) =>
     s
@@ -131,11 +131,55 @@ const mesh = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s.setName('resume').setDescription('Resume delivery and release held messages (admins)'),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('invite')
+      .setDescription('Invite someone: they get a one-time join code by DM (admins)')
+      .addUserOption((o) => o.setName('user').setDescription('Who to invite').setRequired(true))
+      .addStringOption((o) =>
+        o
+          .setName('id')
+          .setDescription('Their mesh id, e.g. dana')
+          .setRequired(true)
+          .setMaxLength(40),
+      )
+      .addStringOption((o) =>
+        o.setName('name').setDescription('Display name (default: Discord name)'),
+      )
+      .addStringOption((o) => o.setName('roles').setDescription('Comma-separated, e.g. admin'))
+      .addStringOption((o) =>
+        o.setName('skills').setDescription('Comma-separated, e.g. backend, api'),
+      )
+      .addStringOption((o) => o.setName('agent').setDescription('Agent id (default: <id>-agent)')),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('uninvite')
+      .setDescription("Cancel someone's open invite, so its code stops working (admins)")
+      .addStringOption((o) =>
+        o.setName('person').setDescription('Their mesh id').setRequired(true).setAutocomplete(true),
+      ),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName('remove')
+      .setDescription('Remove an invited member: their agent is disconnected and refused (admins)')
+      .addStringOption((o) =>
+        o.setName('person').setDescription('Their mesh id').setRequired(true).setAutocomplete(true),
+      ),
   );
 
 /** Every slash command, as registered with Discord. */
 export function commandDefinitions(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
   return [plan, task, ask, mesh].map((c) => c.toJSON());
+}
+
+const ADMIN_SUBCOMMANDS = new Set(['pause', 'resume', 'invite', 'uninvite', 'remove']);
+
+/** `/mesh` subcommands the hub allows only for admins; their autocomplete is admin-only too. */
+export function isAdminCommand(command: string, subcommand: string | null): boolean {
+  return command === 'mesh' && subcommand !== null && ADMIN_SUBCOMMANDS.has(subcommand);
 }
 
 /** Read-only commands reply only to the person who ran them. */

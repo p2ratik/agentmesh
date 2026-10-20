@@ -29,7 +29,7 @@ export function taskSkills(index: ConfigIndex, task: RoutingSubject): Set<string
  */
 export function ownerPool(index: ConfigIndex, task: RoutingSubject): string[] {
   if (task.area) {
-    return (index.area(task.area)?.owners ?? []).filter((id) => index.agent(id) !== undefined);
+    return index.area(task.area)?.owners ?? [];
   }
   const labels = new Set(task.labels);
   return index

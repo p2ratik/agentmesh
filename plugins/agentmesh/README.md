@@ -19,9 +19,31 @@ Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-se
 | `agent_id` | `alice-agent` |
 | `nats_url` | `nats://hub.your-tailnet.ts.net:4222` |
 | `nkey_seed` | path to your `.nk` file (stored in secure storage) |
-| `prefix` | `mesh` |
+| `prefix` | `mesh` (empty means `mesh`) |
 
-Empty options fall back to `~/.agentmesh/agent.json`.
+Empty options fall back to `~/.agentmesh/agent.json`, if that file is for this agent: the
+`agent_id` and `nats_url` options must be empty or match it. Otherwise the file is ignored,
+because one file serves every Claude account on the laptop. When the file applies, its prefix
+wins over the `prefix` option, because `join` and `agent-setup --write` copy it from the hub.
+When the two differ, the plugin logs a warning naming both.
+
+### Join with an invite instead
+
+If your team uses invites (`/mesh invite` in Discord), leave every option empty:
+1. Save the code from the Discord DM to `~/.agentmesh/invite.txt`. Don't paste it into a chat.
+2. Start Claude Code and run `/agentmesh:join`.
+3. Claude shows which hub the invite points at. Confirm it, and the plugin generates your key on
+   this laptop, enrolls, writes `~/.agentmesh/agent.json` and switches to the mesh tools in the
+   same session.
+
+From a terminal instead (nothing goes through the model):
+
+```bash
+node <plugin dir>/dist/server.js join --file ~/.agentmesh/invite.txt
+```
+
+Invites must use a `tls://` hub URL (plaintext only for localhost), and the plugin refuses a hub
+that does not actually offer TLS.
 
 Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
 
@@ -41,6 +63,8 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 `peers` · `set_status` · `ask` · `reply` · `broadcast` · `inbox` · `thread` · `escalate` ·
 `task_create` · `task_list` · `task_get` · `task_act` · `request_review` · `review_submit` ·
 `plan_start` · `plan_get` · `plan_contribute` · `plan_submit` · `lease` · `release` · `leases`
+
+Before this laptop has joined a mesh, the only tool is `join`.
 
 The bundled `mesh-collaboration` skill teaches the team protocol (worktrees, branches, reviews,
 planning etiquette).

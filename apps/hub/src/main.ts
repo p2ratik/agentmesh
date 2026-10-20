@@ -4,11 +4,13 @@ import { credentialsFromEnv, serversFromEnv } from '@agentmesh/bus';
 import { createLogger } from '@agentmesh/common';
 import { loadConfig } from '@agentmesh/config';
 import { createHub } from './app';
+import { loadCalloutKeys } from './modules/callout';
 
 /**
  * agentmesh-hub [--config <dir>]
  * Env: AGENTMESH_CONFIG, AGENTMESH_DATA_DIR, AGENTMESH_NATS_URL (comma-separated),
- * AGENTMESH_NKEY_SEED (seed or file) | AGENTMESH_NATS_USER/AGENTMESH_NATS_PASS | AGENTMESH_NATS_TOKEN.
+ * AGENTMESH_NKEY_SEED (seed or file) | AGENTMESH_NATS_USER/AGENTMESH_NATS_PASS | AGENTMESH_NATS_TOKEN,
+ * AGENTMESH_SECRETS_DIR (auth-callout mode: holds <hubId>-issuer.nk, -xkey.nk and -sys.nk).
  */
 async function main(): Promise<void> {
   const logger = createLogger('hub');
@@ -27,6 +29,7 @@ async function main(): Promise<void> {
       servers: serversFromEnv(config.nats.servers),
       ...(credentials ? { credentials } : {}),
     },
+    callout: loadCalloutKeys(config.hub, process.env.AGENTMESH_SECRETS_DIR),
     logger,
   });
   await hub.start();
@@ -34,7 +37,7 @@ async function main(): Promise<void> {
     {
       mesh: config.mesh.name,
       prefix: config.mesh.prefix,
-      agents: config.agents.map((a) => a.id),
+      agents: hub.context.index.agents().map((a) => a.id),
       dataDir,
     },
     'agentmesh hub started',

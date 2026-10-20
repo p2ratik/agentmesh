@@ -1,6 +1,7 @@
 import type { HubContext } from '../context';
 import type {
   ControlService,
+  EnrollmentService,
   HubModule,
   IngestService,
   LeaseService,
@@ -12,6 +13,7 @@ import type {
   TickJob,
 } from '../contracts';
 import { createControlModule } from '../modules/control';
+import { createEnrollmentModule, type InboxPort } from '../modules/enrollment';
 import { createIngestModule, type IngestTransport } from '../modules/ingest';
 import { createLeaseModule } from '../modules/leases';
 import { createMessagingModule, type MessagingModule } from '../modules/messaging';
@@ -20,6 +22,7 @@ import { createPresenceModule } from '../modules/presence';
 import { createTaskModule } from '../modules/tasks';
 
 export interface HubServices {
+  enrollment: EnrollmentService;
   control: ControlService;
   presence: PresenceService;
   messaging: MessagingService;
@@ -38,18 +41,29 @@ export interface BuiltModules {
 }
 
 /**
- * Builds every module in dependency order. Cycles (control needs counts from
- * later modules; presence needs unread counts and task load) are closed with
- * callbacks that only run after construction.
+ * Builds every module in dependency order. Enrollment comes first because it
+ * sets `ctx.index`. Cycles (control needs counts from later modules; presence
+ * needs unread counts and task load) are closed with callbacks that only run
+ * after construction.
  */
-export function buildModules(ctx: HubContext, transport: IngestTransport | null): BuiltModules {
+export function buildModules(
+  ctx: HubContext,
+  transport: IngestTransport | null,
+  nats: { inboxes: InboxPort | null; kick: ((agentId: string) => Promise<void>) | null },
+): BuiltModules {
   let messaging: MessagingModule | null = null;
   let tasks: TaskService | null = null;
   let planning: PlanningService | null = null;
+  let presenceService: PresenceService | null = null;
 
+  const enrollment = createEnrollmentModule(ctx, {
+    ...nats,
+    onMembersChanged: () => presenceService?.syncFromConfig(),
+  });
   const presence = createPresenceModule(ctx, {
     unreadThreadCount: (id) => messaging?.service.unreadThreadCount(id) ?? 0,
   });
+  presenceService = presence.service;
   const control = createControlModule(ctx, {
     peers: () => presence.service.peers('all'),
     counts: () => ({
@@ -81,6 +95,7 @@ export function buildModules(ctx: HubContext, transport: IngestTransport | null)
   });
 
   const modules: Array<HubModule<unknown>> = [
+    enrollment,
     control,
     presence,
     messaging,
@@ -91,6 +106,7 @@ export function buildModules(ctx: HubContext, transport: IngestTransport | null)
   ];
   return {
     services: {
+      enrollment: enrollment.service,
       control: control.service,
       presence: presence.service,
       messaging: messaging.service,

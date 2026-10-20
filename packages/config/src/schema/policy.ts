@@ -1,3 +1,4 @@
+import { isSafeInviteUrl } from '@agentmesh/protocol';
 import { z } from 'zod';
 
 export const GitConfig = z.object({
@@ -46,6 +47,24 @@ export type ReviewConfig = z.infer<typeof ReviewConfig>;
 
 export const LeaseConfig = z.object({
   defaultTtlMinutes: z.number().int().positive().default(120),
+});
+
+/** Invite-only onboarding (`/mesh invite`, `/agentmesh:join`). */
+export const EnrollmentConfig = z.object({
+  /**
+   * The NATS URL new members' laptops connect to, written into every invite code.
+   * Must be tls:// or wss:// (plaintext only for localhost). Without it, /mesh invite is refused.
+   */
+  natsUrl: z
+    .string()
+    .refine(isSafeInviteUrl, 'a tls:// or wss:// URL (nats:// and ws:// only for localhost)')
+    .optional(),
+  /** How long an unused invite code stays valid. */
+  inviteTtlHours: z.number().positive().max(720).default(24),
+  /** Lifetime of the NATS user JWT the hub issues on connect; a backstop if a kick is lost. */
+  userJwtTtlMinutes: z.number().int().min(5).max(1440).default(60),
+  /** Failed invite redemptions allowed per minute, per invite and per client IP. */
+  redeemAttemptsPerMinute: z.number().int().min(1).default(5),
 });
 
 export const PresenceConfig = z.object({

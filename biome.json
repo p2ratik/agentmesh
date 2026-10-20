@@ -16,7 +16,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": { "noNonNullAssertion": "error", "useImportType": "error" },
       "suspicious": { "noExplicitAny": "error" },
       "complexity": { "noExcessiveCognitiveComplexity": "warn" }

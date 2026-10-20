@@ -6,7 +6,7 @@ import {
   RpcClient,
 } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
-import { ConfigIndex, type LoadedConfig } from '@agentmesh/config';
+import type { LoadedConfig } from '@agentmesh/config';
 import { inboxPrefix } from '@agentmesh/protocol';
 import { Client, Events, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { commandDefinitions } from './commands/definitions';
@@ -18,6 +18,7 @@ import { EchoGuard } from './echo';
 import { runFeed } from './feed/consumer';
 import { Executor } from './feed/executor';
 import { createReplyRelay } from './inbound/replies';
+import { TeamIndex } from './team';
 
 export interface BridgeOptions {
   loaded: LoadedConfig;
@@ -40,7 +41,8 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
   const discord = config.discord;
   if (!discord.enabled) throw new Error('discord.enabled is false in mesh.yaml');
   const { logger } = options;
-  const index = new ConfigIndex(config);
+  const team = new TeamIndex(config);
+  const index = () => team.current;
 
   const nc: NatsConnection = await connectBus({
     servers: options.servers,
@@ -50,6 +52,14 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
     logger,
   });
   const rpc = new RpcClient(nc, config.mesh.prefix, discord.serviceId);
+  const refreshTeam = async () => {
+    const active = await team.refresh(rpc);
+    logger.info({ members: active }, 'team index refreshed');
+  };
+  // Not fatal: until the hub answers, only mesh.yaml members can use the bridge.
+  await refreshTeam().catch((err: unknown) =>
+    logger.warn({ err }, 'could not load enrolled members; using mesh.yaml only'),
+  );
 
   await new REST()
     .setToken(discord.token)
@@ -79,7 +89,16 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
     threads,
     logger,
   });
-  client.on(Events.InteractionCreate, createInteractionHandler({ rpc, index, directory, logger }));
+  const enrolled = () => team.enrolled(new Date());
+  // After /mesh invite or uninvite: no hub event marks an invite opening or closing.
+  const refreshInvites = () =>
+    refreshTeam().catch((err: unknown) =>
+      logger.warn({ err }, 'could not refresh open invites; autocomplete may be stale'),
+    );
+  client.on(
+    Events.InteractionCreate,
+    createInteractionHandler({ rpc, index, enrolled, refreshInvites, directory, logger }),
+  );
   client.on(Events.MessageCreate, createReplyRelay({ rpc, index, threads, echo, logger }));
 
   const abort = new AbortController();
@@ -88,6 +107,7 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
     prefix: config.mesh.prefix,
     serviceId: discord.serviceId,
     index,
+    onMembersChanged: refreshTeam,
     executor,
     echo,
     logger,

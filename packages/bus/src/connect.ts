@@ -2,16 +2,21 @@ import { readFileSync } from 'node:fs';
 import { expandHome, type Logger } from '@agentmesh/common';
 import {
   type Authenticator,
+  type ConnectionOptions,
   connect,
   type NatsConnection,
   nkeyAuthenticator,
+  nkeys,
   tokenAuthenticator,
   usernamePasswordAuthenticator,
 } from '@nats-io/transport-node';
 
 export type { NatsConnection } from '@nats-io/transport-node';
 
-/** Exactly one credential kind; nkey seeds are the recommended default. */
+/**
+ * One credential kind; nkey seeds are the recommended default. An nkey may
+ * carry a token in the same CONNECT: that is how an invite is redeemed.
+ */
 export interface BusCredentials {
   /** An nkey seed (`SU…`) or a path to a file containing one. */
   nkeySeed?: string;
@@ -42,11 +47,20 @@ export function resolveSeed(seedOrPath: string): string {
   return fromFile;
 }
 
-function authenticator(credentials: BusCredentials | undefined): Authenticator | undefined {
+/** A fresh user nkey, generated locally; only the public key ever leaves this machine. */
+export function generateUserKey(): { seed: string; publicKey: string } {
+  const user = nkeys.createUser();
+  return { seed: new TextDecoder().decode(user.getSeed()), publicKey: user.getPublicKey() };
+}
+
+function authenticator(
+  credentials: BusCredentials | undefined,
+): Authenticator | Authenticator[] | undefined {
   if (!credentials) return undefined;
   if (credentials.nkeySeed) {
     const seed = new TextEncoder().encode(resolveSeed(credentials.nkeySeed));
-    return nkeyAuthenticator(seed);
+    const nkey = nkeyAuthenticator(seed);
+    return credentials.token ? [nkey, tokenAuthenticator(credentials.token)] : nkey;
   }
   if (credentials.token) return tokenAuthenticator(credentials.token);
   if (credentials.user) return usernamePasswordAuthenticator(credentials.user, credentials.pass);
@@ -54,23 +68,51 @@ function authenticator(credentials: BusCredentials | undefined): Authenticator |
 }
 
 /**
- * Connects with settings suited to long-lived processes on flaky networks:
- * unlimited reconnects, and the first connect waits for the server instead
- * of failing fast (laptops wake up before Wi-Fi does).
+ * nats.js drops the URL scheme and upgrades to TLS only when the server's
+ * INFO offers it, which anyone in the path can strip. `tls: {}` makes the
+ * client refuse a server that does not offer TLS, so a `tls://` URL means
+ * what it says.
  */
-export async function connectBus(options: ConnectBusOptions): Promise<NatsConnection> {
+export function requiresTls(servers: readonly string[]): boolean {
+  return servers.some((s) => /^(tls|wss):\/\//i.test(s.trim()));
+}
+
+function baseOptions(options: ConnectBusOptions): ConnectionOptions {
   const auth = authenticator(options.credentials);
-  const nc = await connect({
+  return {
     servers: options.servers,
     name: options.name,
     ...(auth ? { authenticator: auth } : {}),
     ...(options.inboxPrefix ? { inboxPrefix: options.inboxPrefix } : {}),
+    ...(requiresTls(options.servers) ? { tls: {} } : {}),
+  };
+}
+
+/**
+ * Connects with settings suited to long-lived processes on flaky networks:
+ * unlimited reconnects, and the first connect waits for the server instead
+ * of failing fast (laptops wake up before Wi-Fi does). Refused reconnects
+ * keep retrying too: under the auth callout, NATS refuses everyone while the
+ * hub restarts, and nats.js would otherwise give up after two in a row.
+ */
+export async function connectBus(options: ConnectBusOptions): Promise<NatsConnection> {
+  const nc = await connect({
+    ...baseOptions(options),
     maxReconnectAttempts: -1,
     reconnectTimeWait: 2_000,
     waitOnFirstConnect: true,
+    ignoreAuthErrorAbort: true,
   });
   if (options.logger) watchStatus(nc, options.logger);
   return nc;
+}
+
+/** One attempt, no reconnects: for a join, where a refusal must surface at once. */
+export function connectOnce(
+  options: ConnectBusOptions,
+  timeoutMs = 5_000,
+): Promise<NatsConnection> {
+  return connect({ ...baseOptions(options), reconnect: false, timeout: timeoutMs });
 }
 
 function watchStatus(nc: NatsConnection, logger: Logger): void {

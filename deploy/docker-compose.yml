@@ -38,6 +38,8 @@ services:
       AGENTMESH_DATA_DIR: /data
       AGENTMESH_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
       AGENTMESH_NKEY_SEED: /secrets/hub.nk
+      # Auth-callout mode reads hub-issuer.nk, hub-xkey.nk and hub-sys.nk from here.
+      AGENTMESH_SECRETS_DIR: /secrets
     volumes:
       - ${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
       - ./secrets:/secrets:ro

@@ -85,6 +85,19 @@ export function ensureInboxConsumer(
   });
 }
 
+/** Deletes an agent's inbox, e.g. for a removed member. A missing inbox is fine. */
+export async function deleteInboxConsumer(
+  jsm: JetStreamManager,
+  prefix: string,
+  participantId: string,
+): Promise<void> {
+  try {
+    await jsm.consumers.delete(streamNames(prefix).delivery, consumerNames.inbox(participantId));
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+}
+
 /** Durable reader of the activity feed for a bridge. Starts at new events. */
 export function ensureFeedConsumer(
   jsm: JetStreamManager,

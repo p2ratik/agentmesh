@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MeshError } from '@agentmesh/common';
-import { createUser } from '@nats-io/nkeys';
+import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { parseCommandArgs } from '../args';
 import { type CliContext, type Command, configPathFrom, resolveFrom } from '../context';
 import { meshFilePath } from '../lib/config-files';
 import { writeFileAtomic, writePrivateFile } from '../lib/files';
-import { findKeyHolder, listKeyHolders, setPublicKey } from '../lib/mesh-document';
+import { findKeyHolder, type KeyHolder, listKeyHolders, setPublicKey } from '../lib/mesh-document';
 import { renderKeyAdded, renderKeyTable } from '../render/keys';
 
 const OPTIONS = {
@@ -14,6 +14,13 @@ const OPTIONS = {
   secrets: { type: 'string' },
   force: { type: 'boolean' },
 } as const;
+
+/** The callout issuer is an account key and the xkey a curve key; everyone else is a user. */
+function createKey(holder: KeyHolder): KeyPair {
+  if (holder.role === 'issuer' && holder.kind === 'callout') return createAccount();
+  if (holder.role === 'xkey' && holder.kind === 'callout') return createCurve();
+  return createUser();
+}
 
 function secretsDir(ctx: CliContext, flag: string | undefined): string {
   return resolveFrom(ctx, flag ?? ctx.env.AGENTMESH_SECRETS_DIR ?? 'secrets');
@@ -26,7 +33,8 @@ export const keysAddCommand: Command = {
 
 Writes the private seed to <secrets>/<id>.nk (mode 600; default ./secrets or
 $AGENTMESH_SECRETS_DIR) and the public key into mesh.yaml, keeping comments.
-Use "hub" (or hub.serviceId) for the hub's own user. --force rotates a key.`,
+Use "hub" (or hub.serviceId) for the hub's own user, and hub-issuer, hub-xkey
+and hub-sys for the keys \`nats-config --auth-callout\` needs. --force rotates a key.`,
   run(argv, ctx) {
     const { values, positionals } = parseCommandArgs(argv, OPTIONS, {
       min: 1,
@@ -44,7 +52,7 @@ Use "hub" (or hub.serviceId) for the hub's own user. --force rotates a key.`,
         `${id} already has a key in ${holder.path}. Pass --force to rotate it.`,
       );
     }
-    const user = createUser();
+    const user = createKey(holder);
     const publicKey = user.getPublicKey();
     const seedFile = join(secretsDir(ctx, values.secrets), `${id}.nk`);
     writePrivateFile(seedFile, `${new TextDecoder().decode(user.getSeed())}\n`, force);

@@ -11,6 +11,10 @@ export interface LoggerOptions {
   destination?: 'stdout' | 'stderr' | { file: string };
 }
 
+/** Fields that may hold invite codes or tokens are never written, at the top level or one deep. */
+const SECRET_FIELDS = ['invite', 'inviteCode', 'secret', 'token', 'auth_token'];
+export const REDACTED_LOG_PATHS = SECRET_FIELDS.flatMap((f) => [f, `*.${f}`]);
+
 export function createLogger(name: string, options: LoggerOptions = {}): Logger {
   const level = options.level ?? process.env.AGENTMESH_LOG_LEVEL ?? 'info';
   const destination = options.destination ?? 'stdout';
@@ -20,5 +24,13 @@ export function createLogger(name: string, options: LoggerOptions = {}): Logger 
       : destination === 'stderr'
         ? pino.destination(2)
         : pino.destination({ dest: destination.file, mkdir: true, sync: false });
-  return pino({ name, level, base: { component: name } }, stream);
+  return pino(
+    {
+      name,
+      level,
+      base: { component: name },
+      redact: { paths: REDACTED_LOG_PATHS, censor: '[redacted]' },
+    },
+    stream,
+  );
 }

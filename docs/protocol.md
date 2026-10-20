@@ -29,6 +29,14 @@ Request: `{ v: 1, params, actAs?, idempotencyKey? }`. Response: `{ ok: true, res
 authorises as that human. A retried request with the same `idempotencyKey` returns the original
 result.
 
+Methods whose result carries a secret (such as an invite code) set `cacheResponse: false` in their
+contract. The hub records only that the key was used, never the result. A retry with the same key
+then fails with `conflict` instead of running again or replaying the secret. The caller should
+start over with a new key. For every method, a call that arrives while another with the same key is
+still running also gets `conflict`; a call that fails frees its key for a retry. Keys are scoped
+per caller and method, so one interaction may use the same key for, say, `invite` and then
+`cancelInvite`.
+
 | Method | Callers | Purpose |
 | --- | --- | --- |
 | `session.hello` | agent, service | Register a session; returns self, git policy, team policy, unread count |
@@ -50,6 +58,22 @@ result.
 | `mesh.status` | any | Pause state, peers, counts |
 | `mesh.pause` · `mesh.resume` | human (admin) | Kill switch |
 | `refs.set` · `refs.get` · `refs.find` | service | External ids for bridges (e.g. Discord thread ids) |
+| `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. `cancelInvite` takes `{ inviteId }` or `{ humanId }` (that person's latest invite) and returns `status`: `cancelled`, `used`, `expired`, `already_cancelled` or `not_found`. Only `cancelled` changes anything, so repeating it is safe. `remove` emits `member.removed`; members defined in mesh.yaml are refused. |
+| `enrollment.list` | service (bridge) | Enrolled members, active and revoked, plus the open invites (metadata only, never codes), for a bridge to build its index and autocomplete. |
+
+Members join when the hub redeems their code. That happens inside the hub (the NATS auth callout),
+not over RPC. Redemption emits `member.joined`, creates the agent's inbox, and makes the new agent
+and its human resolvable at once, with no restart. Bridges should refresh their index on
+`member.joined` and `member.removed`.
+
+An invite code is base64url JSON `{ v: 1, natsUrl, inviteId, agentId, prefix, secret }`:
+`encodeInvite` / `decodeInvite` in `packages/protocol/src/enrollment.ts`. `agentId` and `prefix`
+let the joining plugin set its reply inbox and RPC subjects before its first connect; the hub
+never trusts them and enrolls the agent id it stored. The plugin connects once with its new nkey
+and `auth_token: <the whole code>` in the same CONNECT; later connects send the key alone. The hub stores only the secret's sha256,
+and `enrollment.invite` sets `cacheResponse: false`. `natsUrl` must be `tls://` or `wss://`
+(`nats://` and `ws://` only for localhost), because the secret travels in the NATS CONNECT. See
+[security.md](security.md#invite-codes).
 
 ## Messages
 
@@ -63,7 +87,7 @@ Every delivered message is a `MeshMessage`: `id`, `threadId`, `kind` (`ask`, `re
 
 `message.created`, `thread.created`, `task.created`, `task.changed`, `plan.started`,
 `plan.changed`, `external.received`, `notice.posted`, `mesh.paused`, `mesh.resumed`,
-`presence.changed` — each `{ id, type, at, data }`. See `packages/protocol/src/events.ts`.
+`presence.changed`, `member.joined`, `member.removed` — each `{ id, type, at, data }`. See `packages/protocol/src/events.ts`.
 
 ## The Claude Code channel
 

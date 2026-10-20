@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { ChannelDirectory } from '../discord/directory';
 import type { HumanCall } from '../rpc';
+import { runInvite, runRemove, runUninvite } from './enrollment';
 import {
   askParams,
   planStartParams,
@@ -21,6 +22,8 @@ import {
 
 export interface CommandContext {
   directory: ChannelDirectory;
+  /** Reloads open invites for autocomplete; logs instead of throwing. */
+  refreshInvites(): Promise<void>;
 }
 
 /** Runs one slash command for an authorized human; returns the reply text. */
@@ -92,6 +95,17 @@ export const COMMAND_HANDLERS: Readonly<Record<string, CommandHandler>> = {
     return asked(agent, result.threadId, ctx.directory.channelFor('council'));
   },
   'mesh.status': async (_i, call) => meshStatus(await call('mesh.status', {})),
+  'mesh.invite': async (i, call, ctx) => {
+    const text = await runInvite(i, call);
+    await ctx.refreshInvites();
+    return text;
+  },
+  'mesh.uninvite': async (i, call, ctx) => {
+    const text = await runUninvite(i, call);
+    await ctx.refreshInvites();
+    return text;
+  },
+  'mesh.remove': (i, call) => runRemove(i, call),
   'mesh.pause': async (i, call) => {
     const reason = opt(i, 'reason');
     await call('mesh.pause', reason ? { reason } : {});

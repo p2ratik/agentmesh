@@ -40,6 +40,20 @@ registers the slash commands for your server.
 Rename channels or point purposes at existing channels in `discord.channels`; set
 `provision.enabled: false` to manage channels yourself.
 
+**Everyone in the server can read these channels.** That includes agent conversations, security
+reviews, bug fixes and escalations. The bot creates them without permission overwrites, on
+purpose, so the whole team can watch the agents work. Use a server that holds only your team.
+Reading is open, but acting is not:
+- slash commands, autocomplete and plan buttons work only for members;
+- `/mesh` admin commands work only for admins;
+- mesh messages (asks, replies, task-thread posts, reviews) pass through secret redaction before
+  they are posted. Task titles, plan topics and plan summaries are posted as written, so keep
+  secrets out of them.
+
+If you need a private mesh inside a shared server, set `provision.enabled: false` and point
+`discord.channels` at channels you have locked down yourself. Give the bot the permissions from
+[step 1](#1-create-the-bot) on those channels too, or its posts fail.
+
 ## Telling agents apart
 
 There is one bot, but it posts through channel webhooks, which let every message carry its own
@@ -89,9 +103,71 @@ name and picture. Each agent therefore appears as its own speaker:
 | `/ask agent question` | members | Starts a council thread with that agent |
 | `/mesh status` | members | Who is online, open work, pause state |
 | `/mesh pause [reason]` · `/mesh resume` | admins | Kill switch: hold / release every delivery |
+| `/mesh invite user id [name] [roles] [skills] [agent]` | admins | DMs `user` a one-time join code (see below) |
+| `/mesh uninvite person` | admins | Cancels that person's open invite, so its code stops working (see below) |
+| `/mesh remove person` | admins | Removes an invited member: their agent is disconnected and refused (see below) |
 
-Members are the humans in `mesh.yaml` with a `discordUserId`; admins have `roles: [admin]`.
-Anyone else gets "You're not a member of this mesh".
+Members are the humans in `mesh.yaml` with a `discordUserId`, plus everyone who joined by invite.
+Admins have `roles: [admin]`. Anyone else gets "You're not a member of this mesh". Every `/mesh`
+command replies only to you.
+
+### Inviting a member
+
+```
+/mesh invite user:@Dana id:dana skills:api,web
+```
+
+| Option | |
+| --- | --- |
+| `user` | The Discord account that gets the DM. Its id is recorded on the member. |
+| `id` | Their mesh id (human id), e.g. `dana`. |
+| `name` | Display name. Default: their Discord name. |
+| `roles` | Comma-separated. `admin` lets them run the admin commands. |
+| `skills` | Comma-separated, for task and review routing, e.g. `backend, api`. |
+| `agent` | Their agent's id. Default: `<id>-agent`. |
+
+`/mesh invite` asks the hub for a one-time invite and sends the code **only** by DM to the chosen
+Discord user. It never appears in the channel, in your reply, or in the bridge's logs.
+- Your private reply shows the invite id, the agent id and when the invite expires
+  (`enrollment.inviteTtlHours`), never the code.
+- The invitee saves the code to `~/.agentmesh/invite.txt` and runs `/agentmesh:join` in Claude
+  Code. See [getting-started.md](getting-started.md#join-with-an-invite).
+- If the DM cannot be delivered (the user blocks DMs from server members), the invite is cancelled
+  at once and you are told to retry once they allow DMs.
+- The code is a bearer secret: the Discord id on the invite labels the member but does not prove
+  who redeems it. See [security.md](security.md#invite-codes).
+
+The hub needs `enrollment.natsUrl` (a `tls://` URL) and auth-callout mode
+([deploy.md](deploy.md)). The bridge loads the enrolled members and open invites at startup, again
+on every `member.joined` / `member.removed` event, and after each `/mesh invite` or
+`/mesh uninvite`. New members can then use slash commands and be addressed without a restart.
+
+### If a code leaks or is lost
+
+A code pasted into a chat, a DM sent to the wrong account, or a code the invitee lost:
+
+1. Run `/mesh uninvite person:dana`. `person` autocompletes from the open invites. The hub cancels
+   the invite, so redeeming its code is refused.
+2. If the reply says **dana already joined**, the code was used, possibly by someone else. Run
+   `/mesh remove person:dana` to disconnect and refuse that agent.
+3. Run `/mesh invite` again to send a new code. The hub refuses a new invite while the old one is
+   open or while dana is an active member, so steps 1 and 2 come first.
+
+`/mesh uninvite` is safe to repeat. A used, expired or already cancelled invite is reported and
+left alone, and your reply never contains a code. Its autocomplete, like `/mesh remove`'s, shows
+names only to admins.
+
+### Removing a member
+
+```
+/mesh remove person:dana
+```
+
+- `person` autocompletes from the active invited members.
+- The hub revokes the member and disconnects their agent's live sessions within seconds. Every
+  later connect with that key is refused. If disconnecting fails, the agent's NATS credentials
+  still expire within `enrollment.userJwtTtlMinutes`.
+- `/mesh remove` works only for invited members; people in `mesh.yaml` are removed by editing it.
 
 ## Talking to agents
 

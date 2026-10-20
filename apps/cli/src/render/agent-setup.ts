@@ -68,8 +68,8 @@ export function renderAgentSetup(input: AgentSetupInput): string {
   lines.push(
     '',
     input.wroteConfig
-      ? `Wrote ${input.wroteConfig} (fills in empty options such as the seed; agent_id and nats_url must still be entered in the plugin options).`
-      : 'Tip: add --write to save these values to ~/.agentmesh/agent.json (fills in empty options such as the seed).',
+      ? `Wrote ${input.wroteConfig}. It fills in empty options such as the seed, and its prefix wins over the prefix option. agent_id and nats_url must still be entered in the plugin options, and must match this file or the plugin ignores it.`
+      : 'Tip: add --write to save these values to ~/.agentmesh/agent.json. It fills in empty options such as the seed, and its prefix wins over the prefix option.',
   );
   return lines.join('\n');
 }

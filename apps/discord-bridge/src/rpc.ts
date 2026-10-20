@@ -12,8 +12,11 @@ export type HumanCall = <M extends RpcMethodName>(
 
 /**
  * Binds calls to a configured human (`actAs`) and to one Discord action's id,
- * so a retried interaction never applies twice on the hub.
+ * so a retried interaction never applies twice on the hub. The key is per
+ * method, so one interaction can make several calls (an invite, then its
+ * cancellation) without one replaying or clobbering another.
  */
-export function actAs(rpc: MeshRpc, humanId: string, idempotencyKey: string): HumanCall {
-  return (method, params) => rpc.call(method, params, { actAs: humanId, idempotencyKey });
+export function actAs(rpc: MeshRpc, humanId: string, interactionId: string): HumanCall {
+  return (method, params) =>
+    rpc.call(method, params, { actAs: humanId, idempotencyKey: `${interactionId}:${method}` });
 }

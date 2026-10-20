@@ -13,8 +13,10 @@ export const UNREACHABLE =
 
 /**
  * The plugin's connection to the hub. Connecting happens in the background
- * and retries forever (laptops wake before Wi-Fi does); calls made before it
- * is up fail fast with `unavailable` instead of hanging Claude's tool call.
+ * and retries forever (laptops wake before Wi-Fi does), through refused
+ * connects too (`connectBus`); calls made before it is up fail fast with
+ * `unavailable` instead of hanging Claude's tool call. Other permanent closes
+ * (a protocol `-ERR`) still end the connection until the session restarts.
  */
 export class HubClient {
   readonly config: PluginConfig;

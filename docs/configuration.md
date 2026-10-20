@@ -14,7 +14,7 @@ numbers are not coerced from strings — write them literally.
 | --- | --- | --- |
 | `version` | — (required) | Always `1`. |
 | `mesh.name` | — (required) | Shown in Discord and agent instructions. |
-| `mesh.prefix` | `mesh` | NATS subject prefix (`^[a-z][a-z0-9_-]{0,30}$`). Lets several meshes share one NATS. |
+| `mesh.prefix` | `mesh` | NATS subject prefix (`^[a-z][a-z0-9_-]{0,30}$`). Lets several meshes share one NATS. Invites carry it to laptops. On a laptop, the prefix in `~/.agentmesh/agent.json` wins over the plugin's `prefix` option, as long as the file is for that agent: the `agent_id` and `nats_url` options are empty or match it. Otherwise the plugin ignores the file. |
 | `nats.servers` | `nats://localhost:4222` | String or list. `AGENTMESH_NATS_URL` overrides at runtime. |
 
 ## `hub`
@@ -23,6 +23,7 @@ numbers are not coerced from strings — write them literally.
 | --- | --- | --- |
 | `serviceId` | `hub` | The hub's id as message sender and NATS user. |
 | `nkey` | — | Public key of the hub's NATS user (`agentmesh keys add hub`). |
+| `authCallout.issuer` / `xkey` / `sysNkey` | — | Public keys for auth-callout mode (`agentmesh nats-config --auth-callout`): the account key that signs user JWTs, the curve key that seals auth requests, and the hub's kick-only system user. Generate each with `agentmesh keys add hub-issuer`, `hub-xkey` and `hub-sys`; the seeds stay in `deploy/secrets`. |
 | `dataDir` | `./data` | Directory of `hub.sqlite`, relative to the config dir. `AGENTMESH_DATA_DIR` overrides. |
 | `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz`, `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |
@@ -54,6 +55,15 @@ areas:
     skills: [backend]
 ```
 
+An owner may be an agent that is not in mesh.yaml yet, because that person will join by invite.
+For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent`.
+- Until they join, routing and reviews skip that owner. Rule notices to `area-owners` go to agents
+  with the area's skills instead, or to whoever is online, and the hub logs a warning.
+- The hub also warns at start, and whenever the team changes, about any owner not on the team yet.
+- From the moment they join, they own the area, with no restart.
+- `agentmesh validate` lists these owners as **Pending**, so a typo stays visible.
+- A human or service id as an owner is still an error.
+
 ## Git and policy
 
 | Key | Default | Meaning |
@@ -84,6 +94,10 @@ areas:
 | `limits.dedupWindowSeconds` | `120` | Same body, same sender, same thread → rejected as duplicate. |
 | `limits.maxBodyChars` | `32000` | Message size limit. |
 | `limits.deliveryRetentionDays` | `14` | How long undelivered messages wait in JetStream. |
+| `enrollment.natsUrl` | — | The NATS URL new members' laptops connect to, written into every invite code. Must be `tls://` or `wss://` (`nats://` and `ws://` only for localhost). Use `tls://`: the plugin refuses `wss://` and `ws://` invites until its NATS client supports websockets. Without it, `/mesh invite` is refused. |
+| `enrollment.inviteTtlHours` | `24` | How long an unused `/mesh invite` code stays valid (max 720). |
+| `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). |
+| `enrollment.redeemAttemptsPerMinute` | `5` | Failed invite redemptions allowed per minute, per invite and per client IP. |
 
 ## Tasks, workflows, planning
 

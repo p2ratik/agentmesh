@@ -51,6 +51,89 @@ describe('resolveConfig', () => {
     });
   });
 
+  it("keeps agent.json's prefix over the option Claude Code stored by default", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
+    const file = join(dir, 'agent.json');
+    writeFileSync(
+      file,
+      JSON.stringify({ agentId: 'dana-agent', natsUrl: 'tls://hub:4222', prefix: 'acme' }),
+    );
+    const result = resolveConfig({ AGENTMESH_PREFIX: 'mesh' }, file);
+    expect(result.ok && result.config.prefix).toBe('acme');
+    expect(result.ok && result.warnings).toEqual([
+      'ignoring the prefix option "mesh": ~/.agentmesh/agent.json sets "acme"',
+    ]);
+    const sameHub = resolveConfig(
+      { AGENTMESH_NATS_URL: 'tls://hub:4222', AGENTMESH_PREFIX: 'mesh' },
+      file,
+    );
+    expect(sameHub.ok && sameHub.config.prefix).toBe('acme');
+  });
+
+  describe('ignores an agent.json written for another agent or hub', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
+    const file = join(dir, 'agent.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        agentId: 'dana-agent',
+        natsUrl: 'tls://hub-a:4222',
+        nkeySeed: '/keys/dana.nk',
+        prefix: 'acme',
+      }),
+    );
+
+    it('another hub with an empty or placeholder prefix gets mesh and no seed', () => {
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal placeholder Claude Code may pass through
+      for (const AGENTMESH_PREFIX of ['', '${user_config.prefix}']) {
+        const result = resolveConfig(
+          {
+            AGENTMESH_AGENT_ID: 'erin-agent',
+            AGENTMESH_NATS_URL: 'tls://hub-b:4222',
+            AGENTMESH_PREFIX,
+          },
+          file,
+        );
+        expect(result.ok && result.config).toEqual({
+          agentId: 'erin-agent',
+          servers: ['tls://hub-b:4222'],
+          prefix: 'mesh',
+          heartbeatSeconds: 20,
+        });
+      }
+    });
+
+    it('the same hub with another agent id keeps the prefix option', () => {
+      const result = resolveConfig(
+        {
+          AGENTMESH_AGENT_ID: 'e2e-agent',
+          AGENTMESH_NATS_URL: 'tls://hub-a:4222',
+          AGENTMESH_PREFIX: 'e2e',
+        },
+        file,
+      );
+      expect(result.ok && result.config.prefix).toBe('e2e');
+      expect(result.ok && result.config.nkeySeed).toBeUndefined();
+      expect(result.ok && result.warnings).toBeUndefined();
+    });
+  });
+
+  it('still fills the seed from a hand-written agent.json that holds only the seed', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
+    const file = join(dir, 'agent.json');
+    writeFileSync(file, JSON.stringify({ nkeySeed: '/keys/frank.nk' }));
+    const result = resolveConfig(
+      { AGENTMESH_AGENT_ID: 'frank-agent', AGENTMESH_NATS_URL: 'tls://hub:4222' },
+      file,
+    );
+    expect(result.ok && result.config.nkeySeed).toBe('/keys/frank.nk');
+  });
+
+  it('keeps the log file for an unenrolled plugin', () => {
+    const result = resolveConfig({ AGENTMESH_LOG_FILE: '/tmp/mesh.log' }, missingFile);
+    expect(result).toMatchObject({ ok: false, unenrolled: true, logFile: '/tmp/mesh.log' });
+  });
+
   it('lists every problem when unconfigured', () => {
     const result = resolveConfig(
       { AGENTMESH_AGENT_ID: 'Bad Id', AGENTMESH_PREFIX: '9x' },

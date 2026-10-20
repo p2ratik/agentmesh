@@ -19,6 +19,13 @@ hub:
     host: 0.0.0.0
     port: 8787
   # nkey: U…   # written by `agentmesh keys add hub`
+  # Only for `agentmesh nats-config --auth-callout` (the hub admits agents itself).
+  # Public keys; each is written by `agentmesh keys add hub-issuer|hub-xkey|hub-sys`
+  # and its seed stays in deploy/secrets.
+  # authCallout:
+  #   issuer: A…    # signs the callout's responses and the user JWTs
+  #   xkey: X…      # seals auth requests so invite codes never cross the bus in the clear
+  #   sysNkey: U…   # the hub's system-account user, limited to kicking connections
 
 # People. Their Discord user ids let them run slash commands and reply in threads.
 # (Discord: Settings → Advanced → Developer Mode, then right-click a user → Copy User ID.)
@@ -60,6 +67,8 @@ services:
 
 # Code ownership drives task routing ("hybrid": owner → least loaded → board)
 # and reviewer selection.
+# Owners may be agents of people who join later by invite (e.g. dana-agent for /mesh invite id:dana);
+# until they join, routing, reviews and rule notices fall back to agents with the area's skills.
 areas:
   - id: api
     description: Backend API and workers
@@ -100,6 +109,12 @@ limits:
   maxThreadDepth: 3 # A→B→C→D: deeper chains of agent-created threads are refused
   perThreadPerHour: 40
   perSenderPerDay: 500
+
+enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join on the laptop
+  # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls://; the plugin cannot use wss:// yet)
+  inviteTtlHours: 24 # an unused invite code expires after this
+  userJwtTtlMinutes: 60 # NATS credentials the hub issues expire after this (backstop for removals)
+  redeemAttemptsPerMinute: 5 # failed redemptions allowed per invite and per client IP
 
 tasks:
   defaultWorkflow: feature # built-ins: feature, review — add your own in workflows/

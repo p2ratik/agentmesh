@@ -1,6 +1,6 @@
 import { createLogger, ManualClock } from '@agentmesh/common';
 import { ConfigIndex, type LoadedConfig } from '@agentmesh/config';
-import type { HubContext } from '../context';
+import { createHubContext, type HubContext } from '../context';
 import { SqliteOutbox } from '../core/outbox';
 import { Db } from '../db/database';
 import { migrate } from '../db/migrate';
@@ -22,13 +22,13 @@ export function createTestHarness(loaded: LoadedConfig = testTeamConfig()): Test
   const logger = createLogger('hub-test', { level: 'silent', destination: 'stderr' });
   const ports = new MemoryPorts();
   const outbox = new SqliteOutbox(db, clock, logger, ports, ports);
-  const ctx: HubContext = {
+  const ctx = createHubContext({
     loaded,
     index: new ConfigIndex(loaded.config),
     db,
     clock,
     logger,
     outbox,
-  };
+  });
   return { ctx, ports, clock, outbox };
 }

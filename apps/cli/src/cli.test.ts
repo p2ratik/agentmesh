@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import type { CliContext } from './context';
 import { findExamplesDir } from './lib/repo-paths';
 import { runCli } from './main';
-import { permissionsFor } from './render/permissions';
 
 const SECRETS = {
   HERMES_INGEST_TOKEN: 'hermes-token-0123456789abcdef',
@@ -84,6 +83,42 @@ describe('agentmesh CLI', () => {
     expect(h.out.at(-1)).toContain('Every participant has a key.');
   });
 
+  it('renders account-mode NATS config for the auth callout', async () => {
+    const h = harness(SECRETS);
+    await h.run('init', 'mesh');
+    for (const id of ['hub', 'discord-bridge', 'hermes']) {
+      expect(await h.run('keys', 'add', id, '--config', 'mesh')).toBe(0);
+    }
+    expect(await h.run('nats-config', '--config', 'mesh', '--auth-callout')).toBe(2);
+    expect(h.err.at(-1)).toContain('hub-issuer, hub-xkey, hub-sys');
+
+    for (const id of ['hub-issuer', 'hub-xkey', 'hub-sys']) {
+      expect(await h.run('keys', 'add', id, '--config', 'mesh')).toBe(0);
+    }
+    const mesh = readFileSync(join(h.cwd, 'mesh', 'mesh.yaml'), 'utf8');
+    expect(mesh).toMatch(/authCallout:\n {4}issuer: A[A-Z2-7]{55}\n {4}xkey: X[A-Z2-7]{55}\n/);
+    expect(readFileSync(join(h.cwd, 'secrets', 'hub-xkey.nk'), 'utf8')).toMatch(/^SX/);
+    expect(await h.run('keys', 'list', '--config', 'mesh')).toBe(0);
+    expect(h.out.at(-1)).toContain('callout/issuer');
+
+    // Agents have no keys yet: in callout mode they are not static users.
+    expect(
+      await h.run('nats-config', '--config', 'mesh', '--auth-callout', '--out', 'callout.conf'),
+    ).toBe(0);
+    const conf = readFileSync(join(h.cwd, 'callout.conf'), 'utf8');
+    const sysKey = /sysNkey: (U[A-Z2-7]{55})/.exec(mesh)?.[1] ?? '';
+    expect(conf).toContain('system_account: SYS');
+    expect(conf).toMatch(/auth_callout \{\n {4}issuer: "A[A-Z2-7]{55}"\n {4}account: APP\n/);
+    expect(conf).toMatch(/xkey: "X[A-Z2-7]{55}"/);
+    expect(conf).toContain(sysKey);
+    expect(conf).toContain('"$SYS.REQ.SERVER.*.KICK"');
+    expect(conf).toContain('"mesh.rpc.discord-bridge.>"');
+    expect(conf).not.toContain('alice-agent');
+    // Every static user except the hub is confined; only the hub may publish ">".
+    expect(conf.match(/publish: \{ allow: \[\n\s+">"/g)).toHaveLength(1);
+    expect(await h.run('nats-config', '--config', 'mesh', '--auth-callout', '--dev')).toBe(2);
+  });
+
   it('prints and optionally writes an agent setup', async () => {
     const h = harness(SECRETS);
     await h.run('init', 'mesh');
@@ -122,29 +157,5 @@ describe('agentmesh CLI', () => {
     expect(await h.run('validate', '--bogus')).toBe(2);
     expect(await h.run('frobnicate')).toBe(2);
     expect(await h.run('--help')).toBe(0);
-  });
-});
-
-describe('NATS permissions', () => {
-  it('scopes each kind of participant to its own subjects', () => {
-    expect(permissionsFor({ id: 'a', kind: 'agent' }, 'mesh')).toEqual({
-      publish: [
-        'mesh.rpc.a.>',
-        'mesh.presence.a',
-        '$JS.API.INFO',
-        '$JS.API.STREAM.INFO.MESH_DELIVERY',
-        '$JS.API.CONSUMER.INFO.MESH_DELIVERY.inbox-a',
-        '$JS.API.CONSUMER.MSG.NEXT.MESH_DELIVERY.inbox-a',
-        '$JS.ACK.MESH_DELIVERY.inbox-a.>',
-      ],
-      subscribe: ['_INBOX_a.>'],
-    });
-    expect(permissionsFor({ id: 'h', kind: 'ingest' }, 'acme').publish).toEqual([
-      'acme.ingest.h',
-      '$JS.API.INFO',
-    ]);
-    expect(permissionsFor({ id: 'b', kind: 'bridge' }, 'mesh').publish).toContain(
-      '$JS.API.CONSUMER.MSG.NEXT.MESH_EVENTS.feed-b',
-    );
   });
 });

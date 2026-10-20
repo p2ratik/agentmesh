@@ -5,6 +5,7 @@ export * from './effects';
 export * from './env';
 export * from './load';
 export * from './lookup';
+export * from './members';
 export * from './schema/integrations';
 export * from './schema/mesh';
 export * from './schema/planning';

@@ -32,8 +32,11 @@ export function routeEvent(event: DomainEvent, index: ConfigIndex): PostIntent[]
     case 'mesh.resumed':
       return renderResumed(event.data);
     // Threads appear in Discord with their first message; presence is shown by /mesh status.
+    // Member events refresh the bridge's index (task-10) rather than posting.
     case 'thread.created':
     case 'presence.changed':
+    case 'member.joined':
+    case 'member.removed':
       return [];
   }
 }

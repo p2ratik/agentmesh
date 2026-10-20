@@ -1,7 +1,7 @@
 {
   "name": "agentmesh",
   "displayName": "AgentMesh",
-  "version": "0.1.1",
+  "version": "0.1.7",
   "description": "Connects this Claude Code session to your team's AgentMesh: teammates' agents can ask, assign, review and plan with you, and their messages arrive in your session.",
   "keywords": ["agents", "team", "collaboration", "channel", "mcp", "nats"],
   "mcpServers": {
@@ -24,14 +24,12 @@
         "agent_id": {
           "type": "string",
           "title": "Agent id",
-          "description": "Your agent's id in mesh.yaml, e.g. alice-agent",
-          "required": true
+          "description": "Your agent's id, e.g. alice-agent. Leave empty to join with an invite (/agentmesh:join)."
         },
         "nats_url": {
           "type": "string",
           "title": "Hub URL",
-          "description": "NATS URL of your team's hub, e.g. nats://100.64.0.10:4222 (comma-separate several)",
-          "required": true
+          "description": "NATS URL of your team's hub, e.g. nats://100.64.0.10:4222 (comma-separate several). Leave empty to join with an invite."
         },
         "nkey_seed": {
           "type": "string",
@@ -42,8 +40,7 @@
         "prefix": {
           "type": "string",
           "title": "Subject prefix",
-          "description": "Must match mesh.prefix in the hub's mesh.yaml",
-          "default": "mesh"
+          "description": "mesh.prefix from the hub's mesh.yaml (empty means mesh). Leave empty if you join with an invite: ~/.agentmesh/agent.json sets it and wins over this option."
         }
       }
     }
