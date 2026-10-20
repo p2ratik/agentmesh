@@ -186,27 +186,32 @@ node plugins/agentmesh/scripts/smoke.mjs <nats-url>   # AGENTMESH_AGENT_ID / AGE
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-10-18)
+## Status (as of 2026-10-20)
 
 **Built (v1):**
 - **Packages:** protocol, config, bus, common.
-- **Hub:** every module listed above.
-- **Plugin:** 21 tools.
+- **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
+  callout).
+- **Plugin:** 21 tools, plus `/agentmesh:join` and an unenrolled mode.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
-  commands, buttons, echo guard.
+  commands, buttons, echo guard, `/mesh invite|uninvite|remove`.
 - **CLI.**
-- **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts.
-- **Docs, ADRs 0001–0004, CI.**
+- **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
+  renders the account-mode config.
+- **Docs, ADRs 0001–0005, CI.**
 
 **Tested and passing:**
-- **100 unit tests:** workflow engine, transitions, routing, leases overlap, planning rounds and
-  quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
+- **Unit tests (about 215):** workflow engine, transitions, routing, leases overlap, planning rounds
+  and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
-  validation, `expandHome`.
-- **5 integration tests:** real NATS 2.15.1, hub and the bundled plugin over MCP.
+  validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
+  autocomplete gating.
+- **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
   - nkey auth rendered by the CLI.
   - Impersonation is refused.
   - Offline queueing and delivery.
+  - The auth callout: a forged signature is refused and an invite works once.
+  - Onboarding end to end: invite, join, ask, remove, kick, refuse.
 - **Live deployment:**
   - Hub image built on the VM; NATS requires TLS.
   - Laptop → TLS → hub RPC works (~100–300 ms).
@@ -215,45 +220,47 @@ Run `pnpm check` before calling anything done.
     the slash commands.
 
 **Not yet verified:**
+- Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
+  laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - The plugin inside a real interactive Claude Code session (channel push into a live session).
 - A real agent ↔ agent conversation rendered in Discord (webhook names and avatars, threads).
 - Slash commands invoked by a human, plan approval buttons, human replies relayed to agents.
 - Planning end to end with several live agents; the Hermes integration (not built; only the
   ingest side exists).
 
+**Known limits:** Claude Code keeps only the first 4096 characters of MCP instructions, so a long
+team policy is cut off (agents see "policy truncated").
+
+**Decided:** the mesh channels are readable by everyone in the Discord server (see
+`docs/security.md`); acting is gated to members and admins.
+
 **Open decisions:** license, plugin `author` field, per-agent GitHub machine accounts vs.
 personal tokens, a hosted option.
 
-## Roadmap: the official onboarding flow (before open-sourcing)
+## Roadmap: onboarding before open-sourcing
 
-Today an admin edits YAML, generates every member's key and sends it privately, copies Discord
-IDs by hand, and restarts NATS and the hub. That is fine for one trusted team but too manual for a
-product. The target flow:
+Target users are self-hosted startup teams of 5–15 people who already know agents, plugins and MCP.
 
-- **Admin, once:**
-  - `npx agentmesh up` on any VPS. A wizard asks for the domain and team name, sets up TLS
-    automatically, and starts the hub.
-  - Create a Discord bot (every self-hosted team needs its own) and paste the token into the
-    wizard.
+**Phase 1, invite-only onboarding: built** (plan-1, ADR-0005).
 - **Add a member:**
-  1. The admin runs `/mesh invite @user role:<role>` in Discord. The bot DMs a one-time,
-     expiring invite code. The invite is bound to that Discord account, so the ID is captured
-     automatically.
-  2. The member installs the plugin and runs `/agentmesh:join <code>`. The plugin **generates
-     the nkey on the laptop** and sends only the public key to the hub's enrollment endpoint.
-  3. The hub registers the member and their agent immediately, with no YAML edit and no restart.
-- **Remove a member:** `/mesh remove @user`. Their key is rejected on the next connect.
+  1. An admin runs `/mesh invite user:@x id:<id> [name] [roles] [skills] [agent]`, and the bot DMs
+     a one-time code bound to that Discord account.
+  2. The member saves the code to a file and runs `/agentmesh:join`. The nkey is generated on
+     the laptop, and enrollment goes through the NATS auth callout.
+  3. No YAML edit and no restart.
+- **Cancel or remove:** `/mesh uninvite person:<id>` cancels an open invite, and
+  `/mesh remove person:<id>` kicks a member and refuses their key.
+- **Config:** `mesh.yaml` keeps policy, workflows, rules and areas, plus any people listed there.
+  The hub's registry holds invited members.
 
-How it gets built:
-- **Team registry in the hub DB**, managed by commands. `mesh.yaml` keeps policy, workflows, rules
-  and areas (GitOps-friendly) and stays as an import path, so existing setups keep working.
-- **NATS auth callout:** NATS asks the hub on every connect, which replaces the static user list.
-- **Portable deploy:** generic compose with automatic TLS; the cloud-specific scripts become
-  optional.
+**Phase 2, remaining:**
+- **Portable deploy:** generic compose with automatic TLS. Docker Compose is the runtime, and the
+  cloud-specific scripts become optional.
+- **`npx agentmesh up`:** a thin wizard over that compose. It asks for the domain, team name and
+  Discord bot token, writes `.env` and `mesh.yaml`, and starts the stack.
 - **Distribution:** publish to the official Claude Code plugin directory once open-sourced.
-
-Pieces: a hub `enrollment` module, an auth-callout service, a plugin `join` command, and bridge
-`/mesh invite|remove`.
+- **Later, Slack:** a second executor and command adapter behind the bridge's `PostIntent`
+  renderers.
 
 ## Working on this repo
 
