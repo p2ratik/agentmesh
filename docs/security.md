@@ -100,25 +100,40 @@ bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignmen
 or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
-  to 32 KB), including rule notices built from external event text. Before 2026-10-20 the
-  `key=value` and JWT patterns were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s,
-  stalling the hub.
+  to 32 KB) and on every value a rule template fills in, which can be as large as an ingest event
+  (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns were
+  unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
 - **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
   bounds the key to 64 characters on each side of the keyword. `redact.test.ts` keeps the 32 KB
-  worst cases under 250 ms; they run in about 1 ms.
+  worst cases under 250 ms; they run in about 1 ms. At 1 MB the same worst cases took 5–56 ms
+  when measured on 2026-10-20.
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
 
 The hub redacts text before it cuts it. A cut token no longer matches its pattern, so nothing
-downstream (the bridge included) could catch it. This covers:
-- thread subjects: explicit ones, the first line of an ask or an escalation, and plan threads.
-  They are stored redacted, like message bodies;
+downstream (the bridge included) could catch it. Text is redacted where it comes in. The code that
+cuts it (`createThread`, `firstLine`, `slugify`) only cuts, because masking finished text breaks
+per-value masking (below). This covers:
+- thread subjects: explicit ones (`message.send`), the first line of an ask or an escalation, and
+  plan threads (`Plan: <topic>`);
+- task titles, which become thread subjects and branch names. Titles from `task.create`,
+  `review.request` and `plan.submit` drafts are stored redacted. The suggested branch name
+  redacts the title again before `slugify` cuts it;
 - the one-line note a `request_changes` review leaves on the task's transition;
 - each contribution in a planning round's digest;
-- each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. The template
+- the event type of a `raw` ingest source, before it is rewritten to `[A-Za-z0-9_.:-]` and cut to
+  120 characters, and the `[source] type` fallback subject and title of rule actions;
+- each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. For an
+  object, each string inside it is masked before its JSON is cut to 500 characters. The template
   text is trusted config and is not masked. Masking the finished text would match across the
   template and a value: `{{alarm}}: {{summary}}` lost the summary's first word after an alarm
   named `SecretsManager…`.
+  - **Cost:** a keyword in the template, or in a neighbouring value, no longer masks what follows
+    it. `Config drift: {{payload.name}}={{payload.value}}` posts `DB_PASSWORD=hunter2…` as is.
+    Don't template key/value pairs from payloads.
+  - Throttle keys are rendered raw. They are never posted, and masking would merge keys: every
+    Secrets Manager ARN would share one, so only one alert would fire per window. They are stored
+    in `rule_throttles`, so never throttle on a secret.
 
 The Discord bridge applies the same redaction (`redactSecrets` in `packages/common`) to
 everything it posts, because the mesh channels are readable by the whole server:
@@ -137,9 +152,10 @@ everything it posts, because the mesh channels are readable by the whole server:
   - The exception is `enrollment.invite`, whose code goes untouched into the DM and never into a
     reply.
 
-- **Residual risk:** task titles, plan topics and summaries, reviews and plan contributions are
-  still stored in the hub as written. Only messages and the texts listed above are redacted at
-  the hub, so anyone with the hub's database sees the rest.
+- **Residual risk:** plan topics and summaries, task descriptions, reviews and plan contributions
+  are still stored in the hub as written, and so are task titles created before 2026-10-20. Only
+  messages and the texts listed above are redacted at the hub, so anyone with the hub's database
+  sees the rest.
 
 ## Secrets in RPC results
 

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { redactSecrets } from '@agentmesh/common';
 import type { IngestSource } from '@agentmesh/config';
 import { IngestEvent } from '@agentmesh/protocol';
 import { type Headers, header } from './auth';
@@ -48,8 +49,9 @@ export function normalizeEvent(source: IngestSource, headers: Headers, raw: Buff
     source.typeField ? stringField(payload, source.typeField) : undefined,
   ].filter((p): p is string => typeof p === 'string' && p.length > 0);
   if (parts.length === 0) return { ok: false, error: 'Could not determine the event type' };
-  const type = parts
-    .join('.')
+  // Redacted before it is rewritten and cut: either step stops a token matching its pattern, and
+  // the type is posted (`source/type`) and used as a fallback subject.
+  const type = redactSecrets(parts.join('.'))
     .replace(/[^A-Za-z0-9_.:-]/g, '_')
     .slice(0, 120);
   const producerId = source.idHeader ? header(headers, source.idHeader) : undefined;

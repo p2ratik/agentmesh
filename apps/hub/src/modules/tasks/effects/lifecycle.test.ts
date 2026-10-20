@@ -30,4 +30,11 @@ describe('post_notice', () => {
       'Reset the password: in_review',
     );
   });
+
+  it('renders placeholders it does not know as empty, including Object.prototype members', () => {
+    // `{{constructor}}` found a function, and masking it threw inside the transition.
+    expect(notice('{{constructor}}|{{toString}}|{{nope}}|{{task.state}}', 'x')).toBe(
+      '|||in_review',
+    );
+  });
 });

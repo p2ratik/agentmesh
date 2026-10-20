@@ -71,7 +71,8 @@ export class IngestServiceImpl implements IngestService {
   #claimThrottle(rule: RuleConfig, event: RuleContext): boolean {
     if (!rule.throttle) return true;
     const now = this.#ctx.clock.now();
-    const key = renderTemplate(rule.throttle.key, event);
+    // Raw: a key is never posted, and masking would merge keys (one alert for every secret's ARN).
+    const key = renderTemplate(rule.throttle.key, event, { redact: false });
     const until = addMs(now, rule.throttle.windowMinutes * MINUTE_MS).toISOString();
     return this.#repo.claimThrottle(rule.id, key, now.toISOString(), until);
   }

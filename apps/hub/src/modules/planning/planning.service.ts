@@ -156,7 +156,10 @@ export class PlanningServiceImpl implements PlanningService {
           `Only the facilitator (${plan.facilitator}) submits the plan`,
         );
       }
-      const check = checkDrafts(tasks, {
+      // Draft titles become task titles, which the thread subject and branch name cut: redact
+      // them here, where they come in (a cut token no longer matches).
+      const drafts = tasks.map((draft) => ({ ...draft, title: redactSecrets(draft.title) }));
+      const check = checkDrafts(drafts, {
         isAgent: (id) => index.kindOf(id) === 'agent',
         isArea: (id) => index.area(id) !== undefined,
       });

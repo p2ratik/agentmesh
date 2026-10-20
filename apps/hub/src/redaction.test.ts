@@ -1,11 +1,16 @@
-import type { RpcParams } from '@agentmesh/protocol';
+import { ConfigIndex } from '@agentmesh/config';
+import type { PlanTaskDraft, RpcParams } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { Actor, CallContext } from './contracts';
 import { internalId } from './core/ids';
 import type { MessagingServiceImpl } from './modules/messaging/messaging.service';
 import { sendHandlers } from './modules/messaging/send.handlers';
 import { PlanningServiceImpl } from './modules/planning/planning.service';
+import { taskHandlers } from './modules/tasks/handlers';
+import type { TaskRecord } from './modules/tasks/repo';
 import { TaskServiceImpl } from './modules/tasks/tasks.service';
+import { suggestedBranch } from './modules/tasks/text';
+import { testTeamConfig } from './testing/fixtures';
 import { createServiceHarness } from './testing/services';
 
 /** Assembled at runtime so repository secret scanners never flag this file. */
@@ -29,7 +34,13 @@ function setup() {
   const tasks = new TaskServiceImpl(h.ctx, { messaging, presence: h.presence, leases: h.leases });
   h.presence.setLoadReader(() => tasks.activeLoad());
   const planning = new PlanningServiceImpl(h.ctx, { messaging, tasks, presence: h.presence });
-  return { messaging, tasks, planning, send: sendHandlers(messaging) };
+  return {
+    messaging,
+    tasks,
+    planning,
+    send: sendHandlers(messaging),
+    taskRpc: taskHandlers(tasks),
+  };
 }
 
 const call = (actor: Actor, method: CallContext['method']): CallContext => ({
@@ -99,5 +110,41 @@ describe('the hub redacts text before it cuts it', () => {
     const reviewer = agent(submitted.reviewers[0] ?? '');
     const task = s.tasks.submitReview(1, 'request_changes', tokenAt(180), reviewer);
     expectMasked(task.history.find((h) => h.action === 'request_changes')?.note);
+  });
+
+  // createThread only cuts (masking the finished subject would undo a rule's per-value masking),
+  // so a title is redacted where it comes in. Its thread subject is the title cut to 120.
+  it('in a task title from task.create', async () => {
+    const s = setup();
+    const params = { title: tokenAt(100), description: '', priority: 'normal', labels: [] };
+    const task = await s.taskRpc['task.create'](
+      { ...params, dependsOn: [] } as RpcParams<'task.create'>,
+      call(alice, 'task.create'),
+    );
+    expectMasked(s.messaging.thread(internalId('thread', task.threadId)).subject);
+  });
+
+  it('in a review task title from review.request', async () => {
+    const s = setup();
+    const task = await s.taskRpc['review.request'](
+      { prUrl: 'https://x/pr/1', title: tokenAt(100) } as RpcParams<'review.request'>,
+      call(agent('alice-agent'), 'review.request'),
+    );
+    expectMasked(s.messaging.thread(internalId('thread', task.threadId)).subject);
+  });
+
+  it('in a plan draft title, which becomes a task title', () => {
+    const s = setup();
+    s.planning.start({ topic: 'Render status' }, alice);
+    const draft = { key: 'a', title: tokenAt(100), description: '', dependsOn: [] };
+    s.planning.submit(1, 'ok', [draft as PlanTaskDraft], alice);
+    const task = s.tasks.get(1, alice);
+    expectMasked(s.messaging.thread(internalId('thread', task.threadId)).subject);
+  });
+
+  it('in the branch name the assignment brief suggests (the slug is cut to 40)', () => {
+    const index = new ConfigIndex(testTeamConfig().config);
+    const task = { id: 7, title: `Rotate ${TOKEN}` } as TaskRecord;
+    expect(suggestedBranch(index, task, 'alice-agent')).toBe('agent/alice/task-7-rotate-redacted');
   });
 });

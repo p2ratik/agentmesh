@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@agentmesh/common';
 import type { RpcHandlerMap } from '../../contracts';
 import { internalId } from '../../core/ids';
 import type { TaskServiceImpl } from './tasks.service';
@@ -10,13 +10,18 @@ type TaskHandlers = Pick<
 
 const taskId = (raw: string) => internalId('task', raw);
 
-/** RPC surface of the task module: protocol ids in, protocol shapes out. */
+/**
+ * RPC surface of the task module: protocol ids in, protocol shapes out.
+ * Titles are redacted here, where they come in: the thread subject and the
+ * branch name cut them, and a cut token no longer matches. (Rules pass titles
+ * already masked per value, so `tasks.create` itself must not mask again.)
+ */
 export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
   return {
     'task.create': (params, call) =>
       tasks.create(
         {
-          title: params.title,
+          title: redactSecrets(params.title),
           description: params.description,
           repo: params.repo,
           area: params.area,
@@ -67,7 +72,7 @@ export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
       }
       return tasks.create(
         {
-          title: params.title ?? `Review ${params.prUrl}`,
+          title: redactSecrets(params.title ?? `Review ${params.prUrl}`),
           description: params.focus ?? '',
           repo: params.repo,
           area: params.area,

@@ -65,8 +65,9 @@ export const postNotice: Effect = (env, run) => {
     'task.assignee': run.task.assignee ?? 'unassigned',
     actor: run.actor.id,
   };
+  // Own keys only: `{{constructor}}` would otherwise find a function and fail the transition.
   const text = template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key: string) =>
-    redactSecrets(values[key] ?? ''),
+    Object.hasOwn(values, key) ? redactSecrets(values[key] ?? '') : '',
   );
   env.ctx.outbox.enqueueEvent('notice.posted', { channel, text, severity: 'info' });
 };

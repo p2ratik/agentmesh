@@ -1,4 +1,4 @@
-import { slugify } from '@agentmesh/common';
+import { redactSecrets, slugify } from '@agentmesh/common';
 import { type ConfigIndex, renderBranchName } from '@agentmesh/config';
 import type { TaskReview } from '@agentmesh/protocol';
 import { taskKey } from '../../core/ids';
@@ -29,13 +29,14 @@ const argFor = (field: string): string => {
   return `${field}: "<${field}>"`;
 };
 
+/** The slug is cut from the title, so the title is redacted first: a cut token no longer matches. */
 export function suggestedBranch(index: ConfigIndex, task: TaskRecord, agentId: string): string {
   const owner = index.agent(agentId)?.owner ?? agentId;
   return renderBranchName(index.config.git.branchTemplate, {
     owner,
     agent: agentId,
     task: taskKey(task.id),
-    slug: slugify(task.title),
+    slug: slugify(redactSecrets(task.title)),
   });
 }
 

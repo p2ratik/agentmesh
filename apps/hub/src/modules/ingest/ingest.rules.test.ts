@@ -79,4 +79,16 @@ describe('templates', () => {
     expect(json).not.toContain('ghp_');
     expect(json).toContain('[REDACTED]');
   });
+
+  it('redacts the strings inside an object, not its JSON', () => {
+    // JSON writes the newline as `\n`, so in the JSON the token no longer starts a word.
+    const payload = { log: `step failed\n${TOKEN}`, steps: [{ out: `\t${TOKEN}` }] };
+    const json = renderTemplate('{{payload}}', { ...ctx, payload });
+    expect(json).toBe('{"log":"step failed\\n[REDACTED]","steps":[{"out":"\\t[REDACTED]"}]}');
+  });
+
+  it('renders raw with redact: false, for text that is never shown', () => {
+    const leaked = { ...ctx, summary: `deploy with ${TOKEN}` };
+    expect(renderTemplate('{{summary}}', leaked, { redact: false })).toBe(`deploy with ${TOKEN}`);
+  });
 });

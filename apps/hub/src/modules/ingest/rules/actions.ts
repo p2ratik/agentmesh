@@ -1,3 +1,4 @@
+import { redactSecrets } from '@agentmesh/common';
 import type { RuleAction } from '@agentmesh/config';
 import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
@@ -23,6 +24,9 @@ export function externalFooter(event: RuleContext): string {
 export function runAction(deps: ActionDeps, action: RuleAction, event: RuleContext): void {
   const render = (template: string | undefined) =>
     template ? renderTemplate(template, event).trim() : '';
+  // The subject and title when a rule sets none. Redacted before createThread cuts it: a
+  // mesh-format event type may be 120 characters long.
+  const fallback = redactSecrets(`[${event.source}] ${event.type}`);
   if ('notice' in action) {
     deps.ctx.outbox.enqueueEvent('notice.posted', {
       channel: action.notice.channel,
@@ -40,7 +44,7 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
     const { messaging } = deps;
     const thread = messaging.createThread({
       kind: 'event',
-      subject: render(action.notify.subject) || `[${event.source}] ${event.type}`,
+      subject: render(action.notify.subject) || fallback,
       createdBy: messaging.hubId,
       participants: recipients,
     });
@@ -59,7 +63,7 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
   const serious = event.severity === 'error' || event.severity === 'critical';
   deps.tasks.create(
     {
-      title: (render(spec.title) || `[${event.source}] ${event.type}`).slice(0, 200),
+      title: (render(spec.title) || fallback).slice(0, 200),
       description:
         `${render(spec.description) || event.summary || ''}${externalFooter(event)}`.trim(),
       area: render(spec.area) || undefined,

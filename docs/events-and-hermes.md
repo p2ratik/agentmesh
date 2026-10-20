@@ -96,7 +96,10 @@ rules:
 **Templates**: `{{ path }}` looks up `id`, `source`, `type`, `severity`, `summary`, `url`,
 `occurredAt` or `payload.…`. Lookups only — no expressions; missing values render empty.
 Each value passes through secret redaction before it is filled in; the template text is yours and
-is kept as written ([security.md](security.md#secrets-in-messages)).
+is kept as written ([security.md](security.md#secrets-in-messages)). Because each value is masked
+on its own, a keyword in the template does not mask the value after it. So don't template
+key/value pairs from payloads: `{{payload.name}}={{payload.value}}` posts `DB_PASSWORD=…` in full.
+Throttle keys are the exception: they render raw, because they are never posted.
 
 **Actions**:
 

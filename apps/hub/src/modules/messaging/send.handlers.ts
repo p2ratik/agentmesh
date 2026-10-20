@@ -8,7 +8,10 @@ import { expandRecipients, noRecipientsError, type RecipientDirectory } from './
 
 type SendHandlers = Pick<RpcHandlerMap, 'message.send' | 'escalate'>;
 
-/** Auto subjects are cut from raw text, so it is redacted first: a cut token no longer matches. */
+/**
+ * Subjects are redacted here, where they come in: `createThread` and auto
+ * subjects cut them, and a cut token no longer matches.
+ */
 const MAX_AUTO_SUBJECT = 80;
 
 /** Normalizes a protocol task id (`42`, `TASK-42`) into a message ref. */
@@ -79,7 +82,10 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
         if (recipients.length === 0) throw noRecipientsError(tokens, actor.id);
         const threadId = startThread(messaging, actor, {
           kind: 'conversation',
-          subject: params.subject ?? firstLine(redactSecrets(params.body), MAX_AUTO_SUBJECT),
+          subject:
+            params.subject === undefined
+              ? firstLine(redactSecrets(params.body), MAX_AUTO_SUBJECT)
+              : redactSecrets(params.subject),
           to: recipients,
           ...(params.parentThreadId ? { parent: params.parentThreadId } : {}),
         });
