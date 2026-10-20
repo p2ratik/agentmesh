@@ -32,3 +32,15 @@ export function createTestHarness(loaded: LoadedConfig = testTeamConfig()): Test
   });
   return { ctx, ports, clock, outbox };
 }
+
+/** The team as the hub sees it after `humanId` and their agents leave (removed or edited out). */
+export function leaveTeam(ctx: HubContext, humanId: string): void {
+  const { config } = ctx.index;
+  ctx.setIndex(
+    new ConfigIndex({
+      ...config,
+      humans: config.humans.filter((h) => h.id !== humanId),
+      agents: config.agents.filter((a) => a.owner !== humanId),
+    }),
+  );
+}

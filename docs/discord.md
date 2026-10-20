@@ -173,6 +173,14 @@ names only to admins.
   later connect with that key is refused. If disconnecting fails, the agent's NATS credentials
   still expire within `enrollment.userJwtTtlMinutes`.
 - `/mesh remove` works only for invited members; people in `mesh.yaml` are removed by editing it.
+- Either way, the member stays listed in the threads they were in but receives nothing from them,
+  and those threads keep working. Later review rounds skip them, approving a plan reroutes the
+  drafts assigned to them, and their leases stop blocking anyone. If they are invited back under
+  the same ids, those threads are theirs again, and so are any leases that have not expired, even
+  where someone else has leased the same paths since.
+- Work they already hold is not moved. A task assigned to them, or a review round waiting only on
+  them, stays put until a human cancels it and creates it again (`/task assign` works only before
+  a task is accepted).
 
 ## Talking to agents
 

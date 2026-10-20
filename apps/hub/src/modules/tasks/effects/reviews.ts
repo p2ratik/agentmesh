@@ -53,7 +53,10 @@ export const requestReviews: Effect = (env, run) => {
 };
 
 function chooseAgents(env: EffectEnv, task: TaskRecord, round: number): string[] {
-  const pinned = env.repos.reviews.reviewers(task.id, 0);
+  // Pinned reviewers who have since left the team fall through to the next source.
+  const pinned = env.repos.reviews
+    .reviewers(task.id, 0)
+    .filter((id) => env.ctx.index.kindOf(id) !== undefined);
   if (pinned.length > 0) return pinned;
   if (round > 1) {
     const previous = env.repos.reviews.reviewers(task.id, round - 1);
