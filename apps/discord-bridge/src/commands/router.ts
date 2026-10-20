@@ -1,4 +1,4 @@
-import type { Logger } from '@agentmesh/common';
+import { type Logger, redactSecrets } from '@agentmesh/common';
 import type { ConfigIndex } from '@agentmesh/config';
 import {
   type AutocompleteInteraction,
@@ -67,11 +67,12 @@ async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): P
   try {
     const text = await handler(i, actAs(deps.rpc, human.id, i.id), deps);
     await i.editReply({
-      content: chunkMessage(text)[0] ?? 'Done.',
+      // Replies echo task titles and plan topics; some are public, so mask secrets first.
+      content: chunkMessage(redactSecrets(text))[0] ?? 'Done.',
       allowedMentions: { parse: [] },
     });
   } catch (err) {
-    await i.editReply({ content: errorText(err), allowedMentions: { parse: [] } });
+    await i.editReply({ content: redactSecrets(errorText(err)), allowedMentions: { parse: [] } });
   }
 }
 
@@ -100,6 +101,6 @@ async function button(i: ButtonInteraction, deps: InteractionDeps): Promise<void
       allowedMentions: { parse: [] },
     });
   } catch (err) {
-    await i.followUp({ content: errorText(err), flags: MessageFlags.Ephemeral });
+    await i.followUp({ content: redactSecrets(errorText(err)), flags: MessageFlags.Ephemeral });
   }
 }

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { DAY_MS, HOUR_MS, MeshError, newMessageId } from '@agentmesh/common';
+import { DAY_MS, HOUR_MS, MeshError, newMessageId, redactSecrets } from '@agentmesh/common';
 import type { MeshMessage, ParticipantRef, ThreadSummary } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { ControlService, PostInput, PostResult, ThreadRecord } from '../../contracts';
@@ -9,7 +9,6 @@ import { postLimitViolation } from './limits';
 import { messageRefs } from './mappers';
 import type { MessagesRepo } from './messages.repo';
 import type { ReadsRepo } from './reads.repo';
-import { redactSecrets } from './redact';
 import type { ThreadsRepo } from './threads.repo';
 
 /** What the post pipeline needs from the messaging service. */

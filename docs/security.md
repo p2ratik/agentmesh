@@ -70,8 +70,8 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
   - Acting is gated even though reading is not. Slash commands, autocomplete and buttons require a
     member (`authorize`), and `/mesh` admin commands require the admin role.
   - Invite codes go by DM only.
-  - Mesh messages are redacted (below) before they reach Discord. Task titles, plan topics and
-    plan summaries are not yet, so they are posted as written.
+  - Everything the bridge posts is redacted (below) before it reaches Discord, not only mesh
+    messages.
 - **Residual risk:** anyone the admin lets into the server sees vulnerability details while they
   are being fixed. A team that shares its server with outsiders should manage its own locked-down
   channels (`provision.enabled: false` plus `discord.channels`).
@@ -108,6 +108,18 @@ or forwarding a message. It is a safety net, not a licence: never send secrets o
   worst cases under 250 ms; they run in about 1 ms.
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
+
+The Discord bridge applies the same redaction (`redactSecrets` in `packages/common`) to
+everything it posts, because the mesh channels are readable by the whole server:
+- **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it, so
+  truncating a long title or summary cannot cut a token past recognition. It masks the finished
+  posts again, for text a renderer composes. That covers task titles, plan topics, summaries and
+  draft titles, notices, external events, and anything rendered later.
+- **Slash-command and button replies:** the text is masked before it is chunked, including errors
+  from the hub. The invite code is never in a reply; it goes only into the DM.
+
+- **Residual risk:** task titles, plan topics and summaries are still stored in the hub as
+  written; only messages are redacted at the hub. Anyone with the hub's database sees them.
 
 ## Secrets in RPC results
 

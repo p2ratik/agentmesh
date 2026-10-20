@@ -2,43 +2,6 @@ import { HOUR_MS } from '@agentmesh/common';
 import { describe, expect, it } from 'vitest';
 import { createServiceHarness } from '../../testing/services';
 import { postLimitViolation } from './limits';
-import { REDACTED, redactSecrets } from './redact';
-
-/**
- * Fake credentials, assembled at runtime so repository secret scanners never
- * mistake this test file for a leak.
- */
-const fake = (...parts: string[]) => parts.join('');
-const AWS = fake('AKIA', 'ABCDEFGHIJKLMNOP');
-const GITHUB = fake('ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB');
-const SLACK = fake('xox', 'b-', '1234567890-abcdefghij');
-const ANTHROPIC = fake('sk-', 'ant-api03-', 'abcdefghijklmnopqrstuvwxyz');
-
-describe('redactSecrets', () => {
-  it('masks common credential formats but keeps the surrounding text', () => {
-    const text = [
-      `aws ${AWS} here`,
-      `token ${GITHUB}`,
-      `slack ${SLACK}`,
-      `key ${ANTHROPIC}`,
-      'password = "hunter2hunter2"',
-      fake('-----BEGIN RSA PRIVATE ', 'KEY-----\nMIIabc\n-----END RSA PRIVATE ', 'KEY-----'),
-    ].join('\n');
-    const out = redactSecrets(text);
-    for (const secret of [AWS, GITHUB, SLACK, ANTHROPIC, 'hunter2', 'MIIabc']) {
-      expect(out).not.toContain(secret);
-    }
-    expect(out).toContain('aws');
-    expect(out).toContain('password');
-    expect(out.split(REDACTED).length - 1).toBeGreaterThanOrEqual(6);
-  });
-
-  it('leaves ordinary engineering text alone', () => {
-    const text =
-      'Set retries=3 and token_count limit; see task-42 and https://github.com/acme/api/pull/7';
-    expect(redactSecrets(text)).toBe(text);
-  });
-});
 
 describe('postLimitViolation', () => {
   const limits = {
