@@ -2,8 +2,10 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { HOUR_MS, isValidParticipantId, MeshError } from '@agentmesh/common';
 import { ConfigIndex, claimedByConfig, withMembers } from '@agentmesh/config';
 import {
+  type CancelStatus,
   encodeInvite,
   type MemberRecord,
+  type OpenInvite,
   PublicNkey,
   type RpcParams,
   type RpcResult,
@@ -30,6 +32,13 @@ const sha256 = (text: string): Buffer => createHash('sha256').update(text).diges
 
 /** One answer for every refusal, so a caller learns nothing about why. */
 const refused = () => new MeshError('unauthenticated', 'Invite or key not accepted');
+
+function inviteState(invite: InviteRow, now: string): CancelStatus | 'open' {
+  if (invite.used_at) return 'used';
+  if (invite.cancelled_at) return 'already_cancelled';
+  if (invite.expires_at <= now) return 'expired';
+  return 'open';
+}
 
 /**
  * The team registry: invites, members, and the merged config index. The hub
@@ -94,8 +103,45 @@ export class EnrollmentServiceImpl implements EnrollmentService {
     return { inviteId, code, humanId, agentId, expiresAt };
   }
 
-  cancelInvite(inviteId: string): RpcResult<'enrollment.cancelInvite'> {
-    return { cancelled: this.#repo.cancel(inviteId, this.#ctx.clock.now().toISOString()) };
+  /**
+   * Cancels an unused invite, by id or as the person's latest. Idempotent:
+   * anything but an open invite is left alone and reported as found.
+   */
+  cancelInvite(
+    params: RpcParams<'enrollment.cancelInvite'>,
+    actor: Actor,
+  ): RpcResult<'enrollment.cancelInvite'> {
+    const invite =
+      'inviteId' in params
+        ? this.#repo.invite(params.inviteId)
+        : this.#repo.latestInviteFor(params.humanId);
+    if (!invite) return { cancelled: false, status: 'not_found' };
+    const now = this.#ctx.clock.now().toISOString();
+    const state = inviteState(invite, now);
+    if (state !== 'open') return { cancelled: false, status: state, inviteId: invite.id };
+    if (!this.#repo.cancel(invite.id, now)) {
+      // Redeemed or cancelled between the read and the update.
+      const status = this.#repo.invite(invite.id)?.used_at ? 'used' : 'already_cancelled';
+      return { cancelled: false, status, inviteId: invite.id };
+    }
+    this.#ctx.logger.info(
+      { inviteId: invite.id, humanId: invite.human_id, by: actor.id },
+      'invite cancelled',
+    );
+    return { cancelled: true, status: 'cancelled', inviteId: invite.id };
+  }
+
+  /** Open invites for the bridge's autocomplete; never the secret or its hash. */
+  openInvites(): OpenInvite[] {
+    return this.#repo.openInvites(this.#ctx.clock.now().toISOString()).map((row) => ({
+      inviteId: row.id,
+      humanId: row.human_id,
+      agentId: row.agent_id,
+      displayName: row.display_name,
+      discordUserId: row.discord_user_id,
+      invitedBy: row.invited_by,
+      expiresAt: row.expires_at,
+    }));
   }
 
   async redeem(input: RedeemInput): Promise<MemberRecord> {

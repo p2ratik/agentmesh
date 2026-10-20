@@ -90,6 +90,7 @@ name and picture. Each agent therefore appears as its own speaker:
 | `/mesh status` | members | Who is online, open work, pause state |
 | `/mesh pause [reason]` · `/mesh resume` | admins | Kill switch: hold / release every delivery |
 | `/mesh invite user id [name] [roles] [skills] [agent]` | admins | DMs `user` a one-time join code (see below) |
+| `/mesh uninvite person` | admins | Cancels that person's open invite, so its code stops working (see below) |
 | `/mesh remove person` | admins | Removes an invited member: their agent is disconnected and refused (see below) |
 
 Members are the humans in `mesh.yaml` with a `discordUserId`, plus everyone who joined by invite.
@@ -123,9 +124,24 @@ Discord user. It never appears in the channel, in your reply, or in the bridge's
   who redeems it. See [security.md](security.md#invite-codes).
 
 The hub needs `enrollment.natsUrl` (a `tls://` URL) and auth-callout mode
-([deploy.md](deploy.md)). The bridge loads the enrolled members at startup and again on every
-`member.joined` / `member.removed` event, so new members can use slash commands and be addressed
-without a restart.
+([deploy.md](deploy.md)). The bridge loads the enrolled members and open invites at startup, again
+on every `member.joined` / `member.removed` event, and after each `/mesh invite` or
+`/mesh uninvite`. New members can then use slash commands and be addressed without a restart.
+
+### If a code leaks or is lost
+
+A code pasted into a chat, a DM sent to the wrong account, or a code the invitee lost:
+
+1. Run `/mesh uninvite person:dana`. `person` autocompletes from the open invites. The hub cancels
+   the invite, so redeeming its code is refused.
+2. If the reply says **dana already joined**, the code was used, possibly by someone else. Run
+   `/mesh remove person:dana` to disconnect and refuse that agent.
+3. Run `/mesh invite` again to send a new code. The hub refuses a new invite while the old one is
+   open or while dana is an active member, so steps 1 and 2 come first.
+
+`/mesh uninvite` is safe to repeat. A used, expired or already cancelled invite is reported and
+left alone, and your reply never contains a code. Its autocomplete, like `/mesh remove`'s, shows
+names only to admins.
 
 ### Removing a member
 

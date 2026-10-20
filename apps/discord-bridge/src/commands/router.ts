@@ -1,6 +1,5 @@
 import type { Logger } from '@agentmesh/common';
 import type { ConfigIndex } from '@agentmesh/config';
-import type { MemberRecord } from '@agentmesh/protocol';
 import {
   type AutocompleteInteraction,
   type ButtonInteraction,
@@ -13,7 +12,8 @@ import { parsePlanButtonId } from '../custom-ids';
 import { chunkMessage } from '../discord/chunk';
 import { errorText } from '../render/format';
 import { actAs, type MeshRpc } from '../rpc';
-import { suggest } from './autocomplete';
+import type { Enrolled } from '../team';
+import { autocompleteFor } from './autocomplete';
 import { isPrivateCommand } from './definitions';
 import { COMMAND_HANDLERS, type CommandContext } from './handlers';
 
@@ -21,8 +21,8 @@ export interface InteractionDeps extends CommandContext {
   rpc: MeshRpc;
   /** Read per interaction: the team changes when members join or leave. */
   index: () => ConfigIndex;
-  /** Active invited members (for `/mesh remove` autocomplete); read per interaction too. */
-  members: () => readonly MemberRecord[];
+  /** Invited members and open invites (for `/mesh remove|uninvite` autocomplete); read per interaction too. */
+  enrolled: () => Enrolled;
   logger: Logger;
 }
 
@@ -41,10 +41,14 @@ export function createInteractionHandler(deps: InteractionDeps) {
 
 async function autocomplete(i: AutocompleteInteraction, deps: InteractionDeps): Promise<void> {
   const focused = i.options.getFocused(true);
-  const sub = i.options.getSubcommand(false);
-  await i.respond(
-    suggest(deps.index(), i.commandName, sub, focused.name, String(focused.value), deps.members()),
-  );
+  const request = {
+    discordUserId: i.user.id,
+    command: i.commandName,
+    subcommand: i.options.getSubcommand(false),
+    option: focused.name,
+    typed: String(focused.value),
+  };
+  await i.respond(autocompleteFor(deps.index(), request, deps.enrolled()));
 }
 
 async function command(i: ChatInputCommandInteraction, deps: InteractionDeps): Promise<void> {

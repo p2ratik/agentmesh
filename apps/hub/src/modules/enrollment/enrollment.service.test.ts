@@ -100,8 +100,67 @@ describe('enrollment invites', () => {
     const { invite, service } = setup();
     const first = invite();
     expect(() => invite({ discordUserId: '200000000000000009' })).toThrowError(/still open/);
-    expect(service.cancelInvite(first.inviteId)).toEqual({ cancelled: true });
+    expect(service.cancelInvite({ inviteId: first.inviteId }, ALICE)).toMatchObject({
+      cancelled: true,
+      status: 'cancelled',
+    });
     expect(() => invite()).not.toThrow();
+  });
+});
+
+describe('cancelling invites', () => {
+  it("cancels a person's open invite once, then lets them be invited again", () => {
+    const { invite, service } = setup();
+    const { inviteId } = invite();
+    expect(service.cancelInvite({ humanId: 'dana' }, ALICE)).toEqual({
+      cancelled: true,
+      status: 'cancelled',
+      inviteId,
+    });
+    expect(service.cancelInvite({ humanId: 'dana' }, ALICE)).toEqual({
+      cancelled: false,
+      status: 'already_cancelled',
+      inviteId,
+    });
+    expect(service.openInvites()).toEqual([]);
+    expect(invite().inviteId).not.toBe(inviteId);
+  });
+
+  it('reports a redeemed, an expired or a missing invite and changes nothing', async () => {
+    const s = setup();
+    const used = s.invite();
+    await s.redeemCode(used.code);
+    expect(s.service.cancelInvite({ humanId: 'dana' }, ALICE)).toMatchObject({
+      cancelled: false,
+      status: 'used',
+    });
+    expect(s.service.list()[0]?.status).toBe('active');
+
+    s.invite({ humanId: 'eve', discordUserId: '200000000000000005' });
+    s.clock.advance(25 * HOUR_MS);
+    expect(s.service.cancelInvite({ humanId: 'eve' }, ALICE)).toMatchObject({ status: 'expired' });
+    expect(s.service.cancelInvite({ humanId: 'zed' }, ALICE)).toEqual({
+      cancelled: false,
+      status: 'not_found',
+    });
+  });
+
+  it('lists open invites for the bridge without the code or its hash', () => {
+    const { invite, service } = setup();
+    const { code: secretCode, inviteId, expiresAt } = invite();
+    const listed = service.openInvites();
+    expect(listed).toEqual([
+      {
+        inviteId,
+        humanId: 'dana',
+        agentId: 'dana-agent',
+        displayName: 'Dana',
+        discordUserId: DANA.discordUserId,
+        invitedBy: 'alice',
+        expiresAt,
+      },
+    ]);
+    expect(JSON.stringify(listed)).not.toContain(decodeInvite(secretCode).secret);
   });
 });
 
@@ -139,7 +198,7 @@ describe('enrollment redemption', () => {
     await expect(s.redeemCode(first.code)).rejects.toMatchObject({ code: 'unauthenticated' });
 
     const second = s.invite();
-    s.service.cancelInvite(second.inviteId);
+    s.service.cancelInvite({ inviteId: second.inviteId }, ALICE);
     await expect(s.redeemCode(second.code)).rejects.toMatchObject({ code: 'unauthenticated' });
 
     const key = newKey();
@@ -155,7 +214,7 @@ describe('enrollment redemption', () => {
   it('refuses an invite cancelled while its inbox was being created', async () => {
     const s = setup();
     const { code: invite, inviteId } = s.invite();
-    s.inboxes.during = () => void s.service.cancelInvite(inviteId);
+    s.inboxes.during = () => void s.service.cancelInvite({ inviteId }, ALICE);
     await expect(s.redeemCode(invite)).rejects.toMatchObject({ code: 'unauthenticated' });
     expect(s.service.list()).toEqual([]);
     expect(await s.events()).toEqual([]);

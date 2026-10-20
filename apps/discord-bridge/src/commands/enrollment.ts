@@ -78,6 +78,35 @@ export async function runInvite(i: ChatInputCommandInteraction, call: HumanCall)
   return inviteSent(invite, user.id);
 }
 
+/** The admin's (private) reply to `/mesh uninvite`, for whatever the hub found. Pure. */
+export function uninviteReply(
+  humanId: string,
+  result: RpcResult<'enrollment.cancelInvite'>,
+): string {
+  const invite = result.inviteId ? `invite **${result.inviteId}**` : 'the invite';
+  const Invite = result.inviteId ? `Invite **${result.inviteId}**` : 'The invite';
+  switch (result.status) {
+    case 'cancelled':
+      return `🚫 Cancelled ${invite} for **${humanId}**: its code no longer works. Run \`/mesh invite\` to send a new one.`;
+    case 'used':
+      return `**${humanId}** already joined with ${invite}, so there is nothing to cancel. Use \`/mesh remove\` to take them off the mesh.`;
+    case 'expired':
+      return `${Invite} for **${humanId}** had already expired; nothing to cancel. \`/mesh invite\` sends a new one.`;
+    case 'already_cancelled':
+      return `${Invite} for **${humanId}** was already cancelled.`;
+    case 'not_found':
+      return `**${humanId}** has no invite to cancel.`;
+  }
+}
+
+export async function runUninvite(
+  i: ChatInputCommandInteraction,
+  call: HumanCall,
+): Promise<string> {
+  const humanId = i.options.getString('person', true).trim();
+  return uninviteReply(humanId, await call('enrollment.cancelInvite', { humanId }));
+}
+
 export async function runRemove(i: ChatInputCommandInteraction, call: HumanCall): Promise<string> {
   const humanId = i.options.getString('person', true).trim();
   const result = await call('enrollment.remove', { humanId });

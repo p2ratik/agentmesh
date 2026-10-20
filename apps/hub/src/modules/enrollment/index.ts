@@ -12,9 +12,9 @@ type EnrollmentHandlers = Pick<
 function enrollmentHandlers(enrollment: EnrollmentServiceImpl): EnrollmentHandlers {
   return {
     'enrollment.invite': (params, call) => enrollment.invite(params, call.actor),
-    'enrollment.cancelInvite': (params) => enrollment.cancelInvite(params.inviteId),
+    'enrollment.cancelInvite': (params, call) => enrollment.cancelInvite(params, call.actor),
     'enrollment.remove': (params, call) => enrollment.remove(params.humanId, call.actor),
-    'enrollment.list': () => ({ members: enrollment.list() }),
+    'enrollment.list': () => ({ members: enrollment.list(), invites: enrollment.openInvites() }),
   };
 }
 

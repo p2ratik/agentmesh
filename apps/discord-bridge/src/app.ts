@@ -89,10 +89,15 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
     threads,
     logger,
   });
-  const members = () => team.members;
+  const enrolled = () => team.enrolled(new Date());
+  // After /mesh invite or uninvite: no hub event marks an invite opening or closing.
+  const refreshInvites = () =>
+    refreshTeam().catch((err: unknown) =>
+      logger.warn({ err }, 'could not refresh open invites; autocomplete may be stale'),
+    );
   client.on(
     Events.InteractionCreate,
-    createInteractionHandler({ rpc, index, members, directory, logger }),
+    createInteractionHandler({ rpc, index, enrolled, refreshInvites, directory, logger }),
   );
   client.on(Events.MessageCreate, createReplyRelay({ rpc, index, threads, echo, logger }));
 
