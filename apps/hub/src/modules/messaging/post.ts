@@ -135,7 +135,9 @@ function resolveRecipients(
   const recipients = wanted.filter((id) => pc.ctx.index.kindOf(id) !== undefined);
   if (recipients.length < wanted.length) {
     const skipped = wanted.filter((id) => !recipients.includes(id));
-    pc.ctx.logger.debug({ threadId: thread.id, skipped }, 'skipped recipients not on the team');
+    // A named recipient going missing means a brief or request may reach nobody: worth seeing.
+    const level = input.to === undefined ? 'debug' : 'info';
+    pc.ctx.logger[level]({ threadId: thread.id, skipped }, 'skipped recipients not on the team');
   }
   if (input.to !== undefined && input.addToThread !== false) {
     pc.threads.addParticipants(thread.id, recipients, at);
