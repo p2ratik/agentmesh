@@ -16,7 +16,8 @@ const TOKEN_PATTERNS: readonly RegExp[] = [
   /\bsk-[A-Za-z0-9_-]{32,}/g,
   // Discord bot tokens: base64 user id . timestamp . HMAC.
   /\b[MNO][A-Za-z\d_-]{23,27}\.[A-Za-z\d_-]{6}\.[A-Za-z\d_-]{27,40}\b/g,
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
+  // Anchored on the left: unanchored, a run like `eyJ-eyJ-…` backtracks quadratically.
+  /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
   // NATS nkey seeds (user, account, operator).
   /\bS[UAO][A-Z2-7]{56}\b/g,
 ];
@@ -26,9 +27,12 @@ const BEARER = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{16,}=*/g;
 /**
  * `password=…`, `api_key: "…"`, `DB_SECRET=…`, `"token": "…"`: keeps the key,
  * masks the value. Values stop at whitespace, separators and `&` (query strings).
+ * The key starts where a run of key characters starts and is bounded on both
+ * sides of the keyword; unanchored and unbounded, a long run of key characters
+ * (`tokentoken…`) backtracked cubically and stalled the hub on one message.
  */
 const ASSIGNMENT =
-  /([A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]*["']?\s*[=:]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;'"&]+)/gi;
+  /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}["']?\s*[=:]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;'"&]+)/gi;
 
 const TYPE_WORDS = new Set([
   'string',
