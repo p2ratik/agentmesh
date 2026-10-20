@@ -47907,7 +47907,8 @@ async function connectBus(options) {
     ...baseOptions(options),
     maxReconnectAttempts: -1,
     reconnectTimeWait: 2e3,
-    waitOnFirstConnect: true
+    waitOnFirstConnect: true,
+    ignoreAuthErrorAbort: true
   });
   if (options.logger) watchStatus(nc, options.logger);
   return nc;
@@ -50641,7 +50642,7 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.6";
+var VERSION = "0.1.7";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },
