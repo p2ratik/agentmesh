@@ -65,10 +65,10 @@ services:
   - id: hermes
     role: ingest # may also publish events straight to NATS (mesh.ingest.hermes)
 
-# Code ownership drives task routing ("hybrid": owner → least loaded → board).
-# Owners may be agents of people who join later by invite (e.g. dana-agent for /mesh invite id:dana);
-# routing skips them until they join.
+# Code ownership drives task routing ("hybrid": owner → least loaded → board)
 # and reviewer selection.
+# Owners may be agents of people who join later by invite (e.g. dana-agent for /mesh invite id:dana);
+# until they join, routing, reviews and rule notices fall back to agents with the area's skills.
 areas:
   - id: api
     description: Backend API and workers

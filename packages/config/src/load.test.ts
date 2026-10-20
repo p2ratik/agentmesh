@@ -61,13 +61,14 @@ describe('configFromObject', () => {
     expect(pendingAreaOwners(config)).toEqual(['dana-agent']);
   });
 
-  it('still refuses a human or a service as an area owner', () => {
+  it('still refuses a human, a service or the hub as an area owner', () => {
     const tree = {
       ...minimal,
       services: [{ id: 'ci', role: 'ingest' }],
       areas: [
         { id: 'web', owners: ['alice'] },
         { id: 'ops', owners: ['ci'] },
+        { id: 'core', owners: ['hub'] },
       ],
     };
     try {
@@ -77,6 +78,7 @@ describe('configFromObject', () => {
       const messages = (error as ConfigError).issues.map((i) => `${i.path}: ${i.message}`);
       expect(messages).toContain('areas[0].owners: "alice" is a human, not an agent');
       expect(messages).toContain('areas[1].owners: "ci" is a service, not an agent');
+      expect(messages).toContain('areas[2].owners: "hub" is the hub');
     }
   });
 

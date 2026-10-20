@@ -27,6 +27,7 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
     for (const owner of area.owners) {
       if (humans.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a human, not an agent`);
       if (services.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a service, not an agent`);
+      if (owner === config.hub.serviceId) add(`areas[${i}].owners`, `"${owner}" is the hub`);
     }
   });
   config.review.humanReviewers.forEach((id) => {

@@ -57,7 +57,9 @@ areas:
 
 An owner may be an agent that is not in mesh.yaml yet, because that person will join by invite.
 For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent`.
-- Until they join, routing and reviews skip that owner.
+- Until they join, routing and reviews skip that owner. Rule notices to `area-owners` go to agents
+  with the area's skills instead, or to whoever is online, and the hub logs a warning.
+- The hub also warns at start, and whenever the team changes, about any owner not on the team yet.
 - From the moment they join, they own the area, with no restart.
 - `agentmesh validate` lists these owners as **Pending**, so a typo stays visible.
 - A human or service id as an owner is still an error.
