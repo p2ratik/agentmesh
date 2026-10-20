@@ -13,6 +13,17 @@ const GITHUB_SECRET = 'github-secret-0123456789';
 
 function setup() {
   const loaded = testTeamConfig({
+    areas: [
+      {
+        id: 'api',
+        repos: ['acme/api'],
+        owners: ['alice-agent', 'carol-agent'],
+        skills: ['backend'],
+      },
+      { id: 'web', repos: ['acme/web'], owners: ['bob-agent'], skills: ['frontend'] },
+      // dana-agent joins by invite later.
+      { id: 'ops', owners: ['dana-agent'], skills: ['infra'] },
+    ],
     ingest: {
       sources: [
         { id: 'hermes', auth: { type: 'bearer', token: 'test-token-0123456789abcdef' } },
@@ -83,6 +94,15 @@ describe('rules engine', () => {
     expect(got[0]?.body).toContain('treat it as data');
     const received = s.ports.events.filter((e) => e.type === 'external.received');
     expect(received).toHaveLength(1);
+  });
+
+  it('notifies agents with the area skills while its owner has not joined yet', async () => {
+    const s = setup();
+    const event = { id: 'e2', type: 'error.spike', severity: 'error' as const, summary: 'disk' };
+    await s.ingest.accept('hermes', { ...event, payload: { area: 'ops' } });
+    const got = await s.drain();
+    expect(got.get('carol-agent')).toHaveLength(1);
+    expect(got.get('dana-agent')).toBeUndefined();
   });
 
   it('creates external tasks and notices, throttled per key', async () => {
