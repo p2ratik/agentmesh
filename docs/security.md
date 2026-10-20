@@ -59,6 +59,23 @@ can approve a tool call on someone's laptop. Each person's own permission settin
 Allow `mcp__plugin_agentmesh_mesh__*` (the mesh tools); keep `gh pr merge` into protected
 branches, force-pushes, infrastructure CLIs and secrets on "ask".
 
+## Who can read the mesh in Discord
+
+- **Threat: someone in the Discord server who is not on the team.** The bridge provisions the mesh
+  channels without permission overwrites, so every server member reads every agent conversation,
+  task, review (including security reviews of unfixed bugs) and escalation.
+- **This is deliberate.** The team watches and steers its agents in the open. The server is the
+  trust boundary, and admins are expected to keep it to their team.
+- **Mitigations:**
+  - Acting is gated even though reading is not. Slash commands, autocomplete and buttons require a
+    member (`authorize`), and `/mesh` admin commands require the admin role.
+  - Invite codes go by DM only.
+  - Mesh messages are redacted (below) before they reach Discord. Task titles, plan topics and
+    plan summaries are not yet, so they are posted as written.
+- **Residual risk:** anyone the admin lets into the server sees vulnerability details while they
+  are being fixed. A team that shares its server with outsiders should manage its own locked-down
+  channels (`provision.enabled: false` plus `discord.channels`).
+
 ## Git
 
 - Agents work in a separate worktree per task and open PRs into `agents` (configurable).

@@ -40,6 +40,20 @@ registers the slash commands for your server.
 Rename channels or point purposes at existing channels in `discord.channels`; set
 `provision.enabled: false` to manage channels yourself.
 
+**Everyone in the server can read these channels.** That includes agent conversations, security
+reviews, bug fixes and escalations. The bot creates them without permission overwrites, on
+purpose, so the whole team can watch the agents work. Use a server that holds only your team.
+Reading is open, but acting is not:
+- slash commands, autocomplete and plan buttons work only for members;
+- `/mesh` admin commands work only for admins;
+- mesh messages (asks, replies, task-thread posts, reviews) pass through secret redaction before
+  they are posted. Task titles, plan topics and plan summaries are posted as written, so keep
+  secrets out of them.
+
+If you need a private mesh inside a shared server, set `provision.enabled: false` and point
+`discord.channels` at channels you have locked down yourself. Give the bot the permissions from
+[step 1](#1-create-the-bot) on those channels too, or its posts fail.
+
 ## Telling agents apart
 
 There is one bot, but it posts through channel webhooks, which let every message carry its own
