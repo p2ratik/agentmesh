@@ -102,7 +102,9 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
     /** What the bridge does for one slash command: actAs the admin, keyed by the interaction. */
     const bridgeRpc = () => new RpcClient(bridge, PREFIX, 'discord-bridge', 5000);
     const asAdmin = (interactionId: string) => actAs(bridgeRpc(), 'alice', interactionId);
-    const joinerEnv = { agentId: '', natsUrl: '', prefix: '', home };
+    // Claude Code stored plugin.json's old "mesh" default for prefix; the team's is PREFIX.
+    // agent.json's prefix from the invite must win, in the join session and after it (task-13).
+    const joinerEnv = { agentId: '', natsUrl: '', prefix: 'mesh', home };
 
     beforeAll(async () => {
       server = startCalloutNats({ bin: NATS_BIN, loaded, dir, port: PORT, monitorPort: MONITOR });
@@ -215,8 +217,8 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
 
       const gone = async () => !(await connectionNames()).includes('agentmesh-plugin:dana-agent');
       expect(await until(gone)).toBe(true);
-      // The kicked plugin tries to reconnect; nats.js gives up after two authorization errors in a
-      // row. None of those attempts may get in, so look again once they are over.
+      // The kicked plugin tries to reconnect (whether it then gives up after repeated
+      // authorization errors or keeps retrying). No attempt may get in, so look again later.
       await new Promise((r) => setTimeout(r, 4500));
       expect(await gone()).toBe(true);
 
