@@ -118,18 +118,29 @@ function enforceLimits(
   if (violation) throw violation;
 }
 
-/** Omitted `to`: every participant but the sender. `[]`: nobody. A list: those ids. */
+/**
+ * Omitted `to`: every participant but the sender. `[]`: nobody. A list: those
+ * ids. Anyone no longer on the team is skipped: they stay in the threads they
+ * were in (and get them back if they rejoin), but they no longer block posts.
+ * Callers validate ids that come from requests before they get here.
+ */
 function resolveRecipients(
   pc: PostContext,
   thread: ThreadRecord,
   input: PostInput,
   at: string,
 ): string[] {
-  if (input.to === undefined) {
-    return pc.threads.participants(thread.id).filter((id) => id !== input.senderId);
+  const named = input.to === undefined ? pc.threads.participants(thread.id) : input.to;
+  const wanted = [...new Set(named)].filter((id) => id !== input.senderId);
+  const recipients = wanted.filter((id) => pc.ctx.index.kindOf(id) !== undefined);
+  if (recipients.length < wanted.length) {
+    const skipped = wanted.filter((id) => !recipients.includes(id));
+    // A named recipient going missing means a brief or request may reach nobody: worth seeing.
+    const level = input.to === undefined ? 'debug' : 'info';
+    pc.ctx.logger[level]({ threadId: thread.id, skipped }, 'skipped recipients not on the team');
   }
-  const explicit = [...new Set(input.to)].filter((id) => id !== input.senderId);
-  pc.assertKnown(explicit);
-  if (input.addToThread !== false) pc.threads.addParticipants(thread.id, explicit, at);
-  return explicit;
+  if (input.to !== undefined && input.addToThread !== false) {
+    pc.threads.addParticipants(thread.id, recipients, at);
+  }
+  return recipients;
 }
