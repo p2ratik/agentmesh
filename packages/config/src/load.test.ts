@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigError, configFromObject } from './load';
 import { ConfigIndex } from './lookup';
+import { pendingAreaOwners } from './validate';
 
 const minimal = {
   version: 1,
@@ -51,6 +52,31 @@ describe('configFromObject', () => {
       const paths = (error as ConfigError).issues.map((i) => i.path);
       expect(paths).toContain('agents[0].owner');
       expect(paths).toContain('areas[0].owners');
+    }
+  });
+
+  it('accepts an area owner who will join by invite, and lists it as pending', () => {
+    const tree = { ...minimal, areas: [{ id: 'web', owners: ['alice-agent', 'dana-agent'] }] };
+    const { config } = configFromObject(tree);
+    expect(pendingAreaOwners(config)).toEqual(['dana-agent']);
+  });
+
+  it('still refuses a human or a service as an area owner', () => {
+    const tree = {
+      ...minimal,
+      services: [{ id: 'ci', role: 'ingest' }],
+      areas: [
+        { id: 'web', owners: ['alice'] },
+        { id: 'ops', owners: ['ci'] },
+      ],
+    };
+    try {
+      configFromObject(tree);
+      expect.unreachable();
+    } catch (error) {
+      const messages = (error as ConfigError).issues.map((i) => `${i.path}: ${i.message}`);
+      expect(messages).toContain('areas[0].owners: "alice" is a human, not an agent');
+      expect(messages).toContain('areas[1].owners: "ci" is a service, not an agent');
     }
   });
 

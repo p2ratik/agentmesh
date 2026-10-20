@@ -55,6 +55,13 @@ areas:
     skills: [backend]
 ```
 
+An owner may be an agent that is not in mesh.yaml yet, because that person will join by invite.
+For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent`.
+- Until they join, routing and reviews skip that owner.
+- From the moment they join, they own the area, with no restart.
+- `agentmesh validate` lists these owners as **Pending**, so a typo stays visible.
+- A human or service id as an owner is still an error.
+
 ## Git and policy
 
 | Key | Default | Meaning |
