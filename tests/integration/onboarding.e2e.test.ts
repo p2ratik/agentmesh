@@ -103,7 +103,8 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
     const bridgeRpc = () => new RpcClient(bridge, PREFIX, 'discord-bridge', 5000);
     const asAdmin = (interactionId: string) => actAs(bridgeRpc(), 'alice', interactionId);
     // Claude Code stored plugin.json's old "mesh" default for prefix; the team's is PREFIX.
-    // agent.json's prefix from the invite must win, in the join session and after it (task-13).
+    // agent.json's prefix from the invite must win in the join session (task-13; later sessions
+    // are covered by config.test.ts).
     const joinerEnv = { agentId: '', natsUrl: '', prefix: 'mesh', home };
 
     beforeAll(async () => {
