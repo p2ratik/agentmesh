@@ -47624,26 +47624,22 @@ var FileConfig = external_exports.object({
 });
 var DEFAULT_CONFIG_FILE = join2(homedir2(), ".agentmesh", "agent.json");
 function resolveConfig(env = process.env, file2 = DEFAULT_CONFIG_FILE) {
-  const fromFile = readFileConfig(file2);
+  const saved = readFileConfig(file2);
+  const fromFile = fileApplies(env, saved) ? saved : {};
   const pick2 = (key, fallback) => usable(env[key]) ?? usable(fallback);
   const agentId = pick2("AGENTMESH_AGENT_ID", fromFile.agentId);
   const urls = pick2("AGENTMESH_NATS_URL", fromFile.natsUrl);
-  const prefix = pick2("AGENTMESH_PREFIX", fromFile.prefix) ?? "mesh";
+  const { prefix, warnings } = resolvePrefix(env, fromFile);
   const seed = pick2("AGENTMESH_NKEY_SEED", fromFile.nkeySeed);
   const heartbeat = Number(usable(env.AGENTMESH_HEARTBEAT_SECONDS) ?? 20);
-  const problems = [];
-  if (!agentId) problems.push("agent_id is not set");
-  else if (!isValidParticipantId(agentId)) problems.push(`agent_id "${agentId}" is not a valid id`);
-  if (!urls) problems.push("nats_url is not set");
-  if (!PREFIX_PATTERN.test(prefix)) problems.push(`prefix "${prefix}" is not valid`);
-  if (!Number.isFinite(heartbeat) || heartbeat < 5)
-    problems.push("AGENTMESH_HEARTBEAT_SECONDS must be >= 5");
-  if (problems.length > 0 || !agentId || !urls) {
-    return { ok: false, problems, unenrolled: !agentId && !urls };
-  }
   const logFile = usable(env.AGENTMESH_LOG_FILE);
+  const problems = configProblems(agentId, urls, prefix, heartbeat);
+  if (problems.length > 0 || !agentId || !urls) {
+    return { ok: false, problems, unenrolled: !agentId && !urls, ...logFile ? { logFile } : {} };
+  }
   return {
     ok: true,
+    ...warnings.length > 0 ? { warnings } : {},
     config: {
       agentId,
       servers: urls.split(",").map((s) => s.trim()).filter(Boolean),
@@ -47653,6 +47649,30 @@ function resolveConfig(env = process.env, file2 = DEFAULT_CONFIG_FILE) {
       ...logFile ? { logFile } : {}
     }
   };
+}
+function fileApplies(env, saved) {
+  const agrees = (option, value) => {
+    const a = usable(option);
+    const b = usable(value);
+    return a === void 0 || b === void 0 || a === b;
+  };
+  return agrees(env.AGENTMESH_AGENT_ID, saved.agentId) && agrees(env.AGENTMESH_NATS_URL, saved.natsUrl);
+}
+function resolvePrefix(env, fromFile) {
+  const option = usable(env.AGENTMESH_PREFIX);
+  const saved = usable(fromFile.prefix);
+  const warnings = saved && option && saved !== option ? [`ignoring the prefix option "${option}": ~/.agentmesh/agent.json sets "${saved}"`] : [];
+  return { prefix: saved ?? option ?? "mesh", warnings };
+}
+function configProblems(agentId, urls, prefix, heartbeat) {
+  const problems = [];
+  if (!agentId) problems.push("agent_id is not set");
+  else if (!isValidParticipantId(agentId)) problems.push(`agent_id "${agentId}" is not a valid id`);
+  if (!urls) problems.push("nats_url is not set");
+  if (!PREFIX_PATTERN.test(prefix)) problems.push(`prefix "${prefix}" is not valid`);
+  if (!Number.isFinite(heartbeat) || heartbeat < 5)
+    problems.push("AGENTMESH_HEARTBEAT_SECONDS must be >= 5");
+  return problems;
 }
 function usable(value) {
   const trimmed = value?.trim();
@@ -50597,7 +50617,7 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.4";
+var VERSION = "0.1.5";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },
@@ -50951,12 +50971,15 @@ async function main() {
     process.exit(await runJoinCli(process.argv.slice(3), VERSION));
   }
   const resolved = resolveConfig();
-  const config2 = resolved.ok ? resolved.config : null;
+  const logFile = resolved.ok ? resolved.config.logFile : resolved.logFile;
   const logger = createLogger("agentmesh-plugin", {
-    destination: config2?.logFile ? { file: config2.logFile } : "stderr"
+    destination: logFile ? { file: logFile } : "stderr"
   });
   watchLifecycle(logger);
-  if (resolved.ok) return runConfigured(resolved.config, logger);
+  if (resolved.ok) {
+    for (const warning of resolved.warnings ?? []) logger.warn(warning);
+    return runConfigured(resolved.config, logger);
+  }
   if (resolved.unenrolled) return runUnenrolled(logger);
   logger.warn({ problems: resolved.problems }, "plugin is not configured");
   const { problems } = resolved;
@@ -51003,6 +51026,7 @@ async function runUnenrolled(logger) {
       throw new Error(
         `joined, but the saved settings do not load: ${resolved.problems.join("; ")}`
       );
+    for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
     handler = meshToolHandler({ hub: session.hub, agentId });
     cleanup = startSession(server, session, logger, 0);

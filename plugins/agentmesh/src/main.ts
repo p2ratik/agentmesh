@@ -24,12 +24,15 @@ async function main(): Promise<void> {
     process.exit(await runJoinCli(process.argv.slice(3), VERSION));
   }
   const resolved = resolveConfig();
-  const config = resolved.ok ? resolved.config : null;
+  const logFile = resolved.ok ? resolved.config.logFile : resolved.logFile;
   const logger = createLogger('agentmesh-plugin', {
-    destination: config?.logFile ? { file: config.logFile } : 'stderr',
+    destination: logFile ? { file: logFile } : 'stderr',
   });
   watchLifecycle(logger);
-  if (resolved.ok) return runConfigured(resolved.config, logger);
+  if (resolved.ok) {
+    for (const warning of resolved.warnings ?? []) logger.warn(warning);
+    return runConfigured(resolved.config, logger);
+  }
   if (resolved.unenrolled) return runUnenrolled(logger);
   logger.warn({ problems: resolved.problems }, 'plugin is not configured');
   const { problems } = resolved;
@@ -87,6 +90,7 @@ async function runUnenrolled(logger: Logger): Promise<void> {
       throw new Error(
         `joined, but the saved settings do not load: ${resolved.problems.join('; ')}`,
       );
+    for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
     handler = meshToolHandler({ hub: session.hub, agentId });
     cleanup = startSession(server, session, logger, 0);

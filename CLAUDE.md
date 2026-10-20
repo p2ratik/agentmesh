@@ -158,7 +158,10 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
 - **Users need an allow rule:** `mcp__plugin_agentmesh_mesh__*`.
 - **Required plugin options:** Claude Code does not start the plugin's MCP server until the
   required options (`agent_id`, `nats_url`) are set; they are stored in `settings.json` under
-  `pluginConfigs`. `~/.agentmesh/agent.json` only fills in options left empty, such as the seed.
+  `pluginConfigs`. `~/.agentmesh/agent.json` fills in options left empty, such as the seed. Its
+  prefix wins over the `prefix` option (Claude Code may store a stale value there). The file
+  applies only when the `agent_id` and `nats_url` options are empty or match it; otherwise it is
+  ignored, because one file serves every Claude account on the laptop.
 - **Two Claude accounts on one machine:** set `CLAUDE_CONFIG_DIR` to a second folder. It gets its
   own login, plugins and settings.
 - **TLS:** the NATS client upgrades to TLS automatically and verifies the hostname. Inside

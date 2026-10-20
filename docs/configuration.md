@@ -14,7 +14,7 @@ numbers are not coerced from strings — write them literally.
 | --- | --- | --- |
 | `version` | — (required) | Always `1`. |
 | `mesh.name` | — (required) | Shown in Discord and agent instructions. |
-| `mesh.prefix` | `mesh` | NATS subject prefix (`^[a-z][a-z0-9_-]{0,30}$`). Lets several meshes share one NATS. |
+| `mesh.prefix` | `mesh` | NATS subject prefix (`^[a-z][a-z0-9_-]{0,30}$`). Lets several meshes share one NATS. Invites carry it to laptops. On a laptop, the prefix in `~/.agentmesh/agent.json` wins over the plugin's `prefix` option, as long as the file is for that agent: the `agent_id` and `nats_url` options are empty or match it. Otherwise the plugin ignores the file. |
 | `nats.servers` | `nats://localhost:4222` | String or list. `AGENTMESH_NATS_URL` overrides at runtime. |
 
 ## `hub`
