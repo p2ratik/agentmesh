@@ -1,6 +1,6 @@
 import { HOUR_MS } from '@agentmesh/common';
 import { describe, expect, it } from 'vitest';
-import { createTestHarness } from '../../testing/harness';
+import { createTestHarness, leaveTeam } from '../../testing/harness';
 import { LeaseServiceImpl } from './leases.service';
 import { literalPrefix, pathsOverlap, reposOverlap } from './overlap';
 
@@ -61,5 +61,13 @@ describe('LeaseServiceImpl', () => {
     expect(leases.list({})).toEqual([]);
     expect(leases.acquire(request('bob-agent', ['c/**'])).granted).toHaveLength(1);
     expect(leases.releaseAll('bob-agent')).toBe(1);
+  });
+
+  it('ignores leases held by someone who has left the team', () => {
+    const { ctx } = createTestHarness();
+    const leases = new LeaseServiceImpl(ctx);
+    leases.acquire(request('carol-agent', ['api/**']));
+    leaveTeam(ctx, 'carol');
+    expect(leases.acquire(request('alice-agent', ['api/x.ts'])).granted).toHaveLength(1);
   });
 });

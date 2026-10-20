@@ -3,6 +3,7 @@ import type { LoadedConfig } from '@agentmesh/config';
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '../../contracts';
 import { testTeamConfig } from '../../testing/fixtures';
+import { leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { TaskServiceImpl } from '../tasks/tasks.service';
 import { PlanningServiceImpl } from './planning.service';
@@ -122,6 +123,17 @@ describe('planning sessions', () => {
       'awaiting_approval',
     );
     expect(s.planning.approve(1).state).toBe('materialized');
+  });
+
+  it('approves a plan whose facilitator and a draft assignee have left the team', () => {
+    const s = setup(testTeamConfig({ planning: { requireApproval: true } }));
+    s.planning.start({ topic: 'Render status', facilitator: 'carol-agent' }, alice);
+    runRounds(s);
+    const assigned = drafts.map((d) => (d.key === 'api' ? { ...d, assignee: 'carol-agent' } : d));
+    s.planning.submit(1, 'ok', assigned, agent('carol-agent'));
+    leaveTeam(s.ctx, 'carol');
+    expect(s.planning.approve(1).state).toBe('materialized');
+    expect(s.tasks.get(1, alice).assignee).not.toBe('carol-agent');
   });
 
   it('hands off a late synthesis once, then stalls and escalates', async () => {

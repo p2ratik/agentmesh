@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Actor, TaskCreateInput } from '../../contracts';
+import { leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { TaskServiceImpl } from './tasks.service';
 
@@ -153,6 +154,25 @@ describe('review loop', () => {
     tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner);
     expect(() => tasks.submitReview(1, 'approve', 'self', owner)).toThrow(/not a reviewer/);
     expect(tasks.submitReview(1, 'approve', 'ok', human('alice')).state).toBe('approved');
+  });
+
+  it('keeps going when a reviewer leaves the team mid-review', async () => {
+    const { tasks, drain, ctx } = setup();
+    const reviewers = ['bob-agent', 'carol-agent'];
+    tasks.create({ ...base, area: 'api', assignee: 'alice-agent', reviewers }, human('bob'));
+    const owner = agent('alice-agent');
+    tasks.act(1, 'accept', {}, owner);
+    expect(tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner).reviewers).toEqual(reviewers);
+    await drain();
+
+    leaveTeam(ctx, 'carol');
+    const reviewer = agent('bob-agent');
+    expect(tasks.submitReview(1, 'request_changes', 'Missing tests', reviewer).state).toBe(
+      'changes_requested',
+    );
+    expect(tasks.act(1, 'submit', {}, owner).reviewers).toEqual(['bob-agent']);
+    expect(tasks.submitReview(1, 'approve', 'Good now', reviewer).state).toBe('approved');
+    expect((await drain()).has('carol-agent')).toBe(false);
   });
 });
 

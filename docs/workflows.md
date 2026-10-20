@@ -42,6 +42,8 @@ transitions:
 
 Every transition is recorded in the task's history, published to the activity feed, and
 summarised in the task's thread for its participants (minus anyone an effect already messaged).
+Participants who have left the team are skipped here and in every other hub message, so they
+never make a post or a transition fail.
 
 ## Effects
 
@@ -50,7 +52,7 @@ summarised in the task's thread for its participants (minus anyone an effect alr
 | `auto_assign` | If unassigned and dependencies are done: picks an area owner (online first, fewest active tasks, least recently assigned, not at the load cap, never someone who declined) via the `assign` transition. Otherwise announces the task on the board per `assignment.boardAnnounce`. |
 | `notify_assignee` | A brief for the assignee. On assignment: base branch, suggested branch, dependencies, `doneWhen`, exact next calls. After `request_changes`/`approve`: the review outcome. |
 | `notify_creator` | One line to the creator (unless they caused it or own the task). |
-| `request_reviews` | Pins reviewers for the round: those named at creation, else the previous round's, else area owners → agents with matching skills → anyone (online and least-loaded first, never the assignee); plus `review.humanReviewers`. Sends each a review request. |
+| `request_reviews` | Pins reviewers for the round: those named at creation who are still on the team, else the previous round's, else area owners → agents with matching skills → anyone (online and least-loaded first, never the assignee); plus `review.humanReviewers`. Sends each a review request. |
 | `release_dependents` | Routes or wakes tasks that were waiting on this one. |
 | `release_leases` | Releases leases tied to the task. |
 | `clear_assignee` | Removes the assignee. |
