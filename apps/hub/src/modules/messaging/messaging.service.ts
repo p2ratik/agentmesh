@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@agentmesh/common';
 import type { MeshMessage, ParticipantRef, ThreadSummary } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type {
@@ -56,7 +56,10 @@ export class MessagingServiceImpl implements MessagingService {
     };
   }
 
-  /** Depth is the parent's + 1; past `limits.maxThreadDepth` it is a loop. The hub never joins. */
+  /**
+   * Depth is the parent's + 1; past `limits.maxThreadDepth` it is a loop. The hub never joins.
+   * The subject is redacted like a message body, before it is cut (a cut token no longer matches).
+   */
   createThread(input: CreateThreadInput): ThreadRecord {
     const { db, clock, outbox, loaded } = this.ctx;
     const parent = input.parentThreadId ? this.thread(input.parentThreadId) : null;
@@ -73,7 +76,7 @@ export class MessagingServiceImpl implements MessagingService {
     const id = db.transaction(() => {
       const threadId = this.threads.insert({
         kind: input.kind,
-        subject: input.subject.trim().slice(0, MAX_SUBJECT) || input.kind,
+        subject: redactSecrets(input.subject.trim()).slice(0, MAX_SUBJECT) || input.kind,
         createdBy: input.createdBy,
         depth,
         parentId: parent?.id ?? null,

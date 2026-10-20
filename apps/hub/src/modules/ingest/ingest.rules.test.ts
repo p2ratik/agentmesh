@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { conditionHolds, lookup, type RuleContext, ruleMatches, typeMatches } from './rules/match';
 import { renderTemplate } from './rules/template';
 
+/** Assembled at runtime so repository secret scanners never flag this file. */
+const TOKEN = ['ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB'].join('');
+
 const ctx: RuleContext = {
   id: 'github:1',
   source: 'github',
@@ -52,5 +55,28 @@ describe('templates', () => {
     expect(renderTemplate('{{ payload.nope }}|{{constructor}}', ctx)).toBe('|');
     expect(renderTemplate('{{payload.labels}}', ctx)).toBe('["flaky","ci"]');
     expect(renderTemplate('{{ process.exit }}', ctx)).toBe('');
+  });
+
+  it('redacts each value before it is filled in and cut, never the finished text', () => {
+    const alarm = {
+      ...ctx,
+      summary: 'High error rate on api',
+      payload: { alarm: 'SecretsManagerRotationFailed' },
+    };
+    // Masking the finished text matched across template and value ("…Failed: [REDACTED] error").
+    expect(renderTemplate('🚨 AWS alarm {{payload.alarm}}: {{summary}}', alarm)).toBe(
+      '🚨 AWS alarm SecretsManagerRotationFailed: High error rate on api',
+    );
+    const leaked = {
+      ...ctx,
+      summary: `deploy with ${TOKEN}`,
+      payload: { log: `${'a'.repeat(479)} ${TOKEN}` },
+    };
+    const summary = renderTemplate('CI: {{summary}}', leaked);
+    expect(summary).toBe('CI: deploy with [REDACTED]');
+    // An object renders as JSON cut at 500 characters: 12 characters into the raw token.
+    const json = renderTemplate('{{payload}}', leaked);
+    expect(json).not.toContain('ghp_');
+    expect(json).toContain('[REDACTED]');
   });
 });

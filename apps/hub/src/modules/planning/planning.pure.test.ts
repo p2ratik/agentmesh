@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { checkDrafts, topologicalOrder } from './drafts';
 import { compileContributions, pickNewFacilitator, roundComplete } from './rounds';
 
+/** Assembled at runtime so repository secret scanners never flag this file. */
+const TOKEN = ['ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB'].join('');
+
 const draft = (key: string, dependsOn: string[] = [], extra: Partial<PlanTaskDraft> = {}) => ({
   key,
   title: `Task ${key}`,
@@ -92,5 +95,15 @@ describe('facilitation and compilation', () => {
     const long = compileContributions(rounds, [c('a', 'r1', 'x'.repeat(5000))], (id) => id, 1000);
     expect(long).toContain('truncated');
     expect(compileContributions(rounds, [], (id) => id)).toContain('No contributions');
+  });
+
+  it('redacts a contribution before clipping it', () => {
+    const rounds = [{ id: 'r1', title: 'Proposals', prompt: '', minutes: 1 }];
+    // The clip at 1000 characters lands 20 characters into the raw token, too short to match.
+    const body = `${'a'.repeat(979)} ${TOKEN} ${'b'.repeat(500)}`;
+    const text = compileContributions(rounds, [c('a', 'r1', body)], (id) => id, 1000);
+    expect(text).toContain('truncated');
+    expect(text).not.toContain('ghp_');
+    expect(text).toContain('[REDACTED]');
   });
 });

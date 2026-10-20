@@ -109,22 +109,37 @@ or forwarding a message. It is a safety net, not a licence: never send secrets o
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
 
+The hub redacts text before it cuts it. A cut token no longer matches its pattern, so nothing
+downstream (the bridge included) could catch it. This covers:
+- thread subjects: explicit ones, the first line of an ask or an escalation, and plan threads.
+  They are stored redacted, like message bodies;
+- the one-line note a `request_changes` review leaves on the task's transition;
+- each contribution in a planning round's digest;
+- each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. The template
+  text is trusted config and is not masked. Masking the finished text would match across the
+  template and a value: `{{alarm}}: {{summary}}` lost the summary's first word after an alarm
+  named `SecretsManager…`.
+
 The Discord bridge applies the same redaction (`redactSecrets` in `packages/common`) to
 everything it posts, because the mesh channels are readable by the whole server:
-- **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it.
-  That covers task titles, plan topics, summaries and draft titles, notices, external events, and
-  anything rendered later.
+- **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it
+  (`maskEvent`). That covers task titles, plan topics, summaries and draft titles, external
+  events, and anything rendered later.
   - It masks before rendering, never after. Renderers truncate, and a cut token is no longer
     recognised. They also compose text (`<url>`, `id: title`) that a second pass would mangle.
   - An external event's raw `payload` (the webhook body, up to 1 MB, written by outsiders) is
     dropped first. No renderer shows it, and scanning it would only cost time.
-- **Slash-command replies:** every RPC result is masked before the command renders its reply
-  (`maskResults`), and hub errors are masked too.
+  - Notices are posted as the hub composed them, from a trusted template and masked values
+    (above).
+- **Replies:** every RPC result is masked before a slash command renders its reply
+  (`maskResults`). Hub errors are masked in every reply, including the one to a Discord message
+  the hub refused to relay.
   - The exception is `enrollment.invite`, whose code goes untouched into the DM and never into a
     reply.
 
-- **Residual risk:** task titles, plan topics and summaries are still stored in the hub as
-  written; only messages are redacted at the hub. Anyone with the hub's database sees them.
+- **Residual risk:** task titles, plan topics and summaries, reviews and plan contributions are
+  still stored in the hub as written. Only messages and the texts listed above are redacted at
+  the hub, so anyone with the hub's database sees the rest.
 
 ## Secrets in RPC results
 

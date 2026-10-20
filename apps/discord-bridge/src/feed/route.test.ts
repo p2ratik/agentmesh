@@ -101,9 +101,7 @@ describe('routeEvent masks secrets in everything it posts', () => {
     expectRedacted(routeEvent(feed('plan.changed', changed), index));
   });
 
-  it('in rule notices and external events', () => {
-    const notice = { channel: 'alerts', text: `CI leaked ${TOKEN}`, severity: 'error' };
-    expectRedacted(routeEvent(feed('notice.posted', notice), index));
+  it('in external events', () => {
     const external = {
       event: {
         id: 'x:1',
@@ -155,11 +153,21 @@ describe('routeEvent masks without mangling the post', () => {
     expect(intent?.content).toContain('ci-token-bot: Fix flaky retries');
   });
 
+  it('posts a notice as the hub composed it: the hub masks each template value', () => {
+    // Masking the finished text matched across the alarm name and the summary.
+    const text = '🚨 AWS alarm SecretsManagerRotationFailed: High error rate on api';
+    const notice = { channel: 'alerts', text, severity: 'error' };
+    const [intent] = routeEvent(feed('notice.posted', notice), index);
+    expect(intent?.content).toContain(text);
+  });
+
   it('never scans the raw webhook payload, which nothing renders', () => {
-    // Outsiders write payloads (up to 1 MB); this one is slow for the assignment pattern.
-    const payload = { comment: { body: 'token'.repeat(1600) } };
-    const started = Date.now();
-    routeEvent(feed('external.received', external({ payload })), index);
-    expect(Date.now() - started).toBeLessThan(1000);
+    // Outsiders write payloads (up to 1 MB). Masking reads every property, so this throws if it runs.
+    const payload = {
+      get body(): string {
+        throw new Error('payload was scanned');
+      },
+    };
+    expect(() => routeEvent(feed('external.received', external({ payload })), index)).not.toThrow();
   });
 });

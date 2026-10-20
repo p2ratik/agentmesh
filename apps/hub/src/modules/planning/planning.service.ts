@@ -1,4 +1,4 @@
-import { addMs, MeshError, MINUTE_MS } from '@agentmesh/common';
+import { addMs, MeshError, MINUTE_MS, redactSecrets } from '@agentmesh/common';
 import type {
   Plan,
   PlanContribution,
@@ -71,7 +71,8 @@ export class PlanningServiceImpl implements PlanningService {
       const now = clock.now();
       const thread = messaging.createThread({
         kind: 'planning',
-        subject: `Plan: ${params.topic}`.slice(0, 80),
+        // Redacted before it is cut: a cut token no longer matches.
+        subject: `Plan: ${redactSecrets(params.topic)}`.slice(0, 80),
         createdBy: actor.id,
         participants: actor.kind === 'human' ? [...participants, actor.id] : participants,
       });

@@ -47,9 +47,10 @@ Reading is open, but acting is not:
 - slash commands, autocomplete and plan buttons work only for members;
 - `/mesh` admin commands work only for admins;
 - everything the bridge posts passes through secret redaction first: mesh messages, task titles,
-  plan topics and summaries, notices, external events and slash-command replies. It is a safety
-  net for recognisable credential formats ([security.md](security.md#secrets-in-messages)), so
-  still keep secrets out of the mesh.
+  plan topics and summaries, external events and every reply the bot sends. Notices arrive
+  already masked: the hub redacts each value it fills into their template. It is a safety net
+  for recognisable credential formats ([security.md](security.md#secrets-in-messages)), so still
+  keep secrets out of the mesh.
 
 If you need a private mesh inside a shared server, set `provision.enabled: false` and point
 `discord.channels` at channels you have locked down yourself. Give the bot the permissions from

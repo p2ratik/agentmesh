@@ -18,8 +18,12 @@ const index = new ConfigIndex(
   }).config,
 );
 
-/** `/task create title:<title>` from Alice; returns everything the bridge replied. */
-async function taskCreate(title: string, hub: MeshRpc['call']): Promise<string[]> {
+/** `/task <sub>` with these string options, from Alice; returns everything the bridge replied. */
+async function slashTask(
+  sub: string,
+  options: Record<string, string>,
+  hub: MeshRpc['call'],
+): Promise<string[]> {
   const replies: string[] = [];
   const interaction = {
     id: 'int-1',
@@ -29,8 +33,8 @@ async function taskCreate(title: string, hub: MeshRpc['call']): Promise<string[]
     isChatInputCommand: () => true,
     isButton: () => false,
     options: {
-      getSubcommand: () => 'create',
-      getString: (name: string) => (name === 'title' ? title : null),
+      getSubcommand: () => sub,
+      getString: (name: string) => options[name] ?? null,
       getInteger: () => null,
     },
     deferReply: async () => undefined,
@@ -50,7 +54,7 @@ async function taskCreate(title: string, hub: MeshRpc['call']): Promise<string[]
 
 describe('slash command replies', () => {
   it('mask secrets the reply echoes (a public /task create shows the title)', async () => {
-    const replies = await taskCreate(`Rotate ${TOKEN}`, (async (
+    const replies = await slashTask('create', { title: `Rotate ${TOKEN}` }, (async (
       _method: string,
       params: unknown,
     ) => ({
@@ -66,10 +70,33 @@ describe('slash command replies', () => {
   });
 
   it('mask secrets in an error the hub sends back', async () => {
-    const replies = await taskCreate('x', (async () => {
+    const replies = await slashTask('create', { title: 'x' }, (async () => {
       throw new MeshError('invalid_request', `title may not contain ${TOKEN}`);
     }) as MeshRpc['call']);
     expect(replies[0]).not.toContain(TOKEN);
+  });
+
+  it('keep the brackets of a link whose query string was masked (/task show)', async () => {
+    const detail = {
+      id: 'task-9',
+      title: 'Add retries',
+      state: 'in_review',
+      priority: 'normal',
+      workflow: 'feature',
+      assignee: 'alice-agent',
+      reviewers: [],
+      createdBy: 'alice',
+      prUrl: 'https://x/pr/1?token=abc123def456',
+      dependsOn: [],
+      description: '',
+    };
+    const replies = await slashTask(
+      'show',
+      { task: 'task-9' },
+      (async () => detail) as unknown as MeshRpc['call'],
+    );
+    // Masking the rendered reply instead would swallow the closing bracket.
+    expect(replies[0]).toContain('PR: <https://x/pr/1?token=[REDACTED]>');
   });
 });
 

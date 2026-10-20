@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@agentmesh/common';
 import type { WorkflowConfig } from '@agentmesh/config';
 import type { ReviewVerdict, Task, TaskDetail } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
@@ -187,7 +187,9 @@ export class TaskServiceImpl implements TaskService {
         refs: { verdict, action: 'review_submitted', ...(task.prUrl ? { prUrl: task.prUrl } : {}) },
       });
       if (verdict === 'request_changes') {
-        this.#runner.trySystem(op, task.id, 'request_changes', { note: firstLine(body) });
+        // Redacted before it is cut: a cut token no longer matches, and the note reaches Discord.
+        const note = firstLine(redactSecrets(body));
+        this.#runner.trySystem(op, task.id, 'request_changes', { note });
         return;
       }
       const required = this.#ctx.index.config.review.requiredApprovals;

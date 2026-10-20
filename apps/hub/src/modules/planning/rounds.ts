@@ -1,3 +1,4 @@
+import { redactSecrets } from '@agentmesh/common';
 import type { PlanContribution, PlanRound } from '@agentmesh/protocol';
 
 export interface QuorumInput {
@@ -42,7 +43,8 @@ export function pickNewFacilitator(
 /**
  * Every contribution so far, grouped by round and participant, as markdown.
  * Over `maxChars`, each contribution is cut proportionally and marked, so
- * agents know to call `plan_get` for the full text.
+ * agents know to call `plan_get` for the full text. Each contribution is
+ * redacted before it is cut: a cut token no longer matches.
  */
 export function compileContributions(
   rounds: readonly PlanRound[],
@@ -53,10 +55,12 @@ export function compileContributions(
   if (contributions.length === 0) return '_No contributions yet._';
   const total = contributions.reduce((n, c) => n + c.body.length, 0);
   const budget = Math.max(200, Math.floor(maxChars / contributions.length));
-  const clip = (body: string) =>
-    total <= maxChars || body.length <= budget
+  const clip = (raw: string) => {
+    const body = redactSecrets(raw);
+    return total <= maxChars || body.length <= budget
       ? body
       : `${body.slice(0, budget)}\n… _(truncated — call plan_get for the full text)_`;
+  };
   const sections: string[] = [];
   for (const round of rounds) {
     const items = contributions.filter((c) => c.round === round.id);

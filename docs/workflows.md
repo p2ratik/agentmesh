@@ -55,7 +55,7 @@ summarised in the task's thread for its participants (minus anyone an effect alr
 | `release_leases` | Releases leases tied to the task. |
 | `clear_assignee` | Removes the assignee. |
 | `close_thread` | Closes the task's thread after this operation's messages. |
-| `post_notice` | `{ post_notice: { channel, text } }` — posts to a Discord purpose channel. Text placeholders: `{{task.id}}` `{{task.title}}` `{{task.state}}` `{{task.assignee}}` `{{actor}}`. |
+| `post_notice` | `{ post_notice: { channel, text } }` — posts to a Discord purpose channel. Text placeholders: `{{task.id}}` `{{task.title}}` `{{task.state}}` `{{task.assignee}}` `{{actor}}`; each value passes through secret redaction before it is filled in. |
 
 Effects are named built-ins; config validation rejects unknown names. Adding one means adding it
 to `packages/config/src/effects.ts` and implementing it in `apps/hub/src/modules/tasks/effects`.

@@ -1,4 +1,4 @@
-import type { Logger } from '@agentmesh/common';
+import { type Logger, redactSecrets } from '@agentmesh/common';
 import type { ConfigIndex } from '@agentmesh/config';
 import type { Message } from 'discord.js';
 import { authorize } from '../auth';
@@ -51,7 +51,7 @@ export function createReplyRelay(deps: ReplyRelayDeps) {
     } catch (err) {
       deps.logger.warn({ err, discordMessage: message.id }, 'could not relay a human reply');
       await message
-        .reply({ content: errorText(err), allowedMentions: { parse: [] } })
+        .reply({ content: redactSecrets(errorText(err)), allowedMentions: { parse: [] } })
         .catch(() => undefined);
     }
   };
