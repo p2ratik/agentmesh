@@ -182,6 +182,9 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
 
   // NATS and the hub restarting together (a deploy, a reboot): until the hub is back, the callout
   // refuses every reconnect. A long-lived agent connection must outlast that, not give up.
+  // This checks recovery. It cannot pin the old bug down: nats-server only sometimes delivers the
+  // refusal as `-ERR` before closing (with NATS up and the hub down, never), and nats.js gave up
+  // only after two such errors. connect.test.ts reproduces that deterministically.
   it('reconnects an agent once the callout is back after NATS and the hub restart', async () => {
     await stopHub();
     await startHub();

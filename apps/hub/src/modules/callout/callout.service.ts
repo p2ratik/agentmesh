@@ -6,6 +6,7 @@ import type { EnrollmentService } from '../../contracts';
 import { type AuthRequest, type Decision, decide, serverRequest } from './decide';
 import { signJwt, verifiedClaims } from './jwt';
 import { FailureLimiter } from './limiter';
+import { RefusalLog } from './refusals';
 
 /** The server's auth requests arrive here (docs/specs/auth-callout-spike.md). */
 export const AUTH_CALLOUT_SUBJECT = '$SYS.REQ.USER.AUTH';
@@ -14,6 +15,8 @@ const XKEY_HEADER = 'Nats-Server-Xkey';
 const REFUSAL = 'not authorized';
 /** Connections remembered per agent for kicks; a reconnect loop must not grow it forever. */
 const MAX_TRACKED = 16;
+/** Repeated refusals of one key within this window are logged at debug (see RefusalLog). */
+const REFUSAL_LOG_WINDOW_MS = 10 * MINUTE_MS;
 
 export interface CalloutKeys {
   /** Account key (A…) that signs responses and user JWTs; its public key is `issuer` in nats.conf. */
@@ -39,6 +42,7 @@ export class CalloutService {
   readonly #enrollment: EnrollmentService;
   readonly #sys: NatsConnection;
   readonly #limiter: FailureLimiter;
+  readonly #refusals: RefusalLog;
   // ponytail: in memory, so connections from before a hub restart cannot be kicked; the user
   // JWT's exp (enrollment.userJwtTtlMinutes) ends them. Query CONNZ if that is ever too slow.
   readonly #connections = new Map<string, Array<{ serverId: string; cid: number }>>();
@@ -55,6 +59,7 @@ export class CalloutService {
       ctx.loaded.config.enrollment.redeemAttemptsPerMinute,
       ctx.clock,
     );
+    this.#refusals = new RefusalLog(REFUSAL_LOG_WINDOW_MS, ctx.clock);
   }
 
   /** Answers auth requests on the hub's own (static, unrestricted) connection. */
@@ -97,8 +102,17 @@ export class CalloutService {
         'agent admitted',
       );
     } else {
-      this.#ctx.logger.warn(
-        { reason: decision.refused, host: request.client_info?.host, cid: request.client_info?.id },
+      // Keyed by the client's own nkey: plugins retry a refused connect every few seconds.
+      const key = `${request.connect_opts?.nkey ?? request.client_info?.host}|${decision.refused}`;
+      const { level, repeated } = this.#refusals.note(key);
+      this.#ctx.logger[level](
+        {
+          reason: decision.refused,
+          nkey: request.connect_opts?.nkey,
+          host: request.client_info?.host,
+          cid: request.client_info?.id,
+          ...(repeated ? { repeatedSinceLastWarning: repeated } : {}),
+        },
         'agent refused',
       );
     }
