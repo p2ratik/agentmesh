@@ -29,9 +29,16 @@ export class LeaseServiceImpl implements LeaseService {
     const paths = [...new Set(req.paths.map(normalizePath).filter(Boolean))];
     const ttl = req.ttlMinutes ?? this.#ctx.index.config.leases.defaultTtlMinutes;
     return this.#ctx.db.transaction(() => {
+      // Leases of someone who left the team block nobody; they lapse at their TTL.
+      const { index } = this.#ctx;
       const others = this.#repo
         .active(now.toISOString())
-        .filter((l) => l.holder !== req.holder && reposOverlap(l.repo, req.repo));
+        .filter(
+          (l) =>
+            l.holder !== req.holder &&
+            index.kindOf(l.holder) !== undefined &&
+            reposOverlap(l.repo, req.repo),
+        );
       const conflicts: LeaseConflict[] = [];
       for (const requested of paths) {
         for (const held of others) {

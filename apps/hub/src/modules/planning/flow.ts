@@ -4,6 +4,7 @@ import type { MessageKind, PlanState, ReplyStatus } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, MessagingService, PresenceService, TaskService } from '../../contracts';
 import { internalId, planKey } from '../../core/ids';
+import { systemActor } from '../../rpc/actor';
 import { toPlan } from './mappers';
 import type { PlanRecord, PlansRepo } from './plans.repo';
 import {
@@ -88,10 +89,17 @@ export class PlanFlow {
     else this.#stall(plan);
   }
 
-  /** Creates the drafted tasks in dependency order and closes the session. */
+  /**
+   * Creates the drafted tasks in dependency order and closes the session.
+   * Anyone who left the team since the synthesis is replaced: the hub creates
+   * the tasks, and their drafts are routed like unassigned ones.
+   */
   materialize(planId: number): void {
     const plan = this.#repo.require(planId);
-    const facilitator: Actor = { id: plan.facilitator, kind: 'agent', roles: [] };
+    const onTeam = (id: string | undefined) => !!id && this.#ctx.index.kindOf(id) === 'agent';
+    const facilitator: Actor = onTeam(plan.facilitator)
+      ? { id: plan.facilitator, kind: 'agent', roles: [] }
+      : systemActor(this.#deps.messaging.hubId);
     const keyToId = new Map<string, number>();
     const created: Array<{
       id: string;
@@ -106,7 +114,7 @@ export class PlanFlow {
           description: `${draft.description}\n\nPart of ${planKey(plan.id)}: ${plan.topic}`.trim(),
           area: draft.area,
           repo: draft.repo,
-          assignee: draft.assignee,
+          assignee: onTeam(draft.assignee) ? draft.assignee : undefined,
           priority: draft.priority ?? 'normal',
           labels: draft.labels ?? [],
           doneWhen: draft.doneWhen,

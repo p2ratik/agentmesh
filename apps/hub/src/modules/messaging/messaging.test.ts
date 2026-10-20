@@ -135,6 +135,7 @@ describe('MessagingService', () => {
     });
     expect(everyone.message.to).toEqual(['bob-agent']);
     expect([...(await h.drain()).keys()]).toEqual(['bob-agent']);
+    expect(h.messaging.participants(thread.id)).toContain('carol-agent');
   });
 
   it('closes threads to further participant posts', () => {

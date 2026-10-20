@@ -42,8 +42,8 @@ transitions:
 
 Every transition is recorded in the task's history, published to the activity feed, and
 summarised in the task's thread for its participants (minus anyone an effect already messaged).
-Participants who have left the team are skipped here and in every other hub message, so a
-departed member never blocks a task.
+Participants who have left the team are skipped here and in every other hub message, so they
+never make a post or a transition fail.
 
 ## Effects
 
