@@ -75,15 +75,19 @@ edit, no restart, and a key that never leaves the member's laptop.
 3. **Render the config:** `agentmesh nats-config --config config --tls --auth-callout`. Existing
    mesh.yaml agents keep their keys; the callout admits them.
 4. **Copy the files to the VM:** `config/`, `deploy/nats/nats.conf` and the three new seeds. Never
-   copy `deploy/.env`.
+   copy `deploy/.env`. Edit it on the VM for the public TLS endpoint instead (`NATS_BIND`,
+   `NATS_PUBLIC_HOST`, the certificate; see `docs/deploy.md`).
 5. **Pause and drain.**
    - Run `/mesh pause`. New deliveries are then held in the hub's database and released into the
      new account on resume.
    - Let online agents read their inboxes, and let the bridge catch up with the feed.
    - Anything still queued in `$G` is stranded by the switch, but unread threads stay in SQLite,
      so members get them back by calling `inbox`.
-6. **Restart NATS, then the hub** (`docker compose restart nats hub`).
-   - The accounts change, so a reload is not enough.
+6. **Recreate NATS, then the hub** (`docker compose up -d --force-recreate nats hub`; add
+   `discord-bridge` if you run it).
+   - The accounts change, so a reload is not enough. `docker compose restart` is not enough
+     either: it keeps the old containers, so `.env` changes (the public bind, `NATS_PUBLIC_HOST`)
+     never take effect.
    - On start the hub provisions fresh streams in `APP`.
    - Check that the hub's log shows no seed errors and that an existing agent reconnects.
    - Then run `/mesh resume`.

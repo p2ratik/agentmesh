@@ -109,7 +109,7 @@ limits:
   perSenderPerDay: 500
 
 enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join on the laptop
-  # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls:// or wss://)
+  # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls://; the plugin cannot use wss:// yet)
   inviteTtlHours: 24 # an unused invite code expires after this
   userJwtTtlMinutes: 60 # NATS credentials the hub issues expire after this (backstop for removals)
   redeemAttemptsPerMinute: 5 # failed redemptions allowed per invite and per client IP
