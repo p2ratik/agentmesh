@@ -40,6 +40,15 @@ describe('redactSecrets', () => {
     const once = redactSecrets(`deploy with ${GITHUB} and api_key=abcdef123456`);
     expect(redactSecrets(once)).toBe(once);
   });
+
+  it('masks a whole quoted value, past escaped quotes inside it', () => {
+    // Stopping at JSON's `\"` left the rest of the password in clear after `[REDACTED]`.
+    expect(redactSecrets('{"DB_PASSWORD":"Xy7\\"kP9-qL2mZ8wR4tN6","b":1}')).toBe(
+      '{"DB_PASSWORD":"[REDACTED]","b":1}',
+    );
+    expect(redactSecrets("password='ab\\'cd-tail' next")).toBe("password='[REDACTED]' next");
+    expect(redactSecrets('token="a\\\\" rest')).toBe('token="[REDACTED]" rest');
+  });
 });
 
 /** Milliseconds one call takes. */
@@ -57,6 +66,9 @@ describe('redactSecrets on hostile input', () => {
     ['one long word', 'a'.repeat(32_000)],
     ['key characters without a value', 'db.password_'.repeat(2_600)],
     ['JWT-like runs', 'eyJ-'.repeat(8_000)],
+    ['an unclosed quoted value of escapes', `token="${'\\"'.repeat(16_000)}`],
+    ['keys inside an unclosed quoted value', `token="${'\\"token="'.repeat(3_500)}`],
+    ['both quotes, unclosed', `token='${`"token=\\'`.repeat(3_500)}`],
   ])('stays linear on %s', (_label, text) => {
     expect(timed(text)).toBeLessThan(250);
   });

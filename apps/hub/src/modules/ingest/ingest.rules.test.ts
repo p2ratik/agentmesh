@@ -80,18 +80,33 @@ describe('templates', () => {
     expect(json).toContain('[REDACTED]');
   });
 
-  it('redacts the strings inside an object, not only its JSON', () => {
-    // JSON writes the newline as `\n`, so in the JSON the token no longer starts a word.
+  // An object is masked before it becomes JSON: JSON writes a newline as `\n`, so in the JSON a
+  // token after one no longer starts a word, in a value or in a key.
+  it('redacts the strings and the keys inside an object', () => {
     const payload = { log: `step failed\n${TOKEN}`, steps: [{ out: `\t${TOKEN}` }] };
     const json = renderTemplate('{{payload}}', { ...ctx, payload });
     expect(json).toBe('{"log":"step failed\\n[REDACTED]","steps":[{"out":"\\t[REDACTED]"}]}');
+    const keyed = { [`note\n${TOKEN}`]: 1, [TOKEN]: 2 };
+    expect(renderTemplate('{{payload}}', { ...ctx, payload: keyed })).toBe(
+      '{"note\\n[REDACTED]":1,"[REDACTED]":2}',
+    );
   });
 
-  it('redacts the JSON of an object too: its keys and its key/value pairs', () => {
-    const env = { DB_PASSWORD: 'hunter2-prod-x9', [TOKEN]: 1 };
+  it('redacts the whole value under a secret-looking key, whatever its type', () => {
+    const env = { DB_PASSWORD: 'Xy7"kP9-qL2mZ8wR4tN6', auth_token: { id: 7 }, use_token: true };
     expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
-      '{"DB_PASSWORD":"[REDACTED]","[REDACTED]":1}',
+      '{"DB_PASSWORD":"[REDACTED]","auth_token":"[REDACTED]","use_token":true}',
     );
+  });
+
+  it('keeps the JSON well-formed', () => {
+    // Masking the finished JSON swallowed the `}` after a number: {"a":{"max_tokens":[REDACTED],"b":1}
+    const payload = { a: { max_tokens: 1024 }, b: 1 };
+    const json = renderTemplate('{{payload}}', { ...ctx, payload });
+    expect(JSON.parse(json)).toEqual({ a: { max_tokens: '[REDACTED]' }, b: 1 });
+  });
+
+  it('redacts an object before cutting it', () => {
     // The 500-character cut lands five characters into the value. Masking after the cut would
     // miss it: an unterminated quoted value does not match.
     const payload = { pad: 'a'.repeat(474), api_key: 'abc123def456ghi789' };

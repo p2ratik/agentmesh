@@ -27,12 +27,15 @@ const BEARER = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{16,}=*/g;
 /**
  * `password=…`, `api_key: "…"`, `DB_SECRET=…`, `"token": "…"`: keeps the key,
  * masks the value. Values stop at whitespace, separators and `&` (query strings).
+ * A quoted value runs to its closing quote, past backslash escapes: stopping at
+ * JSON's `\"` left the rest of a password with a `"` in it in clear. (The two
+ * alternatives inside the quotes never overlap, so it stays linear.)
  * The key starts where a run of key characters starts and is bounded on both
  * sides of the keyword; unanchored and unbounded, a long run of key characters
  * (`tokentoken…`) backtracked cubically and stalled the hub on one message.
  */
 const ASSIGNMENT =
-  /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}["']?\s*[=:]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;'"&]+)/gi;
+  /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}["']?\s*[=:]\s*)("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|[^\s,;'"&]+)/gi;
 
 const TYPE_WORDS = new Set([
   'string',

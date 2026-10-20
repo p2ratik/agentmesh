@@ -102,8 +102,12 @@ rules:
 Each value passes through secret redaction before it is filled in; the template text is yours and
 is kept as written ([security.md](security.md#secrets-in-messages)). Because each value is masked
 on its own, a keyword in the template does not mask the value after it. So don't template
-key/value pairs from payloads: `{{payload.name}}={{payload.value}}` posts `DB_PASSWORD=…` in full.
-Throttle keys are the exception: they render raw, because they are never posted.
+key/value pairs from payloads: `{{payload.name}}={{payload.value}}` shows `DB_PASSWORD=…` in full
+in notice text, and in the task titles and thread subjects agents receive. Notify bodies are masked
+again as a whole when they are posted, and so are titles and subjects where Discord shows them
+(see the per-value masking bullet in
+[security.md](security.md#secrets-in-messages)). Throttle keys are the exception: they render raw,
+because they are never posted.
 
 **Actions**:
 

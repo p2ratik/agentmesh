@@ -99,7 +99,9 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
 
 The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/OpenAI tokens, Discord
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
-or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
+or forwarding a message. A quoted assignment value is masked up to its closing quote, past
+backslash escapes, so a password containing `"` in JSON is masked whole. It is a safety net, not a
+licence: never send secrets over the mesh.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB) and on every value a rule template fills in, which can be as large as an ingest event
@@ -125,21 +127,24 @@ per-value masking (below). This covers:
 - each contribution in a planning round's digest;
 - the `[source] type` fallback subject and title of rule actions;
 - each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. An object is
-  masked twice, both times before its JSON is cut to 500 characters. First each string inside it
-  is masked: JSON writes a newline as `\n`, which hides a token after it from the patterns. Then
-  its JSON as a whole is masked, which catches keys and `"api_key":"…"` pairs. The template text
-  is trusted config and is not masked. Masking the finished text would match across the template
-  and a value: `{{alarm}}: {{summary}}` lost the summary's first word after an alarm named
-  `SecretsManager…`.
+  masked before it becomes JSON and is cut to 500 characters. Each string and each key is masked
+  on its own. The whole value under a key that reads as a secret (`password`, `api_key`,
+  `max_tokens`…) is replaced, whatever its type. The finished JSON is not masked, for two reasons:
+  JSON writes a newline as `\n`, which hides a token after it from the patterns, and the
+  unquoted-value pattern would swallow closing braces. The template text is trusted config and is
+  not masked. Masking the finished text would match across the template and a value:
+  `{{alarm}}: {{summary}}` lost the summary's first word after an alarm named `SecretsManager…`.
   - **Cost:** a keyword in the template, or in a neighbouring value, no longer masks what follows
-    it. `Config drift: {{payload.name}}={{payload.value}}` posts `DB_PASSWORD=hunter2…` as is.
-    Don't template key/value pairs from payloads.
-  - Per-value masking survives only in notice text. Rule-made task titles, thread subjects and
-    notify bodies are masked again as whole strings where they are posted: by the bridge's
-    `maskEvent`, and by `post()` for message bodies. There, a value with a keyword can still mask
-    the next word (`SecretsManagerRotationFailed: [REDACTED] failed…`). This is deliberate: masking
-    at the point of posting is the safer default, and older rows were never redacted on the way
-    in.
+    it. `Config drift: {{payload.name}}={{payload.value}}` shows `DB_PASSWORD=hunter2…` as is in
+    a notice. Agents see it the same way in a rule-made task title or thread subject. Don't
+    template key/value pairs from payloads.
+  - In Discord, per-value masking survives only in notice text. The bridge's `maskEvent` masks
+    rule-made task titles and thread subjects again as whole strings, and `post()` does the same
+    for notify bodies. There, a value with a keyword can still mask the next word
+    (`SecretsManagerRotationFailed: [REDACTED] failed…`). This is deliberate: masking at the point
+    of posting is the safer default, and older rows were never redacted on the way in. Agents get
+    rule-made titles and subjects with per-value masking intact (the inbox `subject`,
+    `task_get`); only bodies are masked again for them.
   - Throttle keys are rendered raw. They are never posted, and masking would merge keys: every
     Secrets Manager ARN would share one, so only one alert would fire per window. They are stored
     in `rule_throttles`, so never throttle on a secret.
