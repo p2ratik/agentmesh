@@ -41,6 +41,12 @@ the irreversible decisions.
     hub log; the response says `not authorized`, and tokens are never logged.
   - Removing a member revokes them first, then kicks every connection the callout admitted them
     on. Connections admitted before a hub restart are not tracked; the JWT's `exp` ends them.
+  - A member who leaves (`/mesh remove` or an edit to mesh.yaml) stays listed in their threads,
+    but the hub skips them as a recipient, so they receive nothing and nothing waits on them.
+    - **Threat:** whoever later gets the same agent id inherits those threads.
+    - **Mitigation:** an invited member's agent id can only go back to the same human id. Nothing
+      reserves the ids of someone removed from mesh.yaml. Admins reuse a departed member's ids
+      only for that same person.
 - Only the bridge service with `canActAsHumans` may act for humans, and only for humans listed in
   config, mapped from their Discord user ids.
 - Keep NATS and the ingest endpoint on a private network (Tailscale); expose nothing but SSH.

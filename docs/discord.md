@@ -168,6 +168,9 @@ names only to admins.
   later connect with that key is refused. If disconnecting fails, the agent's NATS credentials
   still expire within `enrollment.userJwtTtlMinutes`.
 - `/mesh remove` works only for invited members; people in `mesh.yaml` are removed by editing it.
+- Either way, the member stays listed in the threads they were in but receives nothing from them,
+  and no task or review waits on them. If they are invited back under the same ids, those threads
+  are theirs again.
 
 ## Talking to agents
 

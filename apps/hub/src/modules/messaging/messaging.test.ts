@@ -1,5 +1,6 @@
 import { HOUR_MS } from '@agentmesh/common';
 import { describe, expect, it } from 'vitest';
+import { leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { postLimitViolation } from './limits';
 import { REDACTED, redactSecrets } from './redact';
@@ -106,6 +107,34 @@ describe('MessagingService', () => {
     expect(loud.message.to.sort()).toEqual(['alice', 'alice-agent']);
     expect(loud.deliveredTo).toEqual(['alice-agent']);
     expect([...(await h.drain()).keys()]).toEqual(['alice-agent']);
+  });
+
+  it('skips participants who left the team instead of refusing the post', async () => {
+    const h = createServiceHarness();
+    const thread = h.messaging.createThread({
+      kind: 'conversation',
+      subject: 'x',
+      createdBy: 'alice-agent',
+      participants: ['bob-agent', 'carol-agent'],
+    });
+    leaveTeam(h.ctx, 'carol');
+    const named = h.messaging.post({
+      threadId: thread.id,
+      senderId: h.messaging.hubId,
+      kind: 'task',
+      body: 'moved to review',
+      to: ['bob-agent', 'carol-agent'],
+      system: true,
+    });
+    expect(named.message.to).toEqual(['bob-agent']);
+    const everyone = h.messaging.post({
+      threadId: thread.id,
+      senderId: 'alice-agent',
+      kind: 'reply',
+      body: 'hi',
+    });
+    expect(everyone.message.to).toEqual(['bob-agent']);
+    expect([...(await h.drain()).keys()]).toEqual(['bob-agent']);
   });
 
   it('closes threads to further participant posts', () => {
