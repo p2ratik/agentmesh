@@ -10,6 +10,7 @@ export type Subscription = ReturnType<NatsConnection['subscribe']>;
 const Heartbeat = z.object({
   repo: z.string().max(300).optional(),
   branch: z.string().max(300).optional(),
+  session: z.string().max(64).optional(),
 });
 export type Heartbeat = z.infer<typeof Heartbeat>;
 
@@ -42,6 +43,12 @@ export function startPresenceListener(
   prefix: string,
   presence: PresenceService,
   logger: Logger,
+  onSession?: (
+    agentId: string,
+    sessionId: string,
+    git: { repo?: string; branch?: string },
+  ) => 'ok' | 'unknown',
+  onUnknown?: (agentId: string, sessionId: string) => void,
 ): Subscription {
   const agents = new Set(presence.peers('agent').map((p) => p.id));
   return nc.subscribe(subjects(prefix).presenceAll, {
@@ -56,7 +63,11 @@ export function startPresenceListener(
         return;
       }
       try {
-        presence.touch(beat.participantId, beat.info);
+        const { session, ...git } = beat.info;
+        presence.touch(beat.participantId, git);
+        if (session && onSession?.(beat.participantId, session, git) === 'unknown') {
+          onUnknown?.(beat.participantId, session);
+        }
       } catch (error) {
         logger.error({ err: error, participant: beat.participantId }, 'presence update failed');
       }

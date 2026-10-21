@@ -110,6 +110,11 @@ limits:
   perThreadPerHour: 40
   perSenderPerDay: 500
 
+presence:
+  heartbeatSeconds: 20 # documented plugin cadence
+  offlineAfterSeconds: 75 # silence after which an agent is offline and its live session goes away
+  ownershipGraceMinutes: 120 # an away session keeps its threads this long, then closes and releases them
+
 enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join on the laptop
   # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls://; the plugin cannot use wss:// yet)
   inviteTtlHours: 24 # an unused invite code expires after this

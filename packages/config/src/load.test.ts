@@ -21,6 +21,10 @@ describe('configFromObject', () => {
     expect(config.discord.channels.planning?.type).toBe('forum');
   });
 
+  it('ownershipGraceMinutes defaults to 120', () => {
+    expect(configFromObject(minimal).config.presence.ownershipGraceMinutes).toBe(120);
+  });
+
   it('normalizes workflow effect references', () => {
     const { config } = configFromObject(minimal);
     const feature = config.workflows.find((w) => w.id === 'feature');

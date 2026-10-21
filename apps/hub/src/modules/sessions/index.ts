@@ -15,5 +15,9 @@ export function createSessionsModule(
   deps: SessionsModuleDeps,
 ): HubModule<SessionsService> {
   const service = new SessionsServiceImpl(ctx, deps);
-  return { service, handlers: sessionHandlers(ctx, service, deps) };
+  return {
+    service,
+    handlers: sessionHandlers(ctx, service, deps),
+    ticks: [{ name: 'sessions.expire', run: (now) => void service.expire(now) }],
+  };
 }

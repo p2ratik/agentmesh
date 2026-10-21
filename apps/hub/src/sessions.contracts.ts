@@ -29,6 +29,16 @@ export interface SessionsService {
   describe(agentId: string, sessionId: string, description: string): SessionRecord;
   /** session.bye: releases ownership and records it for a reconnect to reclaim. */
   close(agentId: string, sessionId: string): void;
+  /** Heartbeat: an away session comes back live, ownership intact; closed or foreign is unknown. */
+  touch(
+    agentId: string,
+    sessionId: string,
+    git?: { repo?: string; branch?: string },
+  ): 'ok' | 'unknown';
+  /** Marks the session away now (its delivery could not reach it). */
+  unreachable(sessionId: string): void;
+  /** Tick: silent live sessions go away; away ones past the grace period close and release. */
+  expire(now: Date): { away: number; closed: number };
   take(agentId: string, sessionId: string, threadId: number): { previous: string | null };
   /** After a successful RPC: the calling session owns what it acted on, unless another does. */
   recordClaims(call: CallContext, method: RpcMethodName, params: unknown, result: unknown): void;

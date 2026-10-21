@@ -140,7 +140,15 @@ export async function createHub(options: HubOptions): Promise<Hub> {
         if (callout) subscriptions.push(callout.start(nats.nc));
         subscriptions.push(serveRpc(nats.nc, dispatch, { prefix: config.mesh.prefix, logger }));
         subscriptions.push(
-          startPresenceListener(nats.nc, config.mesh.prefix, built.services.presence, logger),
+          startPresenceListener(
+            nats.nc,
+            config.mesh.prefix,
+            built.services.presence,
+            logger,
+            (agent, session, git) => built.services.sessions.touch(agent, session, git),
+            // Task 8 publishes { type: 'expired' } to the session here.
+            (agent, session) => logger.debug({ agent, session }, 'heartbeat from unknown session'),
+          ),
         );
       }
       for (const module of built.modules) await module.start?.();

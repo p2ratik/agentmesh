@@ -10,6 +10,7 @@ import type {
 import { taskKey, threadKey } from '../../core/ids';
 import { redactSecrets } from '../messaging/redact';
 import { claimTargets } from './claims';
+import { expireSessions, releaseAndClose } from './liveness';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
 
@@ -104,14 +105,28 @@ export class SessionsServiceImpl implements SessionsService {
   close(agentId: string, sessionId: string): void {
     const released = this.#ctx.db.transaction(() => {
       this.#row(agentId, sessionId);
-      const ids = this.repo.releaseOwned(sessionId);
-      this.repo.close(sessionId, this.#now(), ids);
-      return ids;
+      return releaseAndClose(this.repo, sessionId, this.#now());
     });
     this.#ctx.logger.info(
       { agent: agentId, session: sessionId, released: released.length },
       'session closed',
     );
+  }
+
+  touch(agentId: string, sessionId: string, git: { repo?: string; branch?: string } = {}) {
+    const row = this.repo.get(sessionId);
+    if (!row || row.agent_id !== agentId || row.liveness === 'closed') return 'unknown';
+    this.repo.touch(sessionId, this.#now(), git);
+    this.repo.markLive(sessionId);
+    return 'ok';
+  }
+
+  unreachable(sessionId: string): void {
+    this.repo.markAway(sessionId, this.#now());
+  }
+
+  expire(now: Date) {
+    return expireSessions(this.#ctx, this.repo, now);
   }
 
   /** Moves a thread the agent takes part in to this session. */

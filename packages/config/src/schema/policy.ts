@@ -70,4 +70,6 @@ export const EnrollmentConfig = z.object({
 export const PresenceConfig = z.object({
   heartbeatSeconds: z.number().int().min(5).default(20),
   offlineAfterSeconds: z.number().int().min(10).default(75),
+  /** How long a silent (away) session keeps its threads before they are released. */
+  ownershipGraceMinutes: z.number().int().min(1).default(120),
 });

@@ -88,6 +88,7 @@ For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent
 | `leases.defaultTtlMinutes` | `120` | Lease lifetime when none is given. |
 | `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
+| `presence.ownershipGraceMinutes` | `120` | A session silent past `offlineAfterSeconds` goes away but keeps its threads; after this many minutes it closes and releases them (a reconnect with its previous session id reclaims what nobody took). |
 | `limits.maxThreadDepth` | `3` | How deep chains of agent-created threads may go (loop guard). |
 | `limits.perThreadPerHour` | `40` | Messages per thread per hour. |
 | `limits.perSenderPerDay` | `500` | Messages per participant per day. |
