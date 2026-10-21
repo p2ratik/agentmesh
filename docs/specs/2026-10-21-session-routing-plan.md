@@ -83,6 +83,9 @@ interfaces created here:
    pushed twice. Tasks 6 and 9 pin this.
 5. **A pre-0.2.0 plugin connecting after the upgrade** gets a clear "update the plugin" error, not
    silence. Task 4 pins this.
+6. **A session that died without saying bye** (killed terminal, crash) makes the hub wait out the
+   5 s request timeout. That wait must never delay other agents or sessions; Task 6 pins it with
+   concurrent sends. The session also goes away on the first timeout, so later flushes skip it.
 
 ---
 
@@ -521,7 +524,8 @@ export interface SessionsService {
     Promise<string[]>` returns the delivered ids. `MemoryPorts` records each message and returns
     every id.
   - `apps/hub/src/core/outbox.ts`: group pending rows by recipient, oldest first, and call
-    `deliver` once per recipient.
+    `deliver` once per recipient. Run the recipients concurrently with `Promise.allSettled`, so one
+    slow or dead session never delays another agent's messages.
     - Mark returned ids published.
     - Leave the rest pending, without incrementing `attempts`.
     - On a throw, increment `attempts` and record `last_error`.
@@ -559,7 +563,8 @@ export class SessionDispatcher implements DeliveryPort {
 1. Route the messages in order.
 2. Once a thread's message waits, every later message of that thread waits too.
 3. Group the `deliver` routes by session, keeping the order.
-4. For each session, run `transport.send` in a try block:
+4. Start every session's `transport.send` before awaiting any, then await them with
+   `Promise.allSettled`. For each session:
    - On a throw: `sessions.unreachable(sessionId)`, log `warn` with the session id and reason
      (never message bodies), and skip.
    - On success: `delivered(...)` for each acked message, then
@@ -580,6 +585,13 @@ export class SessionDispatcher implements DeliveryPort {
   - `a partly acked batch publishes the acked ids and keeps the rest`: the transport acks 2 of 3,
     then a second flush sends only the third.
   - `an unreachable session goes away and its work waits`.
+  - `a dead session does not hold up other sessions`:
+    - s1's send returns a promise the test controls and leaves pending;
+    - s2's send is recorded before s1's promise settles;
+    - after rejecting s1, s2's ids are returned and s1 is away.
+  - `outbox.test.ts`: `a failing recipient does not delay another recipient`. MemoryPorts
+    `failNext` is scoped to one recipient; the other recipient's rows are published in the same
+    flush.
   - `routing survives a hub restart`: build a second `SessionsServiceImpl` over the same `ctx.db`,
     and `route` for the next message in thr-1 still returns s1.
   - `outbox.test.ts`: `returned ids are published and the rest stay pending`.
