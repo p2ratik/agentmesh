@@ -15,7 +15,7 @@ describe('migrations', () => {
        INSERT INTO rpc_idempotency (caller, key, method, response, withheld, created_at)
          VALUES ('alice-agent', 'k1', 'task.get', '{"ok":1}', 0, '2026-10-16T09:00:00.000Z');`,
     );
-    expect(migrate(db)).toBe(1);
+    expect(migrate(db)).toBe(2);
     expect(db.all('SELECT caller, key, method, response, pending FROM rpc_idempotency')).toEqual([
       { caller: 'alice-agent', key: 'k1', method: 'task.get', response: '{"ok":1}', pending: 0 },
     ]);
