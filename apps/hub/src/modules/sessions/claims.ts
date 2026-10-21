@@ -16,6 +16,11 @@ const CLAIMS_RESULT_THREAD: ReadonlySet<string> = new Set([
   'plan.cancel',
 ]);
 
+/** Whether `claimTargets` can return anything for this method (the router runs these atomically). */
+export function isClaiming(method: RpcMethodName): boolean {
+  return CLAIMS_RESULT_THREAD.has(method) || method === 'plan.contribute';
+}
+
 function str(value: unknown, field: string): string | null {
   if (typeof value !== 'object' || value === null) return null;
   const v = (value as Record<string, unknown>)[field];

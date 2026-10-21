@@ -9,6 +9,7 @@ import type {
   PlanningService,
   PresenceService,
   RpcHandlerMap,
+  SessionsService,
   TaskService,
   TickJob,
 } from '../contracts';
@@ -19,6 +20,7 @@ import { createLeaseModule } from '../modules/leases';
 import { createMessagingModule, type MessagingModule } from '../modules/messaging';
 import { createPlanningModule } from '../modules/planning';
 import { createPresenceModule } from '../modules/presence';
+import { createSessionsModule } from '../modules/sessions';
 import { createTaskModule } from '../modules/tasks';
 
 export interface HubServices {
@@ -26,6 +28,7 @@ export interface HubServices {
   control: ControlService;
   presence: PresenceService;
   messaging: MessagingService;
+  sessions: SessionsService;
   leases: LeaseService;
   tasks: TaskService;
   planning: PlanningService;
@@ -43,8 +46,8 @@ export interface BuiltModules {
 /**
  * Builds every module in dependency order. Enrollment comes first because it
  * sets `ctx.index`. Cycles (control needs counts from later modules; presence
- * needs unread counts and task load) are closed with callbacks that only run
- * after construction.
+ * needs task load and sessions; messaging checks session picks; sessions locate
+ * tasks and plans) are closed with callbacks that only run after construction.
  */
 export function buildModules(
   ctx: HubContext,
@@ -52,6 +55,7 @@ export function buildModules(
   nats: { inboxes: InboxPort | null; kick: ((agentId: string) => Promise<void>) | null },
 ): BuiltModules {
   let messaging: MessagingModule | null = null;
+  let sessions: SessionsService | null = null;
   let tasks: TaskService | null = null;
   let planning: PlanningService | null = null;
   let presenceService: PresenceService | null = null;
@@ -60,9 +64,7 @@ export function buildModules(
     ...nats,
     onMembersChanged: () => presenceService?.syncFromConfig(),
   });
-  const presence = createPresenceModule(ctx, {
-    unreadThreadCount: (id) => messaging?.service.unreadThreadCount(id) ?? 0,
-  });
+  const presence = createPresenceModule(ctx);
   presenceService = presence.service;
   const control = createControlModule(ctx, {
     peers: () => presence.service.peers('all'),
@@ -72,7 +74,20 @@ export function buildModules(
       activePlans: planning?.activeCount() ?? 0,
     }),
   });
-  messaging = createMessagingModule(ctx, { control: control.service, presence: presence.service });
+  messaging = createMessagingModule(ctx, {
+    control: control.service,
+    presence: presence.service,
+    isActiveSessionOf: (agentId, sessionId) =>
+      sessions?.activeSessions(agentId).some((s) => s.id === sessionId) ?? false,
+  });
+  const sessionsModule = createSessionsModule(ctx, {
+    messaging: messaging.service,
+    presence: presence.service,
+    locate: (taskId) => tasks?.locate(taskId) ?? null,
+    threadOf: (planId) => planning?.threadOf(planId) ?? null,
+  });
+  sessions = sessionsModule.service;
+  presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
   const leases = createLeaseModule(ctx);
   const taskModule = createTaskModule(ctx, {
     messaging: messaging.service,
@@ -99,6 +114,7 @@ export function buildModules(
     control,
     presence,
     messaging,
+    sessionsModule,
     leases,
     taskModule,
     planningModule,
@@ -110,6 +126,7 @@ export function buildModules(
       control: control.service,
       presence: presence.service,
       messaging: messaging.service,
+      sessions,
       leases: leases.service,
       tasks,
       planning,

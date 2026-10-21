@@ -53,7 +53,7 @@ describe('enrollment through the hub (no NATS)', () => {
     await hub.services.enrollment.redeem({ inviteId, secret, nkey: DANA_KEY });
 
     const hello = await call<{ self: { id: string } }>('dana-agent', 'session.hello', {
-      clientVersion: 'test',
+      clientVersion: '0.2.0',
     });
     expect(hello.self.id).toBe('dana-agent');
     const peers = await call<{ peers: Array<{ id: string }> }>('alice-agent', 'peers.list', {});
@@ -71,7 +71,7 @@ describe('enrollment through the hub (no NATS)', () => {
 
     await call('discord-bridge', 'enrollment.remove', { humanId: 'dana' }, { actAs: 'alice' });
     await expect(
-      call('dana-agent', 'session.hello', { clientVersion: 'test' }),
+      call('dana-agent', 'session.hello', { clientVersion: '0.2.0' }),
     ).rejects.toMatchObject({ code: 'unauthenticated' });
     await hub.tick();
     expect(ports.events.map((e) => e.type)).toEqual(

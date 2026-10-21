@@ -29,11 +29,13 @@ export function createServiceHarness(
     peers: () => [],
     counts: () => ({ openThreads: 0, openTasks: 0, activePlans: 0 }),
   }).service;
-  let messaging: MessagingService | null = null;
-  const presence = createPresenceModule(base.ctx, {
-    unreadThreadCount: (id) => messaging?.unreadThreadCount(id) ?? 0,
+  const presence = createPresenceModule(base.ctx).service;
+  // No sessions module here: every `toSession` pick is refused.
+  const messaging = createMessagingModule(base.ctx, {
+    control,
+    presence,
+    isActiveSessionOf: () => false,
   }).service;
-  messaging = createMessagingModule(base.ctx, { control, presence }).service;
   for (const id of options.online ?? []) presence.touch(id);
   let seen = 0;
   return {

@@ -109,6 +109,8 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     handlers: built.handlers,
     idempotency,
     logger,
+    sessions: built.services.sessions,
+    transaction: (fn) => db.transaction(fn),
     onCall: (caller) => {
       if (caller.kind === 'agent') built.services.presence.touch(caller.id);
     },

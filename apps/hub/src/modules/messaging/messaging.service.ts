@@ -21,6 +21,8 @@ import { ThreadsRepo } from './threads.repo';
 export interface MessagingDeps {
   control: ControlService;
   presence: PresenceService;
+  /** Late-bound to the sessions module (built after messaging): may a sender pick this session? */
+  isActiveSessionOf(agentId: string, sessionId: string): boolean;
 }
 
 const MAX_SUBJECT = 120;
@@ -144,6 +146,13 @@ export class MessagingServiceImpl implements MessagingService {
 
   unreadThreadCount(participantId: string): number {
     return this.reads.unreadThreadCount(participantId);
+  }
+
+  markRead(participantId: string, messageIds: string[]): void {
+    for (const id of messageIds) {
+      const at = this.messages.position(id);
+      if (at) this.reads.advance(at.threadId, participantId, at.seq);
+    }
   }
 
   openThreadCount(): number {

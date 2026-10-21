@@ -30,6 +30,8 @@ function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'
       },
     },
     unreadThreads,
+    sessionId: 's-000000000001',
+    reclaimed: [],
   } as RpcResult<'session.hello'>;
 }
 

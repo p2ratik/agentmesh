@@ -41,6 +41,10 @@ export class PlanningServiceImpl implements PlanningService {
     return this.repo.countIn(ACTIVE);
   }
 
+  threadOf(planId: number): number | null {
+    return this.repo.threadOf(planId);
+  }
+
   contributions(planId: number): PlanContribution[] {
     this.repo.require(planId);
     return this.repo.contributions(planId);

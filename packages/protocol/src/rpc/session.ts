@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DeclaredStatus, GitPolicy, PeerInfo } from '../primitives';
+import { DeclaredStatus, GitPolicy, PeerInfo, SessionId } from '../primitives';
 import { SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
@@ -11,6 +11,8 @@ export const sessionMethods = {
       clientVersion: z.string(),
       repo: z.string().optional(),
       branch: z.string().optional(),
+      /** This process's session before a reconnect: reused if still open, else reclaimed from. */
+      previousSessionId: z.string().optional(),
     }),
     result: z.object({
       self: PeerInfo,
@@ -18,6 +20,10 @@ export const sessionMethods = {
       policy: z.object({ instructions: z.string(), git: GitPolicy }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
       unreadThreads: z.number().int().nonnegative(),
+      /** The hub-issued id this session sends on every call. */
+      sessionId: SessionId,
+      /** Thread keys taken back from the previous session because nobody else took them. */
+      reclaimed: z.array(z.string()),
     }),
   }),
   'session.bye': defineMethod({

@@ -43,7 +43,11 @@ describe('hub end to end (no NATS)', () => {
     const hello = await call<{
       self: { status: string };
       policy: { git: { integrationBranch: string } };
-    }>('alice-agent', 'session.hello', { clientVersion: 'test', repo: 'acme/api', branch: 'main' });
+    }>('alice-agent', 'session.hello', {
+      clientVersion: '0.2.0',
+      repo: 'acme/api',
+      branch: 'main',
+    });
     expect(hello.self.status).toBe('online');
     expect(hello.policy.git.integrationBranch).toBe('agents');
 
@@ -139,7 +143,7 @@ describe('hub end to end (no NATS)', () => {
   it('runs a /plan session into routed tasks', async () => {
     const { call, clock, hub: h } = await start();
     for (const id of ['alice-agent', 'bob-agent', 'carol-agent'])
-      await call(id, 'session.hello', { clientVersion: 't' });
+      await call(id, 'session.hello', { clientVersion: '0.2.0' });
     const plan = await call<{ id: string; facilitator: string }>(
       'discord-bridge',
       'plan.start',

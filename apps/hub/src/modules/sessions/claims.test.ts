@@ -1,5 +1,6 @@
+import { RPC_METHODS, type RpcMethodName } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
-import { claimTargets } from './claims';
+import { claimTargets, isClaiming } from './claims';
 
 describe('claimTargets', () => {
   it('claims the thread of a sent message', () => {
@@ -31,5 +32,12 @@ describe('claimTargets', () => {
     expect(claimTargets('message.send', undefined, 'x')).toEqual([]);
     expect(claimTargets('plan.contribute', null, null)).toEqual([]);
     expect(claimTargets('plan.contribute', { planId: 7 }, {})).toEqual([]);
+  });
+
+  it('isClaiming covers exactly the methods that can claim', () => {
+    for (const method of Object.keys(RPC_METHODS) as RpcMethodName[]) {
+      const claims = claimTargets(method, { planId: 'plan-1' }, { threadId: 'thr-1' });
+      expect(isClaiming(method), method).toBe(claims.length > 0);
+    }
   });
 });
