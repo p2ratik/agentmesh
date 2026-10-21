@@ -129,6 +129,10 @@ export class FakeMessaging implements MessagingService {
 
   markSeen(): void {}
 
+  unreadStatusIn(): SessionDelivery[] {
+    return [];
+  }
+
   isRead(): boolean {
     return false;
   }
@@ -214,6 +218,8 @@ export class FakePresence implements PresenceService {
 /** Records every send and check. A session acks all it gets unless `respond` says otherwise. */
 export class FakeTransport implements SessionTransport {
   readonly sends: Array<{ agentId: string; sessionId: string; ids: string[] }> = [];
+  /** The messages of each send, in the same order as `sends`. */
+  readonly batches: SessionDelivery[][] = [];
   readonly checks: Array<{ agentId: string; sessionId: string; code: string }> = [];
   /** Per session: ack a subset, reject, or hand back a promise the test settles. */
   readonly respond = new Map<string, (messages: SessionDelivery[]) => Promise<string[]>>();
@@ -227,6 +233,7 @@ export class FakeTransport implements SessionTransport {
 
   send(agentId: string, sessionId: string, messages: SessionDelivery[]): Promise<string[]> {
     this.sends.push({ agentId, sessionId, ids: messages.map((m) => m.id) });
+    this.batches.push(messages);
     const respond = this.respond.get(sessionId);
     return respond ? respond(messages) : Promise.resolve(messages.map((m) => m.id));
   }

@@ -20,6 +20,7 @@ import type {
   RpcMethodName,
   RpcParams,
   RpcResult,
+  SessionDelivery,
   SessionSummary,
   TaskDetail,
   ThreadKind,
@@ -27,6 +28,9 @@ import type {
   Trust,
 } from '@agentmesh/protocol';
 import type { ThreadOwner } from './sessions.contracts';
+
+/** The sessions module's contract has its own file, to keep this one within the size limit. */
+export type { SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
 
 /** Who is acting. For bridge calls with `actAs`, this is the human, not the bridge. */
 export interface Actor {
@@ -205,6 +209,7 @@ export interface MessagingService {
   isRead(participantId: string, messageId: string): boolean;
   /** Client-driven: marks read only the messages addressed to the agent; other ids are ignored. */
   markSeen(agentId: string, messageIds: string[]): void;
+  unreadStatusIn(agentId: string, threadKey: string, limit: number): SessionDelivery[];
   /** The class the message was stored with for this participant (`action` unless status). */
   classFor(messageId: string, participantId: string): DeliveryClass;
   /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
@@ -265,11 +270,6 @@ export interface PlanningService {
   activeCount(): number;
   threadOf(planId: number): number | null;
 }
-
-// ---------------------------------------------------------------- sessions
-
-/** Kept in their own file so this one stays within the size limit. */
-export type { SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
 
 // ---------------------------------------------------------------- enrollment
 

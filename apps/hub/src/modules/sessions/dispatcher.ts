@@ -13,6 +13,9 @@ export interface SessionTransport {
   check(agentId: string, sessionId: string, code: string): Promise<void>;
 }
 
+/** The most unread status items of one thread that ride along with a delivery in it. */
+const CARRIED_PER_THREAD = 20;
+
 interface Routed {
   message: SessionDelivery;
   route: Extract<Route, { kind: 'deliver' }>;
@@ -23,10 +26,15 @@ interface Routed {
  * its agent, hands every session its batch at once, and returns the acked ids
  * with a `commit` that claims ownership and advances the read cursor. The
  * outbox runs that commit in the transaction that marks the rows published, so
- * "delivered", "read" and "owned" are one step. Status items (spec §4) route
- * like action ones but never claim and stay unread until `messages.seen`.
- * Messages the agent already read (through `inbox` or `thread`) count as
- * delivered without a push.
+ * "delivered", "read" and "owned" are one step. Messages the agent already read
+ * (through `inbox` or `thread`) count as delivered without a push.
+ *
+ * Status items (spec §4) route like action ones but never claim. They stay
+ * unread until shown and reported through `messages.seen`, until `inbox` or
+ * `thread` returns them, or until a later delivery in their thread that carried
+ * them along passes them. A status shown only to a session that died before
+ * reporting it seen may be shown twice: there, and again with the next delivery
+ * in its thread. That is acceptable for FYI.
  */
 export class SessionDispatcher implements DeliveryPort {
   readonly #sessions: SessionsService;
@@ -88,11 +96,27 @@ export class SessionDispatcher implements DeliveryPort {
     };
   }
 
-  /** The ids the session acked, among those it was sent. */
+  /** The ids the session acked, among those it was sent (carried status items aside). */
   async #send(agentId: string, sessionId: string, batch: Routed[]): Promise<string[]> {
     const messages = batch.map((r) => r.message);
-    const acked = new Set(await this.#transport.send(agentId, sessionId, messages));
+    const sent = [...this.#carried(agentId, messages), ...messages];
+    const acked = new Set(await this.#transport.send(agentId, sessionId, sent));
     return messages.filter((m) => acked.has(m.id)).map((m) => m.id);
+  }
+
+  /**
+   * Each thread's unread status items that are not in the batch, oldest first, to
+   * ride along with it. Their rows are already published, so they are never
+   * returned as delivered, claim nothing and are never marked read here; the
+   * plugin dedups any it already holds.
+   */
+  #carried(agentId: string, messages: SessionDelivery[]): SessionDelivery[] {
+    const inBatch = new Set(messages.map((m) => m.id));
+    return [...new Set(messages.map((m) => m.threadId))].flatMap((thread) =>
+      this.#messaging
+        .unreadStatusIn(agentId, thread, CARRIED_PER_THREAD)
+        .filter((m) => !inBatch.has(m.id)),
+    );
   }
 
   /**

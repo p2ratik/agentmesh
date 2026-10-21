@@ -3,6 +3,7 @@ import type {
   DeliveryClass,
   MeshMessage,
   ParticipantRef,
+  SessionDelivery,
   ThreadSummary,
 } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
@@ -16,7 +17,7 @@ import type {
   ThreadOwner,
   ThreadRecord,
 } from '../../contracts';
-import { threadKey } from '../../core/ids';
+import { internalId, threadKey } from '../../core/ids';
 import { hubDisplayName } from '../presence/peer';
 import { toMeshMessage, toThreadSummary } from './mappers';
 import { type MessageRow, MessagesRepo } from './messages.repo';
@@ -167,6 +168,17 @@ export class MessagingServiceImpl implements MessagingService {
     for (const { threadId, seq } of this.messages.latestAddressedTo(agentId, messageIds)) {
       this.reads.advance(threadId, agentId, seq);
     }
+  }
+
+  /**
+   * The agent's unread status items in a thread (`key` is its protocol id), newest
+   * `limit`, oldest first. The dispatcher carries them along with every delivery in
+   * that thread, so a cursor that passes them never hides one no session was shown.
+   */
+  unreadStatusIn(agentId: string, key: string, limit: number): SessionDelivery[] {
+    return this.reads
+      .unreadStatus(internalId('thread', key), agentId, limit)
+      .map((row) => ({ ...this.toMessage(row), class: 'status' }));
   }
 
   isRead(participantId: string, messageId: string): boolean {

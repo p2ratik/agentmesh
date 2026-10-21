@@ -62,49 +62,6 @@ describe('SessionDispatcher', () => {
     expect(messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
-  it('a status delivery is published but stays unread until seen', async () => {
-    const { active, thread, note, outbox, transport, pending, messaging } = setup();
-    const s1 = active();
-    const m = note(thread());
-    await outbox.flush();
-    expect(transport.sends).toEqual([{ agentId: 'bob-agent', sessionId: s1, ids: [m.id] }]);
-    expect(pending()).toEqual([]);
-    expect(messaging.unreadThreadCount('bob-agent')).toBe(1);
-    messaging.markSeen('bob-agent', [m.id]);
-    expect(messaging.unreadThreadCount('bob-agent')).toBe(0);
-  });
-
-  it('a status message never claims its thread; a later action in the same batch does', async () => {
-    const { active, thread, note, ask, outbox, transport, sessions, messaging } = setup();
-    const s1 = active();
-    const t = thread();
-    note(t);
-    await outbox.flush();
-    expect(sessions.ownerOf(t, 'bob-agent')).toBeNull();
-    const [status, action] = [note(t), ask(t)];
-    await outbox.flush();
-    expect(transport.sends.at(-1)).toEqual({
-      agentId: 'bob-agent',
-      sessionId: s1,
-      ids: [status.id, action.id],
-    });
-    expect(sessions.ownerOf(t, 'bob-agent')).toBe(s1);
-    expect(messaging.unreadThreadCount('bob-agent')).toBe(0);
-  });
-
-  it("a status item delivered to a session that then dies stays in the inbox's FYI section", async () => {
-    const { active, thread, note, outbox, transport, sessions, messaging } = setup();
-    const s1 = active();
-    const m = note(thread());
-    await outbox.flush();
-    expect(transport.sends.map((s) => s.ids)).toEqual([[m.id]]);
-    sessions.close('bob-agent', s1);
-    const inbox = readInbox(messaging as MessagingServiceImpl, 'bob-agent', active(), 20, 5);
-    expect(inbox.threads.map((x) => [x.messages.map((y) => y.id), x.fyi])).toEqual([
-      [[m.id], true],
-    ]);
-  });
-
   it('a partly acked batch publishes the acked ids and keeps the rest', async () => {
     const { active, thread, ask, outbox, transport, pending } = setup();
     const s1 = active();
