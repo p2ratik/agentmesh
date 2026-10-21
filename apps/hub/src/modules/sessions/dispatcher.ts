@@ -83,22 +83,38 @@ export class SessionDispatcher implements DeliveryPort {
     return messages.filter((m) => acked.has(m.id)).map((m) => m.id);
   }
 
-  /** In order; once a message of a thread waits, the later ones of that thread wait too. */
+  /**
+   * In order. A thread's later messages follow its first one in this call: they
+   * wait with it, or go to its session (claims commit only after the sends, so
+   * routing them afresh could split a new thread across sessions).
+   */
   #route(agentId: string, messages: MeshMessage[]): Routed[] {
-    const waiting = new Set<string>();
+    const firstOfThread = new Map<string, Route>();
     const routed: Routed[] = [];
     for (const message of messages) {
-      const route: Route = waiting.has(message.threadId)
-        ? { kind: 'wait', reason: 'an earlier message of its thread waits' }
-        : this.#sessions.route(agentId, message);
+      const first = firstOfThread.get(message.threadId);
+      const route = first ? follow(first) : this.#sessions.route(agentId, message);
+      if (!first) firstOfThread.set(message.threadId, route);
       const session = route.kind === 'deliver' ? route.sessionId : null;
       this.#logger.debug(
         { agent: agentId, message: message.id, session, reason: route.reason },
         'delivery routed',
       );
       if (route.kind === 'deliver') routed.push({ message, route });
-      else waiting.add(message.threadId);
     }
     return routed;
   }
+}
+
+/** A later message of a thread, in the same call, goes where the thread's first one went. */
+function follow(first: Route): Route {
+  if (first.kind === 'wait')
+    return { kind: 'wait', reason: 'an earlier message of its thread waits' };
+  const { sessionId } = first;
+  return {
+    kind: 'deliver',
+    sessionId,
+    claim: false,
+    reason: `its thread goes to ${sessionId} in this batch`,
+  };
 }

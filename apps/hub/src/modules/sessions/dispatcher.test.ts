@@ -135,6 +135,32 @@ describe('SessionDispatcher', () => {
     expect(transport.sends).toEqual([]);
   });
 
+  it('a new thread in one batch goes to one session', async () => {
+    const { active, thread, ask, clock, outbox, transport, sessions } = setup();
+    active();
+    clock.advance(60_000);
+    const s2 = active();
+    const t = thread();
+    const [m1, m2] = [ask(t, { session: s2 }), ask(t)];
+    await outbox.flush();
+    expect(transport.sends).toEqual([{ agentId: 'bob-agent', sessionId: s2, ids: [m1.id, m2.id] }]);
+    expect(sessions.ownerOf(t, 'bob-agent')).toBe(s2);
+  });
+
+  it('a failed send holds back its whole new thread', async () => {
+    const { active, thread, ask, clock, outbox, transport, messaging, pending } = setup();
+    active();
+    clock.advance(60_000);
+    const s2 = active();
+    const t = thread();
+    const [m1, m2] = [ask(t, { session: s2 }), ask(t)];
+    transport.respond.set(s2, () => Promise.reject(new Error('timeout')));
+    await outbox.flush();
+    expect(transport.sends.map((s) => s.sessionId)).toEqual([s2]);
+    expect(pending()).toEqual([m1.id, m2.id]);
+    expect(messaging.unreadThreadCount('bob-agent')).toBe(1);
+  });
+
   it('routing survives a hub restart', async () => {
     const { active, thread, ask, clock, outbox, sessions, ctx, messaging } = setup();
     const s1 = active();
