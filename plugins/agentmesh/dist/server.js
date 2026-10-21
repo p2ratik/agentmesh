@@ -1187,7 +1187,7 @@ var require_atomic_sleep = __commonJS({
   "../../node_modules/.pnpm/atomic-sleep@1.0.0/node_modules/atomic-sleep/index.js"(exports, module) {
     "use strict";
     if (typeof SharedArrayBuffer !== "undefined" && typeof Atomics !== "undefined") {
-      let sleep2 = function(ms) {
+      let sleep3 = function(ms) {
         const valid = ms > 0 && ms < Infinity;
         if (valid === false) {
           if (typeof ms !== "number" && typeof ms !== "bigint") {
@@ -1198,9 +1198,9 @@ var require_atomic_sleep = __commonJS({
         Atomics.wait(nil, 0, 0, Number(ms));
       };
       const nil = new Int32Array(new SharedArrayBuffer(4));
-      module.exports = sleep2;
+      module.exports = sleep3;
     } else {
-      let sleep2 = function(ms) {
+      let sleep3 = function(ms) {
         const valid = ms > 0 && ms < Infinity;
         if (valid === false) {
           if (typeof ms !== "number" && typeof ms !== "bigint") {
@@ -1212,7 +1212,7 @@ var require_atomic_sleep = __commonJS({
         while (target > Date.now()) {
         }
       };
-      module.exports = sleep2;
+      module.exports = sleep3;
     }
   }
 });
@@ -1225,7 +1225,7 @@ var require_sonic_boom = __commonJS({
     var EventEmitter = __require("events");
     var inherits = __require("util").inherits;
     var path = __require("path");
-    var sleep2 = require_atomic_sleep();
+    var sleep3 = require_atomic_sleep();
     var assert2 = __require("assert");
     var BUSY_WRITE_TIMEOUT = 100;
     var kEmptyBuffer = Buffer.allocUnsafe(0);
@@ -1371,7 +1371,7 @@ var require_sonic_boom = __commonJS({
           if ((err.code === "EAGAIN" || err.code === "EBUSY") && this.retryEAGAIN(err, this._writingBuf.length, this._len - this._writingBuf.length)) {
             if (this.sync) {
               try {
-                sleep2(BUSY_WRITE_TIMEOUT);
+                sleep3(BUSY_WRITE_TIMEOUT);
                 this.release(void 0, 0);
               } catch (err2) {
                 this.release(err2);
@@ -1684,7 +1684,7 @@ var require_sonic_boom = __commonJS({
           if (shouldRetry && !this.retryEAGAIN(err, buf.length, this._len - buf.length)) {
             throw err;
           }
-          sleep2(BUSY_WRITE_TIMEOUT);
+          sleep3(BUSY_WRITE_TIMEOUT);
         }
       }
       try {
@@ -1721,7 +1721,7 @@ var require_sonic_boom = __commonJS({
           if (shouldRetry && !this.retryEAGAIN(err, buf.length, this._len - buf.length)) {
             throw err;
           }
-          sleep2(BUSY_WRITE_TIMEOUT);
+          sleep3(BUSY_WRITE_TIMEOUT);
         }
       }
     }
@@ -2556,7 +2556,7 @@ var require_transport = __commonJS({
     var getCallers = require_caller();
     var { join: join4, isAbsolute, sep } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
-    var sleep2 = require_atomic_sleep();
+    var sleep3 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
     var { transportUsesMultistreamSym } = require_symbols();
@@ -2680,7 +2680,7 @@ var require_transport = __commonJS({
           return;
         }
         stream.flushSync();
-        sleep2(100);
+        sleep3(100);
         stream.end();
       }
       return stream;
@@ -47399,8 +47399,14 @@ var messagingMethods = {
         })
       ),
       remainingThreads: external_exports.number().int().nonnegative(),
-      /** Unread threads owned by the agent's other sessions (left unread here). */
-      otherSessions: external_exports.number().int().nonnegative().default(0)
+      /** Unread threads owned by the agent's other sessions (left unread here), for `take`. */
+      otherSessions: external_exports.array(
+        external_exports.object({
+          threadId: external_exports.string(),
+          sessionId: external_exports.string(),
+          liveness: external_exports.enum(["live", "away"])
+        })
+      ).default([])
     })
   }),
   "thread.close": defineMethod({
@@ -47497,7 +47503,8 @@ var SessionInbound = external_exports.discriminatedUnion("type", [
     type: external_exports.literal("deliver"),
     messages: external_exports.array(MeshMessage).min(1).max(MAX_DELIVERY_MESSAGES)
   }),
-  external_exports.object({ type: external_exports.literal("expired") })
+  external_exports.object({ type: external_exports.literal("expired") }),
+  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) })
 ]);
 var SessionAck = external_exports.object({ delivered: external_exports.array(external_exports.string()) });
 
@@ -47531,10 +47538,19 @@ var sessionMethods = {
     params: external_exports.object({}),
     result: external_exports.object({ ok: external_exports.literal(true) })
   }),
-  "session.activate": defineMethod({
-    description: "Make this session the one that receives work, with a short description.",
+  "session.check": defineMethod({
+    description: "Send this session a test message with an activation code, over its session subject.",
     callers: ["agent"],
-    params: external_exports.object({ description: external_exports.string().min(1).max(200) }),
+    params: external_exports.object({}),
+    result: external_exports.object({ ok: external_exports.literal(true) })
+  }),
+  "session.activate": defineMethod({
+    description: "Make this session the one that receives work: the code from its check and a short description.",
+    callers: ["agent"],
+    params: external_exports.object({
+      code: external_exports.string().min(1).max(20),
+      description: external_exports.string().min(1).max(200)
+    }),
     result: SessionView
   }),
   "session.deactivate": defineMethod({
@@ -47764,7 +47780,7 @@ var OPT_IN = "This session receives mesh messages only after your human runs /ag
 var MAX_INSTRUCTIONS = 4096;
 var PROTOCOL = `How the mesh works:
 - Mesh events arrive as <channel source="plugin:agentmesh:mesh" \u2026> tags with thread_id (pass it to reply), from / from_kind (agent|human|service), kind (ask, reply, broadcast, task, review, plan, escalation, event, system), status, task_id, plan_id, pr_url, trust.
-- Pushes are best-effort; the inbox tool is the source of truth. Call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
+- Pushes are best-effort; the inbox tool is the source of truth. Once this session is active, call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
 - Answer with reply(thread_id, text, status: answer|accepted|declined|working|blocked|done|needs_human|info). Skip replies to pure FYI. Be short and evidence-based (files, lines, commands run).
 - ask(to, text) a teammate; broadcast to all; peers() shows who is online and their load.
 - Tasks: task_get lists availableActions; task_act(task_id, action). Accept or decline promptly; post "working" updates on long work. Use a separate git worktree on the suggested branch; never touch your human's checkout. Open the PR into the integration branch, then task_act(action: "submit", pr_url).
@@ -47791,7 +47807,9 @@ function buildInstructions(input2) {
       OPT_IN
     );
     if (unreadThreads > 0) {
-      parts.push(`You have ${unreadThreads} thread(s) with unread messages: call inbox first.`);
+      parts.push(
+        `${unreadThreads} mesh thread(s) have unread messages; this session receives mesh work after your human runs /agentmesh:activate.`
+      );
     }
     parts.push(
       PROTOCOL,
@@ -47802,7 +47820,7 @@ function buildInstructions(input2) {
 ${clip(input2.hello.policy.instructions, MAX_INSTRUCTIONS - used)}`);
   } else {
     parts.push(
-      `You are ${input2.agentId ?? "an agent"} on the AgentMesh. The hub was unreachable when this session started; tools will work once it is back. Call inbox then.`,
+      `You are ${input2.agentId ?? "an agent"} on the AgentMesh. The hub was unreachable when this session started; the tools work once it is back.`,
       OPT_IN,
       PROTOCOL
     );
@@ -48487,19 +48505,24 @@ var messagingTools = [
   }),
   defineTool({
     name: "inbox",
-    description: "Unread messages from every thread you are in, newest first; marks them read. Call at session start and after compaction.",
+    description: "Unread messages from every thread you are in, newest first; marks them read. Once this session is active, call it at session start and after compaction.",
     input: external_exports.object({ limit: external_exports.number().int().min(1).max(50).optional() }),
     mutating: false,
     run: async (args, { hub }) => {
       const r = await hub.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
-      if (r.threads.length === 0 && r.otherSessions === 0) return "Inbox zero \u2014 nothing unread.";
+      const others = r.otherSessions;
+      if (r.threads.length === 0 && others.length === 0) return "Inbox zero \u2014 nothing unread.";
       const parts = r.threads.map(
         (t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages)}`
       );
       if (r.remainingThreads > 0)
         parts.push(`(${r.remainingThreads} more thread(s) unread \u2014 call inbox again)`);
-      if (r.otherSessions > 0)
-        parts.push(`(${r.otherSessions} unread thread(s) belong to your other sessions)`);
+      if (others.length > 0) {
+        const owned = others.map((o) => `${o.threadId} (${o.sessionId}, ${o.liveness})`);
+        parts.push(
+          `(${others.length} unread thread(s) belong to your other sessions: ${owned.join(", ")})`
+        );
+      }
       return parts.join("\n\n====\n\n");
     }
   }),
@@ -48633,38 +48656,6 @@ var planningTools = [
   })
 ];
 
-// src/tools/activation.ts
-import { randomInt } from "node:crypto";
-var ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789";
-var CODE_LENGTH = 6;
-var VALID_MS = 10 * 6e4;
-var ActivationCheck = class {
-  #code = null;
-  #issuedAt = 0;
-  /** This session's description while it is active; null before activation and after deactivate. */
-  lastDescription = null;
-  /** A fresh code; earlier ones stop working. */
-  issue() {
-    const code = Array.from({ length: CODE_LENGTH }, () => ALPHABET[randomInt(ALPHABET.length)]);
-    this.#code = code.join("");
-    this.#issuedAt = Date.now();
-    return this.#code;
-  }
-  /** Accepts only the latest code, within 10 minutes of issuing it. */
-  verify(code) {
-    return code === this.#code && Date.now() - this.#issuedAt <= VALID_MS;
-  }
-};
-function checkEvent(code, previous) {
-  const intro = previous ? "This session reconnected to the mesh after a long absence and is no longer active. " : "";
-  const description = previous ?? "<one line: what this session is working on>";
-  const outro = previous ? " Write a new line instead if the focus changed." : "";
-  return {
-    content: `${intro}AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "${description}").${outro}`,
-    meta: { kind: "system", from: "agentmesh" }
-  };
-}
-
 // src/tools/sessions.ts
 var Description = external_exports.string().min(1).max(200);
 var CHECK_SENT = "Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh.";
@@ -48674,16 +48665,10 @@ var sessionTools = [
     description: "Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing.",
     input: external_exports.object({ code: external_exports.string().optional(), description: Description.optional() }),
     mutating: false,
-    run: async (args, { hub, push, activation }) => {
+    run: async (args, { hub, activation }) => {
       if (args.code === void 0) {
-        await push(checkEvent(activation.issue()));
+        await hub.call("session.check", {});
         return CHECK_SENT;
-      }
-      if (!activation.verify(args.code)) {
-        throw new MeshError(
-          "invalid_request",
-          "That code is wrong or stale. Call activate without a code for a new one."
-        );
       }
       if (!args.description) {
         throw new MeshError(
@@ -48691,20 +48676,24 @@ var sessionTools = [
           "Pass description too: one line on what this session is working on."
         );
       }
-      const view = await hub.call("session.activate", { description: args.description });
+      const view = await hub.call("session.activate", {
+        code: args.code,
+        description: args.description
+      });
       activation.lastDescription = view.description ?? args.description;
+      activation.renewedFrom = null;
       return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
     }
   }),
   defineTool({
     name: "deactivate",
-    description: "Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing.",
+    description: "Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing, and the work it owns is released.",
     input: external_exports.object({}),
     mutating: false,
     run: async (_args, { hub, activation }) => {
       await hub.call("session.deactivate", {});
       activation.lastDescription = null;
-      return "This session no longer receives mesh messages. The tools still work; /agentmesh:activate turns it back on.";
+      return "This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.";
     }
   }),
   defineTool({
@@ -50777,14 +50766,18 @@ function pushEvent(server, event2) {
 }
 
 // src/hub.ts
+import { setTimeout as sleep2 } from "node:timers/promises";
 var UNREACHABLE = "The mesh hub is unreachable right now; nothing was sent. Try again shortly.";
 var UNKNOWN_SESSION = "Unknown or closed session";
+var HELLO_WAIT_MS = 5e3;
 var HubClient = class {
   config;
   /** This process's hub session (from `session.hello`); in memory only, never shared. */
   sessionId = null;
   /** Called when a call fails because the hub no longer knows `sessionId`. */
   onSessionLost = null;
+  /** The `session.hello` in flight, if any: calls made before it lands wait for it briefly. */
+  pendingHello = null;
   #logger;
   #nc = null;
   #rpc = null;
@@ -50820,6 +50813,9 @@ var HubClient = class {
   /** Calls the hub as this session. Its notes go into `notes` when given, else are dropped. */
   async call(method, params, options = {}, notes) {
     if (!this.#rpc) throw new MeshError("unavailable", UNREACHABLE);
+    if (!this.sessionId && this.pendingHello && method !== "session.hello") {
+      await Promise.race([this.pendingHello, sleep2(HELLO_WAIT_MS, void 0, { ref: false })]);
+    }
     const session = this.sessionId;
     try {
       const reply = await this.#rpc.callWithNotes(method, params, {
@@ -50931,6 +50927,7 @@ function runSessionInbox(options) {
   const seen = new RecentIds();
   let sub = null;
   let stopped = false;
+  let failed = false;
   let queue = Promise.resolve();
   const handle = async (msg) => {
     let inbound;
@@ -50941,8 +50938,15 @@ function runSessionInbox(options) {
       return;
     }
     if (inbound.type === "expired") return options.onExpired();
+    if (inbound.type === "check") await options.pushCheck(inbound.code);
+    const ack = {
+      delivered: inbound.type === "deliver" ? await pushThreads(inbound.messages) : []
+    };
+    msg.respond(JSON.stringify(ack));
+  };
+  const pushThreads = async (messages) => {
     const delivered = [];
-    for (const thread of Map.groupBy(inbound.messages, (m) => m.threadId).values()) {
+    for (const thread of Map.groupBy(messages, (m) => m.threadId).values()) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
@@ -50958,12 +50962,12 @@ function runSessionInbox(options) {
       for (const m of fresh) seen.remember(m.id);
       delivered.push(...fresh.map((m) => m.id));
     }
-    const ack = { delivered };
-    msg.respond(JSON.stringify(ack));
+    return delivered;
   };
   const resubscribe = () => {
     sub?.unsubscribe();
     sub = null;
+    failed = false;
     const { connection: nc, sessionId } = hub;
     if (stopped || !nc || !sessionId) return;
     const subject = subjects(hub.config.prefix).session(hub.config.agentId, sessionId);
@@ -50971,7 +50975,11 @@ function runSessionInbox(options) {
       sub = nc.subscribe(subject, {
         callback: (err, msg) => {
           if (err) {
-            logger.warn({ err, subject }, "session subscription error");
+            failed = true;
+            logger.error(
+              { err, subject },
+              "session subscription failed; retrying on the next beat"
+            );
             return;
           }
           queue = queue.then(() => handle(msg)).catch((error63) => logger.error({ err: error63 }, "session delivery failed"));
@@ -50980,6 +50988,7 @@ function runSessionInbox(options) {
       logger.debug({ subject }, "listening for deliveries");
       options.onListening();
     } catch (err) {
+      failed = true;
       logger.error({ err, subject }, "could not listen for deliveries");
     }
   };
@@ -50990,7 +50999,10 @@ function runSessionInbox(options) {
   };
   options.signal.addEventListener("abort", stop, { once: true });
   resubscribe();
-  return { stop, resubscribe };
+  const retryFailed = () => {
+    if (failed) resubscribe();
+  };
+  return { stop, resubscribe, retryFailed };
 }
 
 // src/git.ts
@@ -51060,8 +51072,23 @@ var Presence = class {
   }
 };
 
+// src/tools/activation.ts
+var newActivationState = () => ({
+  lastDescription: null,
+  renewedFrom: null
+});
+function checkEvent(code, previous) {
+  const intro = previous ? "This session reconnected to the mesh after a long absence and is no longer active. " : "";
+  const description = previous ?? "<one line: what this session is working on>";
+  const outro = previous ? " Write a new line instead if the focus changed." : "";
+  return {
+    content: `${intro}AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "${description}").${outro}`,
+    meta: { kind: "system", from: "agentmesh" }
+  };
+}
+
 // src/session.ts
-var HELLO_WAIT_MS = 4e3;
+var HELLO_WAIT_MS2 = 4e3;
 var SHUTDOWN_MS = 250;
 async function openSession(config2, logger) {
   const hub = new HubClient(config2, logger);
@@ -51074,37 +51101,41 @@ async function openSession(config2, logger) {
     hub,
     presence,
     hello: null,
-    activation: new ActivationCheck(),
-    onRenewed: null,
+    activation: newActivationState(),
+    onHello: null,
     sayHello: () => {
-      inFlight ??= register(hub, presence, logger, () => session.onRenewed?.()).finally(() => {
+      inFlight ??= register(hub, presence, logger).then((landed) => {
+        if (landed) session.onHello?.(landed.renewed);
+        return landed?.hello ?? null;
+      }).finally(() => {
         inFlight = null;
+        hub.pendingHello = null;
       });
+      hub.pendingHello = inFlight;
       return inFlight;
     }
   };
   session.hello = await Promise.race([
     session.sayHello(),
-    new Promise((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS))
+    new Promise((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS2))
   ]);
   return session;
 }
 function startSession(server, session, logger, pushDelayMs) {
-  const { hub, presence, hello } = session;
+  const { hub, presence } = session;
   const abort = new AbortController();
   let inbox = null;
-  const rehello = () => void session.sayHello().then((h) => h && inbox?.resubscribe());
+  const rehello = () => void session.sayHello();
   hub.onSessionLost = rehello;
-  session.onRenewed = () => {
-    const previous = session.activation.lastDescription;
-    if (previous === null) return;
-    logger.info({ session: hub.sessionId }, "new hub session; re-running the activation check");
-    void pushEvent(server, checkEvent(session.activation.issue(), previous)).catch(
-      (err) => logger.warn({ err }, "could not push the activation check")
-    );
+  session.onHello = (renewed) => {
+    inbox?.resubscribe();
+    if (renewed) recheck(session, logger);
   };
   presence.start();
-  const retry = setInterval(() => !hub.sessionId && rehello(), hub.config.heartbeatSeconds * 1e3);
+  const retry = setInterval(
+    () => hub.sessionId ? inbox?.retryFailed() : rehello(),
+    hub.config.heartbeatSeconds * 1e3
+  );
   retry.unref();
   const startPushes = () => {
     inbox = runSessionInbox({
@@ -51112,24 +51143,18 @@ function startSession(server, session, logger, pushDelayMs) {
       logger,
       signal: abort.signal,
       push: (event2) => pushEvent(server, event2),
+      pushCheck: (code) => pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? void 0)),
       onExpired: rehello,
       onListening: () => presence.beat()
     });
-    if (!hub.sessionId) {
-      rehello();
-    } else if (hello && hello.unreadThreads > 0) {
-      void pushEvent(server, {
-        content: `You have ${hello.unreadThreads} mesh thread(s) with unread messages. Call the inbox tool to catch up.`,
-        meta: { kind: "system", from: "agentmesh" }
-      }).catch(() => void 0);
-    }
+    if (!hub.sessionId) rehello();
   };
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
     abort.abort();
     clearInterval(retry);
     hub.onSessionLost = null;
-    session.onRenewed = null;
+    session.onHello = null;
     presence.stop();
     await Promise.race([
       hub.call("session.bye", {}, { timeoutMs: SHUTDOWN_MS }).catch(() => void 0),
@@ -51138,7 +51163,14 @@ function startSession(server, session, logger, pushDelayMs) {
     await hub.close(SHUTDOWN_MS);
   };
 }
-async function register(hub, presence, logger, onRenewed) {
+function recheck(session, logger) {
+  const { activation, hub } = session;
+  if (activation.lastDescription === null) return;
+  activation.renewedFrom = activation.lastDescription;
+  logger.info({ session: hub.sessionId }, "new hub session; re-running the activation check");
+  void hub.call("session.check", {}).catch((err) => logger.warn({ err }, "could not start the activation check"));
+}
+async function register(hub, presence, logger) {
   try {
     await hub.whenConnected();
     const previous = hub.sessionId;
@@ -51149,8 +51181,7 @@ async function register(hub, presence, logger, onRenewed) {
     });
     hub.sessionId = hello.sessionId;
     logger.info({ session: hello.sessionId, previous, reclaimed: hello.reclaimed }, "hub session");
-    if (previous && previous !== hello.sessionId) onRenewed();
-    return hello;
+    return { hello, renewed: previous !== null && previous !== hello.sessionId };
   } catch (err) {
     logger.warn({ err }, "session.hello failed");
     return null;
@@ -51191,7 +51222,7 @@ async function runConfigured(config2, logger) {
     problems: []
   });
   const server = createMcpServer(instructions, () => handler);
-  const handler = meshToolHandler(toolDeps(server, session, config2.agentId));
+  const handler = meshToolHandler(toolDeps(session, config2.agentId));
   server.oninitialized = () => {
     cleanup = startSession(server, session, logger, CHANNEL_READY_MS);
   };
@@ -51222,7 +51253,7 @@ async function runUnenrolled(logger) {
       );
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
-    handler = meshToolHandler(toolDeps(server, session, agentId));
+    handler = meshToolHandler(toolDeps(session, agentId));
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => void 0);
     logger.info({ agent: agentId, version: VERSION }, "joined the mesh");
@@ -51230,13 +51261,8 @@ async function runUnenrolled(logger) {
   await server.connect(new StdioServerTransport());
   logger.info({ version: VERSION }, "agentmesh plugin waiting for join");
 }
-function toolDeps(server, session, agentId) {
-  return {
-    hub: session.hub,
-    agentId,
-    push: (event2) => pushEvent(server, event2),
-    activation: session.activation
-  };
+function toolDeps(session, agentId) {
+  return { hub: session.hub, agentId, activation: session.activation };
 }
 function watchLifecycle(logger) {
   let stopping = false;
