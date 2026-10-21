@@ -4,6 +4,7 @@ import type { ReviewVerdict, Task, TaskDetail } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, TaskActInput, TaskCreateInput, TaskService } from '../../contracts';
 import { taskKey } from '../../core/ids';
+import { reviewSubmittedClass } from './effects/classes';
 import { Operation } from './operation';
 import { createTaskRepos, type TaskListFilter, type TaskRepos } from './repo';
 import { resolveArea } from './routing/area';
@@ -22,7 +23,13 @@ interface CreationPlan {
   viaAssign: boolean;
 }
 
-/** Task lifecycle: creation, workflow actions, reviews and queries. */
+/**
+ * Task lifecycle: creation, workflow actions, reviews and queries.
+ *
+ * `notes` is given when the actor made the call itself, over RPC: its own call
+ * is then never echoed back to it as a delivery, and what it must still learn
+ * is added to `notes` for its result. Modules calling in (planning, ingest) omit it.
+ */
 export class TaskServiceImpl implements TaskService {
   readonly repos: TaskRepos;
   readonly views: TaskViews;
@@ -38,9 +45,9 @@ export class TaskServiceImpl implements TaskService {
     this.#runner = new TransitionRunner(ctx, deps, this.repos, this.views);
   }
 
-  create(input: TaskCreateInput, actor: Actor): TaskDetail {
+  create(input: TaskCreateInput, actor: Actor, notes?: string[]): TaskDetail {
     const plan = this.#prepare(input);
-    const id = this.#operation(actor, (op) => {
+    const id = this.#operation(actor, notes, (op) => {
       const taskId = this.#insert(op, input, actor, plan);
       if (plan.viaAssign && input.assignee) {
         this.#runner.trySystem(op, taskId, 'assign', { to: input.assignee });
@@ -135,8 +142,14 @@ export class TaskServiceImpl implements TaskService {
     return taskId;
   }
 
-  act(taskId: number, action: string, input: TaskActInput, actor: Actor): TaskDetail {
-    this.#operation(actor, (op) => this.#runner.apply(op, taskId, action, input, actor));
+  act(
+    taskId: number,
+    action: string,
+    input: TaskActInput,
+    actor: Actor,
+    notes?: string[],
+  ): TaskDetail {
+    this.#operation(actor, notes, (op) => this.#runner.apply(op, taskId, action, input, actor));
     return this.get(taskId, actor);
   }
 
@@ -151,8 +164,14 @@ export class TaskServiceImpl implements TaskService {
   }
 
   /** Records a verdict; `request_changes` and reaching the approval quorum move the workflow. */
-  submitReview(taskId: number, verdict: ReviewVerdict, body: string, actor: Actor): TaskDetail {
-    this.#operation(actor, (op) => {
+  submitReview(
+    taskId: number,
+    verdict: ReviewVerdict,
+    body: string,
+    actor: Actor,
+    notes?: string[],
+  ): TaskDetail {
+    this.#operation(actor, notes, (op) => {
       const task = this.repos.tasks.require(taskId);
       const round = task.reviewRound;
       const reviewers = this.views.currentReviewers(task);
@@ -185,6 +204,7 @@ export class TaskServiceImpl implements TaskService {
         body: reviewSubmittedText(task, review, this.#ctx.index.displayName(actor.id)),
         system: true,
         refs: { verdict, action: 'review_submitted', ...(task.prUrl ? { prUrl: task.prUrl } : {}) },
+        deliveryClass: (id) => reviewSubmittedClass(id, task),
       });
       if (verdict === 'request_changes') {
         // Redacted before it is cut: a cut token no longer matches, and the note reaches Discord.
@@ -219,14 +239,16 @@ export class TaskServiceImpl implements TaskService {
   }
 
   /** One transaction; queued messages are posted in order before it commits. */
-  #operation<T>(actor: Actor, fn: (op: Operation) => T): T {
+  #operation<T>(actor: Actor, notes: string[] | undefined, fn: (op: Operation) => T): T {
+    const caller = notes && actor.kind === 'agent' ? actor.id : null;
+    const op = new Operation(this.#deps.messaging, caller);
     const result = this.#ctx.db.transaction(() => {
-      const op = new Operation(this.#deps.messaging, actor.id);
       const value = fn(op);
       op.flush();
       return value;
     });
     this.#ctx.outbox.kick();
+    notes?.push(...op.notes);
     return result;
   }
 

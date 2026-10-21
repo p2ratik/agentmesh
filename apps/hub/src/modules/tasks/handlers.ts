@@ -11,7 +11,9 @@ type TaskHandlers = Pick<
 const taskId = (raw: string) => internalId('task', raw);
 
 /**
- * RPC surface of the task module: protocol ids in, protocol shapes out.
+ * RPC surface of the task module: protocol ids in, protocol shapes out. Calls
+ * that change a task pass `call.notes`: the caller is never echoed its own
+ * call, and gets what it must still learn as notes on its result.
  * Titles are redacted here, where they come in: the thread subject and the
  * branch name cut them, and a cut token no longer matches. (Rules redact their
  * titles in their own action, before cutting them.)
@@ -37,6 +39,7 @@ export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
             : undefined,
         },
         call.actor,
+        call.notes,
       ),
 
     'task.get': (params, call) => tasks.get(taskId(params.taskId), call.actor),
@@ -62,6 +65,7 @@ export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
         params.action,
         { note: params.note, prUrl: params.prUrl, branch: params.branch, to: params.to },
         call.actor,
+        call.notes,
       ),
 
     /** A stand-alone PR review: the requester (if an agent) owns it; reviewers are picked or given. */
@@ -85,10 +89,17 @@ export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
           reviewers: (params.reviewers ?? []).filter((id) => id !== actor.id),
         },
         actor,
+        call.notes,
       );
     },
 
     'review.submit': (params, call) =>
-      tasks.submitReview(taskId(params.taskId), params.verdict, params.body, call.actor),
+      tasks.submitReview(
+        taskId(params.taskId),
+        params.verdict,
+        params.body,
+        call.actor,
+        call.notes,
+      ),
   };
 }

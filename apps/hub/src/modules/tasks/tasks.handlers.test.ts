@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { IdempotencyStore } from '../../rpc/idempotency';
 import { createRpcRouter } from '../../rpc/router';
 import { testTeamConfig } from '../../testing/fixtures';
+import { leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { createTaskModule } from './index';
 
@@ -24,7 +25,7 @@ function setup(loaded = testTeamConfig()) {
     dispatch({ caller, method, ...(actAs ? { actAs } : {}) }, params) as Promise<
       Record<string, unknown>
     >;
-  return { ...h, call };
+  return { ...h, call, dispatch };
 }
 
 describe('task RPC handlers', () => {
@@ -68,6 +69,20 @@ describe('task RPC handlers', () => {
     expect(
       (await call('alice-agent', 'task.act', { taskId: review.id, action: 'complete' })).state,
     ).toBe('done');
+  });
+
+  it('an agent whose submit finds no reviewer gets a note, not a delivery', async () => {
+    const { call, dispatch, drain, ctx } = setup();
+    await call('discord-bridge', 'task.create', { title: 'Fix login', area: 'web' }, 'bob');
+    await call('bob-agent', 'task.act', { taskId: 'task-1', action: 'accept' });
+    leaveTeam(ctx, 'alice');
+    leaveTeam(ctx, 'carol');
+    await drain();
+    const notes: string[] = [];
+    const params = { taskId: 'task-1', action: 'submit', prUrl: 'https://x/pr/1' };
+    await dispatch({ caller: 'bob-agent', method: 'task.act', notes }, params);
+    expect(notes).toEqual(['No reviewer was found for task-1; request one with request_review.']);
+    expect((await drain()).get('bob-agent')).toBeUndefined();
   });
 
   it('hides terminal tasks unless asked', async () => {

@@ -1,3 +1,4 @@
+import { taskKey } from '../../../core/ids';
 import type { TaskRecord } from '../repo';
 import { taskSkills } from '../routing/area';
 import { selectReviewers } from '../routing/reviewers';
@@ -28,14 +29,18 @@ export const requestReviews: Effect = (env, run) => {
       (id): id is string => !!id && ctx.index.kindOf(id) !== undefined,
     );
     if (tell.length > 0) {
-      env.post({
-        threadId: task.threadId,
-        senderId: deps.messaging.hubId,
-        kind: 'review',
-        body: noReviewerText(task),
-        to: [...new Set(tell)],
-        refs: { action: 'no_reviewer' },
-      });
+      const noteForCaller = `No reviewer was found for ${taskKey(task.id)}; request one with request_review.`;
+      env.post(
+        {
+          threadId: task.threadId,
+          senderId: deps.messaging.hubId,
+          kind: 'review',
+          body: noReviewerText(task),
+          to: [...new Set(tell)],
+          refs: { action: 'no_reviewer' },
+        },
+        { noteForCaller },
+      );
     }
   }
   for (const reviewer of everyone) {

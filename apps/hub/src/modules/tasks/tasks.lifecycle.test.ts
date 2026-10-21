@@ -54,6 +54,7 @@ describe('task lifecycle', () => {
     expect(third.state).toBe('backlog');
     const inbox = await drain();
     expect(inbox.get('alice-agent')?.[0]?.body).toContain('claim');
+    expect(inbox.get('alice-agent')?.[0]?.class).toBe('status');
     expect(inbox.get('bob-agent')).toBeUndefined();
   });
 
@@ -116,7 +117,9 @@ describe('review loop', () => {
     expect(submitted.state).toBe('in_review');
     expect(submitted.reviewers).not.toContain(owner.id);
     const reviewer = agent(submitted.reviewers[0] ?? '');
-    await drain();
+    expect((await drain()).get(reviewer.id)?.map((m) => [m.refs.action, m.class])).toEqual([
+      ['review_requested', 'action'],
+    ]);
 
     const changes = tasks.submitReview(1, 'request_changes', 'Missing tests', reviewer);
     expect(changes.state).toBe('changes_requested');
@@ -173,6 +176,63 @@ describe('review loop', () => {
     expect(tasks.act(1, 'submit', {}, owner).reviewers).toEqual(['bob-agent']);
     expect(tasks.submitReview(1, 'approve', 'Good now', reviewer).state).toBe('approved');
     expect((await drain()).has('carol-agent')).toBe(false);
+  });
+});
+
+/** Agent calls made over RPC pass their notes; then their own call is never echoed back to them. */
+describe('echoes and classes', () => {
+  it('a reviewer is not echoed the approval its review triggered', async () => {
+    const { tasks, drain } = setup();
+    const reviewers = ['carol-agent'];
+    tasks.create({ ...base, area: 'api', assignee: 'alice-agent', reviewers }, human('bob'));
+    const owner = agent('alice-agent');
+    tasks.act(1, 'accept', {}, owner, []);
+    tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner, []);
+    await drain();
+    expect(tasks.submitReview(1, 'approve', 'LGTM', agent('carol-agent'), []).state).toBe(
+      'approved',
+    );
+    const inbox = await drain();
+    expect(inbox.get('carol-agent')).toBeUndefined();
+    expect(inbox.get('alice-agent')?.map((m) => m.refs.action)).toEqual([
+      'review_submitted',
+      'approve',
+    ]);
+  });
+
+  it('a creator assigning the task to itself gets no brief', async () => {
+    const { tasks, drain } = setup();
+    const self = agent('bob-agent');
+    const task = tasks.create({ ...base, area: 'web', assignee: 'bob-agent' }, self, []);
+    expect(task.assignee).toBe('bob-agent');
+    expect((await drain()).get('bob-agent')).toBeUndefined();
+  });
+
+  it("the assignee's verdict notice is action and the creator's copy is status", async () => {
+    const { tasks, drain } = setup();
+    const reviewers = ['carol-agent'];
+    tasks.create({ ...base, area: 'api', assignee: 'alice-agent', reviewers }, agent('bob-agent'));
+    const owner = agent('alice-agent');
+    tasks.act(1, 'accept', {}, owner, []);
+    tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner, []);
+    await drain();
+    tasks.submitReview(1, 'request_changes', 'Missing tests', agent('carol-agent'), []);
+    const inbox = await drain();
+    const verdict = (id: string) =>
+      inbox.get(id)?.find((m) => m.refs.action === 'review_submitted')?.class;
+    expect(verdict('alice-agent')).toBe('action');
+    expect(verdict('bob-agent')).toBe('status');
+  });
+
+  it('a task handed off away from an agent tells that agent as action', async () => {
+    const { tasks, drain } = setup();
+    tasks.create({ ...base, area: 'api', assignee: 'alice-agent' }, agent('bob-agent'));
+    await drain();
+    tasks.act(1, 'assign', { to: 'carol-agent', note: 'alice is out' }, human('bob'));
+    const inbox = await drain();
+    expect(inbox.get('alice-agent')?.map((m) => m.class)).toEqual(['action']);
+    expect(inbox.get('carol-agent')?.map((m) => m.class)).toEqual(['action']);
+    expect(inbox.get('bob-agent')?.map((m) => m.class)).toEqual(['status']);
   });
 });
 

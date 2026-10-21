@@ -1,5 +1,5 @@
 import type { LoadedConfig } from '@agentmesh/config';
-import type { MeshMessage } from '@agentmesh/protocol';
+import type { SessionDelivery } from '@agentmesh/protocol';
 import type { MessagingService, PresenceService, SessionsService } from '../contracts';
 import { createControlModule } from '../modules/control';
 import { createMessagingModule } from '../modules/messaging';
@@ -14,8 +14,8 @@ export interface ServiceHarness extends TestHarness {
   messaging: MessagingService;
   presence: PresenceService;
   leases: FakeLeases;
-  /** Flushes the outbox and returns what each agent received since the last call. */
-  drain(): Promise<Map<string, MeshMessage[]>>;
+  /** Flushes the outbox and returns what each agent received (with its class) since the last call. */
+  drain(): Promise<Map<string, SessionDelivery[]>>;
 }
 
 /**
@@ -50,7 +50,7 @@ export function createServiceHarness(
       await base.outbox.flush();
       const fresh = base.ports.deliveries.slice(seen);
       seen = base.ports.deliveries.length;
-      const byRecipient = new Map<string, MeshMessage[]>();
+      const byRecipient = new Map<string, SessionDelivery[]>();
       for (const d of fresh) {
         byRecipient.set(d.recipientId, [...(byRecipient.get(d.recipientId) ?? []), d.message]);
       }

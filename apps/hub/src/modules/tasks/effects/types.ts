@@ -17,9 +17,10 @@ export interface EffectEnv {
   system: Actor;
   /**
    * Queues a message. Always pass explicit `to`: recipients inside this task's
-   * thread are left out of the transition's summary message.
+   * thread are left out of the transition's summary message. The operation
+   * drops its caller from `to`; `noteForCaller` then goes on the caller's result.
    */
-  post(input: PostInput): void;
+  post(input: PostInput, opts?: { noteForCaller?: string }): void;
   /**
    * Applies a hub-initiated transition (nested, in the same transaction, depth
    * guarded). Returns false when the workflow does not allow it right now.

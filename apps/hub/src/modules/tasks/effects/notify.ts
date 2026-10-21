@@ -8,18 +8,19 @@ import {
 } from '../text';
 import { ASSIGNING_ACTIONS } from '../workflow/conventions';
 import { isTerminalState } from '../workflow/engine';
+import { assigneeNoticeClass, creatorNoticeClass } from './classes';
 import type { Effect, EffectEnv, EffectRun } from './types';
 
 /**
  * A detailed brief for the assignee, shaped by what just happened: an
  * assignment gets the full brief (branch, base, dependencies, next calls);
  * review outcomes and terminal states get focused notes. The assignee is not
- * told about their own actions, except when they claimed the task.
+ * told about their own actions (a claim included: its result shows the task).
  */
 export const notifyAssignee: Effect = (env, run) => {
   const { task } = run;
   const assignee = task.assignee;
-  if (!assignee || (assignee === run.actor.id && run.action !== 'claim')) return;
+  if (!assignee || assignee === run.actor.id) return;
   env.post({
     threadId: task.threadId,
     senderId: env.deps.messaging.hubId,
@@ -28,6 +29,7 @@ export const notifyAssignee: Effect = (env, run) => {
     to: [assignee],
     trust: task.trust,
     refs: { action: run.action ?? 'assigned' },
+    deliveryClass: assigneeNoticeClass(run.action),
   });
 };
 
@@ -75,5 +77,6 @@ export const notifyCreator: Effect = (env, run) => {
     to: [creator],
     trust: task.trust,
     refs: { action: run.action ?? 'update' },
+    deliveryClass: creatorNoticeClass(run.workflow.states[task.state]),
   });
 };

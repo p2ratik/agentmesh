@@ -3,6 +3,7 @@ import type { EffectRef, WorkflowConfig, WorkflowTransition } from '@agentmesh/c
 import type { HubContext } from '../../context';
 import type { Actor, PostInput, TaskActInput } from '../../contracts';
 import { systemActor } from '../../rpc/actor';
+import { summaryClass } from './effects/classes';
 import { effectNamed } from './effects/registry';
 import type { EffectEnv } from './effects/types';
 import { NotifyScope, type Operation } from './operation';
@@ -27,7 +28,8 @@ interface EffectBase {
 /**
  * Applies workflow transitions: checks, convention field changes, history,
  * the `task.changed` feed event, one summary message for the task thread
- * (skipping anyone an effect already messaged), then the transition's effects
+ * (skipping anyone an effect already messaged; status, except for an agent the
+ * task was just taken from), then the transition's effects
  * and the target state's `onEnter` effects. Everything runs inside the
  * caller's transaction; messages go through the operation queue.
  */
@@ -145,7 +147,9 @@ export class TransitionRunner {
         note,
       });
       const scope = new NotifyScope(updated.threadId);
-      op.post(() => this.#summary(updated, action, from, actor, note, scope));
+      const takenFrom =
+        ASSIGNING_ACTIONS.has(action) && task.assignee !== updated.assignee ? task.assignee : null;
+      op.post(() => this.#summary(updated, action, from, actor, note, scope, takenFrom));
       const refs = [...transition.effects, ...(workflow.states[transition.to]?.onEnter ?? [])];
       this.#runEffects(op, refs, task.id, scope, { actor, action, from, note });
       return this.#repos.tasks.require(task.id);
@@ -162,6 +166,8 @@ export class TransitionRunner {
     actor: Actor,
     note: string | null,
     scope: NotifyScope,
+    /** The previous assignee, when this transition moved the task to someone else. */
+    takenFrom: string | null,
   ): PostInput {
     const { messaging } = this.#deps;
     const sender = isSystemActor(actor) || actor.kind === 'service' ? messaging.hubId : actor.id;
@@ -183,6 +189,7 @@ export class TransitionRunner {
       to,
       system: true,
       refs: { action, ...(task.prUrl ? { prUrl: task.prUrl } : {}) },
+      deliveryClass: (id) => summaryClass(id, takenFrom),
     };
   }
 
@@ -215,10 +222,10 @@ export class TransitionRunner {
       views: this.#views,
       op,
       system: this.system,
-      post: (input) => {
+      post: (input, opts) => {
         const full: PostInput = { ...input, system: true };
         scope.record(full);
-        op.post(full);
+        op.post(full, opts);
       },
       applySystem: (taskId, action, input) => this.trySystem(op, taskId, action, input),
     };

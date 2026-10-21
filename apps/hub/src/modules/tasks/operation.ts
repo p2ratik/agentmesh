@@ -1,5 +1,10 @@
 import type { MessagingService, PostInput } from '../../contracts';
 
+interface QueuedPost {
+  build: () => PostInput;
+  noteForCaller?: string;
+}
+
 /**
  * Everything one task operation (an RPC call and every transition it triggers)
  * says, collected and sent in order at the end, still inside the transaction.
@@ -7,22 +12,34 @@ import type { MessagingService, PostInput } from '../../contracts';
  * Deferring lets a transition's summary be posted *before* its effects' messages
  * while still knowing who those effects notified (they are skipped in the
  * summary), and lets threads close only after the last message is posted.
+ *
+ * No echoes: nothing the operation posts reaches the agent whose call started
+ * it, hub steps that call triggered included. Its RPC result shows the outcome,
+ * and a consequence it must still learn goes in `notes`, for that result.
  */
 export class Operation {
-  /** The participant whose call started the operation; they get the RPC result. */
-  readonly rootActorId: string;
+  /**
+   * The agent whose RPC call started the operation, or null when no agent waits
+   * on its result (a human through the bridge, the hub, another module calling in).
+   */
+  readonly rootActorId: string | null;
+  /** One-line notes for the caller's RPC result. */
+  readonly notes: string[] = [];
   readonly #messaging: MessagingService;
-  readonly #posts: Array<() => PostInput> = [];
+  readonly #posts: QueuedPost[] = [];
   readonly #closes: Array<{ threadId: number; by: string }> = [];
 
-  constructor(messaging: MessagingService, rootActorId: string) {
+  constructor(messaging: MessagingService, rootActorId: string | null) {
     this.#messaging = messaging;
     this.rootActorId = rootActorId;
   }
 
-  /** Queues a message; a function is evaluated at flush time (for late recipient lists). */
-  post(input: PostInput | (() => PostInput)): void {
-    this.#posts.push(typeof input === 'function' ? input : () => input);
+  /**
+   * Queues a message; a function is evaluated at flush time (for late recipient
+   * lists). `noteForCaller` replaces the delivery when the caller is dropped from it.
+   */
+  post(input: PostInput | (() => PostInput), opts: { noteForCaller?: string } = {}): void {
+    this.#posts.push({ build: typeof input === 'function' ? input : () => input, ...opts });
   }
 
   closeThread(threadId: number, by: string): void {
@@ -30,9 +47,23 @@ export class Operation {
   }
 
   flush(): void {
-    for (const build of this.#posts.splice(0)) this.#messaging.post(build());
+    for (const { build, noteForCaller } of this.#posts.splice(0)) {
+      this.#messaging.post(this.#withoutEcho(build(), noteForCaller));
+    }
     for (const { threadId, by } of this.#closes.splice(0))
       this.#messaging.closeThread(threadId, by);
+  }
+
+  /** The post minus the caller (still stored for history and the feed, even if nobody is left). */
+  #withoutEcho(input: PostInput, noteForCaller: string | undefined): PostInput {
+    const caller = this.rootActorId;
+    if (caller === null || input.senderId === caller) return input;
+    const to =
+      input.to ??
+      this.#messaging.participants(input.threadId).filter((id) => id !== input.senderId);
+    if (!to.includes(caller)) return input;
+    if (noteForCaller) this.notes.push(noteForCaller);
+    return { ...input, to: to.filter((id) => id !== caller) };
   }
 }
 

@@ -39,5 +39,6 @@ export const autoAssign: Effect = (env, run) => {
     addToThread: false,
     trust: task.trust,
     refs: { action: 'board' },
+    deliveryClass: 'status',
   });
 };
