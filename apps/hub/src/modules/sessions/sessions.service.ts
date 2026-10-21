@@ -1,4 +1,4 @@
-import { MeshError, newSessionId, parseId } from '@agentmesh/common';
+import { MeshError, newSessionId, parseId, redactSecrets } from '@agentmesh/common';
 import type { MeshMessage, RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type {
@@ -8,7 +8,6 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { redactSecrets } from '../messaging/redact';
 import { claimTargets } from './claims';
 import { expireSessions, releaseAndClose } from './liveness';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
