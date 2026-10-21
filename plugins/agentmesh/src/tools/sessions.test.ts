@@ -57,8 +57,9 @@ describe('session tools', () => {
     });
     await callTool('describe_session', { description: 'billing v2' }, deps);
     expect(deps.activation.lastDescription).toBe('billing v2');
+    deps.activation.renewedFrom = 'billing';
     await callTool('deactivate', {}, deps);
-    expect(deps.activation.lastDescription).toBeNull();
+    expect(deps.activation).toEqual({ lastDescription: null, renewedFrom: null });
     const took = await callTool('take', { task_id: 'task-9' }, deps);
     expect(text(took)).toContain('thr-9');
     await callTool('take', { thread_id: 'thr-9' }, deps);

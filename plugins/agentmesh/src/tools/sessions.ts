@@ -46,6 +46,7 @@ export const sessionTools = [
     run: async (_args, { hub, activation }) => {
       await hub.call('session.deactivate', {});
       activation.lastDescription = null;
+      activation.renewedFrom = null;
       return 'This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.';
     },
   }),
