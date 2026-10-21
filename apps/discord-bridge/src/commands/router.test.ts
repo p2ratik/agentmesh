@@ -2,6 +2,7 @@ import { createLogger, MeshError } from '@agentmesh/common';
 import { ConfigIndex, configFromObject } from '@agentmesh/config';
 import type { Interaction } from 'discord.js';
 import { describe, expect, it } from 'vitest';
+import { planButtonId } from '../custom-ids';
 import type { ChannelDirectory } from '../discord/directory';
 import { type HumanCall, type MeshRpc, maskResults } from '../rpc';
 import { createInteractionHandler } from './router';
@@ -40,7 +41,12 @@ async function slashTask(
     deferReply: async () => undefined,
     editReply: async ({ content }: { content: string }) => void replies.push(content),
   } as unknown as Interaction;
-  const handle = createInteractionHandler({
+  await handlerFor(hub)(interaction);
+  return replies;
+}
+
+const handlerFor = (hub: MeshRpc['call']) =>
+  createInteractionHandler({
     rpc: { call: hub } as MeshRpc,
     index: () => index,
     enrolled: () => ({ members: [], invites: [] }),
@@ -48,9 +54,6 @@ async function slashTask(
     directory: {} as ChannelDirectory,
     logger: createLogger('router-test', { level: 'silent', destination: 'stderr' }),
   });
-  await handle(interaction);
-  return replies;
-}
 
 describe('slash command replies', () => {
   it('mask secrets the reply echoes (a public /task create shows the title)', async () => {
@@ -73,6 +76,25 @@ describe('slash command replies', () => {
     const replies = await slashTask('create', { title: 'x' }, (async () => {
       throw new MeshError('invalid_request', `title may not contain ${TOKEN}`);
     }) as MeshRpc['call']);
+    expect(replies[0]).not.toContain(TOKEN);
+  });
+
+  it('mask secrets in an error a plan button gets back', async () => {
+    const replies: string[] = [];
+    const interaction = {
+      id: 'int-2',
+      user: { id: '100000000000000001' },
+      customId: planButtonId('approve', 'plan-1'),
+      isAutocomplete: () => false,
+      isChatInputCommand: () => false,
+      isButton: () => true,
+      deferUpdate: async () => undefined,
+      followUp: async ({ content }: { content: string }) => void replies.push(content),
+    } as unknown as Interaction;
+    await handlerFor((async () => {
+      throw new MeshError('invalid_request', `plan-1 cannot be approved: ${TOKEN}`);
+    }) as MeshRpc['call'])(interaction);
+    expect(replies).toHaveLength(1);
     expect(replies[0]).not.toContain(TOKEN);
   });
 

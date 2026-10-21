@@ -121,12 +121,20 @@ export class PlanningServiceImpl implements PlanningService {
       }
       const round = plan.rounds[plan.roundIndex]?.id ?? 'unknown';
       const createdAt = this.#ctx.clock.now().toISOString();
-      this.repo.addContribution(planId, { round, participant: actor.id, body, createdAt });
+      // Redacted once, where it comes in: plan_get returns it as stored, and each digest cuts it
+      // (a cut token no longer matches).
+      const masked = redactSecrets(body);
+      this.repo.addContribution(planId, {
+        round,
+        participant: actor.id,
+        body: masked,
+        createdAt,
+      });
       this.#deps.messaging.post({
         threadId: plan.threadId,
         senderId: actor.id,
         kind: 'plan',
-        body,
+        body: masked,
         to: [],
         system: true,
         refs: { round },

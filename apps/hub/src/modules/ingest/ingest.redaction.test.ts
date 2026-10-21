@@ -8,6 +8,8 @@ import { createServiceHarness } from '../../testing/services';
 import { TaskServiceImpl } from '../tasks/tasks.service';
 import { normalizeEvent } from './http/normalize';
 import { IngestServiceImpl } from './ingest.service';
+import { runAction } from './rules/actions';
+import type { RuleContext } from './rules/match';
 
 /** Assembled at runtime so repository secret scanners never flag this file. */
 const TOKEN = ['ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB'].join('');
@@ -27,7 +29,8 @@ function setup() {
       {
         id: 'rotation',
         match: { source: 'hermes', type: 'secret.rotation' },
-        throttle: { key: '{{payload.secret_arn}}', windowMinutes: 30 },
+        // An object placeholder: masked, every secret's key would read {"secret_id":"[REDACTED]"}.
+        throttle: { key: '{{payload.secret}}', windowMinutes: 30 },
         actions: [{ notify: { to: 'all-agents', text: '{{summary}}' } }],
       },
       {
@@ -76,7 +79,7 @@ const rotation = (id: string, secret: string): IngestEvent => ({
   type: 'secret.rotation',
   severity: 'error',
   summary: 'Rotation failed for prod-db',
-  payload: { secret_arn: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${secret}` },
+  payload: { secret: { secret_id: secret } },
 });
 
 const expectMasked = (text: string | undefined) => {
@@ -95,6 +98,30 @@ describe('rule actions mask what they build', () => {
     expectMasked(s.tasks.get(1, alice).title);
     const notified = (await s.drain()).get('bob-agent') ?? [];
     expectMasked(notified.find((m) => m.kind === 'event')?.subject);
+  });
+
+  it('masks only the head of a 1 MB subject and title', async () => {
+    const s = setup();
+    const leak = s.ctx.index.config.rules.find((rule) => rule.id === 'leak');
+    const deps = { ctx: s.ctx, messaging: s.messaging, tasks: s.tasks, presence: s.presence };
+    const run = (text: string) => {
+      const event: RuleContext = {
+        ...{ id: 'hermes:l3', source: 'hermes', type: 'leak.found', severity: 'error' },
+        ...{ summary: null, url: null, occurredAt: null, payload: { subject: text, title: text } },
+      };
+      const started = performance.now();
+      s.ctx.db.transaction(() => {
+        for (const action of leak?.actions ?? []) runAction(deps, action, event);
+      });
+      return performance.now() - started;
+    };
+    run('warm up');
+    // Masked whole, the subject and the title took 210–290 ms each.
+    expect(run('token=x '.repeat(125_000))).toBeLessThan(50);
+    const masked = /^token=\[REDACTED\] token=\[REDACTED\]/;
+    const notified = (await s.drain()).get('bob-agent') ?? [];
+    expect(notified.filter((m) => m.kind === 'event').at(-1)?.subject).toMatch(masked);
+    expect(s.tasks.get(2, alice).title).toMatch(masked);
   });
 
   it('masks a private key split across template values in the posted body', async () => {

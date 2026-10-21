@@ -105,7 +105,9 @@ it is shown ([security.md](security.md#secrets-in-messages)):
 - notify subjects and `create_task` titles, before they are cut;
 - notices, in Discord.
 
-An object renders as JSON cut at 500 characters, and it is masked before the cut.
+An object renders as JSON cut at 500 characters, and it is masked before the cut. Subjects, titles
+and objects mask only up to 4 KB past their cut, so a 1 MB payload string costs no more than a
+short one.
 
 Masking whole text has two costs:
 - A keyword followed by `:` or `=` masks the next word. With an alarm named

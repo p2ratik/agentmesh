@@ -33,21 +33,21 @@ function stringify(value: unknown, redact: boolean): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   const json = JSON.stringify(value) ?? '';
-  return redact ? maskedJson(json) : cut(json, MAX_OBJECT_CHARS);
+  return redact ? maskHead(json, MAX_OBJECT_CHARS) : cut(json, MAX_OBJECT_CHARS);
 }
 
 /**
- * Masks only what can be shown: the first 4 KB past the cut, one linear pass
- * whatever the payload's size (up to 1 MB). Past that window a token may be
- * cut in two, unrecognised, so when the JSON runs on, the last 4 KB of the
- * masked window are never shown: masking shortens the text, and a fixed cut
- * could then reach the window's end.
+ * Masks `text` and cuts it at `limit`, masking only what can be shown: the
+ * first 4 KB past the cut, one linear pass whatever the text's size (up to
+ * 1 MB). Past that window a token may be cut in two, unrecognised, so when the
+ * text runs on, the last 4 KB of the masked window are never shown: masking
+ * shortens the text, and a fixed cut could then reach the window's end.
  */
-function maskedJson(json: string): string {
-  const window = json.slice(0, MAX_OBJECT_CHARS + MASK_MARGIN);
+export function maskHead(text: string, limit: number): string {
+  const window = text.slice(0, limit + MASK_MARGIN);
   const masked = redactSecrets(window);
-  if (window.length === json.length) return cut(masked, MAX_OBJECT_CHARS);
-  const end = Math.max(0, Math.min(MAX_OBJECT_CHARS, masked.length - MASK_MARGIN));
+  if (window.length === text.length) return cut(masked, limit);
+  const end = Math.max(0, Math.min(limit, masked.length - MASK_MARGIN));
   return `${masked.slice(0, end)}…`;
 }
 

@@ -130,13 +130,15 @@ pattern, so nothing downstream (the bridge included) could catch it. The code th
   `review.request` and `plan.submit` drafts are stored redacted. The suggested branch name
   redacts the title again before `slugify` cuts it;
 - the one-line note a `request_changes` review leaves on the task's transition;
-- each contribution in a planning round's digest;
-- rule actions. A notify subject and a `create_task` title are redacted whole once their template
-  is filled in, and so is the `[source] type` fallback;
+- plan contributions, which are stored redacted. `plan_get` returns them as stored, and each
+  round's digest cuts them;
 - object placeholders (`{{payload}}`), which render as JSON cut at 500 characters. The JSON is
   masked first, up to 4 KB past the cut, so a token that straddles the cut is seen whole: one pass
   over at most 4.6 KB, whatever the payload's size. If the JSON runs on past that window, the last
-  4 KB of the masked window are never shown, because a token there may be cut in two.
+  4 KB of the masked window are never shown, because a token there may be cut in two;
+- rule actions. Once its template is filled in, a notify subject or `create_task` title (or the
+  `[source] type` fallback) is masked through the same window, cut at 200 characters. A rule that
+  puts a 1 MB payload string into a subject therefore costs no more than a short one.
 
 Templates (`{{ path }}` in rules, `post_notice` in workflows) fill values in raw, and their text
 is masked as a whole wherever it is shown:
@@ -166,8 +168,8 @@ The bridge masks everything it posts, because the mesh channels are readable by 
   - The exception is `enrollment.invite`, whose code goes untouched into the DM and never into a
     reply.
 
-- **Residual risk:** plan topics and summaries, task descriptions, reviews and plan contributions
-  are still stored in the hub as written, and so are task titles created before 2026-10-20. Only
+- **Residual risk:** plan topics and summaries, task descriptions and reviews are still stored in
+  the hub as written, and so are task titles and plan contributions stored before this change. Only
   messages and the texts listed above are redacted at the hub, so anyone with the hub's database
   sees the rest.
 - **Residual risk: raw event types.** The hub does not mask a `raw` source's event type, so rules

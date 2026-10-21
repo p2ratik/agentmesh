@@ -1,11 +1,13 @@
-import { redactSecrets } from '@agentmesh/common';
 import type { RuleAction } from '@agentmesh/config';
 import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
 import { systemActor } from '../../../rpc/actor';
 import type { RuleContext } from './match';
 import { areaRecipients } from './recipients';
-import { renderTemplate } from './template';
+import { maskHead, renderTemplate } from './template';
+
+/** A task title's limit; a thread subject is cut further, at 120, by createThread. */
+const MAX_TITLE = 200;
 
 export interface ActionDeps {
   ctx: HubContext;
@@ -24,10 +26,11 @@ export function externalFooter(event: RuleContext): string {
 export function runAction(deps: ActionDeps, action: RuleAction, event: RuleContext): void {
   const render = (template: string | undefined) =>
     template ? renderTemplate(template, event).trim() : '';
-  // A subject or title (`[source] type` when the rule sets none), redacted whole before it is cut,
-  // at 120 characters by createThread and at 200 here: a cut token no longer matches.
+  // A subject or title (`[source] type` when the rule sets none), redacted before it is cut, at
+  // 120 characters by createThread and at 200 here: a cut token no longer matches. Only its head
+  // is masked, so a 1 MB payload string costs no more than a short one.
   const heading = (template: string | undefined) =>
-    redactSecrets(render(template) || `[${event.source}] ${event.type}`);
+    maskHead(render(template) || `[${event.source}] ${event.type}`, MAX_TITLE);
   if ('notice' in action) {
     deps.ctx.outbox.enqueueEvent('notice.posted', {
       channel: action.notice.channel,
@@ -64,7 +67,7 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
   const serious = event.severity === 'error' || event.severity === 'critical';
   deps.tasks.create(
     {
-      title: heading(spec.title).slice(0, 200),
+      title: heading(spec.title).slice(0, MAX_TITLE),
       description:
         `${render(spec.description) || event.summary || ''}${externalFooter(event)}`.trim(),
       area: render(spec.area) || undefined,

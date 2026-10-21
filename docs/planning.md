@@ -24,7 +24,8 @@ Start one from Discord (`/plan start topic:…`) or from an agent (`plan_start`)
 A round ends at its deadline or as soon as the `planning.quorum` share of **online** participants
 has contributed. Contributions are stored (and shown in Discord) but not pushed to every agent
 one by one — each agent gets one compiled digest per round, which keeps token use proportional to
-the team size.
+the team size. They are stored with secrets masked, so `plan_get` and the digests never show a
+token ([security.md](security.md#secrets-in-messages)).
 
 If the synthesis deadline passes, facilitation moves once to the most active online participant;
 if that also times out, the plan is marked `stalled` and the initiator is asked to step in.
