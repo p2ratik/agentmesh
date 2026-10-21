@@ -7,7 +7,8 @@ const GIT_REFRESH_MS = 60_000;
 
 /**
  * Heartbeats `{prefix}.presence.{agent}` with the repo and branch this
- * session works in, so teammates see who is online and where.
+ * session works in, so teammates see who is online and where, and with the
+ * hub session id, which keeps that session alive.
  */
 export class Presence {
   readonly #hub: HubClient;
@@ -33,12 +34,12 @@ export class Presence {
 
   start(): void {
     const beat = () => {
-      const nc = this.#hub.connection;
+      const { connection: nc, sessionId } = this.#hub;
       if (!nc) return;
       try {
         nc.publish(
           subjects(this.#hub.config.prefix).presence(this.#hub.config.agentId),
-          JSON.stringify(this.#git),
+          JSON.stringify({ ...this.#git, ...(sessionId ? { session: sessionId } : {}) }),
         );
       } catch (err) {
         this.#logger.debug({ err }, 'heartbeat failed');

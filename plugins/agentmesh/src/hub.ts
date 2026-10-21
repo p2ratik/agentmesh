@@ -11,6 +11,9 @@ import type { PluginConfig } from './config';
 export const UNREACHABLE =
   'The mesh hub is unreachable right now; nothing was sent. Try again shortly.';
 
+/** How the hub's `not_found` starts when it no longer knows the session a call carried. */
+const UNKNOWN_SESSION = 'Unknown or closed session';
+
 /**
  * The plugin's connection to the hub. Connecting happens in the background
  * and retries forever (laptops wake before Wi-Fi does), through refused
@@ -20,9 +23,14 @@ export const UNREACHABLE =
  */
 export class HubClient {
   readonly config: PluginConfig;
+  /** This process's hub session (from `session.hello`); in memory only, never shared. */
+  sessionId: string | null = null;
+  /** Called when a call fails because the hub no longer knows `sessionId`. */
+  onSessionLost: (() => void) | null = null;
   readonly #logger: Logger;
   #nc: NatsConnection | null = null;
   #rpc: RpcClient | null = null;
+  #notes: string[] = [];
   readonly #ready: Promise<NatsConnection>;
   #resolveReady: (nc: NatsConnection) => void = () => undefined;
 
@@ -65,7 +73,25 @@ export class HubClient {
     options: CallOptions = {},
   ): Promise<RpcResult<M>> {
     if (!this.#rpc) throw new MeshError('unavailable', UNREACHABLE);
-    return this.#rpc.call(method, params, options);
+    const session = this.sessionId;
+    try {
+      const { result, notes } = await this.#rpc.callWithNotes(method, params, {
+        ...(session ? { session } : {}),
+        ...options,
+      });
+      this.#notes.push(...notes);
+      return result;
+    } catch (err) {
+      if (session && err instanceof MeshError && err.message.startsWith(UNKNOWN_SESSION)) {
+        this.onSessionLost?.();
+      }
+      throw err;
+    }
+  }
+
+  /** The hub's notes from calls since the last take. */
+  takeNotes(): string[] {
+    return this.#notes.splice(0);
   }
 
   /** Best effort within `timeoutMs` (Windows kills the process ~300ms after stdin closes). */

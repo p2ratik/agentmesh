@@ -4,7 +4,8 @@
  *
  *   {p}.rpc.{caller}.{method…}   request/reply from a participant to the hub
  *   {p}.presence.{id}            fire-and-forget heartbeats
- *   {p}.deliver.{id}             JetStream: per-participant durable inbox
+ *   {p}.session.{agent}.{sess}   hub → one Claude Code session: deliveries and expiry notices
+ *   {p}.ack.{agent}.{token}      a session's reply to a delivery
  *   {p}.evt.{type…}              JetStream: activity feed consumed by bridges
  *   {p}.ingest.{source}          JetStream: external events for the rules engine
  */
@@ -16,8 +17,6 @@ export interface Subjects {
   rpcAll: string;
   presence(id: string): string;
   presenceAll: string;
-  deliver(id: string): string;
-  deliverAll: string;
   event(type: string): string;
   eventAll: string;
   ingest(source: string): string;
@@ -36,8 +35,6 @@ export function subjects(prefix: string): Subjects {
     rpcAll: `${prefix}.rpc.>`,
     presence: (id) => `${prefix}.presence.${id}`,
     presenceAll: `${prefix}.presence.*`,
-    deliver: (id) => `${prefix}.deliver.${id}`,
-    deliverAll: `${prefix}.deliver.>`,
     event: (type) => `${prefix}.evt.${type}`,
     eventAll: `${prefix}.evt.>`,
     ingest: (source) => `${prefix}.ingest.${source}`,
@@ -81,8 +78,6 @@ export function streamNames(prefix: string): StreamNames {
 }
 
 export const consumerNames = {
-  /** Durable inbox of one participant on the delivery stream. */
-  inbox: (participantId: string) => `inbox-${participantId}`,
   /** Durable activity-feed reader for a bridge service. */
   feed: (serviceId: string) => `feed-${serviceId}`,
   /** The hub's reader of the ingest stream. */

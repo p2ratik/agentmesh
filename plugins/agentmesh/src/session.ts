@@ -3,19 +3,23 @@ import type { RpcResult } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { PluginConfig } from './config';
 import { HubClient } from './hub';
-import { runInbox } from './inbox/consumer';
+import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
 import { pushEvent, VERSION } from './server';
 
 const HELLO_WAIT_MS = 4000;
 const SHUTDOWN_MS = 250;
 
+type Hello = RpcResult<'session.hello'>;
+
 export interface Session {
   config: PluginConfig;
   hub: HubClient;
   presence: Presence;
   /** The hub's greeting, or null if it did not answer in time. */
-  hello: RpcResult<'session.hello'> | null;
+  hello: Hello | null;
+  /** Says hello (again), one call at a time; resolves null if it failed. */
+  sayHello(): Promise<Hello | null>;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
@@ -23,15 +27,27 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
   const hub = new HubClient(config, logger);
   const presence = new Presence(hub, logger, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
   hub.connect();
-  const git = await presence.refreshGit();
-  const hello = await sayHello(hub, git, HELLO_WAIT_MS, logger);
-  return { config, hub, presence, hello };
+  await presence.refreshGit();
+  let inFlight: Promise<Hello | null> | null = null;
+  const sayHello = () => {
+    inFlight ??= register(hub, presence, logger).finally(() => {
+      inFlight = null;
+    });
+    return inFlight;
+  };
+  // The handshake must not wait on the network; a late hello still sets `hub.sessionId`.
+  const hello = await Promise.race([
+    sayHello(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS)),
+  ]);
+  return { config, hub, presence, hello, sayHello };
 }
 
 /**
  * Starts heartbeats and inbox pushes once Claude Code listens. Returns the
  * shutdown routine. `pushDelayMs` covers the gap after the MCP handshake in
- * which Claude Code silently drops channel notifications.
+ * which Claude Code silently drops channel notifications, so the session
+ * subject is not subscribed (and nothing acked into the void) before then.
  */
 export function startSession(
   server: Server,
@@ -41,12 +57,24 @@ export function startSession(
 ): () => Promise<void> {
   const { hub, presence, hello } = session;
   const abort = new AbortController();
+  let inbox: ReturnType<typeof runSessionInbox> | null = null;
+  const rehello = () => void session.sayHello().then((h) => h && inbox?.resubscribe());
+  hub.onSessionLost = rehello;
   presence.start();
+  // Without a session the hub delivers nothing, so keep asking until it answers.
+  const retry = setInterval(() => !hub.sessionId && rehello(), hub.config.heartbeatSeconds * 1000);
+  retry.unref();
   const startPushes = () => {
-    void runInbox({ hub, logger, signal: abort.signal, push: (event) => pushEvent(server, event) });
-    if (!hello) {
-      void hub.whenConnected().then(() => sayHello(hub, presence.git, 10_000, logger));
-    } else if (hello.unreadThreads > 0) {
+    inbox = runSessionInbox({
+      hub,
+      logger,
+      signal: abort.signal,
+      push: (event) => pushEvent(server, event),
+      onExpired: rehello,
+    });
+    if (!hub.sessionId) {
+      rehello();
+    } else if (hello && hello.unreadThreads > 0) {
       void pushEvent(server, {
         content: `You have ${hello.unreadThreads} mesh thread(s) with unread messages. Call the inbox tool to catch up.`,
         meta: { kind: 'system', from: 'agentmesh' },
@@ -57,6 +85,8 @@ export function startSession(
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
     abort.abort();
+    clearInterval(retry);
+    hub.onSessionLost = null;
     presence.stop();
     await Promise.race([
       hub.call('session.bye', {}, { timeoutMs: SHUTDOWN_MS }).catch(() => undefined),
@@ -66,22 +96,24 @@ export function startSession(
   };
 }
 
-/** Registers with the hub; resolves null if it does not answer in time. */
-async function sayHello(
-  hub: HubClient,
-  git: { repo?: string; branch?: string },
-  waitMs: number,
-  logger: Logger,
-): Promise<RpcResult<'session.hello'> | null> {
-  const attempt = hub
-    .whenConnected()
-    .then(() => hub.call('session.hello', { clientVersion: VERSION, ...git }))
-    .catch((err) => {
-      logger.warn({ err }, 'session.hello failed');
-      return null;
+/**
+ * Registers with the hub, offering this process's current session so the hub
+ * keeps it (or reclaims its work) after sleep or expiry. Null if it failed.
+ */
+async function register(hub: HubClient, presence: Presence, logger: Logger): Promise<Hello | null> {
+  try {
+    await hub.whenConnected();
+    const previous = hub.sessionId;
+    const hello = await hub.call('session.hello', {
+      clientVersion: VERSION,
+      ...presence.git,
+      ...(previous ? { previousSessionId: previous } : {}),
     });
-  return Promise.race([
-    attempt,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), waitMs)),
-  ]);
+    hub.sessionId = hello.sessionId;
+    logger.info({ session: hello.sessionId, previous, reclaimed: hello.reclaimed }, 'hub session');
+    return hello;
+  } catch (err) {
+    logger.warn({ err }, 'session.hello failed');
+    return null;
+  }
 }

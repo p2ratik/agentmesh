@@ -11,7 +11,7 @@ import {
   usernamePasswordAuthenticator,
 } from '@nats-io/transport-node';
 
-export type { NatsConnection } from '@nats-io/transport-node';
+export type { Msg, NatsConnection } from '@nats-io/transport-node';
 
 /**
  * One credential kind; nkey seeds are the recommended default. An nkey may
