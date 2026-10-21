@@ -40,13 +40,13 @@ export const sessionTools = [
   defineTool({
     name: 'deactivate',
     description:
-      'Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing.',
+      'Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing, and the work it owns is released.',
     input: z.object({}),
     mutating: false,
     run: async (_args, { hub, activation }) => {
       await hub.call('session.deactivate', {});
       activation.lastDescription = null;
-      return 'This session no longer receives mesh messages. The tools still work; /agentmesh:activate turns it back on.';
+      return 'This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.';
     },
   }),
   defineTool({

@@ -61,14 +61,18 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 ## Activate a session
 
 Every session starts inactive: the tools work, but nothing is pushed to it, and teammates do not
-see it. Run `/agentmesh:activate` in each session that should receive mesh messages. The hub pushes
-a test message with a code into the session; Claude reads it and confirms with a one-line
-description of what the session is working on. If no test message arrives, the session was started
-without the channel flag, so restart it with the command above.
+see it. Run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
+a test message with a code to the session over NATS, and the plugin pushes it into Claude Code;
+Claude reads it and confirms with the code and a one-line description of what the session is
+working on. If no test message arrives, the session was started without the channel flag, so
+restart it with the command above. If `activate` says the hub could not reach the session, the
+hub's NATS permissions were probably not updated for 0.2.0: ask your mesh admin.
 
-- `/agentmesh:deactivate` turns the session off again.
+- `/agentmesh:deactivate` turns the session off again and releases the work it owns; the next
+  message about that work goes to another active session.
 - `/agentmesh:take <task or thread>` moves that work to this session. Work belongs to the session
-  that first acted on it, and its messages go there until it closes or you take the work.
+  that first acted on it, and its messages go there until it deactivates or closes, or you take
+  the work. `inbox` lists the unread threads your other sessions own, with their session ids.
 
 The slash commands are user-only. Claude updates the description with `describe_session` when the
 session's focus changes.
@@ -94,6 +98,8 @@ planning etiquette).
   (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
   to call `inbox` — the hub keeps everything.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
+- **"This session isn't registered with the hub"**: the plugin is older than 0.2.0. Run
+  `claude plugin update agentmesh@agentmesh` and restart Claude Code.
 - **"not configured"**: set the options in `/plugin` or write `~/.agentmesh/agent.json`.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set
   `AGENTMESH_LOG_FILE` for the plugin's own log.

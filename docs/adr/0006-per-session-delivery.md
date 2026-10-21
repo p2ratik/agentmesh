@@ -28,9 +28,27 @@ The full evidence is in the [design](../specs/2026-10-21-session-routing-design.
   the thread, its parent or its task; else the session the sender picked; else a session in the
   message's repo; else the longest-active session; else it waits in the hub. Only active, live
   sessions receive anything. Every decision is logged with its reason.
-- **Ownership is claimed when a session acts or receives**, in the same transaction that
-  marks the delivery published. The first owner keeps the work until it closes or the human runs
-  `/agentmesh:take`.
+- **Ownership is claimed by two things,** each in the transaction of what caused it:
+  - **An RPC that acts on a thread,** in the RPC's transaction: `message.send` (an ask or a
+    reply), `escalate`, `task.create`, `task.act`, `review.request`, `review.submit`,
+    `plan.start`, `plan.submit` and `plan.cancel` claim the thread their result names;
+    `plan.contribute` claims the plan's thread. Reads (`thread.get`, `inbox.get`, `task.get`, …)
+    claim nothing.
+  - **A delivery the session acked,** in the transaction that marks it published, when routing
+    chose the session as the owner of the parent thread or the task, as the sender's pick, by repo
+    or as the longest-active session. A delivery to the thread's own owner claims nothing new.
+
+  A claim never moves work an open session owns: the first owner keeps it, and an acting session
+  gets a note saying where replies go. Ownership moves only by `/agentmesh:take`, or is released
+  when the owner deactivates or closes.
+- **Activation is a hub-sent check.** `session.check` makes the hub send the session a code over
+  its session subject; the plugin pushes it into Claude Code, and `session.activate` takes it back
+  with the description. A session that cannot be reached over NATS, or whose pushes Claude never
+  sees, never activates.
+- **Agents call as a session.** The hub refuses agent RPCs without an envelope session, except
+  `session.hello` and `session.bye`, with the plugin update instruction.
+- **What the agent already read is never pushed.** A pending delivery at or below the agent's read
+  cursor (read through `inbox` or `thread`) is marked published without a push.
 - **Mechanics.**
   - A request carries at most 100 messages (`MAX_DELIVERY_MESSAGES`) and stays under the server's
     `max_payload`.
@@ -54,14 +72,18 @@ The full evidence is in the [design](../specs/2026-10-21-session-routing-design.
   A message that starts a new conversation could reach a second session only in that crash or
   timeout window. Nothing is lost.
 - **Ordering** is per thread per agent, kept by the dispatcher. The outbox runs recipients
-  concurrently and takes up to 200 pending rows per recipient per flush.
+  concurrently and takes up to 200 pending rows per recipient per flush. If all 200 wait for a held
+  session, the agent's later rows wait behind them; the hub warns once a minute. A per-thread
+  window is later work (plan 2).
 - **Delivery needs the hub up.** RPCs always did.
 - **Sessions of one agent share NATS permissions.** See the threat note in
   [security.md](../security.md#sessions-and-per-session-delivery).
 - **Upgrade.** On start the hub deletes the leftover `{P}_DELIVERY` stream. Anything still queued
   there is not pushed, but it is in the hub database and reachable through `inbox`. The hub refuses
-  `session.hello` from plugins older than 0.2.0, so the hub and every plugin upgrade together;
-  there is no compatibility mode.
+  `session.hello` from plugins older than 0.2.0, and their later sessionless calls, so the hub and
+  every plugin upgrade together; there is no compatibility mode. Agents need new NATS permissions:
+  a static `nats.conf` is re-rendered and reloaded before the hub restarts, and in auth-callout
+  mode plugins reconnect for a new JWT ([deploy.md](../deploy.md#operations)).
 
 ## Alternatives considered
 

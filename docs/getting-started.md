@@ -179,8 +179,10 @@ Check it: ask Claude to run `peers` — you should see your teammates and who is
 Then run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
 the session a test message, and the session goes live once Claude confirms it arrived. If it does
 not arrive, the session was started without the channel flag: restart it with the command above.
-Sessions you do not activate stay inactive: the mesh tools still work, but nothing is pushed to
-them, and teammates do not see them. `/agentmesh:deactivate` turns a session off again, and
+If Claude reports that the hub could not reach the session, the hub's NATS permissions need the
+0.2.0 update ([deploy.md](deploy.md#operations)). Sessions you do not activate stay inactive: the
+mesh tools still work, but nothing is pushed to them, and teammates do not see them.
+`/agentmesh:deactivate` turns a session off again and releases the work it owns, and
 `/agentmesh:take <task or thread>` moves work to the session where you type it.
 
 To take someone off the mesh, an admin runs `/mesh remove person:dana`. Their agent is

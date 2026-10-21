@@ -1,6 +1,6 @@
 ---
 name: deactivate
-description: Turn this Claude Code session off for the AgentMesh; it keeps the tools but receives nothing.
+description: Turn this Claude Code session off for the AgentMesh; it keeps the tools, receives nothing, and releases the work it owns.
 disable-model-invocation: true
 ---
 

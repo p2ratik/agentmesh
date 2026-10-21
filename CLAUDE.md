@@ -201,7 +201,7 @@ Run `pnpm check` before calling anything done.
 - **CLI.**
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config.
-- **Docs, ADRs 0001–0005, CI.**
+- **Docs, ADRs 0001–0006, CI.**
 
 **Tested and passing:**
 - **Unit tests (about 215):** workflow engine, transitions, routing, leases overlap, planning rounds
