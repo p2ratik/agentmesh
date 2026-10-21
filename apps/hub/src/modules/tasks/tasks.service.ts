@@ -90,6 +90,7 @@ export class TaskServiceImpl implements TaskService {
       participants: member ? [actor.id] : [],
       parentThreadId: input.parentThreadId ?? null,
     });
+    op.rootThreadId = thread.id;
     const at = clock.now().toISOString();
     const directAssignee = plan.viaAssign ? null : (input.assignee ?? null);
     const taskId = this.repos.tasks.insert({
@@ -149,7 +150,10 @@ export class TaskServiceImpl implements TaskService {
     actor: Actor,
     notes?: string[],
   ): TaskDetail {
-    this.#operation(actor, notes, (op) => this.#runner.apply(op, taskId, action, input, actor));
+    this.#operation(actor, notes, (op) => {
+      op.rootThreadId = this.repos.tasks.require(taskId).threadId;
+      this.#runner.apply(op, taskId, action, input, actor);
+    });
     return this.get(taskId, actor);
   }
 
@@ -173,6 +177,7 @@ export class TaskServiceImpl implements TaskService {
   ): TaskDetail {
     this.#operation(actor, notes, (op) => {
       const task = this.repos.tasks.require(taskId);
+      op.rootThreadId = task.threadId;
       const round = task.reviewRound;
       const reviewers = this.views.currentReviewers(task);
       if (round === 0 || this.views.isTerminal(task)) {

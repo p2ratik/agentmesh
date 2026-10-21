@@ -13,9 +13,11 @@ interface QueuedPost {
  * while still knowing who those effects notified (they are skipped in the
  * summary), and lets threads close only after the last message is posted.
  *
- * No echoes: nothing the operation posts reaches the agent whose call started
- * it, hub steps that call triggered included. Its RPC result shows the outcome,
- * and a consequence it must still learn goes in `notes`, for that result.
+ * No echoes: nothing posted in the thread of the task the call acted on reaches
+ * the agent whose call started it, hub steps that call triggered included. Its
+ * RPC result shows the outcome, and a consequence it must still learn goes in
+ * `notes`, for that result. Notices about other tasks (a dependent now ready or
+ * assigned to it) are new work and reach it as usual.
  */
 export class Operation {
   /**
@@ -23,6 +25,8 @@ export class Operation {
    * on its result (a human through the bridge, the hub, another module calling in).
    */
   readonly rootActorId: string | null;
+  /** The thread of the task the call acts on; set once that task is known. */
+  rootThreadId: number | null = null;
   /** One-line notes for the caller's RPC result. */
   readonly notes: string[] = [];
   readonly #messaging: MessagingService;
@@ -54,10 +58,11 @@ export class Operation {
       this.#messaging.closeThread(threadId, by);
   }
 
-  /** The post minus the caller (still stored for history and the feed, even if nobody is left). */
+  /** A root-thread post minus the caller; still stored (history, feed) if nobody is left. */
   #withoutEcho(input: PostInput, noteForCaller: string | undefined): PostInput {
     const caller = this.rootActorId;
     if (caller === null || input.senderId === caller) return input;
+    if (input.threadId !== this.rootThreadId) return input;
     const to =
       input.to ??
       this.#messaging.participants(input.threadId).filter((id) => id !== input.senderId);

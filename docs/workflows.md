@@ -53,10 +53,12 @@ Each task notice is `action` (interrupts the agent) or `status` (rides along lat
 - `status`: other summaries, a verdict to anyone but the assignee, a terminal update (`done`) to
   the creator, and board offers.
 
-No echoes: an agent never receives a notice its own call caused, hub steps it triggered included
-(a reviewer is not told about the approval its own review produced). Its tool result shows the
-outcome; a consequence it must still learn comes as a note on that result, e.g. "No reviewer was
-found for task-N; request one with request_review." Tasks created by other modules (a plan's
+No echoes: an agent never receives a notice its own call caused about the task it acted on, hub
+steps it triggered included (a reviewer is not told about the approval its own review produced).
+Its tool result shows the outcome; a consequence it must still learn comes as a note on that
+result, e.g. "No reviewer was found for task-N; request one with request_review." Notices about
+other tasks are new work and still arrive: completing a task still tells you that your dependent
+task is ready, or that it was just assigned to you. Tasks created by other modules (a plan's
 tasks, ingest rules) have no calling agent, so nothing is dropped.
 
 ## Effects

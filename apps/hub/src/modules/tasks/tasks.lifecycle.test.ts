@@ -234,6 +234,31 @@ describe('echoes and classes', () => {
     expect(inbox.get('carol-agent')?.map((m) => m.class)).toEqual(['action']);
     expect(inbox.get('bob-agent')?.map((m) => m.class)).toEqual(['status']);
   });
+
+  /** Task-1 from accept to done, every call over RPC; returns what its assignee got about task-2. */
+  async function finishTask1(h: ReturnType<typeof setup>, owner: Actor) {
+    await h.drain();
+    h.tasks.act(1, 'accept', {}, owner, []);
+    h.tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner, []);
+    h.tasks.submitReview(1, 'approve', 'ok', agent(h.tasks.get(1, owner).reviewers[0] ?? ''), []);
+    h.tasks.act(1, 'complete', {}, owner, []);
+    const got = (await h.drain()).get(owner.id) ?? [];
+    return got.filter((m) => m.refs.taskId === 'task-2').map((m) => [m.refs.action, m.class]);
+  }
+
+  it('completing a task still tells the completer its dependent task is ready', async () => {
+    const h = setup();
+    h.tasks.create({ ...base, area: 'web' }, human('alice'));
+    h.tasks.create({ ...base, area: 'web', assignee: 'bob-agent', dependsOn: [1] }, human('alice'));
+    expect(await finishTask1(h, agent('bob-agent'))).toEqual([['dependencies_done', 'action']]);
+  });
+
+  it('a dependent auto-assigned to the completer still gets its brief', async () => {
+    const h = setup();
+    h.tasks.create({ ...base, area: 'web' }, human('alice'));
+    h.tasks.create({ ...base, area: 'web', dependsOn: [1] }, human('alice'));
+    expect(await finishTask1(h, agent('bob-agent'))).toEqual([['assign', 'action']]);
+  });
 });
 
 describe('permissions and errors', () => {
