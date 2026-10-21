@@ -49,17 +49,20 @@ Each task notice is `action` (interrupts the agent) or `status` (rides along lat
 
 - `action`: assignee briefs (assigned, changes requested, approved, cancelled), review requests,
   "no reviewer found", "dependencies done", a verdict to the assignee, a `blocked` update to the
-  creator, and the summary to an agent the task was just taken from (`assign`, `handoff`, `claim`).
+  creator, the summary to an agent the task was just taken from (`assign`, `handoff`, `claim`),
+  and the summary of an `unblock` to the assignee (they can resume).
 - `status`: other summaries, a verdict to anyone but the assignee, a terminal update (`done`) to
   the creator, and board offers.
 
 No echoes: an agent never receives a notice its own call caused about the task it acted on, hub
 steps it triggered included (a reviewer is not told about the approval its own review produced).
 Its tool result shows the outcome; a consequence it must still learn comes as a note on that
-result, e.g. "No reviewer was found for task-N; request one with request_review." Notices about
-other tasks are new work and still arrive: completing a task still tells you that your dependent
-task is ready, or that it was just assigned to you. Tasks created by other modules (a plan's
-tasks, ingest rules) have no calling agent, so nothing is dropped.
+result, e.g. "No reviewer was found for task-N; request one with request_review." An agent that
+takes a task itself (a claim, or creating it for itself) gets the git part of the brief that way:
+"task-N: base branch `agents` · suggested branch `agent/…` · work in a separate git worktree."
+Notices about other tasks are new work and still arrive: completing a task still tells you that
+your dependent task is ready, or that it was just assigned to you. Tasks created by other modules
+(a plan's tasks, ingest rules) have no calling agent, so nothing is dropped.
 
 ## Effects
 

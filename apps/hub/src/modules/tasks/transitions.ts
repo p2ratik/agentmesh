@@ -189,7 +189,7 @@ export class TransitionRunner {
       to,
       system: true,
       refs: { action, ...(task.prUrl ? { prUrl: task.prUrl } : {}) },
-      deliveryClass: (id) => summaryClass(id, takenFrom),
+      deliveryClass: (id) => summaryClass(id, { action, assignee: task.assignee, takenFrom }),
     };
   }
 

@@ -9,9 +9,23 @@ import type { TaskRecord } from '../repo';
  * step. Board offers are optional work: `status`.
  */
 
-/** The transition summary: only the agent the task was just taken from has to stop. */
-export function summaryClass(recipientId: string, takenFrom: string | null): DeliveryClass {
-  return recipientId === takenFrom ? 'action' : 'status';
+/** What the transition summary needs to know about the change. */
+export interface SummaryChange {
+  action: string;
+  /** The assignee after the transition. */
+  assignee: string | null;
+  /** The previous assignee, when an `assign`, `handoff` or `claim` moved the task to someone else. */
+  takenFrom: string | null;
+}
+
+/**
+ * The transition summary is status, except where it gives a next step: the
+ * agent the task was just taken from has to stop, and the assignee of a task
+ * someone else unblocked can resume.
+ */
+export function summaryClass(recipientId: string, change: SummaryChange): DeliveryClass {
+  if (recipientId === change.takenFrom) return 'action';
+  return change.action === 'unblock' && recipientId === change.assignee ? 'action' : 'status';
 }
 
 /**
