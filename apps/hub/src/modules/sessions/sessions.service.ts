@@ -64,7 +64,7 @@ export class SessionsServiceImpl implements SessionsService {
       const mine = previous?.agent_id === agentId ? previous : undefined;
       if (mine && mine.liveness !== 'closed') {
         this.repo.touch(mine.id, at, git);
-        this.repo.markLive(mine.id);
+        if (this.repo.markLive(mine.id)) this.#ctx.outbox.kick();
         return { session: this.verify(agentId, mine.id), reclaimed: [] };
       }
       const id = newSessionId();
@@ -83,12 +83,17 @@ export class SessionsServiceImpl implements SessionsService {
     return toRecord(this.#row(agentId, sessionId));
   }
 
-  /** Stamps `activated_at` only when the session was inactive, so re-activating keeps its age. */
+  /**
+   * Stamps `activated_at` only when the session was inactive, so re-activating keeps its age.
+   * Kicks the outbox: messages waiting for an active session can go now.
+   */
   activate(agentId: string, sessionId: string, description: string): SessionRecord {
-    return this.#change(agentId, sessionId, 'session activated', (row, at) => {
+    const record = this.#change(agentId, sessionId, 'session activated', (row, at) => {
       if (row.active === 0) this.repo.setActive(sessionId, true, at);
       this.repo.setDescription(sessionId, redactSecrets(description));
     });
+    this.#ctx.outbox.kick();
+    return record;
   }
 
   deactivate(agentId: string, sessionId: string): SessionRecord {
@@ -118,7 +123,8 @@ export class SessionsServiceImpl implements SessionsService {
     const row = this.repo.get(sessionId);
     if (!row || row.agent_id !== agentId || row.liveness === 'closed') return 'unknown';
     this.repo.touch(sessionId, this.#now(), git);
-    this.repo.markLive(sessionId);
+    // Back from away: what waited for it goes now, not on the next tick.
+    if (this.repo.markLive(sessionId)) this.#ctx.outbox.kick();
     return 'ok';
   }
 

@@ -16,9 +16,15 @@ export const SessionView = z.object({
 });
 export type SessionView = z.infer<typeof SessionView>;
 
+/** Most messages in one `deliver`; the hub splits bigger batches. */
+export const MAX_DELIVERY_MESSAGES = 100;
+
 /** What the hub publishes on `{p}.session.{agent}.{session}`. */
 export const SessionInbound = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('deliver'), messages: z.array(MeshMessage).min(1).max(100) }),
+  z.object({
+    type: z.literal('deliver'),
+    messages: z.array(MeshMessage).min(1).max(MAX_DELIVERY_MESSAGES),
+  }),
   z.object({ type: z.literal('expired') }),
 ]);
 export type SessionInbound = z.infer<typeof SessionInbound>;

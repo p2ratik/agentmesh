@@ -2,7 +2,7 @@ import type { HubContext } from '../../context';
 import type { EnrollmentService, HubModule, RpcHandlerMap } from '../../contracts';
 import { type EnrollmentDeps, EnrollmentServiceImpl } from './enrollment.service';
 
-export type { EnrollmentDeps, InboxPort } from './enrollment.service';
+export type { EnrollmentDeps } from './enrollment.service';
 
 type EnrollmentHandlers = Pick<
   RpcHandlerMap,

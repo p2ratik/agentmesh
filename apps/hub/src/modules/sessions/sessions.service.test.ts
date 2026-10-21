@@ -9,7 +9,7 @@ import { isAtLeast } from './version';
 
 function setup() {
   const h = createTestHarness();
-  const built = buildModules(h.ctx, null, { inboxes: null, kick: null });
+  const built = buildModules(h.ctx, null, { kick: null });
   const { sessions, messaging, presence, tasks } = built.services;
   const thread = (createdBy = 'alice-agent', participants = ['bob-agent']) =>
     messaging.createThread({ kind: 'conversation', subject: 'x', createdBy, participants }).id;

@@ -1,11 +1,5 @@
 import { join } from 'node:path';
-import {
-  connectBus,
-  deleteInboxConsumer,
-  ensureInboxConsumer,
-  type RpcDispatcher,
-  serveRpc,
-} from '@agentmesh/bus';
+import { connectBus, type RpcDispatcher, serveRpc } from '@agentmesh/bus';
 import { type Clock, createLogger, DAY_MS, type Logger, systemClock } from '@agentmesh/common';
 import { ConfigIndex, type LoadedConfig } from '@agentmesh/config';
 import { createHubContext, type HubContext } from './context';
@@ -16,6 +10,8 @@ import { migrate } from './db/migrate';
 import { CalloutService, type LoadedCalloutKeys } from './modules/callout';
 import { createNatsIngestTransport } from './modules/ingest';
 import { type Subscription, startPresenceListener } from './modules/presence';
+import { SessionDispatcher } from './modules/sessions/dispatcher';
+import { NatsSessionTransport } from './modules/sessions/nats-transport';
 import { type DeliveryPort, type EventPort, MemoryPorts } from './ports';
 import { IdempotencyStore } from './rpc/idempotency';
 import { createRpcRouter } from './rpc/router';
@@ -51,12 +47,8 @@ const OUTBOX_RETENTION_MS = 7 * DAY_MS;
 
 /** What the modules need from NATS: none of it exists without a connection. */
 async function natsAdapters(nats: HubNats | null, options: HubOptions, logger: Logger) {
-  if (!nats) return { transport: null, inboxes: null, sys: null };
+  if (!nats) return { transport: null, sessionTransport: null, sys: null };
   const prefix = options.loaded.config.mesh.prefix;
-  const inboxes = {
-    ensure: (agentId: string) => ensureInboxConsumer(nats.jsm, prefix, agentId),
-    remove: (agentId: string) => deleteInboxConsumer(nats.jsm, prefix, agentId),
-  };
   // Auth-callout mode: a second connection as the hub's kick-only system-account user.
   const sys = options.callout
     ? await connectBus({
@@ -66,7 +58,11 @@ async function natsAdapters(nats: HubNats | null, options: HubOptions, logger: L
         logger,
       })
     : null;
-  return { transport: createNatsIngestTransport(nats.js, prefix, logger), inboxes, sys };
+  return {
+    transport: createNatsIngestTransport(nats.js, prefix, logger),
+    sessionTransport: new NatsSessionTransport(nats.nc, prefix, logger),
+    sys,
+  };
 }
 
 /** Assembles the hub. With NATS settings it connects (waiting for the server) before returning. */
@@ -82,9 +78,18 @@ export async function createHub(options: HubOptions): Promise<Hub> {
 
   const nats: HubNats | null = options.nats ? await connectHubNats(options.nats, logger) : null;
   const fallback = new MemoryPorts();
-  const natsPorts = nats ? new NatsPorts(nats.js, config.mesh.prefix) : null;
-  const delivery: DeliveryPort = natsPorts ?? options.ports?.delivery ?? fallback;
-  const events: EventPort = natsPorts ?? options.ports?.events ?? fallback;
+  // With NATS, deliveries go to sessions through the dispatcher, built once the modules exist.
+  let dispatcher: SessionDispatcher | null = null;
+  const toSessions: DeliveryPort = {
+    deliver: (recipientId, messages) => {
+      if (!dispatcher) throw new Error('session dispatcher not built yet');
+      return dispatcher.deliver(recipientId, messages);
+    },
+  };
+  const delivery: DeliveryPort = nats ? toSessions : (options.ports?.delivery ?? fallback);
+  const events: EventPort = nats
+    ? new NatsPorts(nats.js, config.mesh.prefix)
+    : (options.ports?.events ?? fallback);
   const outbox = new SqliteOutbox(db, clock, logger, delivery, events);
   const context = createHubContext({
     loaded,
@@ -95,10 +100,19 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     outbox,
   });
 
-  const { transport, inboxes, sys } = await natsAdapters(nats, options, logger);
+  const { transport, sessionTransport, sys } = await natsAdapters(nats, options, logger);
   let callout: CalloutService | null = null;
   const kick = (agentId: string) => callout?.kick(agentId) ?? Promise.resolve();
-  const built = buildModules(context, transport, { inboxes, kick: sys ? kick : null });
+  const built = buildModules(context, transport, { kick: sys ? kick : null });
+  if (sessionTransport) {
+    const { sessions, messaging } = built.services;
+    dispatcher = new SessionDispatcher({
+      sessions,
+      messaging,
+      transport: sessionTransport,
+      logger,
+    });
+  }
   if (sys && options.callout) {
     const { enrollment } = built.services;
     callout = new CalloutService(context, { keys: options.callout, enrollment, sys });
@@ -135,8 +149,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     tick: () => scheduler.tick(),
     async start() {
       if (nats) {
-        // The merged config, so enrolled members keep their inboxes across restarts.
-        await provisionTopology(nats, context.index.config, logger);
+        await provisionTopology(nats, config, logger);
         if (callout) subscriptions.push(callout.start(nats.nc));
         subscriptions.push(serveRpc(nats.nc, dispatch, { prefix: config.mesh.prefix, logger }));
         subscriptions.push(
@@ -146,8 +159,8 @@ export async function createHub(options: HubOptions): Promise<Hub> {
             built.services.presence,
             logger,
             (agent, session, git) => built.services.sessions.touch(agent, session, git),
-            // Task 8 publishes { type: 'expired' } to the session here.
-            (agent, session) => logger.debug({ agent, session }, 'heartbeat from unknown session'),
+            // A closed or unknown session's plugin says hello again.
+            (agent, session) => sessionTransport?.expired(agent, session),
           ),
         );
       }

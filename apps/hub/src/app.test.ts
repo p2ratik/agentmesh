@@ -38,6 +38,14 @@ async function start(overrides: Record<string, unknown> = {}) {
 }
 
 describe('hub end to end (no NATS)', () => {
+  it('createHub without NATS still delivers through the injected ports', async () => {
+    const { call, inbox, ports } = await start();
+    // bob has no session: the session dispatcher would hold this, the injected port takes it.
+    await call('alice-agent', 'message.send', { kind: 'ask', to: ['bob-agent'], body: 'wired?' });
+    expect((await inbox('bob-agent')).map((m) => m.body)).toEqual(['wired?']);
+    expect(ports.events.map((e) => e.type)).toContain('message.created');
+  });
+
   it('connects an agent, then routes an ask and a threaded reply', async () => {
     const { call, inbox } = await start();
     const hello = await call<{

@@ -2,7 +2,6 @@ import {
   type BusCredentials,
   connectBus,
   ensureFeedConsumer,
-  ensureInboxConsumer,
   ensureIngestConsumer,
   ensureStreams,
   type JetStreamClient,
@@ -10,6 +9,7 @@ import {
   jetstream,
   jetstreamManager,
   type NatsConnection,
+  removeLegacyDelivery,
 } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
 import type { MeshConfig } from '@agentmesh/config';
@@ -37,9 +37,9 @@ export async function connectHubNats(settings: NatsSettings, logger: Logger): Pr
 }
 
 /**
- * Streams plus a durable consumer per configured agent (inbox), bridge
- * service (activity feed) and the hub's ingest reader. Idempotent; runs on
- * every start so new teammates get an inbox without manual steps.
+ * Streams plus a durable consumer per bridge service (activity feed) and the
+ * hub's ingest reader. Idempotent; runs on every start. Agents get their
+ * messages from the outbox through their sessions, not from JetStream.
  */
 export async function provisionTopology(
   nats: HubNats,
@@ -49,16 +49,18 @@ export async function provisionTopology(
   const prefix = config.mesh.prefix;
   await ensureStreams(nats.jsm, {
     prefix,
-    deliveryRetentionDays: config.limits.deliveryRetentionDays,
     eventRetentionDays: 7,
     ingestDedupMinutes: config.ingest.dedupWindowMinutes,
   });
-  for (const agent of config.agents) await ensureInboxConsumer(nats.jsm, prefix, agent.id);
+  // Best-effort: a leftover stream only takes disk space.
+  await removeLegacyDelivery(nats.jsm, prefix).then(
+    (removed) => {
+      if (removed) logger.info({ prefix }, 'removed the legacy agent delivery stream');
+    },
+    (err: unknown) => logger.warn({ err }, 'could not remove the legacy agent delivery stream'),
+  );
   const bridges = config.services.filter((s) => s.role === 'bridge');
   for (const bridge of bridges) await ensureFeedConsumer(nats.jsm, prefix, bridge.id);
   await ensureIngestConsumer(nats.jsm, prefix);
-  logger.info(
-    { prefix, inboxes: config.agents.length, feeds: bridges.length },
-    'mesh topology ready',
-  );
+  logger.info({ prefix, feeds: bridges.length }, 'mesh topology ready');
 }

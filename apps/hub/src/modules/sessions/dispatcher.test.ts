@@ -109,6 +109,37 @@ describe('SessionDispatcher', () => {
     expect(pending()).toEqual([]);
   });
 
+  it('waiting deliveries go out as soon as a session activates or comes back', async () => {
+    const { sessions, thread, ask, outbox, transport, pending, liveness } = setup();
+    /** Runs the flushes already scheduled, so only a new kick can deliver after this. */
+    const settle = async () => {
+      await new Promise((resolve) => setImmediate(resolve));
+      await outbox.flush();
+    };
+    const s1 = sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
+    const t = thread();
+    ask(t);
+    await settle();
+    expect(transport.sends).toEqual([]);
+    sessions.activate('bob-agent', s1, 'web client');
+    await vi.waitFor(() => expect(transport.sends).toHaveLength(1));
+
+    const goAway = async () => {
+      transport.respond.set(s1, () => Promise.reject(new Error('timeout')));
+      ask(t);
+      await settle();
+      expect(liveness(s1)).toBe('away');
+      transport.respond.delete(s1);
+    };
+    await goAway();
+    sessions.touch('bob-agent', s1);
+    await vi.waitFor(() => expect(transport.sends).toHaveLength(3));
+    await goAway();
+    sessions.open('bob-agent', { clientVersion: '0.2.0', previousSessionId: s1 });
+    await vi.waitFor(() => expect(transport.sends).toHaveLength(5));
+    expect(pending()).toEqual([]);
+  });
+
   it('a dead session does not hold up other sessions', async () => {
     const { active, thread, ask, clock, dispatcher, transport, liveness } = setup();
     const s1 = active();

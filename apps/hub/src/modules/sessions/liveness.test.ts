@@ -4,7 +4,7 @@ import { createTestHarness } from '../../testing/harness';
 
 function setup() {
   const h = createTestHarness();
-  const { sessions, messaging } = buildModules(h.ctx, null, { inboxes: null, kick: null }).services;
+  const { sessions, messaging } = buildModules(h.ctx, null, { kick: null }).services;
   const s1 = sessions.open('alice-agent', { clientVersion: '0.2.0' }).session.id;
   const thread = messaging.createThread({
     kind: 'conversation',

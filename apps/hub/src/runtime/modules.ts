@@ -14,7 +14,7 @@ import type {
   TickJob,
 } from '../contracts';
 import { createControlModule } from '../modules/control';
-import { createEnrollmentModule, type InboxPort } from '../modules/enrollment';
+import { createEnrollmentModule } from '../modules/enrollment';
 import { createIngestModule, type IngestTransport } from '../modules/ingest';
 import { createLeaseModule } from '../modules/leases';
 import { createMessagingModule, type MessagingModule } from '../modules/messaging';
@@ -52,7 +52,7 @@ export interface BuiltModules {
 export function buildModules(
   ctx: HubContext,
   transport: IngestTransport | null,
-  nats: { inboxes: InboxPort | null; kick: ((agentId: string) => Promise<void>) | null },
+  nats: { kick: ((agentId: string) => Promise<void>) | null },
 ): BuiltModules {
   let messaging: MessagingModule | null = null;
   let sessions: SessionsService | null = null;

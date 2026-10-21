@@ -100,11 +100,13 @@ export class SessionsRepo {
     );
   }
 
-  markLive(id: string): void {
-    this.#db.run(
+  /** Returns whether the session was away. */
+  markLive(id: string): boolean {
+    const { changes } = this.#db.run(
       "UPDATE sessions SET liveness = 'live', away_since = NULL WHERE id = $id AND liveness = 'away'",
       { id },
     );
+    return changes > 0;
   }
 
   /** Closes the session, deactivates it and records the thread ids it released. */
