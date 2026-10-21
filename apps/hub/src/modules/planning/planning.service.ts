@@ -98,7 +98,9 @@ export class PlanningServiceImpl implements PlanningService {
       messaging.linkThread(thread.id, { planId });
       const plan = this.repo.require(planId);
       outbox.enqueueEvent('plan.started', { plan: toPlan(plan) });
-      this.#flow.post(plan, participants, inviteText(plan, first, this.#flow.name, now), {
+      // The initiating agent's own RPC result shows the plan.
+      const invited = participants.filter((id) => id !== (actor.kind === 'agent' ? actor.id : ''));
+      this.#flow.post(plan, invited, inviteText(plan, first, this.#flow.name, now), {
         round: first.id,
       });
       return planId;
@@ -191,7 +193,7 @@ export class PlanningServiceImpl implements PlanningService {
       const at = this.#ctx.clock.now().toISOString();
       this.repo.update(planId, { summary, drafts: check.ordered }, at);
       if (!plan.requireApproval) {
-        this.#flow.materialize(planId);
+        this.#flow.materialize(planId, actor.kind === 'agent' ? actor.id : undefined);
         return;
       }
       this.repo.update(planId, { state: 'awaiting_approval', deadline: null }, at);

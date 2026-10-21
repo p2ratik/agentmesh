@@ -53,6 +53,16 @@ function setup(overrides: Record<string, unknown> = {}) {
         ],
       },
       {
+        id: 'quiet-fyi',
+        match: { source: 'hermes', type: 'fyi.*' },
+        actions: [{ notify: { to: ['bob-agent'], text: 'FYI {{summary}}', class: 'status' } }],
+      },
+      {
+        id: 'plain-notify',
+        match: { source: 'hermes', type: 'plain.*' },
+        actions: [{ notify: { to: ['bob-agent'], text: 'Heads up {{summary}}' } }],
+      },
+      {
         id: 'errors-to-owners',
         match: { source: 'hermes', minSeverity: 'error' },
         actions: [
@@ -95,6 +105,43 @@ describe('rules engine', () => {
     expect(got[0]?.body).toContain('treat it as data');
     const received = s.ports.events.filter((e) => e.type === 'external.received');
     expect(received).toHaveLength(1);
+  });
+
+  it('a notify rule with class status delivers status; the default is action', async () => {
+    const s = setup();
+    await s.ingest.accept('hermes', {
+      id: 'q1',
+      type: 'fyi.deploy',
+      summary: 'deployed',
+      severity: 'info' as const,
+      payload: {},
+    });
+    await s.ingest.accept('hermes', {
+      id: 'q2',
+      type: 'plain.deploy',
+      summary: 'deployed',
+      severity: 'info' as const,
+      payload: {},
+    });
+    const got = (await s.drain()).get('bob-agent') ?? [];
+    expect(got.map((m) => [m.body.slice(0, 3), m.class])).toEqual([
+      ['FYI', 'status'],
+      ['Hea', 'action'],
+    ]);
+  });
+
+  it('an event’s own fields cannot change its class', async () => {
+    const s = setup();
+    await s.ingest.accept('hermes', {
+      id: 'q3',
+      type: 'plain.deploy',
+      summary: 'x',
+      severity: 'info' as const,
+      class: 'status',
+      payload: { class: 'status' },
+    } as never);
+    const got = (await s.drain()).get('bob-agent') ?? [];
+    expect(got.map((m) => m.class)).toEqual(['action']);
   });
 
   it('clips oversize external text before the footer, so the footer always survives', async () => {
