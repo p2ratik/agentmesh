@@ -1,6 +1,8 @@
 import type { MeshMessage, MessageRefs } from '@agentmesh/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { createDispatchHarness } from '../../testing/services';
+import { readInbox } from '../messaging/inbox';
+import type { MessagingServiceImpl } from '../messaging/messaging.service';
 import { SessionsServiceImpl } from './sessions.service';
 
 function setup() {
@@ -33,14 +35,32 @@ function setup() {
 }
 
 describe('SessionDispatcher', () => {
-  it('never delivers to an agent whose only session is inactive', async () => {
+  it('never delivers to an agent whose only session is inactive, nor routes for it', async () => {
     const { sessions, thread, ask, dispatcher, outbox, transport, pending } = setup();
     sessions.open('bob-agent', { clientVersion: '0.2.0' });
+    const route = vi.spyOn(sessions, 'route');
     const m = ask(thread());
     expect((await dispatcher.deliver('bob-agent', [m])).delivered).toEqual([]);
     await outbox.flush();
     expect(transport.sends).toEqual([]);
     expect(pending()).toEqual([m.id]);
+    expect(route).not.toHaveBeenCalled();
+  });
+
+  it('messages read through inbox are published without a push', async () => {
+    const { sessions, thread, ask, outbox, transport, pending, messaging } = setup();
+    const s1 = sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
+    const [t1, t2] = [thread(), thread()];
+    ask(t1);
+    ask(t2);
+    await outbox.flush();
+    expect(pending()).toHaveLength(2);
+    readInbox(messaging as MessagingServiceImpl, 'bob-agent', s1, 20, 5);
+    sessions.activate('bob-agent', s1, 'web client');
+    await outbox.flush();
+    expect(transport.sends).toEqual([]);
+    expect(pending()).toEqual([]);
+    expect(sessions.ownerOf(t1, 'bob-agent')).toBeNull();
   });
 
   it('a new conversation sticks to the chosen session', async () => {
@@ -139,6 +159,38 @@ describe('SessionDispatcher', () => {
     await vi.waitFor(() => expect(transport.sends).toHaveLength(5));
     expect(pending()).toEqual([]);
   });
+
+  it.each(['take', 'deactivate', 'bye', 'expiry'])(
+    'work freed by %s goes out at once',
+    async (how) => {
+      const { active, thread, ask, clock, outbox, transport, sessions, ctx, liveness } = setup();
+      const s1 = active();
+      clock.advance(60_000);
+      const s2 = active();
+      const t = thread();
+      ask(t);
+      await outbox.flush();
+      transport.respond.set(s1, () => Promise.reject(new Error('timeout')));
+      const next = ask(t);
+      await outbox.flush();
+      expect(liveness(s1)).toBe('away');
+      await new Promise((resolve) => setImmediate(resolve)); // let scheduled flushes run
+      const sent = transport.sends.length;
+      if (how === 'take') sessions.take('bob-agent', s2, t);
+      if (how === 'deactivate') sessions.deactivate('bob-agent', s1);
+      if (how === 'bye') sessions.close('bob-agent', s1);
+      if (how === 'expiry') {
+        clock.advance(ctx.loaded.config.presence.ownershipGraceMinutes * 60_000 + 1);
+        sessions.touch('bob-agent', s2);
+        expect(sessions.expire(clock.now()).closed).toBe(1);
+      }
+      await vi.waitFor(() =>
+        expect(transport.sends.slice(sent)).toEqual([
+          { agentId: 'bob-agent', sessionId: s2, ids: [next.id] },
+        ]),
+      );
+    },
+  );
 
   it('a dead session does not hold up other sessions', async () => {
     const { active, thread, ask, clock, dispatcher, transport, liveness } = setup();

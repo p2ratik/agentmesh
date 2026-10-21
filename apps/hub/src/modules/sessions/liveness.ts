@@ -4,7 +4,7 @@ import type { SessionsRepo } from './sessions.repo';
 /** Releases the session's threads and closes it; shared by `session.bye` and expiry. */
 export function releaseAndClose(repo: SessionsRepo, sessionId: string, at: string): number[] {
   const released = repo.releaseOwned(sessionId);
-  repo.close(sessionId, at, released);
+  repo.close(sessionId, at);
   return released;
 }
 
@@ -29,5 +29,7 @@ export function expireSessions(
     return { away: stale.length, closed: expired.length };
   });
   if (result.away || result.closed) ctx.logger.info(result, 'sessions expired');
+  // Released work goes to another session now, not on the next tick.
+  if (result.closed) ctx.outbox.kick();
   return result;
 }

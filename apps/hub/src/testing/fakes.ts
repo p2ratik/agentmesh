@@ -120,6 +120,10 @@ export class FakeMessaging implements MessagingService {
 
   markRead(): void {}
 
+  isRead(): boolean {
+    return false;
+  }
+
   setOwnerReader(): void {}
 
   /** Messages delivered to one participant, in order. */

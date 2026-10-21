@@ -156,6 +156,12 @@ export class MessagingServiceImpl implements MessagingService {
     }
   }
 
+  isRead(participantId: string, messageId: string): boolean {
+    const at = this.messages.position(messageId);
+    const cursor = at ? this.reads.cursor(at.threadId, participantId) : null;
+    return at !== undefined && cursor !== null && at.seq <= cursor;
+  }
+
   setOwnerReader(reader: (threadId: number, agentId: string) => string | null): void {
     this.#ownerOf = reader;
   }

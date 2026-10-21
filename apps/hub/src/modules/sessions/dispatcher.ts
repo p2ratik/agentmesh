@@ -21,7 +21,8 @@ interface Routed {
  * its agent, hands every session its batch at once, and returns the acked ids
  * with a `commit` that claims ownership and advances the read cursor. The
  * outbox runs that commit in the transaction that marks the rows published, so
- * "delivered", "read" and "owned" are one step.
+ * "delivered", "read" and "owned" are one step. Messages the agent already read
+ * (through `inbox` or `thread`) count as delivered without a push.
  */
 export class SessionDispatcher implements DeliveryPort {
   readonly #sessions: SessionsService;
@@ -42,7 +43,12 @@ export class SessionDispatcher implements DeliveryPort {
   }
 
   async deliver(agentId: string, messages: MeshMessage[]): Promise<DeliveryReceipt> {
-    const routed = this.#route(agentId, messages);
+    // Already read through inbox or thread: delivered, with nothing to push, claim or mark read.
+    const seen = messages.filter((m) => this.#messaging.isRead(agentId, m.id)).map((m) => m.id);
+    // No active, live session: every route would wait.
+    if (!this.#sessions.hasReadySession(agentId)) return { delivered: seen };
+    const unseen = messages.filter((m) => !seen.includes(m.id));
+    const routed = this.#route(agentId, unseen);
     const batches = [...Map.groupBy(routed, (r) => r.route.sessionId)];
     // Every send starts before any is awaited, so a dead session never holds up the others.
     const results = await Promise.allSettled(
@@ -65,7 +71,7 @@ export class SessionDispatcher implements DeliveryPort {
     const delivered = routed.filter((r) => acked.has(r.message.id));
     const ids = delivered.map((r) => r.message.id);
     return {
-      delivered: ids,
+      delivered: [...seen, ...ids],
       commit: () => {
         for (const { message, route } of delivered) {
           this.#sessions.delivered(agentId, route.sessionId, message, route);

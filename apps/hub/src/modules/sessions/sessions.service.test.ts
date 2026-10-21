@@ -120,6 +120,30 @@ describe('sessions service', () => {
     expect(reused).toMatchObject({ session: { id: s2 }, reclaimed: [] });
   });
 
+  it('deactivate releases ownership; the next message routes to another active session', () => {
+    const { sessions, messaging, thread, open, claim, owner } = setup();
+    const t = thread('bob-agent', ['alice-agent']);
+    const [s1, s2] = [open(), open()];
+    sessions.activate('alice-agent', s1, 'billing api');
+    sessions.activate('alice-agent', s2, 'status codes');
+    claim(s2, t);
+    sessions.deactivate('alice-agent', s2);
+    expect(owner(t)).toBeNull();
+    const next = messaging.post({
+      threadId: t,
+      senderId: 'bob-agent',
+      kind: 'reply',
+      body: 'more',
+    });
+    expect(sessions.route('alice-agent', next.message)).toMatchObject({
+      kind: 'deliver',
+      sessionId: s1,
+    });
+    // Re-activating takes nothing back: work moves by routing or take.
+    sessions.activate('alice-agent', s2, 'status codes');
+    expect(owner(t)).toBeNull();
+  });
+
   it('bye keeps the agent online while another of its sessions lives', async () => {
     const { presence, open, rpc, call } = setup();
     presence.touch('alice-agent');
@@ -175,7 +199,7 @@ describe('sessions service', () => {
 
     sessions.deactivate('alice-agent', s2);
     expect(listed()).toEqual([]);
-    expect(owner(taskThread)).toBe(s2);
+    expect(owner(taskThread)).toBeNull();
   });
 });
 

@@ -96,10 +96,14 @@ export class SessionsServiceImpl implements SessionsService {
     return record;
   }
 
+  /** A clean stop (spec §3): releases what the session owns at once; re-activating takes none of it back. */
   deactivate(agentId: string, sessionId: string): SessionRecord {
-    return this.#change(agentId, sessionId, 'session deactivated', (_row, at) =>
-      this.repo.setActive(sessionId, false, at),
-    );
+    const record = this.#change(agentId, sessionId, 'session deactivated', (_row, at) => {
+      this.repo.setActive(sessionId, false, at);
+      this.repo.releaseOwned(sessionId);
+    });
+    this.#ctx.outbox.kick();
+    return record;
   }
 
   describe(agentId: string, sessionId: string, description: string): SessionRecord {
@@ -117,6 +121,7 @@ export class SessionsServiceImpl implements SessionsService {
       { agent: agentId, session: sessionId, released: released.length },
       'session closed',
     );
+    this.#ctx.outbox.kick();
   }
 
   touch(agentId: string, sessionId: string, git: { repo?: string; branch?: string } = {}) {
@@ -179,6 +184,7 @@ export class SessionsServiceImpl implements SessionsService {
       { agent: agentId, session: sessionId, thread: threadKey(threadId), previous },
       'thread taken',
     );
+    this.#ctx.outbox.kick();
     return { previous };
   }
 
@@ -225,6 +231,10 @@ export class SessionsServiceImpl implements SessionsService {
 
   hasLiveSession(agentId: string): boolean {
     return this.repo.listLive(agentId).some((s) => s.liveness === 'live');
+  }
+
+  hasReadySession(agentId: string): boolean {
+    return this.repo.listLive(agentId).some((s) => s.active === 1 && s.liveness === 'live');
   }
 
   ownerOf(threadId: number, agentId: string): string | null {

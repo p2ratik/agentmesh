@@ -25,7 +25,7 @@ export interface SessionsService {
   /** The agent's non-closed session, else not_found "Unknown or closed session <id>; reconnect". */
   verify(agentId: string, sessionId: string): SessionRecord;
   activate(agentId: string, sessionId: string, description: string): SessionRecord;
-  /** Keeps ownership: an inactive owner holds its work. */
+  /** A clean stop: releases everything the session owns at once (spec §3). */
   deactivate(agentId: string, sessionId: string): SessionRecord;
   describe(agentId: string, sessionId: string, description: string): SessionRecord;
   /** session.bye: releases ownership and records it for a reconnect to reclaim. */
@@ -50,5 +50,7 @@ export interface SessionsService {
   view(sessionId: string): SessionView;
   activeSessions(agentId: string): SessionSummary[];
   hasLiveSession(agentId: string): boolean;
+  /** Whether any session of the agent is active and live, so routing could deliver now. */
+  hasReadySession(agentId: string): boolean;
   ownerOf(threadId: number, agentId: string): string | null;
 }

@@ -109,12 +109,11 @@ export class SessionsRepo {
     return changes > 0;
   }
 
-  /** Closes the session, deactivates it and records the thread ids it released. */
-  close(id: string, at: string, released: number[]): void {
+  /** Closes and deactivates the session. */
+  close(id: string, at: string): void {
     this.#db.run(
-      `UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at, released = $released
-       WHERE id = $id`,
-      { id, at, released: JSON.stringify(released) },
+      "UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at WHERE id = $id",
+      { id, at },
     );
   }
 
@@ -137,10 +136,14 @@ export class SessionsRepo {
     );
   }
 
-  /** Deletes the session's ownerships and returns the thread ids it held. */
+  /** Deletes the session's ownerships, records them as its `released` and returns them. */
   releaseOwned(sessionId: string): number[] {
     const ids = this.ownedThreads(sessionId);
     this.#db.run('DELETE FROM thread_owners WHERE session_id = $sessionId', { sessionId });
+    this.#db.run('UPDATE sessions SET released = $released WHERE id = $sessionId', {
+      sessionId,
+      released: JSON.stringify(ids),
+    });
     return ids;
   }
 
