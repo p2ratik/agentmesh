@@ -61,12 +61,8 @@ export function permissionsFor(user: Pick<NatsUser, 'id' | 'kind'>, prefix: stri
       return { publish: ['>'], subscribe: ['>'] };
     case 'agent':
       return {
-        publish: [
-          subs.rpc(user.id, '>'),
-          subs.presence(user.id),
-          ...pullConsumerApi(streams.delivery, consumerNames.inbox(user.id)),
-        ],
-        subscribe: replies,
+        publish: [subs.rpc(user.id, '>'), subs.presence(user.id), subs.ackAll(user.id)],
+        subscribe: [...replies, subs.sessionAll(user.id)],
       };
     case 'bridge':
       return {

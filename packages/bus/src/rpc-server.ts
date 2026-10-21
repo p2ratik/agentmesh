@@ -13,6 +13,10 @@ export interface RpcCallContext {
   method: string;
   actAs?: string;
   idempotencyKey?: string;
+  /** The calling Claude Code session, when the plugin sent one. */
+  session?: string;
+  /** Advisory messages for the caller; serveRpc returns them in the ok response. */
+  notes?: string[];
 }
 
 export type RpcDispatcher = (ctx: RpcCallContext, params: unknown) => Promise<unknown>;
@@ -55,14 +59,18 @@ async function handle(msg: Msg, dispatch: RpcDispatcher, options: ServeRpcOption
         error: { code: 'invalid_request', message: 'Malformed RPC envelope' },
       };
     } else {
-      const { params, actAs, idempotencyKey } = envelope.data;
+      const { params, actAs, idempotencyKey, session } = envelope.data;
+      const notes: string[] = [];
       const ctx: RpcCallContext = {
         caller: route.caller,
         method: route.method,
+        notes,
         ...(actAs ? { actAs } : {}),
         ...(idempotencyKey ? { idempotencyKey } : {}),
+        ...(session ? { session } : {}),
       };
-      response = { ok: true, result: await dispatch(ctx, params) };
+      const result = await dispatch(ctx, params);
+      response = { ok: true, result, ...(notes.length > 0 ? { notes } : {}) };
     }
   } catch (error) {
     const payload = toErrorPayload(error);
