@@ -120,6 +120,8 @@ export class FakeMessaging implements MessagingService {
 
   markRead(): void {}
 
+  setOwnerReader(): void {}
+
   /** Messages delivered to one participant, in order. */
   deliveredTo(participantId: string): MeshMessage[] {
     return this.posts.filter((p) => p.recipients.includes(participantId)).map((p) => p.message);

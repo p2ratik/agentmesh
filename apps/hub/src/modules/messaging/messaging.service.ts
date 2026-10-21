@@ -36,6 +36,7 @@ export class MessagingServiceImpl implements MessagingService {
   readonly messages: MessagesRepo;
   readonly reads: ReadsRepo;
   readonly #post: PostContext;
+  #ownerOf: (threadId: number, agentId: string) => string | null = () => null;
 
   constructor(ctx: HubContext, deps: MessagingDeps) {
     this.ctx = ctx;
@@ -153,6 +154,15 @@ export class MessagingServiceImpl implements MessagingService {
       const at = this.messages.position(id);
       if (at) this.reads.advance(at.threadId, participantId, at.seq);
     }
+  }
+
+  setOwnerReader(reader: (threadId: number, agentId: string) => string | null): void {
+    this.#ownerOf = reader;
+  }
+
+  /** The session that owns the agent's side of a thread; null when nobody does. */
+  ownerOf(threadId: number, agentId: string): string | null {
+    return this.#ownerOf(threadId, agentId);
   }
 
   openThreadCount(): number {

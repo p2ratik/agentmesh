@@ -29,7 +29,7 @@ const sha256 = (text: string): string => createHash('sha256').update(text).diges
 
 /**
  * Stores one message and queues its side effects: redaction, limits (skipped
- * for system posts), recipients, read cursor, agent deliveries (held while
+ * for system posts), recipients, agent deliveries (held while
  * paused) and the `message.created` feed event. Runs inside the caller's
  * transaction when there is one.
  */
@@ -59,7 +59,7 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
       refs: messageRefs(thread, input.refs),
       createdAt: at,
     };
-    const seq = pc.messages.insert({
+    pc.messages.insert({
       id: message.id,
       threadId: thread.id,
       senderId: input.senderId,
@@ -74,7 +74,6 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
       at,
     });
     pc.threads.recordMessage(thread.id, at);
-    pc.reads.advance(thread.id, input.senderId, seq);
 
     const held = pc.control.isPaused();
     const deliveredTo = recipients.filter((id) => index.kindOf(id) === 'agent');

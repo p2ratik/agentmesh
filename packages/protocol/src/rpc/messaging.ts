@@ -78,6 +78,8 @@ export const messagingMethods = {
         }),
       ),
       remainingThreads: z.number().int().nonnegative(),
+      /** Unread threads owned by the agent's other sessions (left unread here). */
+      otherSessions: z.number().int().nonnegative().default(0),
     }),
   }),
   'thread.close': defineMethod({

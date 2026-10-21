@@ -69,8 +69,11 @@ describe('hub end to end (no NATS)', () => {
     const answered = await inbox('alice-agent');
     expect(answered.at(-1)?.status).toBe('answer');
 
+    // Replying no longer marks the ask read: only a session ack or reading it does.
     const unread = await call<{ threads: unknown[] }>('bob-agent', 'inbox.get');
-    expect(unread.threads).toHaveLength(0);
+    expect(unread.threads).toHaveLength(1);
+    const reread = await call<{ threads: unknown[] }>('bob-agent', 'inbox.get');
+    expect(reread.threads).toHaveLength(0);
     const aliceInbox = await call<{ threads: Array<{ unread: number }> }>(
       'alice-agent',
       'inbox.get',

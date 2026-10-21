@@ -191,6 +191,8 @@ export interface MessagingService {
   unreadThreadCount(participantId: string): number;
   /** Advances the participant's read cursor past each message (unknown ids are skipped). */
   markRead(participantId: string, messageIds: string[]): void;
+  /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
+  setOwnerReader(reader: (threadId: number, agentId: string) => string | null): void;
 }
 
 // ---------------------------------------------------------------- leases

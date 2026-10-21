@@ -87,6 +87,9 @@ export function buildModules(
     threadOf: (planId) => planning?.threadOf(planId) ?? null,
   });
   sessions = sessionsModule.service;
+  messaging.service.setOwnerReader((threadId, agentId) =>
+    sessionsModule.service.ownerOf(threadId, agentId),
+  );
   presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
   const leases = createLeaseModule(ctx);
   const taskModule = createTaskModule(ctx, {

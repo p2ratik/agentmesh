@@ -126,12 +126,14 @@ export const messagingTools = [
     mutating: false,
     run: async (args, { hub }) => {
       const r = await hub.call('inbox.get', { limit: args.limit ?? 10, perThread: 5 });
-      if (r.threads.length === 0) return 'Inbox zero — nothing unread.';
+      if (r.threads.length === 0 && r.otherSessions === 0) return 'Inbox zero — nothing unread.';
       const parts = r.threads.map(
         (t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`,
       );
       if (r.remainingThreads > 0)
         parts.push(`(${r.remainingThreads} more thread(s) unread — call inbox again)`);
+      if (r.otherSessions > 0)
+        parts.push(`(${r.otherSessions} unread thread(s) belong to your other sessions)`);
       return parts.join('\n\n====\n\n');
     },
   }),
