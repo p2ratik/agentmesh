@@ -111,8 +111,9 @@ Only credentials are masked: `Use max_tokens: 1024` reaches agents as written. I
 whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers of
 up to 10 characters (counts, limits, durations, also as `1024}` or `1024)`), plain settings
 (`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`, `required`/`optional`, `bearer`/`basic`),
-type names, env references and placeholders. Numbers stay masked under a password, `otp` or `mfa`
-name (PINs and one-time codes).
+type names, env references, placeholders and AWS ARNs (`secret_arn: arn:aws:secretsmanager:…`, which
+names a secret but is not one). Numbers stay masked under a password, `otp` or `mfa` name (PINs and
+one-time codes).
 - **Cost:** a digit-only secret of 10 characters or fewer under a `token`, `secret` or `api_key`
   name is shown; longer digit-only keys and session tokens are masked.
 

@@ -71,13 +71,15 @@ const NUMERIC_SECRET_KEY = /pass(?:word|wd)|otp|mfa/i;
  * Values that are clearly not secrets: env references (`${X}`, `$X`),
  * placeholders (`<your-token>`), member access in code (`req.headers.token`),
  * plain words and type annotations, short numbers (except a password, PIN or one-time code),
- * and values already masked.
+ * AWS ARNs, and values already masked.
  */
 export function isNonSecretValue(value: string, key = ''): boolean {
   const bare = value.replace(/^["']|["']$/g, '');
   if (bare === '' || bare === REDACTED) return true;
   if (/^\$\{?[A-Za-z_]/.test(bare) || bare.startsWith('<')) return true;
   if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(bare)) return true;
+  // AWS resource names: `secret_arn: arn:…`, and the `secretsmanager:` service part of an ARN.
+  if (bare.startsWith('arn:') || /^secretsmanager:/i.test(key)) return true;
   if (PLAIN_NUMBER.test(bare)) return !NUMERIC_SECRET_KEY.test(key);
   return PLAIN_WORDS.has(bare.toLowerCase());
 }

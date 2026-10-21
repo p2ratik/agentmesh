@@ -38,6 +38,9 @@ describe('redactSecrets keeps what is not a credential', () => {
     'api_key: none',
     '{"model":"x","max_tokens":1024}',
     'generate(prompt, max_tokens=1024)',
+    // AWS resource names, not secrets: rotation alerts and their tasks name the secret by ARN.
+    'Rotation failed for arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf',
+    'secret_arn: arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf',
   ])('%s', (text) => {
     expect(redactSecrets(text)).toBe(text);
   });
