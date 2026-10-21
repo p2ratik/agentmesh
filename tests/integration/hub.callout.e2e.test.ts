@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
 import { startCalloutNats } from './callout-server';
+import { callAsSession } from './support';
 
 /**
  * The hub's auth callout against a real nats-server in account mode: agents
@@ -128,7 +129,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
   it('admits a mesh.yaml agent by its key, scoped to its own RPC subject', async () => {
     const nc = connected(await asAgent(k.alice, 'alice-agent'));
     const asAlice = new RpcClient(nc, PREFIX, 'alice-agent', 4000);
-    expect((await asAlice.call('peers.list', {})).peers.length).toBeGreaterThan(0);
+    expect((await callAsSession(asAlice, 'peers.list', {})).peers.length).toBeGreaterThan(0);
     await expect(
       new RpcClient(nc, PREFIX, 'bob-agent', 2000).call('peers.list', {}),
     ).rejects.toThrow();
@@ -212,7 +213,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
     const asAlice = new RpcClient(nc, PREFIX, 'alice-agent', 2000);
     let peers = 0;
     for (let i = 0; i < 15 && !nc.isClosed() && peers === 0; i++) {
-      peers = await asAlice.call('peers.list', {}).then(
+      peers = await callAsSession(asAlice, 'peers.list', {}).then(
         (r) => r.peers.length,
         () => new Promise<number>((r) => setTimeout(() => r(0), 1000)),
       );

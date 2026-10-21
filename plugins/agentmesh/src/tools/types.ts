@@ -1,15 +1,12 @@
 import type { z } from 'zod';
 import type { HubClient } from '../hub';
-import type { ChannelEvent } from '../inbox/render';
-import type { ActivationCheck } from './activation';
+import type { ActivationState } from './activation';
 
 export interface ToolDeps {
   /** Hub calls; each tool call gets its own view, so its result carries only its own notes. */
   hub: Pick<HubClient, 'call'>;
   agentId: string;
-  /** Pushes one channel event into this session. */
-  push(event: ChannelEvent): Promise<void>;
-  activation: ActivationCheck;
+  activation: ActivationState;
 }
 
 /**

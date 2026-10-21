@@ -31,7 +31,7 @@ async function start() {
     caller: string,
     method: string,
     params: unknown = {},
-    extra: { actAs?: string; idempotencyKey?: string } = {},
+    extra: { actAs?: string; idempotencyKey?: string; session?: string } = {},
   ) => (await h.dispatch({ caller, method, ...extra }, params)) as T;
   return { hub: h, ports, call };
 }
@@ -56,9 +56,20 @@ describe('enrollment through the hub (no NATS)', () => {
       clientVersion: '0.2.0',
     });
     expect(hello.self.id).toBe('dana-agent');
-    const peers = await call<{ peers: Array<{ id: string }> }>('alice-agent', 'peers.list', {});
+    const { sessionId: session } = await call<{ sessionId: string }>(
+      'alice-agent',
+      'session.hello',
+      { clientVersion: '0.2.0' },
+    );
+    const peers = await call<{ peers: Array<{ id: string }> }>(
+      'alice-agent',
+      'peers.list',
+      {},
+      { session },
+    );
     expect(peers.peers.map((p) => p.id)).toContain('dana-agent');
-    await call('alice-agent', 'message.send', { kind: 'ask', to: ['dana-agent'], body: 'Hi Dana' });
+    const ask = { kind: 'ask', to: ['dana-agent'], body: 'Hi Dana' };
+    await call('alice-agent', 'message.send', ask, { session });
     await hub.tick();
     expect(ports.deliveredTo('dana-agent').map((m) => m.body)).toEqual(['Hi Dana']);
 

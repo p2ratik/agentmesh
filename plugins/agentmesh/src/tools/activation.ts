@@ -1,34 +1,20 @@
-import { randomInt } from 'node:crypto';
 import type { ChannelEvent } from '../inbox/render';
 
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789';
-const CODE_LENGTH = 6;
-const VALID_MS = 10 * 60_000;
-
 /**
- * The activation round trip. A code reaches Claude only through a channel
- * push, so a session that sends it back provably receives pushes. Also
- * remembers what this process was active as, to re-check after a renewal.
+ * What this window was active as. The hub sends the activation code (spec §3);
+ * the plugin only remembers enough to re-check after the hub renews its session.
  */
-export class ActivationCheck {
-  #code: string | null = null;
-  #issuedAt = 0;
+export interface ActivationState {
   /** This session's description while it is active; null before activation and after deactivate. */
-  lastDescription: string | null = null;
-
-  /** A fresh code; earlier ones stop working. */
-  issue(): string {
-    const code = Array.from({ length: CODE_LENGTH }, () => ALPHABET[randomInt(ALPHABET.length)]);
-    this.#code = code.join('');
-    this.#issuedAt = Date.now();
-    return this.#code;
-  }
-
-  /** Accepts only the latest code, within 10 minutes of issuing it. */
-  verify(code: string): boolean {
-    return code === this.#code && Date.now() - this.#issuedAt <= VALID_MS;
-  }
+  lastDescription: string | null;
+  /** The line an active session had when the hub replaced it; the next check suggests it again. */
+  renewedFrom: string | null;
 }
+
+export const newActivationState = (): ActivationState => ({
+  lastDescription: null,
+  renewedFrom: null,
+});
 
 /**
  * The channel event that carries a code. `previous` is set when the hub gave

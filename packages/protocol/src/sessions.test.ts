@@ -35,9 +35,14 @@ describe('session contracts', () => {
     expect(SessionId.safeParse('s-ABC.def').success).toBe(false);
   });
 
-  it('parses a deliver batch and an expiry notice', () => {
+  it('parses a deliver batch, an expiry notice and an activation check', () => {
     expect(SessionInbound.parse({ type: 'expired' })).toEqual({ type: 'expired' });
     expect(SessionInbound.safeParse({ type: 'deliver', messages: [] }).success).toBe(false);
+    expect(SessionInbound.parse({ type: 'check', code: 'K7Q2ZP' })).toEqual({
+      type: 'check',
+      code: 'K7Q2ZP',
+    });
+    expect(SessionInbound.safeParse({ type: 'check' }).success).toBe(false);
   });
 
   it('session.take needs exactly one of threadId and taskId', () => {
@@ -49,6 +54,7 @@ describe('session contracts', () => {
 
   it('session methods are agent-only', () => {
     for (const m of [
+      'session.check',
       'session.activate',
       'session.deactivate',
       'session.describe',

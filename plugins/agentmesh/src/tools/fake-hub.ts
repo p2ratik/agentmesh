@@ -1,16 +1,14 @@
 import type { HubClient } from '../hub';
-import type { ChannelEvent } from '../inbox/render';
-import { ActivationCheck } from './activation';
+import { newActivationState } from './activation';
 import type { ToolDeps } from './types';
 
 /**
  * Tool deps for tests: a HubClient stand-in that records calls and answers
  * from a table and, like the real client, puts the hub's `notes` for a method
- * into the caller's sink; pushes are recorded too.
+ * into the caller's sink.
  */
 export function fakeHub(answers: Record<string, unknown>, notes: Record<string, string[]> = {}) {
   const calls: Array<{ method: string; params: unknown; options: unknown }> = [];
-  const pushed: ChannelEvent[] = [];
   const hub = {
     call: async (method: string, params: unknown, options: unknown, sink?: string[]) => {
       calls.push({ method, params, options });
@@ -20,15 +18,8 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
       return answer;
     },
   } as unknown as HubClient;
-  const deps: ToolDeps = {
-    hub,
-    agentId: 'alice-agent',
-    push: async (event) => {
-      pushed.push(event);
-    },
-    activation: new ActivationCheck(),
-  };
-  return { deps, calls, pushed };
+  const deps: ToolDeps = { hub, agentId: 'alice-agent', activation: newActivationState() };
+  return { deps, calls };
 }
 
 export const text = (result: { content: Array<{ text: string }> }, index = 0): string =>

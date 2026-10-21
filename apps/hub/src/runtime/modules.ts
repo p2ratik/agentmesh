@@ -21,6 +21,7 @@ import { createMessagingModule, type MessagingModule } from '../modules/messagin
 import { createPlanningModule } from '../modules/planning';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
+import type { SessionTransport } from '../modules/sessions/dispatcher';
 import { createTaskModule } from '../modules/tasks';
 
 export interface HubServices {
@@ -52,7 +53,11 @@ export interface BuiltModules {
 export function buildModules(
   ctx: HubContext,
   transport: IngestTransport | null,
-  nats: { kick: ((agentId: string) => Promise<void>) | null },
+  nats: {
+    kick: ((agentId: string) => Promise<void>) | null;
+    /** Reaches sessions for activation checks; absent without NATS. */
+    sessionTransport?: Pick<SessionTransport, 'check'> | null;
+  },
 ): BuiltModules {
   let messaging: MessagingModule | null = null;
   let sessions: SessionsService | null = null;
@@ -61,7 +66,7 @@ export function buildModules(
   let presenceService: PresenceService | null = null;
 
   const enrollment = createEnrollmentModule(ctx, {
-    ...nats,
+    kick: nats.kick,
     onMembersChanged: () => presenceService?.syncFromConfig(),
   });
   const presence = createPresenceModule(ctx);
@@ -85,6 +90,7 @@ export function buildModules(
     presence: presence.service,
     locate: (taskId) => tasks?.locate(taskId) ?? null,
     threadOf: (planId) => planning?.threadOf(planId) ?? null,
+    transport: nats.sessionTransport ?? null,
   });
   sessions = sessionsModule.service;
   messaging.service.setOwnerReader((threadId, agentId) =>

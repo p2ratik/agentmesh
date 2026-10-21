@@ -103,7 +103,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
   const { transport, sessionTransport, sys } = await natsAdapters(nats, options, logger);
   let callout: CalloutService | null = null;
   const kick = (agentId: string) => callout?.kick(agentId) ?? Promise.resolve();
-  const built = buildModules(context, transport, { kick: sys ? kick : null });
+  const built = buildModules(context, transport, { kick: sys ? kick : null, sessionTransport });
   if (sessionTransport) {
     const { sessions, messaging } = built.services;
     dispatcher = new SessionDispatcher({

@@ -86,6 +86,7 @@ export function createDispatchHarness(): DispatchHarness {
     presence: h.presence,
     locate: () => null,
     threadOf: () => null,
+    transport,
   }).service;
   dispatcher = new SessionDispatcher({
     sessions,

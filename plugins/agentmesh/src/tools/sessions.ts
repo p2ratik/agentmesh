@@ -1,6 +1,5 @@
 import { MeshError } from '@agentmesh/common';
 import { z } from 'zod';
-import { checkEvent } from './activation';
 import { defineTool } from './types';
 
 const Description = z.string().min(1).max(200);
@@ -16,17 +15,12 @@ export const sessionTools = [
       'Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing.',
     input: z.object({ code: z.string().optional(), description: Description.optional() }),
     mutating: false,
-    run: async (args, { hub, push, activation }) => {
+    run: async (args, { hub, activation }) => {
       if (args.code === undefined) {
-        // The code goes only into the push: getting it back proves pushes reach Claude.
-        await push(checkEvent(activation.issue()));
+        // The hub sends the code over this session's subject; only the push shows it to Claude,
+        // so getting it back proves both legs.
+        await hub.call('session.check', {});
         return CHECK_SENT;
-      }
-      if (!activation.verify(args.code)) {
-        throw new MeshError(
-          'invalid_request',
-          'That code is wrong or stale. Call activate without a code for a new one.',
-        );
       }
       if (!args.description) {
         throw new MeshError(
@@ -34,8 +28,12 @@ export const sessionTools = [
           'Pass description too: one line on what this session is working on.',
         );
       }
-      const view = await hub.call('session.activate', { description: args.description });
+      const view = await hub.call('session.activate', {
+        code: args.code,
+        description: args.description,
+      });
       activation.lastDescription = view.description ?? args.description;
+      activation.renewedFrom = null;
       return `This session is active on the mesh as “${activation.lastDescription}”.`;
     },
   }),

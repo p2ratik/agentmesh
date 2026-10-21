@@ -197,11 +197,19 @@ export class FakePresence implements PresenceService {
   setSessionReader(): void {}
 }
 
-/** Records every send. A session acks all it gets unless `respond` says otherwise. */
+/** Records every send and check. A session acks all it gets unless `respond` says otherwise. */
 export class FakeTransport implements SessionTransport {
   readonly sends: Array<{ agentId: string; sessionId: string; ids: string[] }> = [];
+  readonly checks: Array<{ agentId: string; sessionId: string; code: string }> = [];
   /** Per session: ack a subset, reject, or hand back a promise the test settles. */
   readonly respond = new Map<string, (messages: MeshMessage[]) => Promise<string[]>>();
+  /** Set to make every check fail, as when nobody listens on the session subject. */
+  checkError: Error | null = null;
+
+  async check(agentId: string, sessionId: string, code: string): Promise<void> {
+    this.checks.push({ agentId, sessionId, code });
+    if (this.checkError) throw this.checkError;
+  }
 
   send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
     this.sends.push({ agentId, sessionId, ids: messages.map((m) => m.id) });

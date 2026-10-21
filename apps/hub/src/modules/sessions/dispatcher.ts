@@ -9,6 +9,8 @@ export interface SessionTransport {
   send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]>;
   /** Tells a plugin its session is gone so it says hello again. */
   expired(agentId: string, sessionId: string): void;
+  /** Hands one session its activation code; resolves once it acked, throws if nobody answered. */
+  check(agentId: string, sessionId: string, code: string): Promise<void>;
 }
 
 interface Routed {

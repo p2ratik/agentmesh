@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { type CallOptions, connectBus, type NatsConnection, RpcClient } from '@agentmesh/bus';
 import { type Logger, MeshError } from '@agentmesh/common';
 import {
@@ -13,6 +14,8 @@ export const UNREACHABLE =
 
 /** How the hub's `not_found` starts when it no longer knows the session a call carried. */
 const UNKNOWN_SESSION = 'Unknown or closed session';
+/** How long a call waits for an in-flight hello before it goes without a session. */
+const HELLO_WAIT_MS = 5000;
 
 /**
  * The plugin's connection to the hub. Connecting happens in the background
@@ -27,6 +30,8 @@ export class HubClient {
   sessionId: string | null = null;
   /** Called when a call fails because the hub no longer knows `sessionId`. */
   onSessionLost: (() => void) | null = null;
+  /** The `session.hello` in flight, if any: calls made before it lands wait for it briefly. */
+  pendingHello: Promise<unknown> | null = null;
   readonly #logger: Logger;
   #nc: NatsConnection | null = null;
   #rpc: RpcClient | null = null;
@@ -74,6 +79,10 @@ export class HubClient {
     notes?: string[],
   ): Promise<RpcResult<M>> {
     if (!this.#rpc) throw new MeshError('unavailable', UNREACHABLE);
+    // The hub refuses agent calls without a session, so give an in-flight hello a moment to land.
+    if (!this.sessionId && this.pendingHello && method !== 'session.hello') {
+      await Promise.race([this.pendingHello, sleep(HELLO_WAIT_MS, undefined, { ref: false })]);
+    }
     const session = this.sessionId;
     try {
       const reply = await this.#rpc.callWithNotes(method, params, {

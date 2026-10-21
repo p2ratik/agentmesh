@@ -59,10 +59,16 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
   };
 }
 
+/** Plugins older than 0.2.0 swallow the hello refusal; their other calls must say this instead. */
+const NO_SESSION =
+  "This session isn't registered with the hub. If your AgentMesh plugin is older than 0.2.0, " +
+  'update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.';
+
 /**
  * The envelope's session is client-asserted: handlers only ever see one verified against
- * the calling agent. `session.hello` opens sessions, so it takes none (a stale one would
- * otherwise block the reconnect).
+ * the calling agent. Agents need one for every call but `session.hello`, which opens
+ * sessions and so takes none (a stale one would otherwise block the reconnect), and
+ * `session.bye`. Other callers never carry one.
  */
 function verifiedSession(
   deps: RouterDeps,
@@ -70,7 +76,11 @@ function verifiedSession(
   method: RpcMethodName,
   raw: string | undefined,
 ): string | null {
-  if (!raw || !deps.sessions || caller.kind !== 'agent' || method === 'session.hello') return null;
+  if (!deps.sessions || caller.kind !== 'agent' || method === 'session.hello') return null;
+  if (!raw) {
+    if (method === 'session.bye') return null;
+    throw new MeshError('invalid_request', NO_SESSION);
+  }
   deps.sessions.verify(caller.id, raw);
   return raw;
 }

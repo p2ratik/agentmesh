@@ -8,21 +8,33 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
+import { ActivationChecks } from './checks';
+import type { SessionTransport } from './dispatcher';
 import { isAtLeast } from './version';
 
 /** Older plugins cannot take per-session delivery; there is no compatibility mode. */
 const MIN_CLIENT_VERSION = '0.2.0';
 
+const UNREACHABLE =
+  'The hub could not reach this session: nothing answered on its session subject. Likely ' +
+  "causes: the hub's NATS permissions were not updated for plugin 0.2.0 (your mesh admin " +
+  're-renders nats.conf and reloads NATS), or this Claude Code session was started without ' +
+  'the channel flag (restart it with claude --dangerously-load-development-channels ' +
+  'plugin:agentmesh@agentmesh). If the session only just started, try again in a few seconds.';
+
 export interface SessionHandlerDeps {
   presence: PresenceService;
   messaging: MessagingService;
   locate(taskId: number): { threadId: number; repo: string | null } | null;
+  /** Null without NATS: activation checks cannot reach any session. */
+  transport: Pick<SessionTransport, 'check'> | null;
 }
 
 type SessionHandlers = Pick<
   RpcHandlerMap,
   | 'session.hello'
   | 'session.bye'
+  | 'session.check'
   | 'session.activate'
   | 'session.deactivate'
   | 'session.describe'
@@ -50,6 +62,8 @@ export function sessionHandlers(
   deps: SessionHandlerDeps,
 ): SessionHandlers {
   const { presence, messaging } = deps;
+  const checks = new ActivationChecks();
+  const now = () => ctx.clock.now().getTime();
   return {
     'session.hello': (params, call) => {
       const agentId = call.actor.id;
@@ -85,8 +99,21 @@ export function sessionHandlers(
       if (!sessions.hasLiveSession(agentId)) presence.markOffline(agentId);
       return { ok: true };
     },
+    /** The spec's test message: its code reaches Claude only through this session's push. */
+    'session.check': async (_params, call) => {
+      const session = own(call);
+      if (!deps.transport) throw new MeshError('unavailable', 'This hub has no NATS connection.');
+      try {
+        await deps.transport.check(call.actor.id, session, checks.issue(session, now()));
+      } catch (err) {
+        ctx.logger.warn({ agent: call.actor.id, session, err }, 'activation check got no answer');
+        throw new MeshError('unavailable', UNREACHABLE);
+      }
+      return { ok: true };
+    },
     'session.activate': (params, call) => {
       const session = own(call);
+      checks.confirm(session, params.code, now());
       sessions.activate(call.actor.id, session, params.description);
       return sessions.view(session);
     },

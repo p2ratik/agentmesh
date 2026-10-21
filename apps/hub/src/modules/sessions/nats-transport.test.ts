@@ -14,6 +14,7 @@ const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
 function fakeNats(ack: (ids: string[], call: number) => string[], maxPayload = 1024 * 1024) {
   const requests: Array<{
     subject: string;
+    type: string;
     messages: MeshMessage[];
     bytes: number;
     noMux: boolean;
@@ -24,10 +25,16 @@ function fakeNats(ack: (ids: string[], call: number) => string[], maxPayload = 1
     async request(subject: string, data: string, opts: { noMux: boolean; reply: string }) {
       const bytes = Buffer.byteLength(data);
       if (bytes > maxPayload) throw new Error('max_payload size exceeded');
-      const sent = JSON.parse(data).messages as MeshMessage[];
-      requests.push({ subject, messages: sent, bytes, noMux: opts.noMux, reply: opts.reply });
-      const ids = sent.map((m) => m.id);
-      return { json: () => ({ delivered: ack(ids, requests.length) }) };
+      const { type, messages: sent = [] } = JSON.parse(data) as {
+        type: string;
+        messages?: MeshMessage[];
+      };
+      requests.push({ subject, type, messages: sent, bytes, noMux: opts.noMux, reply: opts.reply });
+      const delivered = ack(
+        sent.map((m) => m.id),
+        requests.length,
+      );
+      return { json: () => ({ delivered }) };
     },
   };
   return { nc: nc as unknown as NatsConnection, requests };
@@ -82,6 +89,23 @@ describe('NatsSessionTransport', () => {
     expect(requests.every((r) => r.bytes <= maxPayload)).toBe(true);
     const clipped = requests.flatMap((r) => r.messages).find((m) => m.id === 'msg-big');
     expect(clipped?.body).toMatch(/^y+\n… _\(truncated: call thread\(thread_id: "thr-1"\)/);
+  });
+
+  it('sends an activation check as an acked request; a missing answer throws', async () => {
+    const { nc, requests } = fakeNats(() => []);
+    const transport = new NatsSessionTransport(nc, 'mesh', logger);
+    await transport.check('bob-agent', 'ses-1', 'K7Q2ZP');
+    expect(requests[0]).toMatchObject({
+      subject: 'mesh.session.bob-agent.ses-1',
+      type: 'check',
+      noMux: true,
+    });
+    expect(requests[0]?.reply).toMatch(/^mesh\.ack\.bob-agent\./);
+    const silent = fakeNats(() => {
+      throw new Error('no responders');
+    });
+    const unanswered = new NatsSessionTransport(silent.nc, 'mesh', logger);
+    await expect(unanswered.check('bob-agent', 'ses-1', 'K7Q2ZP')).rejects.toThrow('no responders');
   });
 
   it('keeps each delivery under the payload limit', () => {

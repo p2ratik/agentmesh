@@ -6,7 +6,7 @@ import { HubClient } from './hub';
 import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
 import { pushEvent, VERSION } from './server';
-import { ActivationCheck, checkEvent } from './tools/activation';
+import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
 
 const HELLO_WAIT_MS = 4000;
 const SHUTDOWN_MS = 250;
@@ -21,9 +21,9 @@ export interface Session {
   hello: Hello | null;
   /** Says hello (again), one call at a time; resolves null if it failed. */
   sayHello(): Promise<Hello | null>;
-  activation: ActivationCheck;
-  /** Runs once per hello that lands in a new session because the hub closed the previous one. */
-  onRenewed: (() => void) | null;
+  activation: ActivationState;
+  /** Runs after each hello that lands; `renewed` when the hub replaced the previous session. */
+  onHello: ((renewed: boolean) => void) | null;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
@@ -38,12 +38,20 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     hub,
     presence,
     hello: null,
-    activation: new ActivationCheck(),
-    onRenewed: null,
+    activation: newActivationState(),
+    onHello: null,
     sayHello: () => {
-      inFlight ??= register(hub, presence, logger, () => session.onRenewed?.()).finally(() => {
-        inFlight = null;
-      });
+      inFlight ??= register(hub, presence, logger)
+        .then((landed) => {
+          if (landed) session.onHello?.(landed.renewed);
+          return landed?.hello ?? null;
+        })
+        .finally(() => {
+          inFlight = null;
+          hub.pendingHello = null;
+        });
+      // Calls made meanwhile wait for it: the hub refuses agent calls without a session.
+      hub.pendingHello = inFlight;
       return inFlight;
     },
   };
@@ -60,6 +68,8 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
  * shutdown routine. `pushDelayMs` covers the gap after the MCP handshake in
  * which Claude Code silently drops channel notifications, so the session
  * subject is not subscribed (and nothing acked into the void) before then.
+ * Nothing is pushed at startup: a new session is inactive until its human
+ * activates it.
  */
 export function startSession(
   server: Server,
@@ -67,24 +77,22 @@ export function startSession(
   logger: Logger,
   pushDelayMs: number,
 ): () => Promise<void> {
-  const { hub, presence, hello } = session;
+  const { hub, presence } = session;
   const abort = new AbortController();
   let inbox: ReturnType<typeof runSessionInbox> | null = null;
-  const rehello = () => void session.sayHello().then((h) => h && inbox?.resubscribe());
+  const rehello = () => void session.sayHello();
   hub.onSessionLost = rehello;
-  // The hub closed the old session (a long sleep, say). The human opted this window in, so Claude
-  // re-confirms through a fresh check instead of the session going quiet.
-  session.onRenewed = () => {
-    const previous = session.activation.lastDescription;
-    if (previous === null) return;
-    logger.info({ session: hub.sessionId }, 'new hub session; re-running the activation check');
-    void pushEvent(server, checkEvent(session.activation.issue(), previous)).catch((err) =>
-      logger.warn({ err }, 'could not push the activation check'),
-    );
+  session.onHello = (renewed) => {
+    inbox?.resubscribe();
+    if (renewed) recheck(session, logger);
   };
   presence.start();
-  // Without a session the hub delivers nothing, so keep asking until it answers.
-  const retry = setInterval(() => !hub.sessionId && rehello(), hub.config.heartbeatSeconds * 1000);
+  // Without a session the hub delivers nothing, so keep asking until it answers; a refused
+  // subscription (NATS permissions, say) is retried on the same beat.
+  const retry = setInterval(
+    () => (hub.sessionId ? inbox?.retryFailed() : rehello()),
+    hub.config.heartbeatSeconds * 1000,
+  );
   retry.unref();
   const startPushes = () => {
     inbox = runSessionInbox({
@@ -92,17 +100,12 @@ export function startSession(
       logger,
       signal: abort.signal,
       push: (event) => pushEvent(server, event),
+      pushCheck: (code) =>
+        pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? undefined)),
       onExpired: rehello,
       onListening: () => presence.beat(),
     });
-    if (!hub.sessionId) {
-      rehello();
-    } else if (hello && hello.unreadThreads > 0) {
-      void pushEvent(server, {
-        content: `You have ${hello.unreadThreads} mesh thread(s) with unread messages. Call the inbox tool to catch up.`,
-        meta: { kind: 'system', from: 'agentmesh' },
-      }).catch(() => undefined);
-    }
+    if (!hub.sessionId) rehello();
   };
   // ponytail: fixed delay, no ready signal exists; missed pushes still show up via inbox.
   setTimeout(startPushes, pushDelayMs).unref();
@@ -110,7 +113,7 @@ export function startSession(
     abort.abort();
     clearInterval(retry);
     hub.onSessionLost = null;
-    session.onRenewed = null;
+    session.onHello = null;
     presence.stop();
     await Promise.race([
       hub.call('session.bye', {}, { timeoutMs: SHUTDOWN_MS }).catch(() => undefined),
@@ -121,16 +124,30 @@ export function startSession(
 }
 
 /**
+ * The hub closed this window's active session (a long sleep, say) and gave it a
+ * new, inactive one. The human opted this window in, so Claude re-confirms
+ * through a fresh check (sent by the hub) that suggests the previous line.
+ */
+function recheck(session: Session, logger: Logger): void {
+  const { activation, hub } = session;
+  if (activation.lastDescription === null) return;
+  activation.renewedFrom = activation.lastDescription;
+  logger.info({ session: hub.sessionId }, 'new hub session; re-running the activation check');
+  void hub
+    .call('session.check', {})
+    .catch((err) => logger.warn({ err }, 'could not start the activation check'));
+}
+
+/**
  * Registers with the hub, offering this process's current session so the hub
- * keeps it (or reclaims its work) after sleep or expiry. Null if it failed.
- * `onRenewed` runs when the hub answers with a new session instead.
+ * keeps it (or reclaims its work) after sleep or expiry. Null if it failed;
+ * `renewed` when the hub answered with a new session instead.
  */
 async function register(
   hub: HubClient,
   presence: Presence,
   logger: Logger,
-  onRenewed: () => void,
-): Promise<Hello | null> {
+): Promise<{ hello: Hello; renewed: boolean } | null> {
   try {
     await hub.whenConnected();
     const previous = hub.sessionId;
@@ -141,8 +158,7 @@ async function register(
     });
     hub.sessionId = hello.sessionId;
     logger.info({ session: hello.sessionId, previous, reclaimed: hello.reclaimed }, 'hub session');
-    if (previous && previous !== hello.sessionId) onRenewed();
-    return hello;
+    return { hello, renewed: previous !== null && previous !== hello.sessionId };
   } catch (err) {
     logger.warn({ err }, 'session.hello failed');
     return null;

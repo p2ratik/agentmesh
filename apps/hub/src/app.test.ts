@@ -24,12 +24,24 @@ async function start(overrides: Record<string, unknown> = {}) {
   });
   await hub.start();
   const h = hub;
+  const sessionIds = new Map<string, string>();
+  /** Agents call as a session, like the plugin: their first call says hello. */
   const call = async <T = Record<string, unknown>>(
     caller: string,
     method: string,
     params: unknown = {},
     actAs?: string,
-  ) => (await h.dispatch({ caller, method, ...(actAs ? { actAs } : {}) }, params)) as T;
+  ): Promise<T> => {
+    const agent = h.context.index.kindOf(caller) === 'agent' && method !== 'session.hello';
+    if (agent && !sessionIds.has(caller)) {
+      await call(caller, 'session.hello', { clientVersion: '0.2.0' });
+    }
+    const session = agent ? sessionIds.get(caller) : undefined;
+    const ctx = { caller, method, ...(actAs ? { actAs } : {}), ...(session ? { session } : {}) };
+    const result = (await h.dispatch(ctx, params)) as T & { sessionId?: string };
+    if (method === 'session.hello' && result.sessionId) sessionIds.set(caller, result.sessionId);
+    return result;
+  };
   const inbox = async (id: string): Promise<MeshMessage[]> => {
     await h.tick();
     return ports.deliveredTo(id);

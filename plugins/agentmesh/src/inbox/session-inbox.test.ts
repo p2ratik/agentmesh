@@ -43,7 +43,9 @@ function harness(failThread?: string) {
   } as unknown as HubClient;
   const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
   const warn = vi.spyOn(logger, 'warn');
+  const error = vi.spyOn(logger, 'error');
   const pushed: ChannelEvent[] = [];
+  const checks: string[] = [];
   const onExpired = vi.fn();
   const onListening = vi.fn();
   const inbox = runSessionInbox({
@@ -53,6 +55,9 @@ function harness(failThread?: string) {
     push: async (event) => {
       if (event.meta.thread_id === failThread) throw new Error('transport closed');
       pushed.push(event);
+    },
+    pushCheck: async (code) => {
+      checks.push(code);
     },
     onExpired,
     onListening,
@@ -71,7 +76,7 @@ function harness(failThread?: string) {
     live?.callback(null, { subject: live.subject, json, respond });
     return { acked, respond };
   };
-  return { hub, inbox, subs, pushed, onExpired, onListening, warn, send };
+  return { hub, inbox, subs, pushed, checks, onExpired, onListening, warn, error, send };
 }
 
 describe('runSessionInbox', () => {
@@ -111,6 +116,26 @@ describe('runSessionInbox', () => {
     const { respond } = h.send({ type: 'expired' });
     await vi.waitFor(() => expect(h.onExpired).toHaveBeenCalledOnce());
     expect(respond).not.toHaveBeenCalled();
+  });
+
+  it('pushes an activation check with its code, then acks it', async () => {
+    const h = harness();
+    const ack = await h.send({ type: 'check', code: 'K7Q2ZP' }).acked;
+    expect(h.checks).toEqual(['K7Q2ZP']);
+    expect(ack).toEqual({ delivered: [] });
+  });
+
+  it('logs a failed subscription and retries it when asked', () => {
+    const h = harness();
+    h.subs[0]?.callback(new Error('Permissions Violation for Subscription'), {});
+    expect(h.error).toHaveBeenCalledOnce();
+    h.inbox.retryFailed();
+    expect(h.subs.map((s) => s.subject)).toEqual([
+      'mesh.session.alice-agent.s-aaaaaaaaaaaa',
+      'mesh.session.alice-agent.s-aaaaaaaaaaaa',
+    ]);
+    h.inbox.retryFailed();
+    expect(h.subs).toHaveLength(2);
   });
 
   it('ignores malformed payloads', async () => {

@@ -44,6 +44,19 @@ describe('HubClient', () => {
     expect(third).toEqual([]);
   });
 
+  it('a call made before the hello lands waits for it and carries the session', async () => {
+    const { hub, envelopes } = await connected([ok()]);
+    const hello = Promise.withResolvers<void>();
+    hub.pendingHello = hello.promise;
+    const calling = hub.call('session.bye', {});
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(envelopes).toEqual([]);
+    hub.sessionId = 's-aaaaaaaaaaaa';
+    hello.resolve();
+    await calling;
+    expect(envelopes.map((e) => e.session)).toEqual(['s-aaaaaaaaaaaa']);
+  });
+
   it('reports a session the hub no longer knows, and still fails the call', async () => {
     const { hub } = await connected([
       {

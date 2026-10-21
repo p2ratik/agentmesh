@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChannelEvent } from '../inbox/render';
+import { MeshError } from '@agentmesh/common';
+import { describe, expect, it } from 'vitest';
 import { fakeHub, text } from './fake-hub';
 import { callTool } from './registry';
-import type { ToolDeps } from './types';
 
 const view = (active: boolean, description: string | null) => ({
   id: 's-aaaaaaaaaaaa',
@@ -13,67 +12,41 @@ const view = (active: boolean, description: string | null) => ({
   owns: [],
 });
 
-/** Starts activation and returns the code from the pushed check. */
-async function pushedCode(deps: ToolDeps, pushed: ChannelEvent[]): Promise<string> {
-  await callTool('activate', {}, deps);
-  const code = /Code: ([A-Z2-9]{6})\./.exec(pushed.at(-1)?.content ?? '')?.[1];
-  if (!code) throw new Error('no code pushed');
-  return code;
-}
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
 describe('session tools', () => {
-  it('activate without a code pushes a check and explains the channel flag', async () => {
-    const { deps, calls, pushed } = fakeHub({});
+  it('activate without a code asks the hub to send the check and explains the channel flag', async () => {
+    const { deps, calls } = fakeHub({ 'session.check': { ok: true } });
     const result = await callTool('activate', {}, deps);
-    expect(pushed).toHaveLength(1);
-    const code = /Code: ([A-Z2-9]{6})\./.exec(pushed[0]?.content ?? '')?.[1] ?? '';
-    expect(pushed[0]).toEqual({
-      content: `AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "<one line: what this session is working on>").`,
-      meta: { kind: 'system', from: 'agentmesh' },
-    });
+    expect(calls.map((c) => [c.method, c.params])).toEqual([['session.check', {}]]);
     expect(result.isError).toBeUndefined();
+    expect(text(result)).toContain('Sent a test message to this session.');
     expect(text(result)).toContain(
       'restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh',
     );
-    // The code reaches Claude only through the push, which is what proves pushes work.
-    expect(text(result)).not.toContain(code);
-    expect(calls).toEqual([]);
+    // The code reaches Claude only through the hub's push, which is what proves pushes work.
+    expect(text(result)).not.toContain('Code:');
   });
 
-  it('activate with the pushed code and a description activates the session', async () => {
-    const { deps, calls, pushed } = fakeHub({
-      'session.activate': view(true, 'checkout redesign'),
-    });
-    const code = await pushedCode(deps, pushed);
-    const result = await callTool('activate', { code, description: 'checkout redesign' }, deps);
-    expect(calls.map((c) => [c.method, c.params])).toEqual([
-      ['session.activate', { description: 'checkout redesign' }],
-    ]);
+  it('activate with the code and a description activates through the hub', async () => {
+    const { deps, calls } = fakeHub({ 'session.activate': view(true, 'checkout redesign') });
+    deps.activation.renewedFrom = 'checkout';
+    const args = { code: 'K7Q2ZP', description: 'checkout redesign' };
+    const result = await callTool('activate', args, deps);
+    expect(calls.map((c) => [c.method, c.params])).toEqual([['session.activate', args]]);
     expect(text(result)).toBe('This session is active on the mesh as “checkout redesign”.');
-    expect(deps.activation.lastDescription).toBe('checkout redesign');
+    expect(deps.activation).toEqual({ lastDescription: 'checkout redesign', renewedFrom: null });
   });
 
-  it('activate refuses a wrong code', async () => {
-    vi.useFakeTimers();
-    const { deps, calls, pushed } = fakeHub({ 'session.activate': view(true, 'x') });
-    const replaced = await pushedCode(deps, pushed);
-    const code = await pushedCode(deps, pushed);
-    const description = 'checkout redesign';
-    for (const wrong of ['ZZZZZZ', replaced]) {
-      const result = await callTool('activate', { code: wrong, description }, deps);
-      expect(result.isError).toBe(true);
-      expect(text(result)).toMatch(/wrong or stale/);
-    }
-    const noDescription = await callTool('activate', { code }, deps);
+  it('activate needs a description with the code, and reports a code the hub refused', async () => {
+    const refused = new MeshError('invalid_request', 'That code is wrong or stale.');
+    const { deps, calls } = fakeHub({ 'session.activate': refused });
+    const noDescription = await callTool('activate', { code: 'K7Q2ZP' }, deps);
     expect(noDescription.isError).toBe(true);
     expect(text(noDescription)).toMatch(/description/);
-    vi.advanceTimersByTime(10 * 60_000 + 1);
-    expect((await callTool('activate', { code, description }, deps)).isError).toBe(true);
     expect(calls).toEqual([]);
+    const wrong = await callTool('activate', { code: 'ZZZZZZ', description: 'x' }, deps);
+    expect(wrong.isError).toBe(true);
+    expect(text(wrong)).toMatch(/wrong or stale/);
+    expect(deps.activation.lastDescription).toBeNull();
   });
 
   it('deactivate, describe_session and take map to their RPCs', async () => {

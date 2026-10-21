@@ -32,10 +32,21 @@ export const sessionMethods = {
     params: z.object({}),
     result: z.object({ ok: z.literal(true) }),
   }),
-  'session.activate': defineMethod({
-    description: 'Make this session the one that receives work, with a short description.',
+  'session.check': defineMethod({
+    description:
+      'Send this session a test message with an activation code, over its session subject.',
     callers: ['agent'],
-    params: z.object({ description: z.string().min(1).max(200) }),
+    params: z.object({}),
+    result: z.object({ ok: z.literal(true) }),
+  }),
+  'session.activate': defineMethod({
+    description:
+      'Make this session the one that receives work: the code from its check and a short description.',
+    callers: ['agent'],
+    params: z.object({
+      code: z.string().min(1).max(20),
+      description: z.string().min(1).max(200),
+    }),
     result: SessionView,
   }),
   'session.deactivate': defineMethod({

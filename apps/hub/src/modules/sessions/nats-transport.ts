@@ -97,6 +97,11 @@ export class NatsSessionTransport implements SessionTransport {
     return acked;
   }
 
+  async check(agentId: string, sessionId: string, code: string): Promise<void> {
+    const body: SessionInbound = { type: 'check', code };
+    await this.#ask(agentId, sessionId, JSON.stringify(body));
+  }
+
   expired(agentId: string, sessionId: string): void {
     const body: SessionInbound = { type: 'expired' };
     this.#nc.publish(this.#subjects.session(agentId, sessionId), JSON.stringify(body));
@@ -116,13 +121,18 @@ export class NatsSessionTransport implements SessionTransport {
     const payload = JSON.stringify(body);
     // nats.js leaves a timer behind when a noMux request is too big, and its rejection kills the hub.
     if (Buffer.byteLength(payload) > maxPayload) throw new Error('delivery over max_payload');
+    const reply = await this.#ask(agentId, sessionId, payload);
+    const sent = new Set(messages.map((m) => m.id));
+    return SessionAck.parse(reply.json()).delivered.filter((id) => sent.has(id));
+  }
+
+  /** One request to the session. */
+  #ask(agentId: string, sessionId: string, payload: string) {
     // The hub picks the reply subject under the agent's ack subjects, the only ones it may answer on.
-    const reply = await this.#nc.request(this.#subjects.session(agentId, sessionId), payload, {
+    return this.#nc.request(this.#subjects.session(agentId, sessionId), payload, {
       timeout: this.#timeoutMs,
       noMux: true,
       reply: this.#subjects.ack(agentId, randomBytes(12).toString('hex')),
     });
-    const sent = new Set(messages.map((m) => m.id));
-    return SessionAck.parse(reply.json()).delivered.filter((id) => sent.has(id));
   }
 }

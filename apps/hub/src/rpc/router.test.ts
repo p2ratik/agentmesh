@@ -136,9 +136,14 @@ describe('RPC router sessions', () => {
       const result = { messageId: 'msg-1', threadId: 'thr-1', deliveredTo: [], held: false };
       return options.asyncHandler ? Promise.resolve(result) : result;
     };
+    const handlers = {
+      'message.send': send,
+      'session.hello': () => ({ sessionId: 's-good' }),
+      'session.bye': () => ({ ok: true }),
+    };
     const dispatch = createRpcRouter({
       index: () => h.ctx.index,
-      handlers: { 'message.send': send } as unknown as Partial<RpcHandlerMap>,
+      handlers: handlers as unknown as Partial<RpcHandlerMap>,
       idempotency: new IdempotencyStore(h.ctx.db, h.clock),
       logger: h.ctx.logger,
       sessions,
@@ -157,8 +162,29 @@ describe('RPC router sessions', () => {
         params,
       );
     const rows = () => h.ctx.db.all('SELECT v FROM scratch').length;
-    return { call, seen, rows };
+    return { call, seen, rows, dispatch, params };
   }
+
+  it('refuses agent calls without a session, except hello and bye', async () => {
+    const { dispatch, params } = sessionSetup();
+    await expect(
+      dispatch({ caller: 'alice-agent', method: 'message.send' }, params),
+    ).rejects.toMatchObject({
+      code: 'invalid_request',
+      message:
+        "This session isn't registered with the hub. If your AgentMesh plugin is older than " +
+        '0.2.0, update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.',
+    });
+    const hello = { clientVersion: '0.2.0' };
+    await expect(
+      dispatch({ caller: 'alice-agent', method: 'session.hello' }, hello),
+    ).resolves.toEqual({ sessionId: 's-good' });
+    await expect(dispatch({ caller: 'alice-agent', method: 'session.bye' }, {})).resolves.toEqual({
+      ok: true,
+    });
+    const asBob = { caller: 'discord-bridge', method: 'message.send', actAs: 'bob' };
+    await expect(dispatch(asBob, params)).resolves.toMatchObject({ threadId: 'thr-1' });
+  });
 
   it('router verifies the session and records claims after success', async () => {
     const { call, seen } = sessionSetup();
