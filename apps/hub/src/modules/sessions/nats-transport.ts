@@ -117,7 +117,11 @@ export class NatsSessionTransport implements SessionTransport {
     messages: MeshMessage[],
     maxPayload: number,
   ): Promise<string[]> {
-    const body: SessionInbound = { type: 'deliver', messages };
+    // Every delivery is an action for now; a later task passes the real class.
+    const body: SessionInbound = {
+      type: 'deliver',
+      messages: messages.map((m) => ({ ...m, class: 'action' as const })),
+    };
     const payload = JSON.stringify(body);
     // nats.js leaves a timer behind when a noMux request is too big, and its rejection kills the hub.
     if (Buffer.byteLength(payload) > maxPayload) throw new Error('delivery over max_payload');

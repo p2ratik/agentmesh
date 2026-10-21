@@ -46,6 +46,7 @@ rules:
           to: online
           subject: "AWS alarm {{payload.alarm}}"
           text: "{{summary}} ({{payload.region}})"
+          # class: status   # optional: ride along as FYI instead of interrupting (default: action)
       - notice: { channel: alerts, text: "🚨 AWS alarm {{payload.alarm}}: {{summary}}" }
 
   - id: daily-digest

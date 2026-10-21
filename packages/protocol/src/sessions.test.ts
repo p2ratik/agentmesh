@@ -64,6 +64,38 @@ describe('session contracts', () => {
     }
   });
 
+  it("a deliver batch keeps each message's class and defaults to action", () => {
+    const msg = {
+      id: 'm1',
+      threadId: 'thr-1',
+      kind: 'ask',
+      from: { id: 'bob-agent', kind: 'agent', displayName: 'Bob' },
+      to: ['alice-agent'],
+      subject: 's',
+      body: 'b',
+      status: null,
+      trust: 'team',
+      depth: 0,
+      refs: {},
+      createdAt: '2026-10-22T00:00:00.000Z',
+    };
+    const parsed = SessionInbound.parse({
+      type: 'deliver',
+      messages: [msg, { ...msg, id: 'm2', class: 'status' }],
+    });
+    if (parsed.type !== 'deliver') throw new Error('expected deliver');
+    expect(parsed.messages.map((m) => m.class)).toEqual(['action', 'status']);
+  });
+
+  it('messages.seen needs at least one id and at most 500', () => {
+    const p = RPC_METHODS['messages.seen'].params;
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
+    expect(p.safeParse({ messageIds: [] }).success).toBe(false);
+    expect(p.safeParse({ messageIds: ids(500) }).success).toBe(true);
+    expect(p.safeParse({ messageIds: ids(501) }).success).toBe(false);
+    expect(RPC_METHODS['messages.seen'].callers).toEqual(['agent']);
+  });
+
   it('peers default to no sessions', () => {
     expect(PeerInfo.parse({ ...minimalPeer }).sessions).toEqual([]);
   });

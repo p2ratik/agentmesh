@@ -36,7 +36,13 @@ export function readInbox(
         participantId,
         messaging.messages.maxSeq(entry.threadId),
       );
-      return { thread: messaging.summary(entry.threadId), unread: entry.unread, messages };
+      // Task 5 computes the real flag.
+      return {
+        thread: messaging.summary(entry.threadId),
+        unread: entry.unread,
+        messages,
+        fyi: false,
+      };
     });
     return { threads, remainingThreads: unread.length - picked.length, otherSessions };
   });

@@ -123,6 +123,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | `ingest.sources[].auth` | — | `{ type: bearer, token }` (≥16 chars), `{ type: hmac-sha256, secret, header: x-hub-signature-256, prefix: "sha256=" }`, or `{ type: none }`. |
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
+| `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
 
 ## `discord`
 
