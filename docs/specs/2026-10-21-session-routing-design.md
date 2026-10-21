@@ -1,6 +1,7 @@
 # Sessions, interruptions and context — design
 
-Date: 2026-10-21 · Status: agreed with Pratik in conversation. It passed an independent builder
+Date: 2026-10-21 · Status: Part A built (plan 1; see
+[ADR 0006](../adr/0006-per-session-delivery.md)). Agreed with Pratik in conversation. It passed an independent builder
 check; that check's four questions are answered in §3 and §4, marked "my call". The implementation
 plan comes next. Reviews, merging, policy delivery and the rest of the skill are designed later
 (§10).

@@ -9,6 +9,9 @@ offline agent, survive hub restarts, and arrive in order per agent. We also need
 (tools call the hub), an event stream for bridges and an ingest stream for external events, and
 we want to enforce *who* is publishing at the broker so one agent cannot impersonate another.
 
+> **Update (2026-10-21):** the per-agent delivery stream and `inbox-{agent}` consumers below were
+> replaced by per-session delivery from the hub outbox. See [ADR 0006](0006-per-session-delivery.md).
+
 ## Decision
 
 Use NATS with JetStream:

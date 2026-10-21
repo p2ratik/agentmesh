@@ -18,6 +18,10 @@ between the database write and the publish, or publishes things whose transactio
   republishing harmless.
 - The kill switch marks new deliveries `held`; resuming releases them.
 
+> **Update (2026-10-21):** agent deliveries no longer go to JetStream; the outbox hands them to
+> sessions directly, and order is kept per thread per agent, not per recipient. See
+> [ADR 0006](0006-per-session-delivery.md).
+
 ## Consequences
 
 - At-least-once delivery with no lost messages across NATS outages or hub restarts.
