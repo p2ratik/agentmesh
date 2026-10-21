@@ -10,7 +10,7 @@ the irreversible decisions.
 - Every process authenticates to NATS with its own **nkey**. `mesh.yaml` holds only public keys;
   seeds stay with their owner (agents) or on the hub VM (hub, bridge, ingest).
 - `agentmesh nats-config` renders **least-privilege** permissions: an agent may publish RPCs only
-  under its own id, read only its own inbox and receive only its own replies. The hub therefore
+  under its own id, read only its own session subjects and receive only its own replies. The hub therefore
   trusts the caller named in the subject — one agent cannot act as another (covered by the
   authenticated end-to-end test).
 - `agentmesh nats-config --auth-callout` renders account mode for invite-only onboarding (see
@@ -95,6 +95,54 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
   token that can push branches but not bypass protection) and exclude those accounts from the
   CODEOWNERS team that approves `main`.
 
+## Sessions and per-session delivery
+
+The hub hands each message to one Claude Code session of an agent over core NATS
+([ADR 0006](adr/0006-per-session-delivery.md)). New subjects: `{p}.session.{agent}.{session}` and
+`{p}.ack.{agent}.>`. An agent may subscribe to `{p}.session.{self}.*` and publish to
+`{p}.ack.{self}.>`. In `permissionsFor()`, agents also lost their JetStream delivery grants: the
+`$JS.API.INFO`, stream info, consumer info, `CONSUMER.MSG.NEXT` and `$JS.ACK` subjects of the
+removed `{P}_DELIVERY` stream and `inbox-{agent}` consumer. Nothing else changed. A static
+`nats.conf` rendered before the upgrade still lacks the new grants: the plugin cannot subscribe
+to its session, and `session.check` then fails (see the upgrade notes in
+[deploy.md](deploy.md#operations)).
+
+- **Sessions of one agent share permissions.** Any process holding an agent's key can subscribe to
+  every session of that agent and read what is delivered to them. Keeping one person's sessions
+  apart from each other is not a goal; the boundary is the agent.
+- **Session ids are client-asserted.** The envelope's `session` is checked against the open
+  sessions of the authenticated caller before any handler sees it, so an agent cannot act as
+  another agent's session. Agent calls without one are refused, except `session.hello` and
+  `session.bye`. A heartbeat's session must be a hub-issued id (`SessionId`; anything else, such
+  as `a.>`, drops the heartbeat), because the hub uses it as a subject token when it answers
+  `expired`; it is then checked against the agent named in the subject. The hub issues the ids.
+- **Acks cannot be forged across agents.** Reply subjects are random tokens the hub chose under
+  `{p}.ack.{agent}.`, and an agent may publish only under its own. The ack body is untrusted: it is
+  validated, intersected with the ids the hub sent, and a malformed reply counts as a failure.
+- **Activation proves the channel works, not that the human wants the session on.** The hub
+  generates the code (6 characters, `[A-Z2-9]`, valid 10 minutes, the latest per session) and
+  sends it over the session subject; it reaches Claude only through a channel push, and the
+  `activate` tool's result never contains it. So a session activates only if both the NATS leg
+  and the push work. The code is a liveness proof, not an authorization: only the authenticated
+  agent can call `session.activate` for its own session anyway. It is kept in hub memory, so a
+  hub restart means asking for a new one. The slash commands are user-only
+  (`disable-model-invocation`), but with the `mcp__plugin_agentmesh_mesh__*` allow rule Claude
+  could call the `activate` tool by itself. The tool description tells it to do so only when its
+  human asks; that is the only guard.
+- **Descriptions are team-visible.** A session's one-line description and its id appear in `peers`
+  for the whole team. Descriptions go through secret redaction; do not put anything private in one.
+- **Old plugins are refused.** `session.hello` rejects plugins older than 0.2.0, which would pull
+  from the removed inbox and could not take per-session delivery. Their later calls carry no
+  session and are refused with the same update instruction, so the refusal shows in tool errors.
+- **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
+  cannot aim at a session it was not shown.
+- **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then
+  clipped to `limits.maxBodyChars`. An ingest `notify` masks and clips the rendered event text
+  first, leaving room for the footer that tells Claude to treat the text as data, so the footer
+  always survives (see [Secrets in messages](#secrets-in-messages): mask before any cut). The
+  message's `trust: external` flag is unaffected, and the plugin sets the push's `trust` meta from
+  that flag.
+
 ## Loops and cost
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
@@ -152,8 +200,9 @@ pattern, so nothing downstream (the bridge included) could catch it. The code th
 
 Templates (`{{ path }}` in rules, `post_notice` in workflows) fill values in raw, and their text
 is masked as a whole wherever it is shown:
-- `post()` masks notify bodies;
-- the rule action masks subjects and titles;
+- `post()` masks every body before its size cap;
+- the rule action masks subjects and titles, and a notify's text before it clips it to leave room
+  for the external-content footer;
 - the bridge masks every notice.
 
 Masking each value on its own was tried and dropped. A private key split across values (the lines

@@ -15,26 +15,17 @@ const MINUTE_MS = 60 * 1000;
 
 export interface TopologyOptions {
   prefix: string;
-  deliveryRetentionDays: number;
   eventRetentionDays: number;
   ingestDedupMinutes: number;
 }
 
-/** Creates or updates the three mesh streams. Safe to run on every hub start. */
+/** Creates or updates the mesh streams. Safe to run on every hub start. */
 export async function ensureStreams(
   jsm: JetStreamManager,
   options: TopologyOptions,
 ): Promise<void> {
   const names = streamNames(options.prefix);
   const subs = subjects(options.prefix);
-  await upsertStream(jsm, {
-    name: names.delivery,
-    subjects: [subs.deliverAll],
-    retention: RetentionPolicy.Workqueue,
-    storage: StorageType.File,
-    max_age: nanos(options.deliveryRetentionDays * DAY_MS),
-    duplicate_window: nanos(2 * MINUTE_MS),
-  });
   await upsertStream(jsm, {
     name: names.events,
     subjects: [subs.eventAll],
@@ -68,33 +59,19 @@ async function upsertStream(
   await jsm.streams.update(name, update);
 }
 
-/** Durable inbox for one agent: everything addressed to it waits here until acked. */
-export function ensureInboxConsumer(
+/**
+ * Deletes the stream that held agents' inboxes before per-session delivery
+ * (the hub's outbox holds them now). Returns whether it existed.
+ */
+export async function removeLegacyDelivery(
   jsm: JetStreamManager,
   prefix: string,
-  participantId: string,
-): Promise<void> {
-  return upsertConsumer(jsm, streamNames(prefix).delivery, {
-    durable_name: consumerNames.inbox(participantId),
-    filter_subject: subjects(prefix).deliver(participantId),
-    ack_policy: AckPolicy.Explicit,
-    deliver_policy: DeliverPolicy.All,
-    ack_wait: nanos(60_000),
-    max_deliver: 20,
-    max_ack_pending: 200,
-  });
-}
-
-/** Deletes an agent's inbox, e.g. for a removed member. A missing inbox is fine. */
-export async function deleteInboxConsumer(
-  jsm: JetStreamManager,
-  prefix: string,
-  participantId: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await jsm.consumers.delete(streamNames(prefix).delivery, consumerNames.inbox(participantId));
+    return await jsm.streams.delete(streamNames(prefix).delivery);
   } catch (error) {
-    if (!isNotFound(error)) throw error;
+    if (isNotFound(error)) return false;
+    throw error;
   }
 }
 

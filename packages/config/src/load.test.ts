@@ -21,6 +21,16 @@ describe('configFromObject', () => {
     expect(config.discord.channels.planning?.type).toBe('forum');
   });
 
+  it('ownershipGraceMinutes defaults to 120', () => {
+    expect(configFromObject(minimal).config.presence.ownershipGraceMinutes).toBe(120);
+  });
+
+  // Removed with per-session delivery; existing mesh.yaml files that still set it must load.
+  it('ignores the retired limits.deliveryRetentionDays', () => {
+    const { config } = configFromObject({ ...minimal, limits: { deliveryRetentionDays: 14 } });
+    expect(config.limits).not.toHaveProperty('deliveryRetentionDays');
+  });
+
   it('normalizes workflow effect references', () => {
     const { config } = configFromObject(minimal);
     const feature = config.workflows.find((w) => w.id === 'feature');

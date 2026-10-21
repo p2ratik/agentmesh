@@ -25,6 +25,20 @@ export const DeclaredStatus = z.enum(['online', 'busy', 'away']);
 export const PresenceStatus = z.enum(['online', 'busy', 'away', 'offline']);
 export type PresenceStatus = z.infer<typeof PresenceStatus>;
 
+/** Hub-issued session id. Lives here (not sessions.ts) so PeerInfo avoids an import cycle. */
+export const SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
+export const SessionId = z.string().regex(SESSION_ID_PATTERN);
+
+export const SessionSummary = z.object({
+  id: SessionId,
+  description: z.string(),
+  repo: z.string().nullable(),
+  branch: z.string().nullable(),
+  activeSince: IsoDate,
+  tasks: z.array(z.string()),
+});
+export type SessionSummary = z.infer<typeof SessionSummary>;
+
 export const PeerInfo = ParticipantRef.extend({
   owner: z.string().nullable(),
   status: PresenceStatus,
@@ -35,6 +49,7 @@ export const PeerInfo = ParticipantRef.extend({
   skills: z.array(z.string()),
   areas: z.array(z.string()),
   activeTasks: z.number().int().nonnegative(),
+  sessions: z.array(SessionSummary).default([]),
 });
 export type PeerInfo = z.infer<typeof PeerInfo>;
 

@@ -8,7 +8,7 @@ import { createServiceHarness } from '../../testing/services';
 import { TaskServiceImpl } from '../tasks/tasks.service';
 import { normalizeEvent } from './http/normalize';
 import { IngestServiceImpl } from './ingest.service';
-import { runAction } from './rules/actions';
+import { externalFooter, runAction } from './rules/actions';
 import type { RuleContext } from './rules/match';
 
 /** Assembled at runtime so repository secret scanners never flag this file. */
@@ -137,6 +137,29 @@ describe('rule actions mask what they build', () => {
     const body = notified.find((m) => m.kind === 'event')?.body;
     expect(body).toContain('[REDACTED]');
     expect(body).not.toContain('MIIEowIBAAKCAQEA7');
+  });
+
+  it('masks notify text before it is clipped to leave room for the footer', async () => {
+    const s = setup();
+    s.ctx.loaded.config.limits.maxBodyChars = 500;
+    const leak = s.ctx.index.config.rules.find((rule) => rule.id === 'leak');
+    const deps = { ctx: s.ctx, messaging: s.messaging, tasks: s.tasks, presence: s.presence };
+    const base: RuleContext = {
+      ...{ id: 'hermes:l4', source: 'hermes', type: 'leak.found', severity: 'error' },
+      ...{ summary: null, url: null, occurredAt: null, payload: {} },
+    };
+    // The text keeps what fits beside the footer and the truncation note. Trimmed, it renders as
+    // `{body}\n{end}`, so the cut lands 20 characters into the raw token.
+    const room = 500 - externalFooter(base).length;
+    const kept = room - `\n… _(truncated to ${room} characters)_`.length;
+    const event = { ...base, payload: { body: tokenAt(kept - 20), end: 'z'.repeat(200) } };
+    s.ctx.db.transaction(() => {
+      for (const action of leak?.actions ?? []) runAction(deps, action, event);
+    });
+    const notified = (await s.drain()).get('bob-agent') ?? [];
+    const body = notified.find((m) => m.kind === 'event')?.body;
+    expect(body).toContain('_(truncated to');
+    expectMasked(body);
   });
 
   it('throttles on the raw key, so each secret gets its own alert', async () => {

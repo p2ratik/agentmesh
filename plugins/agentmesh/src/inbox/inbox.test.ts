@@ -1,6 +1,6 @@
 import type { MeshMessage } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
-import { Coalescer, RecentIds } from './coalescer';
+import { RecentIds } from './recent-ids';
 import { renderEvent, sanitizeMeta } from './render';
 
 const message = (
@@ -62,24 +62,6 @@ describe('renderEvent', () => {
     expect(sanitizeMeta({ 'bad-key': 'x', ok_key: 'y', '1x': 'z', empty: '', none: null })).toEqual(
       { ok_key: 'y' },
     );
-  });
-});
-
-describe('Coalescer', () => {
-  it('emits one event per thread for messages arriving together, then resolves', async () => {
-    const emitted: string[][] = [];
-    const c = new Coalescer(10, async (ms) => {
-      emitted.push(ms.map((m) => m.id));
-    });
-    await Promise.all([c.add(message('m2')), c.add(message('m1')), c.add(message('m3', 'thr-2'))]);
-    expect(emitted).toEqual([['m1', 'm2'], ['m3']]);
-  });
-
-  it('rejects the waiters of a thread whose push failed', async () => {
-    const c = new Coalescer(5, async () => {
-      throw new Error('transport closed');
-    });
-    await expect(c.add(message('m1'))).rejects.toThrow('transport closed');
   });
 });
 

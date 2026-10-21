@@ -5,7 +5,7 @@ import type { HubContext } from '../../context';
 import type { ControlService, PostInput, PostResult, ThreadRecord } from '../../contracts';
 import { threadKey } from '../../core/ids';
 import { toJson } from '../../db/database';
-import { postLimitViolation } from './limits';
+import { clipBody, postLimitViolation } from './limits';
 import { messageRefs } from './mappers';
 import type { MessagesRepo } from './messages.repo';
 import type { ReadsRepo } from './reads.repo';
@@ -29,7 +29,7 @@ const sha256 = (text: string): string => createHash('sha256').update(text).diges
 
 /**
  * Stores one message and queues its side effects: redaction, limits (skipped
- * for system posts), recipients, read cursor, agent deliveries (held while
+ * for system posts), recipients, agent deliveries (held while
  * paused) and the `message.created` feed event. Runs inside the caller's
  * transaction when there is one.
  */
@@ -40,7 +40,8 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
     const now = clock.now();
     const at = now.toISOString();
     if (input.senderId !== pc.hubId) pc.assertKnown([input.senderId]);
-    const body = redactSecrets(input.body);
+    // System posts skip the limits, not the size cap: rules can render any amount of external text.
+    const body = clipBody(redactSecrets(input.body), pc.ctx.loaded.config.limits.maxBodyChars);
     const bodyHash = sha256(body);
     if (!input.system) enforceLimits(pc, thread, input, bodyHash, now);
 
@@ -59,7 +60,7 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
       refs: messageRefs(thread, input.refs),
       createdAt: at,
     };
-    const seq = pc.messages.insert({
+    pc.messages.insert({
       id: message.id,
       threadId: thread.id,
       senderId: input.senderId,
@@ -74,7 +75,6 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
       at,
     });
     pc.threads.recordMessage(thread.id, at);
-    pc.reads.advance(thread.id, input.senderId, seq);
 
     const held = pc.control.isPaused();
     const deliveredTo = recipients.filter((id) => index.kindOf(id) === 'agent');

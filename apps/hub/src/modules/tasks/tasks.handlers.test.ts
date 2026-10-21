@@ -18,6 +18,7 @@ function setup(loaded = testTeamConfig()) {
     handlers: module.handlers,
     idempotency: new IdempotencyStore(h.ctx.db, h.clock),
     logger: h.ctx.logger,
+    transaction: (fn) => h.ctx.db.transaction(fn),
   });
   const call = (caller: string, method: string, params: unknown, actAs?: string) =>
     dispatch({ caller, method, ...(actAs ? { actAs } : {}) }, params) as Promise<

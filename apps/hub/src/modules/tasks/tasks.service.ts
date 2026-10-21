@@ -213,6 +213,11 @@ export class TaskServiceImpl implements TaskService {
     return this.repos.tasks.count(this.views.terminalStates());
   }
 
+  locate(taskId: number): { threadId: number; repo: string | null } | null {
+    const task = this.repos.tasks.get(taskId);
+    return task ? { threadId: task.threadId, repo: task.repo } : null;
+  }
+
   /** One transaction; queued messages are posted in order before it commits. */
   #operation<T>(actor: Actor, fn: (op: Operation) => T): T {
     const result = this.#ctx.db.transaction(() => {

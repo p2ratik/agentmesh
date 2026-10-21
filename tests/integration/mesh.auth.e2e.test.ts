@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { renderNatsConfig } from '../../apps/cli/src/render/nats-config';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
-import { type Agent, PLUGIN, spawnAgent, untilConnected } from './support';
+import { type Agent, activate, callAsSession, PLUGIN, spawnAgent, untilConnected } from './support';
 
 /**
  * The production security model, for real: nats-server runs the config that
@@ -97,6 +97,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       const [alice, bob] = await Promise.all([start('alice-agent'), start('bob-agent')]);
       agents.push(alice, bob);
       await untilConnected(() => alice.call('peers', {}));
+      await Promise.all([activate(alice, 'auth'), activate(bob, 'auth')]);
       const sent = await alice.call('ask', { to: 'bob-agent', text: 'auth ping' });
       const threadId = /thr-\d+/.exec(sent)?.[0] ?? '';
       expect((await bob.waitFor((e) => e.meta.thread_id === threadId)).content).toBe('auth ping');
@@ -117,7 +118,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
         const asBob = new RpcClient(nc, PREFIX, 'bob-agent', 3000);
         await expect(asBob.call('peers.list', {})).rejects.toThrow();
         const asAlice = new RpcClient(nc, PREFIX, 'alice-agent', 3000);
-        expect((await asAlice.call('peers.list', {})).peers.length).toBeGreaterThan(0);
+        expect((await callAsSession(asAlice, 'peers.list', {})).peers.length).toBeGreaterThan(0);
       } finally {
         await nc.close();
       }

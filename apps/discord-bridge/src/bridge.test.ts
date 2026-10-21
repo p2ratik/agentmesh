@@ -116,6 +116,7 @@ describe('command plumbing', () => {
           skills: [],
           areas: [],
           activeTasks: 2,
+          sessions: [],
         },
       ],
       counts: { openThreads: 3, openTasks: 2, activePlans: 1, heldDeliveries: 4 },

@@ -36,6 +36,17 @@ function assertCanPost(messaging: MessagingServiceImpl, threadId: number, actor:
   }
 }
 
+/** A sender's session pick: one agent recipient, and an active session of that agent. */
+function assertPick(messaging: MessagingServiceImpl, sessionId: string, recipients: string[]) {
+  const [agent] = recipients;
+  if (recipients.length !== 1 || !agent || messaging.ctx.index.kindOf(agent) !== 'agent') {
+    throw new MeshError('invalid_request', '`toSession` needs exactly one agent in `to`');
+  }
+  if (!messaging.deps.isActiveSessionOf(agent, sessionId)) {
+    throw new MeshError('invalid_request', `${sessionId} is not an active session of ${agent}`);
+  }
+}
+
 /** Starts a thread; humans always start fresh chains (depth 0), agents inherit their parent's. */
 function startThread(
   messaging: MessagingServiceImpl,
@@ -68,11 +79,14 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
         refs: {
           ...taskRefs(params.taskId),
           ...(params.prUrl ? { prUrl: params.prUrl } : {}),
+          ...(params.repo ? { repo: params.repo } : {}),
+          ...(params.toSession ? { session: params.toSession } : {}),
         },
       };
       const result: PostResult = db.transaction(() => {
         const tokens = params.to ?? [];
         const recipients = expandRecipients(tokens, actor.id, directory(messaging));
+        if (params.toSession) assertPick(messaging, params.toSession, recipients);
         if (params.threadId) {
           const threadId = internalId('thread', params.threadId);
           assertCanPost(messaging, threadId, actor);

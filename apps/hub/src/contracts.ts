@@ -19,6 +19,7 @@ import type {
   RpcMethodName,
   RpcParams,
   RpcResult,
+  SessionSummary,
   TaskDetail,
   ThreadKind,
   ThreadSummary,
@@ -41,6 +42,10 @@ export interface CallContext {
   /** The authenticated NATS identity (the bridge, for relayed human calls). */
   caller: Actor;
   method: RpcMethodName;
+  /** The calling agent's session, verified by the router; null otherwise. */
+  session: string | null;
+  /** Advisory notes returned with the result (handlers and claims append). */
+  notes: string[];
 }
 
 export type RpcHandler<M extends RpcMethodName> = (
@@ -113,6 +118,8 @@ export interface PresenceService {
   markAssigned(participantId: string, at: Date): void;
   /** Wired by app.ts once the task module exists (avoids a module cycle). */
   setLoadReader(reader: () => Map<string, number>): void;
+  /** Wired once the sessions module exists: an agent's active sessions for `PeerInfo`. */
+  setSessionReader(reader: (agentId: string) => SessionSummary[]): void;
 }
 
 // ---------------------------------------------------------------- messaging
@@ -182,6 +189,18 @@ export interface MessagingService {
   linkThread(threadId: number, link: { taskId?: number; planId?: number }): void;
   /** Threads with unread messages for this participant. */
   unreadThreadCount(participantId: string): number;
+  /** Advances the participant's read cursor past each message (unknown ids are skipped). */
+  markRead(participantId: string, messageIds: string[]): void;
+  /** Whether the participant's read cursor is at or past the message (seen through inbox or thread). */
+  isRead(participantId: string, messageId: string): boolean;
+  /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
+  setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
+}
+
+/** The session that owns an agent's side of a thread (owners are never closed). */
+export interface ThreadOwner {
+  sessionId: string;
+  liveness: 'live' | 'away';
 }
 
 // ---------------------------------------------------------------- leases
@@ -228,6 +247,7 @@ export interface TaskService {
   /** Load per agent: number of non-terminal tasks assigned to it. */
   activeLoad(): Map<string, number>;
   openCount(): number;
+  locate(taskId: number): { threadId: number; repo: string | null } | null;
 }
 
 // ---------------------------------------------------------------- planning
@@ -235,7 +255,13 @@ export interface TaskService {
 export interface PlanningService {
   get(planId: number): Plan;
   activeCount(): number;
+  threadOf(planId: number): number | null;
 }
+
+// ---------------------------------------------------------------- sessions
+
+/** Kept in their own file so this one stays within the size limit. */
+export type { SessionRecord, SessionsService } from './sessions.contracts';
 
 // ---------------------------------------------------------------- enrollment
 

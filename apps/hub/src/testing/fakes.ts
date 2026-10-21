@@ -11,6 +11,7 @@ import type {
   ThreadRecord,
 } from '../contracts';
 import { optionalKey, threadKey } from '../core/ids';
+import type { SessionTransport } from '../modules/sessions/dispatcher';
 
 /**
  * In-memory MessagingService honoring the contract (recipient defaults,
@@ -117,6 +118,14 @@ export class FakeMessaging implements MessagingService {
     return 0;
   }
 
+  markRead(): void {}
+
+  isRead(): boolean {
+    return false;
+  }
+
+  setOwnerReader(): void {}
+
   /** Messages delivered to one participant, in order. */
   deliveredTo(participantId: string): MeshMessage[] {
     return this.posts.filter((p) => p.recipients.includes(participantId)).map((p) => p.message);
@@ -170,6 +179,7 @@ export class FakePresence implements PresenceService {
       skills: agent?.skills ?? [],
       areas: this.#index.areasOwnedBy(id).map((a) => a.id),
       activeTasks: this.#load().get(id) ?? 0,
+      sessions: [],
     };
   }
   peers(): PeerInfo[] {
@@ -184,6 +194,30 @@ export class FakePresence implements PresenceService {
   setLoadReader(reader: () => Map<string, number>): void {
     this.#load = reader;
   }
+  setSessionReader(): void {}
+}
+
+/** Records every send and check. A session acks all it gets unless `respond` says otherwise. */
+export class FakeTransport implements SessionTransport {
+  readonly sends: Array<{ agentId: string; sessionId: string; ids: string[] }> = [];
+  readonly checks: Array<{ agentId: string; sessionId: string; code: string }> = [];
+  /** Per session: ack a subset, reject, or hand back a promise the test settles. */
+  readonly respond = new Map<string, (messages: MeshMessage[]) => Promise<string[]>>();
+  /** Set to make every check fail, as when nobody listens on the session subject. */
+  checkError: Error | null = null;
+
+  async check(agentId: string, sessionId: string, code: string): Promise<void> {
+    this.checks.push({ agentId, sessionId, code });
+    if (this.checkError) throw this.checkError;
+  }
+
+  send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
+    this.sends.push({ agentId, sessionId, ids: messages.map((m) => m.id) });
+    const respond = this.respond.get(sessionId);
+    return respond ? respond(messages) : Promise.resolve(messages.map((m) => m.id));
+  }
+
+  expired(): void {}
 }
 
 export class FakeLeases implements LeaseService {

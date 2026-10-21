@@ -33,6 +33,17 @@ export class ReadsRepo {
     );
   }
 
+  /** The participant's read cursor in the thread; null for non-participants. */
+  cursor(threadId: number, participantId: string): number | null {
+    return (
+      this.#db.get<{ seq: number }>(
+        `SELECT last_read_seq AS seq FROM thread_participants
+         WHERE thread_id = $threadId AND participant_id = $participantId`,
+        { threadId, participantId },
+      )?.seq ?? null
+    );
+  }
+
   /** Threads with unread messages, most recent unread first. */
   unreadThreads(participantId: string): UnreadThread[] {
     return this.#db.all<UnreadThread>(

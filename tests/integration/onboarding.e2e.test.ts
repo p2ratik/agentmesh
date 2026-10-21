@@ -13,7 +13,7 @@ import { actAs } from '../../apps/discord-bridge/src/rpc';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
 import { startCalloutNats } from './callout-server';
-import { type Agent, PLUGIN, spawnAgent, untilConnected } from './support';
+import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './support';
 
 /**
  * The whole invite-only onboarding (task-11): an admin invites through the
@@ -193,6 +193,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       });
       agents.push(alice);
       await untilConnected(() => alice.call('peers', { kind: 'agent' }));
+      await Promise.all([activate(alice, 'web client'), activate(joiner, 'qa')]);
       const sent = await untilConnected(() =>
         joiner.call('ask', { to: 'alice-agent', text: 'Does the web client handle a 409?' }),
       );

@@ -8,6 +8,7 @@ import type {
   PostInput,
   PostResult,
   PresenceService,
+  ThreadOwner,
   ThreadRecord,
 } from '../../contracts';
 import { threadKey } from '../../core/ids';
@@ -21,6 +22,8 @@ import { ThreadsRepo } from './threads.repo';
 export interface MessagingDeps {
   control: ControlService;
   presence: PresenceService;
+  /** Late-bound to the sessions module (built after messaging): may a sender pick this session? */
+  isActiveSessionOf(agentId: string, sessionId: string): boolean;
 }
 
 const MAX_SUBJECT = 120;
@@ -34,6 +37,7 @@ export class MessagingServiceImpl implements MessagingService {
   readonly messages: MessagesRepo;
   readonly reads: ReadsRepo;
   readonly #post: PostContext;
+  #ownerOf: (threadId: number, agentId: string) => ThreadOwner | null = () => null;
 
   constructor(ctx: HubContext, deps: MessagingDeps) {
     this.ctx = ctx;
@@ -144,6 +148,28 @@ export class MessagingServiceImpl implements MessagingService {
 
   unreadThreadCount(participantId: string): number {
     return this.reads.unreadThreadCount(participantId);
+  }
+
+  markRead(participantId: string, messageIds: string[]): void {
+    for (const id of messageIds) {
+      const at = this.messages.position(id);
+      if (at) this.reads.advance(at.threadId, participantId, at.seq);
+    }
+  }
+
+  isRead(participantId: string, messageId: string): boolean {
+    const at = this.messages.position(messageId);
+    const cursor = at ? this.reads.cursor(at.threadId, participantId) : null;
+    return at !== undefined && cursor !== null && at.seq <= cursor;
+  }
+
+  setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void {
+    this.#ownerOf = reader;
+  }
+
+  /** The session that owns the agent's side of a thread; null when nobody does. */
+  ownerOf(threadId: number, agentId: string): ThreadOwner | null {
+    return this.#ownerOf(threadId, agentId);
   }
 
   openThreadCount(): number {

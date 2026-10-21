@@ -70,7 +70,8 @@ describe('agentmesh CLI', () => {
     expect(await h.run('nats-config', '--config', 'mesh', '--out', 'nats.conf')).toBe(0);
     const conf = readFileSync(join(h.cwd, 'nats.conf'), 'utf8');
     expect(conf).toContain('"mesh.rpc.alice-agent.>"');
-    expect(conf).toContain('"$JS.ACK.MESH_DELIVERY.inbox-alice-agent.>"');
+    expect(conf).toContain('"mesh.ack.alice-agent.>"');
+    expect(conf).toContain('"mesh.session.alice-agent.*"');
     expect(conf).toContain('"_INBOX_bob-agent.>"');
     expect(conf).not.toContain('tls {');
     expect(await h.run('nats-config', '--config', 'mesh', '--out', 'tls.conf', '--tls')).toBe(0);

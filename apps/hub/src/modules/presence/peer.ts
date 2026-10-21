@@ -1,5 +1,5 @@
 import type { ConfigIndex, MeshConfig } from '@agentmesh/config';
-import type { PeerInfo, PresenceStatus } from '@agentmesh/protocol';
+import type { PeerInfo, PresenceStatus, SessionSummary } from '@agentmesh/protocol';
 import type { ConfiguredParticipant, ParticipantRow, PresenceFields } from './participants.repo';
 
 /** How the hub signs its own notices: "<mesh name> hub". */
@@ -51,7 +51,12 @@ export function isVisibleChange(before: PresenceFields, after: PresenceFields): 
   );
 }
 
-export function toPeerInfo(row: ParticipantRow, index: ConfigIndex, activeTasks: number): PeerInfo {
+export function toPeerInfo(
+  row: ParticipantRow,
+  index: ConfigIndex,
+  activeTasks: number,
+  sessions: SessionSummary[],
+): PeerInfo {
   const agent = row.kind === 'agent' ? index.agent(row.id) : undefined;
   return {
     id: row.id,
@@ -66,5 +71,6 @@ export function toPeerInfo(row: ParticipantRow, index: ConfigIndex, activeTasks:
     skills: agent?.skills ?? [],
     areas: agent ? index.areasOwnedBy(row.id).map((a) => a.id) : [],
     activeTasks,
+    sessions,
   };
 }

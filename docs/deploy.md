@@ -10,8 +10,8 @@ A 1–2 GB RAM VM is plenty (the hub and bridge use ~100–200 MB each; NATS les
 - **AWS**: Lightsail (1 GB or 2 GB Linux plan) or EC2 `t4g.small` (ARM, Ubuntu).
 - **Azure**: `B1s` or `B1ms` (Ubuntu).
 
-Check current pricing in your region. Give it ~20 GB of disk (JetStream keeps undelivered
-messages for `limits.deliveryRetentionDays`, 14 by default).
+Check current pricing in your region. Give it ~20 GB of disk (the hub database holds undelivered
+messages; JetStream keeps only the activity feed and ingest backlog).
 
 ## 1. Prepare the VM
 
@@ -89,7 +89,7 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
 
 - **Logs**: `docker compose logs -f hub` (JSON lines; `AGENTMESH_LOG_LEVEL=debug` for more).
 - **Config changes**: edit `config/`, run `agentmesh validate`, then `docker compose restart hub
-  discord-bridge`. New agents get their NATS inbox automatically on restart.
+  discord-bridge`. New agents are picked up on restart.
 - **Re-rendering `nats.conf`**: always use the flags the deploy was set up with. On an invite
   deploy that is `--tls --auth-callout`. A render without `--auth-callout` switches modes, which
   needs the [ADR-0005 procedure](adr/0005-team-registry-and-auth-callout.md#migrating-a-live-deploy).
@@ -122,6 +122,25 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
 
 - **Upgrades**: `git pull && docker compose up -d --build`. Hub migrations run on start
   (append-only), and JetStream streams/consumers are updated in place.
+  - **To per-session delivery (plugin 0.2.0),** in this order
+    ([ADR 0006](adr/0006-per-session-delivery.md)):
+    1. `git pull`.
+    2. Static mode only: agents need new NATS permissions (their session and ack subjects).
+       Re-render `nats.conf` with the deploy's flags, for example
+       `agentmesh nats-config --config config --tls --out deploy/nats/nats.conf`, then reload
+       NATS with `docker compose kill -s HUP nats`, before restarting the hub. Without this a
+       plugin cannot listen on its session, and `/agentmesh:activate` fails with a hint about
+       NATS permissions.
+    3. `docker compose up -d --build` restarts the hub.
+    4. Every member updates the plugin (`claude plugin update agentmesh@agentmesh`) and restarts
+       their Claude Code sessions. In auth-callout mode that restart also gives each plugin a new
+       user JWT carrying the new permissions.
+
+    The hub refuses `session.hello` from older plugins, and their other calls with the same
+    update instruction. On start the hub deletes the old `{P}_DELIVERY` stream; anything still
+    queued there is not pushed, but it stays in the hub database and members read it with `inbox`.
+    Each session must then run `/agentmesh:activate` to receive messages.
+    `limits.deliveryRetentionDays` is ignored now and can be dropped from `mesh.yaml`.
 
 ## Switching an existing deploy to invites (`--auth-callout`)
 

@@ -15,6 +15,8 @@ export interface CallOptions {
   idempotencyKey?: string;
   /** Services allowed to act for humans pass the human id here. */
   actAs?: string;
+  /** The calling Claude Code session id. */
+  session?: string;
   timeoutMs?: number;
 }
 
@@ -37,9 +39,19 @@ export class RpcClient {
     params: RpcParamsInput<M>,
     options: CallOptions = {},
   ): Promise<RpcResult<M>> {
+    return (await this.callWithNotes(method, params, options)).result;
+  }
+
+  /** Like `call`, also returning the hub's advisory notes (empty when none). */
+  async callWithNotes<M extends RpcMethodName>(
+    method: M,
+    params: RpcParamsInput<M>,
+    options: CallOptions = {},
+  ): Promise<{ result: RpcResult<M>; notes: string[] }> {
     const envelope: RpcRequestEnvelope = {
       v: PROTOCOL_VERSION,
       params,
+      ...(options.session ? { session: options.session } : {}),
       ...(options.actAs ? { actAs: options.actAs } : {}),
       ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
     };
@@ -57,7 +69,10 @@ export class RpcClient {
     }
     const response = reply.json<RpcResponseEnvelope>();
     if (!response.ok) throw MeshError.fromPayload(response.error);
-    return RPC_METHODS[method].result.parse(response.result) as RpcResult<M>;
+    return {
+      result: RPC_METHODS[method].result.parse(response.result) as RpcResult<M>,
+      notes: response.notes ?? [],
+    };
   }
 }
 

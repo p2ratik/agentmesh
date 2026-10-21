@@ -1,6 +1,6 @@
 import type { NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
-import { parseTokenAfter, subjects } from '@agentmesh/protocol';
+import { parseTokenAfter, SessionId, subjects } from '@agentmesh/protocol';
 import { z } from 'zod';
 import type { PresenceService } from '../../contracts';
 
@@ -10,12 +10,15 @@ export type Subscription = ReturnType<NatsConnection['subscribe']>;
 const Heartbeat = z.object({
   repo: z.string().max(300).optional(),
   branch: z.string().max(300).optional(),
+  /** A subject token when the hub answers `expired`, so only a hub-issued id. */
+  session: SessionId.optional(),
 });
 export type Heartbeat = z.infer<typeof Heartbeat>;
 
 /**
  * Parses a heartbeat: `{p}.presence.{id}` with an optional JSON body
- * `{ repo?, branch? }`. An empty body is a plain heartbeat; malformed ones yield null.
+ * `{ repo?, branch?, session? }`. An empty body is a plain heartbeat; malformed ones
+ * (a session that is not a hub-issued id included) yield null.
  */
 export function parseHeartbeat(
   prefix: string,
@@ -42,6 +45,12 @@ export function startPresenceListener(
   prefix: string,
   presence: PresenceService,
   logger: Logger,
+  onSession?: (
+    agentId: string,
+    sessionId: string,
+    git: { repo?: string; branch?: string },
+  ) => 'ok' | 'unknown',
+  onUnknown?: (agentId: string, sessionId: string) => void,
 ): Subscription {
   const agents = new Set(presence.peers('agent').map((p) => p.id));
   return nc.subscribe(subjects(prefix).presenceAll, {
@@ -56,7 +65,11 @@ export function startPresenceListener(
         return;
       }
       try {
-        presence.touch(beat.participantId, beat.info);
+        const { session, ...git } = beat.info;
+        presence.touch(beat.participantId, git);
+        if (session && onSession?.(beat.participantId, session, git) === 'unknown') {
+          onUnknown?.(beat.participantId, session);
+        }
       } catch (error) {
         logger.error({ err: error, participant: beat.participantId }, 'presence update failed');
       }

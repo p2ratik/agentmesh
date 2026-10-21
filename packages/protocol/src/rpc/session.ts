@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { DeclaredStatus, GitPolicy, PeerInfo } from '../primitives';
+import { DeclaredStatus, GitPolicy, PeerInfo, SessionId } from '../primitives';
+import { SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
 export const sessionMethods = {
@@ -10,6 +11,8 @@ export const sessionMethods = {
       clientVersion: z.string(),
       repo: z.string().optional(),
       branch: z.string().optional(),
+      /** This process's session before a reconnect: reused if still open, else reclaimed from. */
+      previousSessionId: z.string().optional(),
     }),
     result: z.object({
       self: PeerInfo,
@@ -17,6 +20,10 @@ export const sessionMethods = {
       policy: z.object({ instructions: z.string(), git: GitPolicy }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
       unreadThreads: z.number().int().nonnegative(),
+      /** The hub-issued id this session sends on every call. */
+      sessionId: SessionId,
+      /** Thread keys taken back from the previous session because nobody else took them. */
+      reclaimed: z.array(z.string()),
     }),
   }),
   'session.bye': defineMethod({
@@ -24,6 +31,45 @@ export const sessionMethods = {
     callers: ['agent', 'service'],
     params: z.object({}),
     result: z.object({ ok: z.literal(true) }),
+  }),
+  'session.check': defineMethod({
+    description:
+      'Send this session a test message with an activation code, over its session subject.',
+    callers: ['agent'],
+    params: z.object({}),
+    result: z.object({ ok: z.literal(true) }),
+  }),
+  'session.activate': defineMethod({
+    description:
+      'Make this session the one that receives work: the code from its check and a short description.',
+    callers: ['agent'],
+    params: z.object({
+      code: z.string().min(1).max(20),
+      description: z.string().min(1).max(200),
+    }),
+    result: SessionView,
+  }),
+  'session.deactivate': defineMethod({
+    description: 'Stop receiving work in this session.',
+    callers: ['agent'],
+    params: z.object({}),
+    result: SessionView,
+  }),
+  'session.describe': defineMethod({
+    description: 'Change this session description.',
+    callers: ['agent'],
+    params: z.object({ description: z.string().min(1).max(200) }),
+    result: SessionView,
+  }),
+  'session.take': defineMethod({
+    description: 'Take over a thread or task from the session that owns it.',
+    callers: ['agent'],
+    params: z
+      .object({ threadId: z.string().optional(), taskId: z.string().optional() })
+      .refine((p) => (p.threadId === undefined) !== (p.taskId === undefined), {
+        message: 'Pass exactly one of `threadId` and `taskId`.',
+      }),
+    result: z.object({ threadId: z.string(), previousSession: z.string().nullable() }),
   }),
   'presence.set': defineMethod({
     description: 'Declare your status (online, busy, away) with an optional note.',

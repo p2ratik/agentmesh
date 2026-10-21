@@ -14,14 +14,7 @@ import type { HubContext } from '../../context';
 import type { Actor, EnrollmentService, RedeemInput } from '../../contracts';
 import { EnrollmentRepo, type InviteRow } from './enrollment.repo';
 
-/** Creates and deletes agents' durable inboxes (JetStream); null without NATS. */
-export interface InboxPort {
-  ensure(agentId: string): Promise<void>;
-  remove(agentId: string): Promise<void>;
-}
-
 export interface EnrollmentDeps {
-  inboxes: InboxPort | null;
   /** Disconnects the agent's live connections (the auth callout); null without it. */
   kick?: ((agentId: string) => Promise<void>) | null;
   /** Runs after every committed join or removal, once `ctx.index` is current. */
@@ -154,8 +147,6 @@ export class EnrollmentServiceImpl implements EnrollmentService {
   async redeem(input: RedeemInput): Promise<MemberRecord> {
     const now = this.#ctx.clock.now().toISOString();
     const invite = this.#checkRedeem(input, now);
-    // Before the commit: if NATS fails, the invite stays unused and the member can retry.
-    await this.#deps.inboxes?.ensure(invite.agent_id);
     let member: MemberRecord;
     try {
       member = this.#ctx.db.transaction(() => {
@@ -202,9 +193,6 @@ export class EnrollmentServiceImpl implements EnrollmentService {
     // Revoked and out of the index first, so the kicked client's reconnect is refused.
     await this.#deps.kick?.(member.agentId).catch((err: unknown) => {
       this.#ctx.logger.error({ err, agentId: member.agentId }, 'could not kick removed agent');
-    });
-    await this.#deps.inboxes?.remove(member.agentId).catch((err: unknown) => {
-      this.#ctx.logger.error({ err, agentId: member.agentId }, 'could not delete removed inbox');
     });
     return { removed: true, agentIds: [member.agentId] };
   }
