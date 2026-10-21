@@ -13,6 +13,11 @@ export interface SessionInboxOptions {
   push(event: ChannelEvent): Promise<void>;
   /** The hub no longer knows this session; say hello again. */
   onExpired(): void;
+  /**
+   * Now listening on the session subject. The hub marks a session away when a
+   * delivery finds nobody listening (startup, re-hello) until it hears a heartbeat.
+   */
+  onListening(): void;
 }
 
 /**
@@ -81,6 +86,8 @@ export function runSessionInbox(options: SessionInboxOptions): {
         },
       });
       logger.debug({ subject }, 'listening for deliveries');
+      // NATS keeps one connection's SUB and PUB in order: the server has the subscription first.
+      options.onListening();
     } catch (err) {
       // A closed or draining connection refuses new subscriptions.
       logger.error({ err, subject }, 'could not listen for deliveries');

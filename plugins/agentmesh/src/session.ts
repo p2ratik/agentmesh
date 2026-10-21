@@ -93,6 +93,7 @@ export function startSession(
       signal: abort.signal,
       push: (event) => pushEvent(server, event),
       onExpired: rehello,
+      onListening: () => presence.beat(),
     });
     if (!hub.sessionId) {
       rehello();

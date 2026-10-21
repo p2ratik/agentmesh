@@ -45,6 +45,7 @@ function harness(failThread?: string) {
   const warn = vi.spyOn(logger, 'warn');
   const pushed: ChannelEvent[] = [];
   const onExpired = vi.fn();
+  const onListening = vi.fn();
   const inbox = runSessionInbox({
     hub,
     logger,
@@ -54,6 +55,7 @@ function harness(failThread?: string) {
       pushed.push(event);
     },
     onExpired,
+    onListening,
   });
   /** Hands the live subscription one inbound NATS message; resolves with its ack, if any. */
   const send = (payload: unknown) => {
@@ -69,7 +71,7 @@ function harness(failThread?: string) {
     live?.callback(null, { subject: live.subject, json, respond });
     return { acked, respond };
   };
-  return { hub, inbox, subs, pushed, onExpired, warn, send };
+  return { hub, inbox, subs, pushed, onExpired, onListening, warn, send };
 }
 
 describe('runSessionInbox', () => {
@@ -127,8 +129,10 @@ describe('runSessionInbox', () => {
       ['mesh.session.alice-agent.s-aaaaaaaaaaaa', true],
       ['mesh.session.alice-agent.s-bbbbbbbbbbbb', false],
     ]);
+    expect(h.onListening).toHaveBeenCalledTimes(2);
     h.inbox.stop();
     h.inbox.resubscribe();
     expect(h.subs.map((s) => s.closed)).toEqual([true, true]);
+    expect(h.onListening).toHaveBeenCalledTimes(2);
   });
 });

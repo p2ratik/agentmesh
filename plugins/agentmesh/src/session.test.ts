@@ -24,14 +24,22 @@ const peer = {
   activeTasks: 0,
 };
 
-/** A hub whose hellos hand out `ids` in order (one per hello); records each hello's params. */
+/**
+ * A hub whose hellos hand out `ids` in order (one per hello); records each
+ * hello's params, and the subscriptions and publishes in the order sent.
+ */
 function fakeHub(ids: string[]) {
   const hellos: Array<Record<string, unknown>> = [];
+  const wire: string[] = [];
   const nc = {
     getServer: () => 'nats://hub.test:4222',
-    publish: () => undefined,
+    publish: (subject: string, data: string) =>
+      wire.push(`pub ${subject} ${JSON.parse(data).session}`),
     drain: async () => undefined,
-    subscribe: () => ({ unsubscribe: () => undefined }),
+    subscribe: (subject: string) => {
+      wire.push(`sub ${subject}`);
+      return { unsubscribe: () => undefined };
+    },
     request: async (subject: string, data: string) => {
       const { params } = JSON.parse(data);
       if (!subject.endsWith('session.hello'))
@@ -57,19 +65,46 @@ function fakeHub(ids: string[]) {
     },
   } as unknown as NatsConnection;
   vi.mocked(connectBus).mockResolvedValue(nc);
-  return hellos;
+  return { hellos, wire };
 }
+
+const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
+const config = { agentId: 'alice-agent', servers: [], prefix: 'mesh', heartbeatSeconds: 30 };
+
+describe('session listening', () => {
+  // The hub marks a session away when a delivery finds nobody listening, until its next
+  // heartbeat. A beat right after subscribing lets it deliver at once instead of a beat later.
+  it('heartbeats right after it starts listening, at startup and after a re-hello', async () => {
+    const { wire } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
+    const session = await openSession(config, logger);
+    const notification = vi.fn(async () => undefined);
+    const stop = startSession({ notification } as unknown as Server, session, logger, 0);
+    const sub = 'sub mesh.session.alice-agent.s-aaaaaaaaaaaa';
+    await vi.waitFor(() => expect(wire).toContain(sub));
+    expect(wire.slice(wire.indexOf(sub))).toEqual([
+      sub,
+      'pub mesh.presence.alice-agent s-aaaaaaaaaaaa',
+    ]);
+
+    session.hub.onSessionLost?.();
+    const resub = 'sub mesh.session.alice-agent.s-bbbbbbbbbbbb';
+    await vi.waitFor(() => expect(wire).toContain(resub));
+    expect(wire.slice(wire.indexOf(resub))).toEqual([
+      resub,
+      'pub mesh.presence.alice-agent s-bbbbbbbbbbbb',
+    ]);
+    await stop();
+  });
+});
 
 describe('session renewal', () => {
   it('re-runs the activation check when an active session comes back as a new one', async () => {
-    const hellos = fakeHub([
+    const { hellos } = fakeHub([
       's-aaaaaaaaaaaa',
       's-aaaaaaaaaaaa',
       's-bbbbbbbbbbbb',
       's-cccccccccccc',
     ]);
-    const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
-    const config = { agentId: 'alice-agent', servers: [], prefix: 'mesh', heartbeatSeconds: 30 };
     const session = await openSession(config, logger);
     const notification = vi.fn(async () => undefined);
     const stop = startSession({ notification } as unknown as Server, session, logger, 60_000);

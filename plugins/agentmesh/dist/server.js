@@ -50978,6 +50978,7 @@ function runSessionInbox(options) {
         }
       });
       logger.debug({ subject }, "listening for deliveries");
+      options.onListening();
     } catch (err) {
       logger.error({ err, subject }, "could not listen for deliveries");
     }
@@ -51034,21 +51035,22 @@ var Presence = class {
     this.#git = await readGitInfo(this.#cwd);
     return this.#git;
   }
+  /** One heartbeat now; also brings a session the hub marked away back to live. */
+  beat() {
+    const { connection: nc, sessionId } = this.#hub;
+    if (!nc) return;
+    try {
+      nc.publish(
+        subjects(this.#hub.config.prefix).presence(this.#hub.config.agentId),
+        JSON.stringify({ ...this.#git, ...sessionId ? { session: sessionId } : {} })
+      );
+    } catch (err) {
+      this.#logger.debug({ err }, "heartbeat failed");
+    }
+  }
   start() {
-    const beat = () => {
-      const { connection: nc, sessionId } = this.#hub;
-      if (!nc) return;
-      try {
-        nc.publish(
-          subjects(this.#hub.config.prefix).presence(this.#hub.config.agentId),
-          JSON.stringify({ ...this.#git, ...sessionId ? { session: sessionId } : {} })
-        );
-      } catch (err) {
-        this.#logger.debug({ err }, "heartbeat failed");
-      }
-    };
-    beat();
-    this.#timers.push(setInterval(beat, this.#hub.config.heartbeatSeconds * 1e3));
+    this.beat();
+    this.#timers.push(setInterval(() => this.beat(), this.#hub.config.heartbeatSeconds * 1e3));
     this.#timers.push(setInterval(() => void this.refreshGit(), GIT_REFRESH_MS));
     for (const timer of this.#timers) timer.unref();
   }
@@ -51110,7 +51112,8 @@ function startSession(server, session, logger, pushDelayMs) {
       logger,
       signal: abort.signal,
       push: (event2) => pushEvent(server, event2),
-      onExpired: rehello
+      onExpired: rehello,
+      onListening: () => presence.beat()
     });
     if (!hub.sessionId) {
       rehello();

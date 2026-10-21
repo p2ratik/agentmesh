@@ -80,6 +80,20 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
   };
 }
 
+/**
+ * Opts the session in the way Claude does after /agentmesh:activate: asks for
+ * a check, reads the code from the push, and sends it back with a description.
+ */
+export async function activate(agent: Agent, description: string): Promise<void> {
+  const before = agent.events.length;
+  await agent.call('activate', {});
+  const check = await agent.waitFor(
+    (e) => agent.events.indexOf(e) >= before && e.content.includes('Code:'),
+  );
+  const code = /Code: (\w+)/.exec(check.content)?.[1] ?? '';
+  await untilConnected(() => agent.call('activate', { code, description }));
+}
+
 /** Retries a tool call until the hub answers (plugins connect in the background). */
 export async function untilConnected<T>(fn: () => Promise<T>, timeoutMs = 15_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
