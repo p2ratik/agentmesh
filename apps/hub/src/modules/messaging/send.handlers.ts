@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@agentmesh/common';
 import type { MessageRefs } from '@agentmesh/protocol';
 import type { Actor, PostResult, RpcHandlerMap } from '../../contracts';
 import { internalId, taskKey } from '../../core/ids';
@@ -8,6 +8,10 @@ import { expandRecipients, noRecipientsError, type RecipientDirectory } from './
 
 type SendHandlers = Pick<RpcHandlerMap, 'message.send' | 'escalate'>;
 
+/**
+ * Subjects are redacted here, where they come in: `createThread` and auto
+ * subjects cut them, and a cut token no longer matches.
+ */
 const MAX_AUTO_SUBJECT = 80;
 
 /** Normalizes a protocol task id (`42`, `TASK-42`) into a message ref. */
@@ -78,7 +82,10 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
         if (recipients.length === 0) throw noRecipientsError(tokens, actor.id);
         const threadId = startThread(messaging, actor, {
           kind: 'conversation',
-          subject: params.subject ?? firstLine(params.body, MAX_AUTO_SUBJECT),
+          subject:
+            params.subject === undefined
+              ? firstLine(redactSecrets(params.body), MAX_AUTO_SUBJECT)
+              : redactSecrets(params.subject),
           to: recipients,
           ...(params.parentThreadId ? { parent: params.parentThreadId } : {}),
         });
@@ -109,7 +116,7 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
         } else {
           threadId = startThread(messaging, actor, {
             kind: 'escalation',
-            subject: firstLine(params.question, MAX_AUTO_SUBJECT),
+            subject: firstLine(redactSecrets(params.question), MAX_AUTO_SUBJECT),
             to: [to],
           });
         }

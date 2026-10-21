@@ -3,6 +3,9 @@ import type { IngestSource } from '@agentmesh/config';
 import { IngestEvent } from '@agentmesh/protocol';
 import { type Headers, header } from './auth';
 
+/** The longest event type the mesh format accepts; raw sources get the same limit. */
+const MAX_TYPE_CHARS = 120;
+
 export type IdentifiedEvent = IngestEvent & { id: string };
 
 export type Normalized =
@@ -48,10 +51,15 @@ export function normalizeEvent(source: IngestSource, headers: Headers, raw: Buff
     source.typeField ? stringField(payload, source.typeField) : undefined,
   ].filter((p): p is string => typeof p === 'string' && p.length > 0);
   if (parts.length === 0) return { ok: false, error: 'Could not determine the event type' };
-  const type = parts
-    .join('.')
-    .replace(/[^A-Za-z0-9_.:-]/g, '_')
-    .slice(0, 120);
+  // Rules match the type as sent, so it is not masked here, and it is never cut: a cut token
+  // would no longer match where the type is posted. Too long is refused, like the mesh format.
+  const joined = parts.join('.');
+  if (joined.length > MAX_TYPE_CHARS) {
+    return { ok: false, error: `The event type is longer than ${MAX_TYPE_CHARS} characters` };
+  }
+  // Other characters become `_`, which can hide a token from the patterns' word boundaries
+  // (a residual risk in docs/security.md).
+  const type = joined.replace(/[^A-Za-z0-9_.:-]/g, '_');
   const producerId = source.idHeader ? header(headers, source.idHeader) : undefined;
   return {
     ok: true,

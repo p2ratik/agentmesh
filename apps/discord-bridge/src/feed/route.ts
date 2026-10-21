@@ -5,13 +5,22 @@ import { renderExternalReceived } from '../render/external';
 import type { PostIntent } from '../render/intents';
 import { renderMessageCreated } from '../render/message';
 import { renderPlanChanged, renderPlanStarted } from '../render/plan';
+import { maskEvent } from '../render/redact';
 import { renderTaskChanged, renderTaskCreated } from '../render/task';
 
 /**
  * Decides what each activity-feed event looks like in Discord. Pure: the same
  * event and config always produce the same posts.
+ *
+ * Every post comes from here, so this is where secrets are masked: in every
+ * string of the event, before rendering (see `maskEvent`). Everything else in
+ * a post comes from config and constants.
  */
 export function routeEvent(event: DomainEvent, index: ConfigIndex): PostIntent[] {
+  return render(maskEvent(event), index);
+}
+
+function render(event: DomainEvent, index: ConfigIndex): PostIntent[] {
   switch (event.type) {
     case 'message.created':
       return renderMessageCreated(event.data, index);

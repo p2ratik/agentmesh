@@ -1,5 +1,6 @@
 import type { RpcClient } from '@agentmesh/bus';
 import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
+import { redactDeep } from './render/redact';
 
 /** The slice of the RPC client the bridge uses; lets tests pass a fake. */
 export type MeshRpc = Pick<RpcClient, 'call'>;
@@ -19,4 +20,19 @@ export type HumanCall = <M extends RpcMethodName>(
 export function actAs(rpc: MeshRpc, humanId: string, interactionId: string): HumanCall {
   return (method, params) =>
     rpc.call(method, params, { actAs: humanId, idempotencyKey: `${interactionId}:${method}` });
+}
+
+/** Results passed through untouched: the invite's code goes into a DM and must stay exact. */
+const UNMASKED: ReadonlySet<RpcMethodName> = new Set(['enrollment.invite']);
+
+/**
+ * Masks secrets in every result before a command renders its reply (some are
+ * public, e.g. `/task create` shows the title). Masking the finished reply
+ * instead would miss tokens it truncates and mangle `<url>` links.
+ */
+export function maskResults(call: HumanCall): HumanCall {
+  return async (method, params) => {
+    const result = await call(method, params);
+    return UNMASKED.has(method) ? result : redactDeep(result);
+  };
 }

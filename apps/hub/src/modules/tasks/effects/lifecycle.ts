@@ -60,6 +60,9 @@ export const postNotice: Effect = (env, run) => {
     'task.assignee': run.task.assignee ?? 'unassigned',
     actor: run.actor.id,
   };
-  const text = template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key: string) => values[key] ?? '');
+  // Own keys only: `{{constructor}}` would otherwise find a function and fail the transition.
+  const text = template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key: string) =>
+    Object.hasOwn(values, key) ? (values[key] ?? '') : '',
+  );
   env.ctx.outbox.enqueueEvent('notice.posted', { channel, text, severity: 'info' });
 };

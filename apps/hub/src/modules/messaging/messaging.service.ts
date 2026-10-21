@@ -56,7 +56,11 @@ export class MessagingServiceImpl implements MessagingService {
     };
   }
 
-  /** Depth is the parent's + 1; past `limits.maxThreadDepth` it is a loop. The hub never joins. */
+  /**
+   * Depth is the parent's + 1; past `limits.maxThreadDepth` it is a loop. The hub never joins.
+   * Callers redact the subject where its text comes in, before any cut (a cut token no longer
+   * matches), so this only cuts it.
+   */
   createThread(input: CreateThreadInput): ThreadRecord {
     const { db, clock, outbox, loaded } = this.ctx;
     const parent = input.parentThreadId ? this.thread(input.parentThreadId) : null;
