@@ -21,12 +21,15 @@ interface EventRow {
 }
 
 const BATCH = 200;
+/** How often a recipient whose whole window waits is warned about. */
+const STARVED_WARN_MS = 60_000;
 
 /**
  * Each recipient's oldest pending rows, at most BATCH each, so a recipient whose
  * messages wait for a session never starves the others.
  * ponytail: more than BATCH rows waiting on one held session also hold back that
- * agent's later rows for other threads; page per thread if that ever happens.
+ * agent's later rows for other threads (warned once a minute); a per-thread
+ * window is plan 2 work.
  */
 const PENDING_DELIVERIES = `
   SELECT message_id, recipient_id, payload FROM (
@@ -53,6 +56,8 @@ export class SqliteOutbox implements Outbox {
   #flushing: Promise<void> | null = null;
   #again = false;
   #scheduled = false;
+  /** When each starved recipient was last warned about (epoch ms). */
+  readonly #starvedWarned = new Map<string, number>();
 
   constructor(db: Db, clock: Clock, logger: Logger, delivery: DeliveryPort, events: EventPort) {
     this.#db = db;
@@ -171,6 +176,7 @@ export class SqliteOutbox implements Outbox {
         }
         receipt.commit?.();
       });
+      if (rows.length === BATCH && receipt.delivered.length === 0) this.#warnStarved(recipientId);
       return rows.length === BATCH && receipt.delivered.length > 0;
     } catch (error) {
       const message = String((error as Error)?.message ?? error);
@@ -186,6 +192,17 @@ export class SqliteOutbox implements Outbox {
       this.#logger.warn({ err: error, recipient: recipientId }, 'delivery failed; will retry');
       return false;
     }
+  }
+
+  /** A full window that only waits holds back everything behind it for this recipient. */
+  #warnStarved(recipientId: string): void {
+    const now = this.#clock.now().getTime();
+    if (now - (this.#starvedWarned.get(recipientId) ?? -Infinity) < STARVED_WARN_MS) return;
+    this.#starvedWarned.set(recipientId, now);
+    this.#logger.warn(
+      { recipient: recipientId, waiting: BATCH },
+      'every pending delivery in this recipient’s window waits; later ones wait behind them',
+    );
   }
 
   async #flushEvents(): Promise<void> {

@@ -104,6 +104,23 @@ describe('SqliteOutbox', () => {
     expect(rows(h).find((r) => r.message_id === 'msg-carol')?.state).toBe('published');
   });
 
+  it('warns at most once a minute when a whole window of a recipient waits', async () => {
+    const h = createTestHarness(undefined, { deliver: async () => ({ delivered: [] }) });
+    const warn = vi.spyOn(h.ctx.logger, 'warn');
+    const starved = () => warn.mock.calls.filter(([, msg]) => String(msg).includes('waits'));
+    for (let i = 1; i <= 200; i++)
+      h.outbox.enqueueDelivery(message(`msg-${i}`), 'bob-agent', false);
+    await h.outbox.flush();
+    expect(starved()).toEqual([
+      [{ recipient: 'bob-agent', waiting: 200 }, expect.stringContaining('waits')],
+    ]);
+    await h.outbox.flush();
+    expect(starved()).toHaveLength(1);
+    h.clock.advance(60_000);
+    await h.outbox.flush();
+    expect(starved()).toHaveLength(2);
+  });
+
   it('a failing commit marks nothing and retries', async () => {
     const h = createDispatchHarness();
     const s1 = h.sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
