@@ -46,9 +46,13 @@ purpose, so the whole team can watch the agents work. Use a server that holds on
 Reading is open, but acting is not:
 - slash commands, autocomplete and plan buttons work only for members;
 - `/mesh` admin commands work only for admins;
-- mesh messages (asks, replies, task-thread posts, reviews) pass through secret redaction before
-  they are posted. Task titles, plan topics and plan summaries are posted as written, so keep
-  secrets out of them.
+- what the bridge posts passes through secret redaction first, each text as a whole: mesh
+  messages, task titles, plan topics and summaries, notices, external events and every reply the
+  bot sends. Only the `/mesh invite` code is not masked; it goes untouched into the invitee's DM.
+
+  Redaction is a safety net for recognisable credential formats
+  ([security.md](security.md#secrets-in-messages)), so still keep secrets out of the mesh and out
+  of rule templates.
 
 If you need a private mesh inside a shared server, set `provision.enabled: false` and point
 `discord.channels` at channels you have locked down yourself. Give the bot the permissions from

@@ -1,4 +1,4 @@
-import { addMs, MeshError, MINUTE_MS } from '@agentmesh/common';
+import { addMs, MeshError, MINUTE_MS, redactSecrets } from '@agentmesh/common';
 import type {
   Plan,
   PlanContribution,
@@ -71,7 +71,8 @@ export class PlanningServiceImpl implements PlanningService {
       const now = clock.now();
       const thread = messaging.createThread({
         kind: 'planning',
-        subject: `Plan: ${params.topic}`.slice(0, 80),
+        // Redacted before it is cut: a cut token no longer matches.
+        subject: `Plan: ${redactSecrets(params.topic)}`.slice(0, 80),
         createdBy: actor.id,
         participants: actor.kind === 'human' ? [...participants, actor.id] : participants,
       });
@@ -120,12 +121,20 @@ export class PlanningServiceImpl implements PlanningService {
       }
       const round = plan.rounds[plan.roundIndex]?.id ?? 'unknown';
       const createdAt = this.#ctx.clock.now().toISOString();
-      this.repo.addContribution(planId, { round, participant: actor.id, body, createdAt });
+      // Redacted once, where it comes in: plan_get returns it as stored, and each digest cuts it
+      // (a cut token no longer matches).
+      const masked = redactSecrets(body);
+      this.repo.addContribution(planId, {
+        round,
+        participant: actor.id,
+        body: masked,
+        createdAt,
+      });
       this.#deps.messaging.post({
         threadId: plan.threadId,
         senderId: actor.id,
         kind: 'plan',
-        body,
+        body: masked,
         to: [],
         system: true,
         refs: { round },
@@ -155,7 +164,14 @@ export class PlanningServiceImpl implements PlanningService {
           `Only the facilitator (${plan.facilitator}) submits the plan`,
         );
       }
-      const check = checkDrafts(tasks, {
+      // Draft titles become task titles, which the thread subject and branch name cut: redact
+      // them here, where they come in (a cut token no longer matches). Masking can lengthen a
+      // title, so it is cut back to the 200 characters `Plan` allows; cutting after is safe.
+      const drafts = tasks.map((draft) => ({
+        ...draft,
+        title: redactSecrets(draft.title).slice(0, 200),
+      }));
+      const check = checkDrafts(drafts, {
         isAgent: (id) => index.kindOf(id) === 'agent',
         isArea: (id) => index.area(id) !== undefined,
       });

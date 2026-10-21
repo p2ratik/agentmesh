@@ -42,7 +42,8 @@ export function pickNewFacilitator(
 /**
  * Every contribution so far, grouped by round and participant, as markdown.
  * Over `maxChars`, each contribution is cut proportionally and marked, so
- * agents know to call `plan_get` for the full text.
+ * agents know to call `plan_get` for the full text. Contributions are stored
+ * redacted (`contribute`), so a cut never splits a raw token.
  */
 export function compileContributions(
   rounds: readonly PlanRound[],

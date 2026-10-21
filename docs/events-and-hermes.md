@@ -52,7 +52,11 @@ source, `413` body over 1 MiB, `503` NATS unavailable (retry later). `GET /healt
 
 **GitHub webhooks directly** (`format: raw`): the whole body becomes `payload`, the type is
 `<x-github-event>.<action>`, the id is `x-github-delivery`, and the `x-hub-signature-256` HMAC is
-verified with your webhook secret:
+verified with your webhook secret. A raw type keeps its text so rules match it as sent. Characters
+outside `[A-Za-z0-9_.:-]` become `_`, and a type over 120 characters is refused with a `400`, not
+cut. The `_` rewrite can hide a token in the type from secret redaction, so point
+`typeHeader`/`typeField` only at fields that name the event
+([security.md](security.md#secrets-in-messages)):
 
 ```yaml
     - id: github
@@ -95,6 +99,24 @@ rules:
 
 **Templates**: `{{ path }}` looks up `id`, `source`, `type`, `severity`, `summary`, `url`,
 `occurredAt` or `payload.…`. Lookups only — no expressions; missing values render empty.
+Values are filled in raw. The finished text passes through secret redaction as a whole wherever
+it is shown ([security.md](security.md#secrets-in-messages)):
+- notify bodies, when they are posted;
+- notify subjects and `create_task` titles, before they are cut;
+- notices, in Discord.
+
+An object renders as JSON cut at 500 characters, and it is masked before the cut. Subjects, titles
+and objects mask only up to 4 KB past their cut, so a 1 MB payload string costs no more than a
+short one.
+
+Masking whole text has two costs:
+- A keyword followed by `:` or `=` masks the next word. With an alarm named
+  `SecretsManagerRotationFailed`, `{{payload.alarm}}: {{summary}}` shows
+  `SecretsManagerRotationFailed: [REDACTED] error rate…`.
+- Name/value entries (`[{ name: 'DB_PASSWORD', value: … }]`) are not recognised, so don't
+  template them from payloads.
+
+Throttle keys render raw, because they are never posted.
 
 **Actions**:
 

@@ -78,8 +78,9 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
   - Acting is gated even though reading is not. Slash commands, autocomplete and buttons require a
     member (`authorize`), and `/mesh` admin commands require the admin role.
   - Invite codes go by DM only.
-  - Mesh messages are redacted (below) before they reach Discord. Task titles, plan topics and
-    plan summaries are not yet, so they are posted as written.
+  - Everything the bridge posts is redacted (below) before it reaches Discord, not only mesh
+    messages. The one exception is the `/mesh invite` code, which goes untouched into the
+    invitee's DM.
 - **Residual risk:** anyone the admin lets into the server sees vulnerability details while they
   are being fixed. A team that shares its server with outsiders should manage its own locked-down
   channels (`provision.enabled: false` plus `discord.channels`).
@@ -105,17 +106,103 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
 
 The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/OpenAI tokens, Discord
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
-or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
+or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh. The
+hub and the Discord bridge share one redactor, `redactSecrets` in `packages/common`: one pass of
+fast patterns over the whole text.
+
+Only credentials are masked: `Use max_tokens: 1024` reaches agents as written. In an assignment
+whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers of
+up to 10 characters (counts, limits, durations, also as `1024}` or `1024)`), plain settings
+(`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`, `required`/`optional`, `bearer`/`basic`),
+type names, env references, placeholders and AWS ARNs (`secret_arn: arn:aws:secretsmanager:…`, which
+names a secret but is not one). Numbers stay masked under a password, `otp` or `mfa` name (PINs and
+one-time codes).
+- **Cost:** a digit-only secret of 10 characters or fewer under a `token`, `secret` or `api_key`
+  name is shown; longer digit-only keys and session tokens are masked.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
-  to 32 KB), including rule notices built from external event text. Before 2026-10-20 the
-  `key=value` and JWT patterns were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s,
-  stalling the hub.
+  to 32 KB), including rule notices built from external event text, and the bridge runs it on
+  every notice (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns
+  were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
 - **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
   bounds the key to 64 characters on each side of the keyword. `redact.test.ts` keeps the 32 KB
-  worst cases under 250 ms; they run in about 1 ms.
+  worst cases under 250 ms; they run in about 1 ms. The 1 MB inputs we measured on 2026-10-21 took
+  up to about 85 ms.
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
+
+The hub redacts text where it comes in, before anything cuts it. A cut token no longer matches its
+pattern, so nothing downstream (the bridge included) could catch it. The code that cuts
+(`createThread`, `firstLine`, `slugify`) only cuts. This covers:
+- thread subjects: explicit ones (`message.send`), the first line of an ask or an escalation, and
+  plan threads (`Plan: <topic>`);
+- task titles, which become thread subjects and branch names. Titles from `task.create`,
+  `review.request` and `plan.submit` drafts are stored redacted. The suggested branch name
+  redacts the title again before `slugify` cuts it;
+- the one-line note a `request_changes` review leaves on the task's transition;
+- plan contributions, which are stored redacted. `plan_get` returns them as stored, and each
+  round's digest cuts them;
+- object placeholders (`{{payload}}`), which render as JSON cut at 500 characters. The JSON is
+  masked first, up to 4 KB past the cut, so a token that straddles the cut is seen whole: one pass
+  over at most 4.6 KB, whatever the payload's size. If the JSON runs on past that window, the last
+  4 KB of the masked window are never shown, because a token there may be cut in two;
+- rule actions. Once its template is filled in, a notify subject or `create_task` title (or the
+  `[source] type` fallback) is masked through the same window, cut at 200 characters. A rule that
+  puts a 1 MB payload string into a subject therefore costs no more than a short one.
+
+Templates (`{{ path }}` in rules, `post_notice` in workflows) fill values in raw, and their text
+is masked as a whole wherever it is shown:
+- `post()` masks notify bodies;
+- the rule action masks subjects and titles;
+- the bridge masks every notice.
+
+Masking each value on its own was tried and dropped. A private key split across values (the lines
+of a log, a CloudWatch event's messages) lost its BEGIN line to the mask, so the key body was
+posted in clear.
+
+Throttle keys are rendered raw. They are never posted, and masking would merge keys: every Secrets
+Manager ARN would share one, so only one alert would fire per window. They are stored in
+`rule_throttles`, so never throttle on a secret.
+
+The bridge masks everything it posts, because the mesh channels are readable by the whole server:
+- **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it
+  (`maskEvent`). That covers task titles, plan topics, summaries and draft titles, notices,
+  external events, and anything rendered later.
+  - It masks before rendering, never after. Renderers truncate, and a cut token is no longer
+    recognised. They also compose text (`<url>`, `id: title`) that a second pass would mangle.
+  - An external event's raw `payload` (the webhook body, up to 1 MB, written by outsiders) is
+    dropped first. No renderer shows it, and scanning it would only cost time.
+- **Replies:** every RPC result is masked before a slash command renders its reply
+  (`maskResults`). Hub errors are masked in every reply, including the one to a Discord message
+  the hub refused to relay.
+  - The exception is `enrollment.invite`, whose code goes untouched into the DM and never into a
+    reply.
+
+- **Residual risk:** plan topics and summaries, task descriptions and reviews are still stored in
+  the hub as written, and so are task titles and plan contributions stored before this change. Only
+  messages and the texts listed above are redacted at the hub, so anyone with the hub's database
+  sees the rest.
+- **Residual risk: raw event types.** The hub does not mask a `raw` source's event type, so rules
+  match it as sent (`token:refresh`). It is never cut either: a type longer than 120 characters is
+  refused with a 400. But characters outside `[A-Za-z0-9_.:-]` become `_`, and that can hide a
+  token from the patterns' word-boundary anchors (`deploy failed ghp_…` becomes
+  `deploy_failed_ghp_…`). Raw types come from a header or field configured on an authenticated
+  source.
+- **Residual risk: what the patterns miss.** These gaps are as old as the redactor. A follow-up
+  task will close them, tested against this redactor from the start:
+  - in JSON text, a quoted secret that contains `"` (`"DB_PASSWORD":"Xy7\"kP9…"`) is masked up to
+    the `\"`, and the rest of it is shown;
+  - a token right after an escaped newline or tab in JSON (`"step failed\nghp_…"`) is not
+    recognised: after `\n` there is no word boundary;
+  - an escaped-quote pair inside a JSON string (`{\"password\":\"…\"}`) is not recognised;
+  - in name/value entries, such as an ECS or Kubernetes
+    `environment: [{ name: 'DB_PASSWORD', value: '…' }]`, neither key reads as a secret, so the
+    value is shown;
+  - the cosmetic cost of masking whole text: a keyword followed by `:` or `=`, in a template, a
+    title or a value, masks the next word (`SecretsManagerRotationFailed: [REDACTED] error
+    rate…`). An unquoted masked value can swallow a closing brace: `{"secret_scanning":true}`
+    becomes `{"secret_scanning":[REDACTED]`, so a masked object may no longer parse as JSON. Short
+    numbers keep their brace (`"max_tokens":1024}`); plain words do not yet.
 
 ## Secrets in RPC results
 

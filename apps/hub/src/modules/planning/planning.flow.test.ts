@@ -11,6 +11,8 @@ import { PlanningServiceImpl } from './planning.service';
 const agent = (id: string): Actor => ({ id, kind: 'agent', roles: [] });
 const alice: Actor = { id: 'alice', kind: 'human', roles: ['admin'] };
 const AGENTS = ['alice-agent', 'bob-agent', 'carol-agent'];
+/** Assembled at runtime so repository secret scanners never flag this file. */
+const TOKEN = ['ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB'].join('');
 
 function setup(loaded: LoadedConfig = testTeamConfig(), online = AGENTS) {
   const h = createServiceHarness(loaded, { online });
@@ -72,6 +74,23 @@ describe('planning sessions', () => {
     expect(digest).toContain('Round 2/2 — Discussion');
     expect(digest).toContain('api first');
     expect(s.planning.get(1).currentRound).toBe('discussion');
+  });
+
+  it('stores contributions redacted, so plan_get and the digest cut never show a token', async () => {
+    const s = setup();
+    s.planning.start({ topic: 'Render status end to end' }, alice);
+    await s.drain();
+    // Three contributions over 12,000 characters get 4,000 each: the digest cut lands 20
+    // characters into the raw token, too few for it to match afterwards.
+    const long = `${'a'.repeat(3_979)} ${TOKEN} ${'b'.repeat(9_000)}`;
+    s.planning.contribute(1, long, agent('alice-agent'));
+    s.planning.contribute(1, 'web after', agent('bob-agent'));
+    s.planning.contribute(1, 'agree', agent('carol-agent'));
+    expect(s.planning.contributions(1)[0]?.body).not.toContain('ghp_');
+    const digest = (await s.drain()).get('bob-agent')?.[0]?.body ?? '';
+    expect(digest).toContain('truncated');
+    expect(digest).toContain('[REDACTED]');
+    expect(digest).not.toContain('ghp_');
   });
 
   it('advances on the deadline and asks only the facilitator to synthesize', async () => {

@@ -5,7 +5,6 @@ import { sendHandlers } from './send.handlers';
 import { threadHandlers } from './thread.handlers';
 
 export type { MessagingDeps } from './messaging.service';
-export { redactSecrets } from './redact';
 
 /** The messaging module, plus the open-thread count `mesh.status` reports. */
 export interface MessagingModule extends HubModule<MessagingService> {
