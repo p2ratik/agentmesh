@@ -12,6 +12,13 @@ export interface PostCounts {
   duplicate: boolean;
 }
 
+/** Cuts a body to `maxChars`, ending with a note that it was cut. Pure. */
+export function clipBody(body: string, maxChars: number): string {
+  if (body.length <= maxChars) return body;
+  const note = `\n… _(truncated to ${maxChars} characters)_`;
+  return `${body.slice(0, Math.max(0, maxChars - note.length))}${note}`;
+}
+
 /** Returns the first limit a participant post breaks, or null. Pure. */
 export function postLimitViolation(counts: PostCounts, limits: LimitsConfig): MeshError | null {
   if (counts.bodyChars > limits.maxBodyChars) {

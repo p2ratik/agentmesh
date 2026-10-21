@@ -15,13 +15,34 @@ const DEFAULT_MAX_PAYLOAD = 1024 * 1024;
 /** Room for the `deliver` envelope around the messages. */
 const ENVELOPE_BYTES = 1024;
 
-/** Splits a batch, in order, into deliveries the protocol and the server accept. */
+const byteSize = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
+
+/** The message with its body cut to fit `maxBytes`; the hub keeps the full text. */
+function clipToFit(message: MeshMessage, maxBytes: number): MeshMessage {
+  const note = `\n… _(truncated: call thread(thread_id: "${message.threadId}") for the full text)_`;
+  const fits = (n: number) =>
+    byteSize({ ...message, body: message.body.slice(0, n) + note }) < maxBytes;
+  // JSON escaping makes a character 1 to 6 bytes, so search for the longest prefix that fits.
+  let [lo, hi] = [0, message.body.length];
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
+  }
+  return { ...message, body: message.body.slice(0, lo) + note };
+}
+
+/**
+ * Splits a batch, in order, into deliveries the protocol and the server accept.
+ * A message too big for a delivery on its own is clipped to fit.
+ */
 export function deliveryChunks(messages: MeshMessage[], maxBytes: number): MeshMessage[][] {
   const chunks: MeshMessage[][] = [];
   let chunk: MeshMessage[] = [];
   let bytes = 0;
-  for (const message of messages) {
-    const size = Buffer.byteLength(JSON.stringify(message)) + 1;
+  for (const whole of messages) {
+    const message = byteSize(whole) < maxBytes ? whole : clipToFit(whole, maxBytes);
+    const size = byteSize(message) + 1;
     if (chunk.length === MAX_DELIVERY_MESSAGES || (chunk.length > 0 && bytes + size > maxBytes)) {
       chunks.push(chunk);
       chunk = [];
@@ -52,13 +73,26 @@ export class NatsSessionTransport implements SessionTransport {
     this.#timeoutMs = timeoutMs;
   }
 
-  /** The ids the session acked among those sent. Timeouts and no-responders throw. */
+  /**
+   * The ids the session acked among those sent, one request at a time to keep
+   * the order. A failed first request throws (timeouts, no-responders); a later
+   * one stops the batch and keeps what got through, the rest waits.
+   */
   async send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
-    const maxBytes = (this.#nc.info?.max_payload ?? DEFAULT_MAX_PAYLOAD) - ENVELOPE_BYTES;
+    const maxPayload = this.#nc.info?.max_payload ?? DEFAULT_MAX_PAYLOAD;
     const acked: string[] = [];
-    // One request at a time keeps the order; a failure throws and the whole batch waits.
-    for (const chunk of deliveryChunks(messages, maxBytes)) {
-      acked.push(...(await this.#request(agentId, sessionId, chunk)));
+    const chunks = deliveryChunks(messages, maxPayload - ENVELOPE_BYTES);
+    for (const [i, chunk] of chunks.entries()) {
+      try {
+        acked.push(...(await this.#request(agentId, sessionId, chunk, maxPayload)));
+      } catch (err) {
+        if (i === 0) throw err;
+        this.#logger.warn(
+          { agent: agentId, session: sessionId, err, sent: i, of: chunks.length },
+          'delivery stopped part way; the rest waits',
+        );
+        break;
+      }
     }
     return acked;
   }
@@ -72,18 +106,22 @@ export class NatsSessionTransport implements SessionTransport {
     );
   }
 
-  async #request(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
+  async #request(
+    agentId: string,
+    sessionId: string,
+    messages: MeshMessage[],
+    maxPayload: number,
+  ): Promise<string[]> {
     const body: SessionInbound = { type: 'deliver', messages };
+    const payload = JSON.stringify(body);
+    // nats.js leaves a timer behind when a noMux request is too big, and its rejection kills the hub.
+    if (Buffer.byteLength(payload) > maxPayload) throw new Error('delivery over max_payload');
     // The hub picks the reply subject under the agent's ack subjects, the only ones it may answer on.
-    const reply = await this.#nc.request(
-      this.#subjects.session(agentId, sessionId),
-      JSON.stringify(body),
-      {
-        timeout: this.#timeoutMs,
-        noMux: true,
-        reply: this.#subjects.ack(agentId, randomBytes(12).toString('hex')),
-      },
-    );
+    const reply = await this.#nc.request(this.#subjects.session(agentId, sessionId), payload, {
+      timeout: this.#timeoutMs,
+      noMux: true,
+      reply: this.#subjects.ack(agentId, randomBytes(12).toString('hex')),
+    });
     const sent = new Set(messages.map((m) => m.id));
     return SessionAck.parse(reply.json()).delivered.filter((id) => sent.has(id));
   }

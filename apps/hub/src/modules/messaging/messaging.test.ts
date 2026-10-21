@@ -48,6 +48,29 @@ describe('MessagingService', () => {
     expect(() => post('later')).not.toThrow();
   });
 
+  it('cuts an oversize system post to the body limit, with a note; participants are refused', async () => {
+    const h = createServiceHarness();
+    const thread = h.messaging.createThread({
+      kind: 'event',
+      subject: 'CI failed',
+      createdBy: h.messaging.hubId,
+      participants: ['bob-agent'],
+    });
+    const post = (senderId: string, system: boolean) =>
+      h.messaging.post({
+        threadId: thread.id,
+        senderId,
+        kind: 'event',
+        body: 'x'.repeat(40_000),
+        system,
+      });
+    expect(() => post('alice-agent', false)).toThrow(/exceeds 32000/);
+    const { body } = post(h.messaging.hubId, true).message;
+    expect(body).toHaveLength(32_000);
+    expect(body).toMatch(/truncated to 32000 characters/);
+    expect((await h.drain()).get('bob-agent')?.[0]?.body).toBe(body);
+  });
+
   it('stores explicit empty recipients without delivering, and skips humans', async () => {
     const h = createServiceHarness();
     const thread = h.messaging.createThread({

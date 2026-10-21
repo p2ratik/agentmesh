@@ -5,7 +5,7 @@ import type { HubContext } from '../../context';
 import type { ControlService, PostInput, PostResult, ThreadRecord } from '../../contracts';
 import { threadKey } from '../../core/ids';
 import { toJson } from '../../db/database';
-import { postLimitViolation } from './limits';
+import { clipBody, postLimitViolation } from './limits';
 import { messageRefs } from './mappers';
 import type { MessagesRepo } from './messages.repo';
 import type { ReadsRepo } from './reads.repo';
@@ -40,7 +40,8 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
     const now = clock.now();
     const at = now.toISOString();
     if (input.senderId !== pc.hubId) pc.assertKnown([input.senderId]);
-    const body = redactSecrets(input.body);
+    // System posts skip the limits, not the size cap: rules can render any amount of external text.
+    const body = clipBody(redactSecrets(input.body), pc.ctx.loaded.config.limits.maxBodyChars);
     const bodyHash = sha256(body);
     if (!input.system) enforceLimits(pc, thread, input, bodyHash, now);
 
