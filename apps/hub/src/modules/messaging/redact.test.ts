@@ -26,3 +26,37 @@ describe('redactSecrets on hostile input', () => {
     );
   });
 });
+
+// Agents need counts, limits and settings whose names happen to contain a keyword.
+describe('redactSecrets keeps what is not a credential', () => {
+  it.each([
+    'Use max_tokens: 1024 for the summary call.',
+    'prompt_tokens=812, completion_tokens=200',
+    'token_ttl: 3600 and temperature: 0.7',
+    'token_type: bearer',
+    'secret_scanning: enabled, push_protection: disabled',
+    'api_key: none',
+    '{"model":"x","max_tokens":1024}',
+    'generate(prompt, max_tokens=1024)',
+    // AWS resource names, not secrets: rotation alerts and their tasks name the secret by ARN.
+    'Rotation failed for arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf',
+    'secret_arn: arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf',
+  ])('%s', (text) => {
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each([
+    ['DB_PASSWORD=hunter2-prod', `DB_PASSWORD=${REDACTED}`],
+    ['password: 123456', `password: ${REDACTED}`],
+    ['db_passwd=4242', `db_passwd=${REDACTED}`],
+    ['api_key: abc123def456', `api_key: ${REDACTED}`],
+    ['client_secret="s3cr3t-value"', `client_secret="${REDACTED}"`],
+    ['token=8f3e2a91c7', `token=${REDACTED}`],
+    // Digit-only keys and session tokens are longer than any count; one-time codes are short.
+    ['api_key: 12345678901234567890123456789012', `api_key: ${REDACTED}`],
+    ['session_token=123456789012345', `session_token=${REDACTED}`],
+    ['otp_token: 123456', `otp_token: ${REDACTED}`],
+  ])('still masks %s', (text, masked) => {
+    expect(redactSecrets(text)).toBe(masked);
+  });
+});

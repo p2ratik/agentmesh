@@ -34,7 +34,8 @@ const BEARER = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{16,}=*/g;
 const ASSIGNMENT =
   /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key)[A-Za-z0-9_-]{0,64}["']?\s*[=:]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;'"&]+)/gi;
 
-const TYPE_WORDS = new Set([
+/** Type annotations and plain settings: `token: string`, `token_type: bearer`, `secret_scanning: enabled`. */
+const PLAIN_WORDS = new Set([
   'string',
   'number',
   'boolean',
@@ -44,19 +45,43 @@ const TYPE_WORDS = new Set([
   'false',
   'unknown',
   'any',
+  'none',
+  'on',
+  'off',
+  'yes',
+  'no',
+  'enabled',
+  'disabled',
+  'required',
+  'optional',
+  'bearer',
+  'basic',
 ]);
+
+/**
+ * Counts, limits and durations: `max_tokens: 1024`, `token_ttl: 3600`, `128k`, also as the last
+ * JSON member or keyword argument (`1024}`, `1024)`). At most 10 characters: a digit-only key or
+ * session token is longer.
+ */
+const PLAIN_NUMBER = /^[+-]?\d[\d_.]{0,9}[kmb]?[)\]}]*$/i;
+/** Keys whose numbers are secrets anyway: passwords and PINs, one-time codes. */
+const NUMERIC_SECRET_KEY = /pass(?:word|wd)|otp|mfa/i;
 
 /**
  * Values that are clearly not secrets: env references (`${X}`, `$X`),
  * placeholders (`<your-token>`), member access in code (`req.headers.token`),
- * type annotations (`token: string`), and values already masked.
+ * plain words and type annotations, short numbers (except a password, PIN or one-time code),
+ * AWS ARNs, and values already masked.
  */
-export function isNonSecretValue(value: string): boolean {
+export function isNonSecretValue(value: string, key = ''): boolean {
   const bare = value.replace(/^["']|["']$/g, '');
   if (bare === '' || bare === REDACTED) return true;
   if (/^\$\{?[A-Za-z_]/.test(bare) || bare.startsWith('<')) return true;
   if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(bare)) return true;
-  return TYPE_WORDS.has(bare.toLowerCase());
+  // AWS resource names: `secret_arn: arn:…`, and the `secretsmanager:` service part of an ARN.
+  if (bare.startsWith('arn:') || /^secretsmanager:/i.test(key)) return true;
+  if (PLAIN_NUMBER.test(bare)) return !NUMERIC_SECRET_KEY.test(key);
+  return PLAIN_WORDS.has(bare.toLowerCase());
 }
 
 function maskValue(value: string): string {
@@ -70,6 +95,6 @@ export function redactSecrets(text: string): string {
   for (const pattern of TOKEN_PATTERNS) out = out.replace(pattern, REDACTED);
   out = out.replace(BEARER, `$1${REDACTED}`);
   return out.replace(ASSIGNMENT, (match, key: string, value: string) =>
-    isNonSecretValue(value) ? match : `${key}${maskValue(value)}`,
+    isNonSecretValue(value, key) ? match : `${key}${maskValue(value)}`,
   );
 }
