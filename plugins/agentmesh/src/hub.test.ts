@@ -31,15 +31,17 @@ async function connected(replies: unknown[]) {
 const ok = (notes?: string[]) => ({ ok: true, result: { ok: true }, ...(notes ? { notes } : {}) });
 
 describe('HubClient', () => {
-  it('takeNotes returns and clears notes from the last calls', async () => {
-    const { hub, envelopes } = await connected([ok(['owned by s-1']), ok(), ok(['take moves it'])]);
+  it('puts the hub notes of a call into that call’s sink only', async () => {
+    const { hub, envelopes } = await connected([ok(['owned by s-1']), ok(['dropped']), ok()]);
     hub.sessionId = 's-aaaaaaaaaaaa';
+    const first: string[] = [];
+    const third: string[] = [];
+    await hub.call('session.bye', {}, {}, first);
     await hub.call('session.bye', {});
-    await hub.call('session.bye', {});
-    await hub.call('session.bye', {});
+    await hub.call('session.bye', {}, {}, third);
     expect(envelopes.map((e) => e.session)).toEqual(Array(3).fill('s-aaaaaaaaaaaa'));
-    expect(hub.takeNotes()).toEqual(['owned by s-1', 'take moves it']);
-    expect(hub.takeNotes()).toEqual([]);
+    expect(first).toEqual(['owned by s-1']);
+    expect(third).toEqual([]);
   });
 
   it('reports a session the hub no longer knows, and still fails the call', async () => {

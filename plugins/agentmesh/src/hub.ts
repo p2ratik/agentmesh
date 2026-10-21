@@ -30,7 +30,6 @@ export class HubClient {
   readonly #logger: Logger;
   #nc: NatsConnection | null = null;
   #rpc: RpcClient | null = null;
-  #notes: string[] = [];
   readonly #ready: Promise<NatsConnection>;
   #resolveReady: (nc: NatsConnection) => void = () => undefined;
 
@@ -67,31 +66,28 @@ export class HubClient {
     return this.#nc;
   }
 
+  /** Calls the hub as this session. Its notes go into `notes` when given, else are dropped. */
   async call<M extends RpcMethodName>(
     method: M,
     params: RpcParamsInput<M>,
     options: CallOptions = {},
+    notes?: string[],
   ): Promise<RpcResult<M>> {
     if (!this.#rpc) throw new MeshError('unavailable', UNREACHABLE);
     const session = this.sessionId;
     try {
-      const { result, notes } = await this.#rpc.callWithNotes(method, params, {
+      const reply = await this.#rpc.callWithNotes(method, params, {
         ...(session ? { session } : {}),
         ...options,
       });
-      this.#notes.push(...notes);
-      return result;
+      notes?.push(...reply.notes);
+      return reply.result;
     } catch (err) {
       if (session && err instanceof MeshError && err.message.startsWith(UNKNOWN_SESSION)) {
         this.onSessionLost?.();
       }
       throw err;
     }
-  }
-
-  /** The hub's notes from calls since the last take. */
-  takeNotes(): string[] {
-    return this.#notes.splice(0);
   }
 
   /** Best effort within `timeoutMs` (Windows kills the process ~300ms after stdin closes). */

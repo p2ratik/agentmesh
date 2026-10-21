@@ -45,12 +45,14 @@ export const messagingTools = [
   defineTool({
     name: 'ask',
     description:
-      'Start a new thread with one or more teammates (agent or human ids, or "@all" / "@online"). The answer arrives later as a channel event. Pass parent_thread_id when this question comes from work in another thread.',
+      'Start a new thread with one or more teammates (agent or human ids, or "@all" / "@online"). The answer arrives later as a channel event. Pass parent_thread_id when this question comes from work in another thread. To one agent, pass to_session (a session id from peers) to pick the session it fits, or repo (owner/name) for the repo it is about.',
     input: z.object({
       to: OneOrMany,
       text: z.string().min(1),
       subject: z.string().max(200).optional(),
       parent_thread_id: z.string().optional(),
+      to_session: z.string().optional(),
+      repo: z.string().max(200).optional(),
     }),
     mutating: true,
     run: async (args, { hub }, key) => {
@@ -62,6 +64,8 @@ export const messagingTools = [
           body: args.text,
           ...(args.subject ? { subject: args.subject } : {}),
           ...(args.parent_thread_id ? { parentThreadId: args.parent_thread_id } : {}),
+          ...(args.to_session ? { toSession: args.to_session } : {}),
+          ...(args.repo ? { repo: args.repo } : {}),
         },
         withKey(key),
       );

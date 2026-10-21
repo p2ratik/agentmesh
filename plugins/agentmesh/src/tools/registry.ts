@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
 import { planningTools } from './planning';
+import { sessionTools } from './sessions';
 import { taskTools } from './tasks';
 import type { ToolDef, ToolDeps } from './types';
 
@@ -12,6 +13,7 @@ export const ALL_TOOLS: readonly ToolDef[] = [
   ...taskTools,
   ...planningTools,
   ...leaseTools,
+  ...sessionTools,
 ] as readonly ToolDef[];
 
 export interface ToolListing {
@@ -63,8 +65,19 @@ export async function callTool(
     const issues = parsed.error.issues.map((i) => `${i.path.join('.') || '(args)'}: ${i.message}`);
     return error(`Invalid arguments for ${name}:\n${issues.join('\n')}`);
   }
+  // Only this call's hub notes end its result, never those of parallel calls or background hellos.
+  const notes: string[] = [];
+  const hub: ToolDeps['hub'] = {
+    call: (method, params, options) => deps.hub.call(method, params, options, notes),
+  };
+  const result = await run(tool, parsed.data, { ...deps, hub });
+  if (notes.length > 0) result.content.push({ type: 'text', text: notes.join('\n') });
+  return result;
+}
+
+async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolResult> {
   try {
-    const text = await tool.run(parsed.data, deps, tool.mutating ? randomUUID() : undefined);
+    const text = await tool.run(args, deps, tool.mutating ? randomUUID() : undefined);
     return { content: [{ type: 'text', text }] };
   } catch (err) {
     if (isMeshError(err)) {
@@ -73,7 +86,7 @@ export async function callTool(
         : '';
       return error(`${err.code}: ${err.message}${issues}`);
     }
-    return error(`${name} failed: ${err instanceof Error ? err.message : String(err)}`);
+    return error(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

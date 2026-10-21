@@ -4,6 +4,7 @@ import type {
   PeerInfo,
   Plan,
   PlanContribution,
+  SessionSummary,
   Task,
   TaskDetail,
   ThreadSummary,
@@ -22,9 +23,19 @@ export function formatPeers(peers: readonly PeerInfo[]): string {
         p.areas.length > 0 ? `owns ${p.areas.join(', ')}` : '',
         p.repo ? `on ${p.repo}${p.branch ? `@${p.branch}` : ''}` : '',
       ].filter(Boolean);
-      return `- ${p.id} (${p.displayName}) · ${facts.join(' · ')}`;
+      return [
+        `- ${p.id} (${p.displayName}) · ${facts.join(' · ')}`,
+        ...p.sessions.map(formatSession),
+      ].join('\n');
     })
     .join('\n');
+}
+
+/** An active session, which an `ask` can pick with `to_session`. */
+function formatSession(s: SessionSummary): string {
+  const where = s.repo ? ` (${s.repo}${s.branch ? `@${s.branch}` : ''})` : '';
+  const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(', ')}` : '';
+  return `    · ${s.id} — ${s.description}${where}${owns}`;
 }
 
 export function formatMessage(m: MeshMessage): string {

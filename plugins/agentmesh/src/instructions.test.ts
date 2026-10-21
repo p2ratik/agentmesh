@@ -47,6 +47,18 @@ describe('buildInstructions', () => {
     expect(text).toContain('policy truncated');
   });
 
+  it('mentions /agentmesh:activate and stays under 4096', () => {
+    const line =
+      'This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.';
+    for (const h of [hello('Escalate crucial decisions to aheen. '.repeat(300), 2), null]) {
+      const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+      const [identity, next] = text.split('\n\n');
+      expect(identity).toMatch(/^You are bob-agent/);
+      expect(next).toBe(line);
+    }
+  });
+
   it('keeps a short policy whole', () => {
     const text = buildInstructions({
       agentId: 'bob-agent',

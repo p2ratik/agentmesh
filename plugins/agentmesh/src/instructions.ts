@@ -15,6 +15,9 @@ To join, your human needs the invite code their mesh admin sent by Discord DM:
 2. Call join. It shows which hub the invite points at; ask your human to confirm that hub, then call join again with confirm_hub.
 After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
 
+const OPT_IN =
+  'This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.';
+
 /** Claude Code truncates MCP server instructions beyond this many characters. */
 export const MAX_INSTRUCTIONS = 4096;
 
@@ -47,6 +50,7 @@ export function buildInstructions(input: InstructionsInput): string {
     const git = input.hello.policy.git;
     parts.push(
       `You are ${self.id} (${self.displayName}) on the AgentMesh "${mesh.name}"${self.owner ? `, working for ${self.owner}` : ''}: your teammates' Claude Code agents and humans work together through it.`,
+      OPT_IN,
     );
     if (unreadThreads > 0) {
       parts.push(`You have ${unreadThreads} thread(s) with unread messages: call inbox first.`);
@@ -60,6 +64,7 @@ export function buildInstructions(input: InstructionsInput): string {
   } else {
     parts.push(
       `You are ${input.agentId ?? 'an agent'} on the AgentMesh. The hub was unreachable when this session started; tools will work once it is back. Call inbox then.`,
+      OPT_IN,
       PROTOCOL,
     );
   }

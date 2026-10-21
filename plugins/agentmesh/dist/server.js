@@ -1871,7 +1871,7 @@ var require_on_exit_leak_free = __commonJS({
       registry2.register(obj, ref);
       refs[event2].push(ref);
     }
-    function register(obj, fn) {
+    function register2(obj, fn) {
       _register("exit", obj, fn);
     }
     function registerBeforeExit(obj, fn) {
@@ -1891,7 +1891,7 @@ var require_on_exit_leak_free = __commonJS({
       }
     }
     module.exports = {
-      register,
+      register: register2,
       registerBeforeExit,
       unregister
     };
@@ -10331,22 +10331,22 @@ var require_nacl_fast = __commonJS({
         randombytes = fn;
       };
       (function() {
-        var crypto = typeof self !== "undefined" ? self.crypto || self.msCrypto : null;
-        if (crypto && crypto.getRandomValues) {
+        var crypto2 = typeof self !== "undefined" ? self.crypto || self.msCrypto : null;
+        if (crypto2 && crypto2.getRandomValues) {
           var QUOTA = 65536;
           nacl.setPRNG(function(x, n) {
             var i, v = new Uint8Array(n);
             for (i = 0; i < n; i += QUOTA) {
-              crypto.getRandomValues(v.subarray(i, i + Math.min(n - i, QUOTA)));
+              crypto2.getRandomValues(v.subarray(i, i + Math.min(n - i, QUOTA)));
             }
             for (i = 0; i < n; i++) x[i] = v[i];
             cleanup2(v);
           });
         } else if (typeof __require !== "undefined") {
-          crypto = __require("crypto");
-          if (crypto && crypto.randomBytes) {
+          crypto2 = __require("crypto");
+          if (crypto2 && crypto2.randomBytes) {
             nacl.setPRNG(function(x, n) {
-              var i, v = crypto.randomBytes(n);
+              var i, v = crypto2.randomBytes(n);
               for (i = 0; i < n; i++) x[i] = v[i];
               cleanup2(v);
             });
@@ -25416,26 +25416,6 @@ import { join } from "node:path";
 function expandHome(path, home = homedir()) {
   if (path === "~") return home;
   return /^~[\\/]/.test(path) ? join(home, path.slice(2)) : path;
-}
-
-// ../../packages/common/src/retry.ts
-var sleep = (ms, signal) => new Promise((resolve, reject) => {
-  if (signal?.aborted) return reject(signal.reason);
-  const timer = setTimeout(resolve, ms);
-  signal?.addEventListener(
-    "abort",
-    () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    },
-    { once: true }
-  );
-});
-function backoffDelay(attempt, options = {}) {
-  const initial = options.initialDelayMs ?? 500;
-  const max = options.maxDelayMs ?? 3e4;
-  const factor = options.factor ?? 2;
-  return Math.min(max, initial * factor ** Math.max(0, attempt - 1));
 }
 
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
@@ -44944,7 +44924,7 @@ function visit(schema, fnOrHandlers) {
     return h ? h(node2, rewritten) : node2;
   };
   const cache = /* @__PURE__ */ new Map();
-  function run(s) {
+  function run2(s) {
     const cached2 = cache.get(s);
     if (cached2 === RESOLVING) {
       return new $ZodLazy({
@@ -44970,21 +44950,21 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newShape = {};
         for (const k of keys) {
-          const mapped = run(oldShape[k]);
+          const mapped = run2(oldShape[k]);
           if (mapped !== oldShape[k])
             changed = true;
           newShape[k] = mapped;
         }
         let newCatchall = def.catchall;
         if (def.catchall) {
-          newCatchall = run(def.catchall);
+          newCatchall = run2(def.catchall);
           if (newCatchall !== def.catchall)
             changed = true;
         }
         return changed ? clone(s, { ...def, shape: newShape, catchall: newCatchall }) : s;
       }
       case "array": {
-        const mapped = run(def.element);
+        const mapped = run2(def.element);
         return mapped === def.element ? s : clone(s, { ...def, element: mapped });
       }
       case "tuple": {
@@ -44992,14 +44972,14 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newItems = [];
         for (const item of oldItems) {
-          const mapped = run(item);
+          const mapped = run2(item);
           if (mapped !== item)
             changed = true;
           newItems.push(mapped);
         }
         let newRest = def.rest;
         if (def.rest) {
-          newRest = run(def.rest);
+          newRest = run2(def.rest);
           if (newRest !== def.rest)
             changed = true;
         }
@@ -45007,12 +44987,12 @@ function visit(schema, fnOrHandlers) {
       }
       case "record":
       case "map": {
-        const newKey = run(def.keyType);
-        const newVal = run(def.valueType);
+        const newKey = run2(def.keyType);
+        const newVal = run2(def.valueType);
         return newKey === def.keyType && newVal === def.valueType ? s : clone(s, { ...def, keyType: newKey, valueType: newVal });
       }
       case "set": {
-        const newVal = run(def.valueType);
+        const newVal = run2(def.valueType);
         return newVal === def.valueType ? s : clone(s, { ...def, valueType: newVal });
       }
       case "union": {
@@ -45020,7 +45000,7 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newOptions = [];
         for (const opt of oldOptions) {
-          const mapped = run(opt);
+          const mapped = run2(opt);
           if (mapped !== opt)
             changed = true;
           newOptions.push(mapped);
@@ -45028,8 +45008,8 @@ function visit(schema, fnOrHandlers) {
         return changed ? clone(s, { ...def, options: newOptions }) : s;
       }
       case "intersection": {
-        const newLeft = run(def.left);
-        const newRight = run(def.right);
+        const newLeft = run2(def.left);
+        const newRight = run2(def.right);
         return newLeft === def.left && newRight === def.right ? s : clone(s, { ...def, left: newLeft, right: newRight });
       }
       case "optional":
@@ -45041,23 +45021,23 @@ function visit(schema, fnOrHandlers) {
       case "nonoptional":
       case "promise":
       case "success": {
-        const newInner = run(def.innerType);
+        const newInner = run2(def.innerType);
         return newInner === def.innerType ? s : clone(s, { ...def, innerType: newInner });
       }
       case "pipe": {
-        const newIn = run(def.in);
-        const newOut = run(def.out);
+        const newIn = run2(def.in);
+        const newOut = run2(def.out);
         return newIn === def.in && newOut === def.out ? s : clone(s, { ...def, in: newIn, out: newOut });
       }
       case "function": {
-        const newInput = run(def.input);
-        const newOutput = run(def.output);
+        const newInput = run2(def.input);
+        const newOutput = run2(def.output);
         return newInput === def.input && newOutput === def.output ? s : clone(s, { ...def, input: newInput, output: newOutput });
       }
       case "lazy": {
         const original = def.getter;
         const { _cachedInner, ...rest } = def;
-        return clone(s, { ...rest, getter: () => run(original()) });
+        return clone(s, { ...rest, getter: () => run2(original()) });
       }
       // A leaf by choice: `parts` are regex fragments, not data positions.
       case "template_literal":
@@ -45088,7 +45068,7 @@ function visit(schema, fnOrHandlers) {
       }
     }
   }
-  return run(schema);
+  return run2(schema);
 }
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/deep-partial.js
@@ -46800,6 +46780,16 @@ var ParticipantRef = external_exports.object({
 });
 var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
 var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
+var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
+var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
+var SessionSummary = external_exports.object({
+  id: SessionId,
+  description: external_exports.string(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  activeSince: IsoDate,
+  tasks: external_exports.array(external_exports.string())
+});
 var PeerInfo = ParticipantRef.extend({
   owner: external_exports.string().nullable(),
   status: PresenceStatus,
@@ -46809,7 +46799,8 @@ var PeerInfo = ParticipantRef.extend({
   branch: external_exports.string().nullable(),
   skills: external_exports.array(external_exports.string()),
   areas: external_exports.array(external_exports.string()),
-  activeTasks: external_exports.number().int().nonnegative()
+  activeTasks: external_exports.number().int().nonnegative(),
+  sessions: external_exports.array(SessionSummary).default([])
 });
 var Trust = external_exports.enum(["team", "external"]);
 var Severity = external_exports.enum(["debug", "info", "warning", "error", "critical"]);
@@ -46831,26 +46822,16 @@ function subjects(prefix) {
     rpcAll: `${prefix}.rpc.>`,
     presence: (id) => `${prefix}.presence.${id}`,
     presenceAll: `${prefix}.presence.*`,
-    deliver: (id) => `${prefix}.deliver.${id}`,
-    deliverAll: `${prefix}.deliver.>`,
     event: (type) => `${prefix}.evt.${type}`,
     eventAll: `${prefix}.evt.>`,
     ingest: (source) => `${prefix}.ingest.${source}`,
-    ingestAll: `${prefix}.ingest.>`
+    ingestAll: `${prefix}.ingest.>`,
+    session: (agentId, sessionId) => `${prefix}.session.${agentId}.${sessionId}`,
+    sessionAll: (agentId) => `${prefix}.session.${agentId}.*`,
+    ack: (agentId, token) => `${prefix}.ack.${agentId}.${token}`,
+    ackAll: (agentId) => `${prefix}.ack.${agentId}.>`
   };
 }
-function streamNames(prefix) {
-  const p = prefix.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-  return { delivery: `${p}_DELIVERY`, events: `${p}_EVENTS`, ingest: `${p}_INGEST` };
-}
-var consumerNames = {
-  /** Durable inbox of one participant on the delivery stream. */
-  inbox: (participantId) => `inbox-${participantId}`,
-  /** Durable activity-feed reader for a bridge service. */
-  feed: (serviceId) => `feed-${serviceId}`,
-  /** The hub's reader of the ingest stream. */
-  ingest: "hub-ingest"
-};
 var inboxPrefix = (participantId) => `_INBOX_${participantId}`;
 
 // ../../packages/protocol/src/enrollment.ts
@@ -46988,7 +46969,10 @@ var MessageRefs = external_exports.object({
   replyTo: external_exports.string().optional(),
   eventId: external_exports.string().optional(),
   action: external_exports.string().optional(),
-  verdict: external_exports.string().optional()
+  verdict: external_exports.string().optional(),
+  repo: external_exports.string().max(200).optional(),
+  /** The sender's pick of the recipient session. */
+  session: external_exports.string().optional()
 });
 var MeshMessage = external_exports.object({
   id: external_exports.string(),
@@ -47365,7 +47349,9 @@ var messagingMethods = {
       subject: external_exports.string().max(200).optional(),
       status: ReplyStatus.optional(),
       prUrl: external_exports.string().max(500).optional(),
-      taskId: external_exports.string().optional()
+      taskId: external_exports.string().optional(),
+      toSession: external_exports.string().optional(),
+      repo: external_exports.string().max(200).optional()
     }).refine((p) => p.to !== void 0 || p.threadId !== void 0, {
       message: "Pass `to` to start a thread or `threadId` to reply in one."
     }),
@@ -47412,7 +47398,9 @@ var messagingMethods = {
           messages: external_exports.array(MeshMessage)
         })
       ),
-      remainingThreads: external_exports.number().int().nonnegative()
+      remainingThreads: external_exports.number().int().nonnegative(),
+      /** Unread threads owned by the agent's other sessions (left unread here). */
+      otherSessions: external_exports.number().int().nonnegative().default(0)
     })
   }),
   "thread.close": defineMethod({
@@ -47494,6 +47482,25 @@ var planningMethods = {
   })
 };
 
+// ../../packages/protocol/src/sessions.ts
+var SessionView = external_exports.object({
+  id: SessionId,
+  active: external_exports.boolean(),
+  description: external_exports.string().nullable(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  owns: external_exports.array(external_exports.string())
+});
+var MAX_DELIVERY_MESSAGES = 100;
+var SessionInbound = external_exports.discriminatedUnion("type", [
+  external_exports.object({
+    type: external_exports.literal("deliver"),
+    messages: external_exports.array(MeshMessage).min(1).max(MAX_DELIVERY_MESSAGES)
+  }),
+  external_exports.object({ type: external_exports.literal("expired") })
+]);
+var SessionAck = external_exports.object({ delivered: external_exports.array(external_exports.string()) });
+
 // ../../packages/protocol/src/rpc/session.ts
 var sessionMethods = {
   "session.hello": defineMethod({
@@ -47502,14 +47509,20 @@ var sessionMethods = {
     params: external_exports.object({
       clientVersion: external_exports.string(),
       repo: external_exports.string().optional(),
-      branch: external_exports.string().optional()
+      branch: external_exports.string().optional(),
+      /** This process's session before a reconnect: reused if still open, else reclaimed from. */
+      previousSessionId: external_exports.string().optional()
     }),
     result: external_exports.object({
       self: PeerInfo,
       mesh: external_exports.object({ name: external_exports.string(), prefix: external_exports.string() }),
       policy: external_exports.object({ instructions: external_exports.string(), git: GitPolicy }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
-      unreadThreads: external_exports.number().int().nonnegative()
+      unreadThreads: external_exports.number().int().nonnegative(),
+      /** The hub-issued id this session sends on every call. */
+      sessionId: SessionId,
+      /** Thread keys taken back from the previous session because nobody else took them. */
+      reclaimed: external_exports.array(external_exports.string())
     })
   }),
   "session.bye": defineMethod({
@@ -47517,6 +47530,32 @@ var sessionMethods = {
     callers: ["agent", "service"],
     params: external_exports.object({}),
     result: external_exports.object({ ok: external_exports.literal(true) })
+  }),
+  "session.activate": defineMethod({
+    description: "Make this session the one that receives work, with a short description.",
+    callers: ["agent"],
+    params: external_exports.object({ description: external_exports.string().min(1).max(200) }),
+    result: SessionView
+  }),
+  "session.deactivate": defineMethod({
+    description: "Stop receiving work in this session.",
+    callers: ["agent"],
+    params: external_exports.object({}),
+    result: SessionView
+  }),
+  "session.describe": defineMethod({
+    description: "Change this session description.",
+    callers: ["agent"],
+    params: external_exports.object({ description: external_exports.string().min(1).max(200) }),
+    result: SessionView
+  }),
+  "session.take": defineMethod({
+    description: "Take over a thread or task from the session that owns it.",
+    callers: ["agent"],
+    params: external_exports.object({ threadId: external_exports.string().optional(), taskId: external_exports.string().optional() }).refine((p) => p.threadId === void 0 !== (p.taskId === void 0), {
+      message: "Pass exactly one of `threadId` and `taskId`."
+    }),
+    result: external_exports.object({ threadId: external_exports.string(), previousSession: external_exports.string().nullable() })
   }),
   "presence.set": defineMethod({
     description: "Declare your status (online, busy, away) with an optional note.",
@@ -47625,7 +47664,9 @@ var RpcRequestEnvelope = external_exports.object({
   /** Honored only for services allowed to act on behalf of humans. */
   actAs: external_exports.string().optional(),
   /** Retrying a request with the same key returns the original result. */
-  idempotencyKey: external_exports.string().min(1).max(120).optional()
+  idempotencyKey: external_exports.string().min(1).max(120).optional(),
+  /** Calling session id; the hub validates it against the caller's live sessions. */
+  session: external_exports.string().max(64).optional()
 });
 
 // ../../packages/protocol/src/rpc/index.ts
@@ -47719,6 +47760,7 @@ To join, your human needs the invite code their mesh admin sent by Discord DM:
 1. Ask them to save the code to ~/.agentmesh/invite.txt. Never ask them to paste it into this chat: it is a one-time secret.
 2. Call join. It shows which hub the invite points at; ask your human to confirm that hub, then call join again with confirm_hub.
 After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
+var OPT_IN = "This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.";
 var MAX_INSTRUCTIONS = 4096;
 var PROTOCOL = `How the mesh works:
 - Mesh events arrive as <channel source="plugin:agentmesh:mesh" \u2026> tags with thread_id (pass it to reply), from / from_kind (agent|human|service), kind (ask, reply, broadcast, task, review, plan, escalation, event, system), status, task_id, plan_id, pr_url, trust.
@@ -47745,7 +47787,8 @@ function buildInstructions(input2) {
     const { self: self2, mesh, unreadThreads } = input2.hello;
     const git2 = input2.hello.policy.git;
     parts.push(
-      `You are ${self2.id} (${self2.displayName}) on the AgentMesh "${mesh.name}"${self2.owner ? `, working for ${self2.owner}` : ""}: your teammates' Claude Code agents and humans work together through it.`
+      `You are ${self2.id} (${self2.displayName}) on the AgentMesh "${mesh.name}"${self2.owner ? `, working for ${self2.owner}` : ""}: your teammates' Claude Code agents and humans work together through it.`,
+      OPT_IN
     );
     if (unreadThreads > 0) {
       parts.push(`You have ${unreadThreads} thread(s) with unread messages: call inbox first.`);
@@ -47760,6 +47803,7 @@ ${clip(input2.hello.policy.instructions, MAX_INSTRUCTIONS - used)}`);
   } else {
     parts.push(
       `You are ${input2.agentId ?? "an agent"} on the AgentMesh. The hub was unreachable when this session started; tools will work once it is back. Call inbox then.`,
+      OPT_IN,
       PROTOCOL
     );
   }
@@ -47931,73 +47975,6 @@ function watchStatus(nc, logger) {
   });
 }
 
-// ../../packages/bus/src/consumer.ts
-async function runConsumer(js, handler, options) {
-  const { logger, signal } = options;
-  const limit = Math.max(1, options.concurrency ?? 1);
-  let failures = 0;
-  while (!signal.aborted) {
-    try {
-      const consumer = await js.consumers.get(options.stream, options.consumer);
-      const messages = await consumer.consume({ max_messages: options.batch ?? 20 });
-      const stop = () => messages.stop();
-      signal.addEventListener("abort", stop, { once: true });
-      void watchHeartbeats(messages, logger);
-      failures = 0;
-      const inFlight = /* @__PURE__ */ new Set();
-      for await (const msg of messages) {
-        const task = dispatch(msg, handler, options).finally(() => inFlight.delete(task));
-        inFlight.add(task);
-        if (inFlight.size >= limit) await Promise.race(inFlight);
-      }
-      await Promise.all(inFlight);
-      signal.removeEventListener("abort", stop);
-    } catch (error63) {
-      if (signal.aborted) break;
-      failures += 1;
-      const delay = backoffDelay(failures, { initialDelayMs: 1e3, maxDelayMs: 3e4 });
-      logger.warn(
-        { err: error63, consumer: options.consumer, retryInMs: delay },
-        "consumer unavailable"
-      );
-      await sleep(delay, signal).catch(() => void 0);
-    }
-  }
-}
-async function dispatch(msg, handler, options) {
-  let disposition;
-  try {
-    disposition = await handler(msg);
-  } catch (error63) {
-    options.logger.error(
-      { err: error63, subject: msg.subject, seq: msg.seq },
-      "message handler failed"
-    );
-    disposition = "retry";
-  }
-  if (disposition === "ack") msg.ack();
-  else if (disposition === "retry") msg.nak(options.retryDelayMs ?? 5e3);
-  else msg.term("dropped by handler");
-}
-async function watchHeartbeats(messages, logger) {
-  try {
-    let missed = 0;
-    for await (const status of messages.status()) {
-      if (status.type === "heartbeats_missed") {
-        missed += 1;
-        if (missed >= 2) {
-          logger.warn("consumer heartbeats missed; restarting consume");
-          messages.stop();
-          return;
-        }
-      } else if (status.type === "next" || status.type === "heartbeat") {
-        missed = 0;
-      }
-    }
-  } catch {
-  }
-}
-
 // ../../packages/bus/src/rpc-client.ts
 var RpcClient = class {
   #nc;
@@ -48011,9 +47988,14 @@ var RpcClient = class {
     this.#timeoutMs = timeoutMs;
   }
   async call(method, params, options = {}) {
+    return (await this.callWithNotes(method, params, options)).result;
+  }
+  /** Like `call`, also returning the hub's advisory notes (empty when none). */
+  async callWithNotes(method, params, options = {}) {
     const envelope = {
       v: PROTOCOL_VERSION,
       params,
+      ...options.session ? { session: options.session } : {},
       ...options.actAs ? { actAs: options.actAs } : {},
       ...options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}
     };
@@ -48031,7 +48013,10 @@ var RpcClient = class {
     }
     const response = reply.json();
     if (!response.ok) throw MeshError.fromPayload(response.error);
-    return RPC_METHODS[method].result.parse(response.result);
+    return {
+      result: RPC_METHODS[method].result.parse(response.result),
+      notes: response.notes ?? []
+    };
   }
 };
 function translateTransportError(error63) {
@@ -48234,8 +48219,16 @@ function formatPeers(peers) {
       p.areas.length > 0 ? `owns ${p.areas.join(", ")}` : "",
       p.repo ? `on ${p.repo}${p.branch ? `@${p.branch}` : ""}` : ""
     ].filter(Boolean);
-    return `- ${p.id} (${p.displayName}) \xB7 ${facts.join(" \xB7 ")}`;
+    return [
+      `- ${p.id} (${p.displayName}) \xB7 ${facts.join(" \xB7 ")}`,
+      ...p.sessions.map(formatSession)
+    ].join("\n");
   }).join("\n");
+}
+function formatSession(s) {
+  const where = s.repo ? ` (${s.repo}${s.branch ? `@${s.branch}` : ""})` : "";
+  const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(", ")}` : "";
+  return `    \xB7 ${s.id} \u2014 ${s.description}${where}${owns}`;
 }
 function formatMessage(m) {
   const tags = [m.kind, m.status, m.trust === "external" ? "EXTERNAL" : null].filter(Boolean).join(", ");
@@ -48417,12 +48410,14 @@ var messagingTools = [
   }),
   defineTool({
     name: "ask",
-    description: 'Start a new thread with one or more teammates (agent or human ids, or "@all" / "@online"). The answer arrives later as a channel event. Pass parent_thread_id when this question comes from work in another thread.',
+    description: 'Start a new thread with one or more teammates (agent or human ids, or "@all" / "@online"). The answer arrives later as a channel event. Pass parent_thread_id when this question comes from work in another thread. To one agent, pass to_session (a session id from peers) to pick the session it fits, or repo (owner/name) for the repo it is about.',
     input: external_exports.object({
       to: OneOrMany,
       text: external_exports.string().min(1),
       subject: external_exports.string().max(200).optional(),
-      parent_thread_id: external_exports.string().optional()
+      parent_thread_id: external_exports.string().optional(),
+      to_session: external_exports.string().optional(),
+      repo: external_exports.string().max(200).optional()
     }),
     mutating: true,
     run: async (args, { hub }, key) => {
@@ -48433,7 +48428,9 @@ var messagingTools = [
           to: list(args.to),
           body: args.text,
           ...args.subject ? { subject: args.subject } : {},
-          ...args.parent_thread_id ? { parentThreadId: args.parent_thread_id } : {}
+          ...args.parent_thread_id ? { parentThreadId: args.parent_thread_id } : {},
+          ...args.to_session ? { toSession: args.to_session } : {},
+          ...args.repo ? { repo: args.repo } : {}
         },
         withKey(key)
       );
@@ -48495,12 +48492,14 @@ var messagingTools = [
     mutating: false,
     run: async (args, { hub }) => {
       const r = await hub.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
-      if (r.threads.length === 0) return "Inbox zero \u2014 nothing unread.";
+      if (r.threads.length === 0 && r.otherSessions === 0) return "Inbox zero \u2014 nothing unread.";
       const parts = r.threads.map(
         (t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages)}`
       );
       if (r.remainingThreads > 0)
         parts.push(`(${r.remainingThreads} more thread(s) unread \u2014 call inbox again)`);
+      if (r.otherSessions > 0)
+        parts.push(`(${r.otherSessions} unread thread(s) belong to your other sessions)`);
       return parts.join("\n\n====\n\n");
     }
   }),
@@ -48630,6 +48629,108 @@ var planningTools = [
         withKey(key)
       );
       return plan.state === "materialized" ? `${plan.id} is final; created ${plan.taskIds.join(", ")}.` : `${plan.id} is ${plan.state}.`;
+    }
+  })
+];
+
+// src/tools/activation.ts
+import { randomInt } from "node:crypto";
+var ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789";
+var CODE_LENGTH = 6;
+var VALID_MS = 10 * 6e4;
+var ActivationCheck = class {
+  #code = null;
+  #issuedAt = 0;
+  /** This session's description while it is active; null before activation and after deactivate. */
+  lastDescription = null;
+  /** A fresh code; earlier ones stop working. */
+  issue() {
+    const code = Array.from({ length: CODE_LENGTH }, () => ALPHABET[randomInt(ALPHABET.length)]);
+    this.#code = code.join("");
+    this.#issuedAt = Date.now();
+    return this.#code;
+  }
+  /** Accepts only the latest code, within 10 minutes of issuing it. */
+  verify(code) {
+    return code === this.#code && Date.now() - this.#issuedAt <= VALID_MS;
+  }
+};
+function checkEvent(code, previous) {
+  const intro = previous ? "This session reconnected to the mesh after a long absence and is no longer active. " : "";
+  const description = previous ?? "<one line: what this session is working on>";
+  const outro = previous ? " Write a new line instead if the focus changed." : "";
+  return {
+    content: `${intro}AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "${description}").${outro}`,
+    meta: { kind: "system", from: "agentmesh" }
+  };
+}
+
+// src/tools/sessions.ts
+var Description = external_exports.string().min(1).max(200);
+var CHECK_SENT = "Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh.";
+var sessionTools = [
+  defineTool({
+    name: "activate",
+    description: "Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing.",
+    input: external_exports.object({ code: external_exports.string().optional(), description: Description.optional() }),
+    mutating: false,
+    run: async (args, { hub, push, activation }) => {
+      if (args.code === void 0) {
+        await push(checkEvent(activation.issue()));
+        return CHECK_SENT;
+      }
+      if (!activation.verify(args.code)) {
+        throw new MeshError(
+          "invalid_request",
+          "That code is wrong or stale. Call activate without a code for a new one."
+        );
+      }
+      if (!args.description) {
+        throw new MeshError(
+          "invalid_request",
+          "Pass description too: one line on what this session is working on."
+        );
+      }
+      const view = await hub.call("session.activate", { description: args.description });
+      activation.lastDescription = view.description ?? args.description;
+      return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
+    }
+  }),
+  defineTool({
+    name: "deactivate",
+    description: "Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing.",
+    input: external_exports.object({}),
+    mutating: false,
+    run: async (_args, { hub, activation }) => {
+      await hub.call("session.deactivate", {});
+      activation.lastDescription = null;
+      return "This session no longer receives mesh messages. The tools still work; /agentmesh:activate turns it back on.";
+    }
+  }),
+  defineTool({
+    name: "describe_session",
+    description: "Replace the one-line description teammates see for this session. Call it when the session\u2019s focus changes.",
+    input: external_exports.object({ description: Description }),
+    mutating: false,
+    run: async (args, { hub, activation }) => {
+      const view = await hub.call("session.describe", { description: args.description });
+      if (view.active) activation.lastDescription = view.description;
+      return `This session is now described as \u201C${view.description ?? args.description}\u201D.`;
+    }
+  }),
+  defineTool({
+    name: "take",
+    description: "Move a task or thread, and its messages, to this session, when your human asks (/agentmesh:take).",
+    input: external_exports.object({ task_id: external_exports.string().optional(), thread_id: external_exports.string().optional() }).refine((a) => a.task_id === void 0 !== (a.thread_id === void 0), {
+      message: "Pass exactly one of task_id and thread_id."
+    }),
+    mutating: false,
+    run: async (args, { hub }) => {
+      const r = await hub.call("session.take", {
+        ...args.task_id ? { taskId: args.task_id } : {},
+        ...args.thread_id ? { threadId: args.thread_id } : {}
+      });
+      return `Took ${r.threadId}${r.previousSession ? ` from session ${r.previousSession}` : ""}; its messages now come to this session.`;
     }
   })
 ];
@@ -48785,7 +48886,8 @@ var ALL_TOOLS = [
   ...messagingTools,
   ...taskTools,
   ...planningTools,
-  ...leaseTools
+  ...leaseTools,
+  ...sessionTools
 ];
 function listTools(tools = ALL_TOOLS) {
   return tools.map((tool) => {
@@ -48811,8 +48913,17 @@ async function callTool(name, rawArgs, deps, tools = ALL_TOOLS) {
     return error62(`Invalid arguments for ${name}:
 ${issues.join("\n")}`);
   }
+  const notes = [];
+  const hub = {
+    call: (method, params, options) => deps.hub.call(method, params, options, notes)
+  };
+  const result = await run(tool, parsed.data, { ...deps, hub });
+  if (notes.length > 0) result.content.push({ type: "text", text: notes.join("\n") });
+  return result;
+}
+async function run(tool, args, deps) {
   try {
-    const text2 = await tool.run(parsed.data, deps, tool.mutating ? randomUUID() : void 0);
+    const text2 = await tool.run(args, deps, tool.mutating ? randomUUID() : void 0);
     return { content: [{ type: "text", text: text2 }] };
   } catch (err) {
     if (isMeshError(err)) {
@@ -48820,7 +48931,7 @@ ${issues.join("\n")}`);
 ${JSON.stringify(err.details.issues)}` : "";
       return error62(`${err.code}: ${err.message}${issues}`);
     }
-    return error62(`${name} failed: ${err instanceof Error ? err.message : String(err)}`);
+    return error62(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 function meshToolHandler(deps) {
@@ -50642,7 +50753,7 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.1.7";
+var VERSION = "0.2.0";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },
@@ -50667,8 +50778,13 @@ function pushEvent(server, event2) {
 
 // src/hub.ts
 var UNREACHABLE = "The mesh hub is unreachable right now; nothing was sent. Try again shortly.";
+var UNKNOWN_SESSION = "Unknown or closed session";
 var HubClient = class {
   config;
+  /** This process's hub session (from `session.hello`); in memory only, never shared. */
+  sessionId = null;
+  /** Called when a call fails because the hub no longer knows `sessionId`. */
+  onSessionLost = null;
   #logger;
   #nc = null;
   #rpc = null;
@@ -50701,9 +50817,23 @@ var HubClient = class {
   get connection() {
     return this.#nc;
   }
-  async call(method, params, options = {}) {
+  /** Calls the hub as this session. Its notes go into `notes` when given, else are dropped. */
+  async call(method, params, options = {}, notes) {
     if (!this.#rpc) throw new MeshError("unavailable", UNREACHABLE);
-    return this.#rpc.call(method, params, options);
+    const session = this.sessionId;
+    try {
+      const reply = await this.#rpc.callWithNotes(method, params, {
+        ...session ? { session } : {},
+        ...options
+      });
+      notes?.push(...reply.notes);
+      return reply.result;
+    } catch (err) {
+      if (session && err instanceof MeshError && err.message.startsWith(UNKNOWN_SESSION)) {
+        this.onSessionLost?.();
+      }
+      throw err;
+    }
   }
   /** Best effort within `timeoutMs` (Windows kills the process ~300ms after stdin closes). */
   async close(timeoutMs) {
@@ -50716,42 +50846,7 @@ var HubClient = class {
   }
 };
 
-// src/inbox/coalescer.ts
-var Coalescer = class {
-  #windowMs;
-  #emit;
-  #pending = /* @__PURE__ */ new Map();
-  #timer = null;
-  constructor(windowMs, emit) {
-    this.#windowMs = windowMs;
-    this.#emit = emit;
-  }
-  add(message) {
-    return new Promise((resolve, reject) => {
-      const entry = this.#pending.get(message.threadId) ?? { messages: [], waiters: [] };
-      entry.messages.push(message);
-      entry.waiters.push({ resolve, reject });
-      this.#pending.set(message.threadId, entry);
-      this.#timer ??= setTimeout(() => void this.flush(), this.#windowMs);
-    });
-  }
-  /** Emits every buffered thread now (also used on shutdown). */
-  async flush() {
-    if (this.#timer) clearTimeout(this.#timer);
-    this.#timer = null;
-    const batch = this.#pending;
-    this.#pending = /* @__PURE__ */ new Map();
-    for (const { messages, waiters } of batch.values()) {
-      messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      try {
-        await this.#emit(messages);
-        for (const w of waiters) w.resolve();
-      } catch (error63) {
-        for (const w of waiters) w.reject(error63);
-      }
-    }
-  }
-};
+// src/inbox/recent-ids.ts
 var RecentIds = class {
   #max;
   #ids = /* @__PURE__ */ new Set();
@@ -50830,48 +50925,71 @@ function oneLine(text2) {
   return text2.replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
-// src/inbox/consumer.ts
-var COALESCE_MS = 1200;
-async function runInbox(options) {
-  const { hub, logger, signal } = options;
-  const coalescer = new Coalescer(COALESCE_MS, (messages) => options.push(renderEvent(messages)));
+// src/inbox/session-inbox.ts
+function runSessionInbox(options) {
+  const { hub, logger } = options;
   const seen = new RecentIds();
-  const nc = await hub.whenConnected();
-  const { agentId, prefix } = hub.config;
-  void runConsumer(
-    (0, import_jetstream2.jetstream)(nc),
-    async (msg) => {
-      let body;
-      try {
-        body = msg.json();
-      } catch {
-        return "drop";
-      }
-      const parsed = MeshMessage.safeParse(body);
-      if (!parsed.success) {
-        logger.warn({ subject: msg.subject }, "dropping malformed mesh message");
-        return "drop";
-      }
-      if (seen.has(parsed.data.id)) return "ack";
-      try {
-        await coalescer.add(parsed.data);
-        seen.remember(parsed.data.id);
-        return "ack";
-      } catch (err) {
-        logger.warn({ err, message: parsed.data.id }, "could not push a mesh message; will retry");
-        return "retry";
-      }
-    },
-    {
-      stream: streamNames(prefix).delivery,
-      consumer: consumerNames.inbox(agentId),
-      logger,
-      signal,
-      batch: 50,
-      concurrency: 50
+  let sub = null;
+  let stopped = false;
+  let queue = Promise.resolve();
+  const handle = async (msg) => {
+    let inbound;
+    try {
+      inbound = SessionInbound.parse(msg.json());
+    } catch {
+      logger.warn({ subject: msg.subject }, "ignoring a malformed session message");
+      return;
     }
-  );
-  return coalescer;
+    if (inbound.type === "expired") return options.onExpired();
+    const delivered = [];
+    for (const thread of Map.groupBy(inbound.messages, (m) => m.threadId).values()) {
+      const fresh = thread.filter((m) => !seen.has(m.id));
+      delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
+      if (fresh.length === 0) continue;
+      try {
+        await options.push(renderEvent(fresh));
+      } catch (err) {
+        logger.warn(
+          { err, thread: fresh[0]?.threadId },
+          "could not push a mesh thread; the hub retries"
+        );
+        continue;
+      }
+      for (const m of fresh) seen.remember(m.id);
+      delivered.push(...fresh.map((m) => m.id));
+    }
+    const ack = { delivered };
+    msg.respond(JSON.stringify(ack));
+  };
+  const resubscribe = () => {
+    sub?.unsubscribe();
+    sub = null;
+    const { connection: nc, sessionId } = hub;
+    if (stopped || !nc || !sessionId) return;
+    const subject = subjects(hub.config.prefix).session(hub.config.agentId, sessionId);
+    try {
+      sub = nc.subscribe(subject, {
+        callback: (err, msg) => {
+          if (err) {
+            logger.warn({ err, subject }, "session subscription error");
+            return;
+          }
+          queue = queue.then(() => handle(msg)).catch((error63) => logger.error({ err: error63 }, "session delivery failed"));
+        }
+      });
+      logger.debug({ subject }, "listening for deliveries");
+    } catch (err) {
+      logger.error({ err, subject }, "could not listen for deliveries");
+    }
+  };
+  const stop = () => {
+    stopped = true;
+    sub?.unsubscribe();
+    sub = null;
+  };
+  options.signal.addEventListener("abort", stop, { once: true });
+  resubscribe();
+  return { stop, resubscribe };
 }
 
 // src/git.ts
@@ -50918,12 +51036,12 @@ var Presence = class {
   }
   start() {
     const beat = () => {
-      const nc = this.#hub.connection;
+      const { connection: nc, sessionId } = this.#hub;
       if (!nc) return;
       try {
         nc.publish(
           subjects(this.#hub.config.prefix).presence(this.#hub.config.agentId),
-          JSON.stringify(this.#git)
+          JSON.stringify({ ...this.#git, ...sessionId ? { session: sessionId } : {} })
         );
       } catch (err) {
         this.#logger.debug({ err }, "heartbeat failed");
@@ -50947,19 +51065,56 @@ async function openSession(config2, logger) {
   const hub = new HubClient(config2, logger);
   const presence = new Presence(hub, logger, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
   hub.connect();
-  const git2 = await presence.refreshGit();
-  const hello = await sayHello(hub, git2, HELLO_WAIT_MS, logger);
-  return { config: config2, hub, presence, hello };
+  await presence.refreshGit();
+  let inFlight = null;
+  const session = {
+    config: config2,
+    hub,
+    presence,
+    hello: null,
+    activation: new ActivationCheck(),
+    onRenewed: null,
+    sayHello: () => {
+      inFlight ??= register(hub, presence, logger, () => session.onRenewed?.()).finally(() => {
+        inFlight = null;
+      });
+      return inFlight;
+    }
+  };
+  session.hello = await Promise.race([
+    session.sayHello(),
+    new Promise((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS))
+  ]);
+  return session;
 }
 function startSession(server, session, logger, pushDelayMs) {
   const { hub, presence, hello } = session;
   const abort = new AbortController();
+  let inbox = null;
+  const rehello = () => void session.sayHello().then((h) => h && inbox?.resubscribe());
+  hub.onSessionLost = rehello;
+  session.onRenewed = () => {
+    const previous = session.activation.lastDescription;
+    if (previous === null) return;
+    logger.info({ session: hub.sessionId }, "new hub session; re-running the activation check");
+    void pushEvent(server, checkEvent(session.activation.issue(), previous)).catch(
+      (err) => logger.warn({ err }, "could not push the activation check")
+    );
+  };
   presence.start();
+  const retry = setInterval(() => !hub.sessionId && rehello(), hub.config.heartbeatSeconds * 1e3);
+  retry.unref();
   const startPushes = () => {
-    void runInbox({ hub, logger, signal: abort.signal, push: (event2) => pushEvent(server, event2) });
-    if (!hello) {
-      void hub.whenConnected().then(() => sayHello(hub, presence.git, 1e4, logger));
-    } else if (hello.unreadThreads > 0) {
+    inbox = runSessionInbox({
+      hub,
+      logger,
+      signal: abort.signal,
+      push: (event2) => pushEvent(server, event2),
+      onExpired: rehello
+    });
+    if (!hub.sessionId) {
+      rehello();
+    } else if (hello && hello.unreadThreads > 0) {
       void pushEvent(server, {
         content: `You have ${hello.unreadThreads} mesh thread(s) with unread messages. Call the inbox tool to catch up.`,
         meta: { kind: "system", from: "agentmesh" }
@@ -50969,6 +51124,9 @@ function startSession(server, session, logger, pushDelayMs) {
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
     abort.abort();
+    clearInterval(retry);
+    hub.onSessionLost = null;
+    session.onRenewed = null;
     presence.stop();
     await Promise.race([
       hub.call("session.bye", {}, { timeoutMs: SHUTDOWN_MS }).catch(() => void 0),
@@ -50977,15 +51135,23 @@ function startSession(server, session, logger, pushDelayMs) {
     await hub.close(SHUTDOWN_MS);
   };
 }
-async function sayHello(hub, git2, waitMs, logger) {
-  const attempt = hub.whenConnected().then(() => hub.call("session.hello", { clientVersion: VERSION, ...git2 })).catch((err) => {
+async function register(hub, presence, logger, onRenewed) {
+  try {
+    await hub.whenConnected();
+    const previous = hub.sessionId;
+    const hello = await hub.call("session.hello", {
+      clientVersion: VERSION,
+      ...presence.git,
+      ...previous ? { previousSessionId: previous } : {}
+    });
+    hub.sessionId = hello.sessionId;
+    logger.info({ session: hello.sessionId, previous, reclaimed: hello.reclaimed }, "hub session");
+    if (previous && previous !== hello.sessionId) onRenewed();
+    return hello;
+  } catch (err) {
     logger.warn({ err }, "session.hello failed");
     return null;
-  });
-  return Promise.race([
-    attempt,
-    new Promise((resolve) => setTimeout(() => resolve(null), waitMs))
-  ]);
+  }
 }
 
 // src/main.ts
@@ -51021,8 +51187,8 @@ async function runConfigured(config2, logger) {
     hello: session.hello,
     problems: []
   });
-  const handler = meshToolHandler({ hub: session.hub, agentId: config2.agentId });
   const server = createMcpServer(instructions, () => handler);
+  const handler = meshToolHandler(toolDeps(server, session, config2.agentId));
   server.oninitialized = () => {
     cleanup = startSession(server, session, logger, CHANNEL_READY_MS);
   };
@@ -51053,13 +51219,21 @@ async function runUnenrolled(logger) {
       );
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
-    handler = meshToolHandler({ hub: session.hub, agentId });
+    handler = meshToolHandler(toolDeps(server, session, agentId));
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => void 0);
     logger.info({ agent: agentId, version: VERSION }, "joined the mesh");
   }
   await server.connect(new StdioServerTransport());
   logger.info({ version: VERSION }, "agentmesh plugin waiting for join");
+}
+function toolDeps(server, session, agentId) {
+  return {
+    hub: session.hub,
+    agentId,
+    push: (event2) => pushEvent(server, event2),
+    activation: session.activation
+  };
 }
 function watchLifecycle(logger) {
   let stopping = false;
