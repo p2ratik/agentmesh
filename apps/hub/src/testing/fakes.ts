@@ -127,6 +127,8 @@ export class FakeMessaging implements MessagingService {
 
   markRead(): void {}
 
+  markSeen(): void {}
+
   isRead(): boolean {
     return false;
   }

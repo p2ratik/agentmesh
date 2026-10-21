@@ -162,6 +162,13 @@ export class MessagingServiceImpl implements MessagingService {
     }
   }
 
+  /** The plugin reports these ids, so only messages addressed to the agent move its cursors. */
+  markSeen(agentId: string, messageIds: string[]): void {
+    for (const { threadId, seq } of this.messages.latestAddressedTo(agentId, messageIds)) {
+      this.reads.advance(threadId, agentId, seq);
+    }
+  }
+
   isRead(participantId: string, messageId: string): boolean {
     const at = this.messages.position(messageId);
     const cursor = at ? this.reads.cursor(at.threadId, participantId) : null;

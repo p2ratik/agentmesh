@@ -6,7 +6,7 @@ import type { MessagingServiceImpl } from './messaging.service';
 
 type ThreadHandlers = Pick<
   RpcHandlerMap,
-  'thread.get' | 'thread.list' | 'thread.close' | 'inbox.get'
+  'thread.get' | 'thread.list' | 'thread.close' | 'inbox.get' | 'messages.seen'
 >;
 
 /** `me` (or nothing, for agents) means the caller; humans and services default to every thread. */
@@ -60,5 +60,10 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
     },
     'inbox.get': (params, call) =>
       readInbox(messaging, call.actor.id, call.session, params.limit, params.perThread),
+    /** What the plugin showed (status items ride along unread until then). */
+    'messages.seen': (params, call) => {
+      messaging.markSeen(call.actor.id, params.messageIds);
+      return { ok: true };
+    },
   };
 }

@@ -16,6 +16,12 @@ export interface SessionRecord {
   lastSeen: string;
 }
 
+/** The session that owns an agent's side of a thread (owners are never closed). */
+export interface ThreadOwner {
+  sessionId: string;
+  liveness: 'live' | 'away';
+}
+
 /** One Claude Code session per plugin process; each thread is owned per agent by one session. */
 export interface SessionsService {
   open(

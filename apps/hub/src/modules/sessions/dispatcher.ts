@@ -23,8 +23,10 @@ interface Routed {
  * its agent, hands every session its batch at once, and returns the acked ids
  * with a `commit` that claims ownership and advances the read cursor. The
  * outbox runs that commit in the transaction that marks the rows published, so
- * "delivered", "read" and "owned" are one step. Messages the agent already read
- * (through `inbox` or `thread`) count as delivered without a push.
+ * "delivered", "read" and "owned" are one step. Status items (spec §4) route
+ * like action ones but never claim and stay unread until `messages.seen`.
+ * Messages the agent already read (through `inbox` or `thread`) count as
+ * delivered without a push.
  */
 export class SessionDispatcher implements DeliveryPort {
   readonly #sessions: SessionsService;
@@ -71,15 +73,17 @@ export class SessionDispatcher implements DeliveryPort {
     });
     // In message order, so the first claim on a thread wins.
     const delivered = routed.filter((r) => acked.has(r.message.id));
-    const ids = delivered.map((r) => r.message.id);
+    // Status rides along: published, but it claims nothing and stays unread until seen.
+    const actions = delivered.filter((r) => r.message.class === 'action');
+    const read = actions.map((r) => r.message.id);
     return {
-      delivered: [...seen, ...ids],
+      delivered: [...seen, ...delivered.map((r) => r.message.id)],
       commit: () => {
-        for (const { message, route } of delivered) {
+        for (const { message, route } of actions) {
           this.#sessions.delivered(agentId, route.sessionId, message, route);
         }
-        // markRead trusts its caller: only this agent, only what its sessions acked.
-        this.#messaging.markRead(agentId, ids);
+        // markRead trusts its caller: only this agent, only action items its sessions acked.
+        this.#messaging.markRead(agentId, read);
       },
     };
   }
@@ -114,15 +118,19 @@ export class SessionDispatcher implements DeliveryPort {
   }
 }
 
-/** A later message of a thread, in the same call, goes where the thread's first one went. */
+/**
+ * A later message of a thread, in the same call, goes where the thread's first
+ * one went, with its claim: only action items claim, so a status first message
+ * leaves the claim to a later action.
+ */
 function follow(first: Route): Route {
   if (first.kind === 'wait')
     return { kind: 'wait', reason: 'an earlier message of its thread waits' };
-  const { sessionId } = first;
+  const { sessionId, claim } = first;
   return {
     kind: 'deliver',
     sessionId,
-    claim: false,
+    claim,
     reason: `its thread goes to ${sessionId} in this batch`,
   };
 }

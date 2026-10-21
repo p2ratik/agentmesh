@@ -1,41 +1,8 @@
-import type { MessageRefs, SessionDelivery } from '@agentmesh/protocol';
 import { describe, expect, it, vi } from 'vitest';
-import { createDispatchHarness } from '../../testing/services';
+import { createBobDispatchHarness as setup } from '../../testing/services';
 import { readInbox } from '../messaging/inbox';
 import type { MessagingServiceImpl } from '../messaging/messaging.service';
 import { SessionsServiceImpl } from './sessions.service';
-
-function setup() {
-  const h = createDispatchHarness();
-  /** A bob-agent session, activated at the clock's current time. */
-  const active = () => {
-    const id = h.sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
-    h.sessions.activate('bob-agent', id, 'web client');
-    return id;
-  };
-  const thread = () =>
-    h.messaging.createThread({
-      kind: 'conversation',
-      subject: 'x',
-      createdBy: 'alice-agent',
-      participants: ['bob-agent'],
-    }).id;
-  let n = 0;
-  /** Posts an ask; returns it as the outbox hands it over. */
-  const ask = (threadId: number, refs: MessageRefs = {}): SessionDelivery => ({
-    ...h.messaging.post({ threadId, senderId: 'alice-agent', kind: 'ask', body: `q${++n}`, refs })
-      .message,
-    class: 'action',
-  });
-  const pending = () =>
-    h.ctx.db
-      .all<{ message_id: string }>(
-        "SELECT message_id FROM deliveries WHERE state = 'pending' ORDER BY rowid",
-      )
-      .map((r) => r.message_id);
-  const liveness = (sessionId: string) => h.sessions.verify('bob-agent', sessionId).liveness;
-  return { ...h, active, thread, ask, pending, liveness };
-}
 
 describe('SessionDispatcher', () => {
   it('never delivers to an agent whose only session is inactive, nor routes for it', async () => {
@@ -93,6 +60,49 @@ describe('SessionDispatcher', () => {
     expect(messaging.unreadThreadCount('bob-agent')).toBe(1);
     await outbox.flush();
     expect(messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('a status delivery is published but stays unread until seen', async () => {
+    const { active, thread, note, outbox, transport, pending, messaging } = setup();
+    const s1 = active();
+    const m = note(thread());
+    await outbox.flush();
+    expect(transport.sends).toEqual([{ agentId: 'bob-agent', sessionId: s1, ids: [m.id] }]);
+    expect(pending()).toEqual([]);
+    expect(messaging.unreadThreadCount('bob-agent')).toBe(1);
+    messaging.markSeen('bob-agent', [m.id]);
+    expect(messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('a status message never claims its thread; a later action in the same batch does', async () => {
+    const { active, thread, note, ask, outbox, transport, sessions, messaging } = setup();
+    const s1 = active();
+    const t = thread();
+    note(t);
+    await outbox.flush();
+    expect(sessions.ownerOf(t, 'bob-agent')).toBeNull();
+    const [status, action] = [note(t), ask(t)];
+    await outbox.flush();
+    expect(transport.sends.at(-1)).toEqual({
+      agentId: 'bob-agent',
+      sessionId: s1,
+      ids: [status.id, action.id],
+    });
+    expect(sessions.ownerOf(t, 'bob-agent')).toBe(s1);
+    expect(messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it("a status item delivered to a session that then dies stays in the inbox's FYI section", async () => {
+    const { active, thread, note, outbox, transport, sessions, messaging } = setup();
+    const s1 = active();
+    const m = note(thread());
+    await outbox.flush();
+    expect(transport.sends.map((s) => s.ids)).toEqual([[m.id]]);
+    sessions.close('bob-agent', s1);
+    const inbox = readInbox(messaging as MessagingServiceImpl, 'bob-agent', active(), 20, 5);
+    expect(inbox.threads.map((x) => [x.messages.map((y) => y.id), x.fyi])).toEqual([
+      [[m.id], true],
+    ]);
   });
 
   it('a partly acked batch publishes the acked ids and keeps the rest', async () => {

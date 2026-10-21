@@ -26,6 +26,7 @@ import type {
   ThreadSummary,
   Trust,
 } from '@agentmesh/protocol';
+import type { ThreadOwner } from './sessions.contracts';
 
 /** Who is acting. For bridge calls with `actAs`, this is the human, not the bridge. */
 export interface Actor {
@@ -83,6 +84,7 @@ export interface Outbox {
     message: MeshMessage,
     recipientId: string,
     held: boolean,
+    /** The recipient's delivery class; `action` when omitted. */
     cls?: DeliveryClass,
   ): void;
   enqueueEvent<T extends DomainEventType>(type: T, data: DomainEventData<T>): void;
@@ -173,6 +175,7 @@ export interface PostInput {
   addToThread?: boolean;
   /** Hub-generated messages skip rate limits and dedup. */
   system?: boolean;
+  /** One class for every recipient, or a function picking each one's; default `action`. */
   deliveryClass?: DeliveryClass | ((recipientId: string) => DeliveryClass);
 }
 
@@ -200,15 +203,12 @@ export interface MessagingService {
   markRead(participantId: string, messageIds: string[]): void;
   /** Whether the participant's read cursor is at or past the message (seen through inbox or thread). */
   isRead(participantId: string, messageId: string): boolean;
+  /** Client-driven: marks read only the messages addressed to the agent; other ids are ignored. */
+  markSeen(agentId: string, messageIds: string[]): void;
+  /** The class the message was stored with for this participant (`action` unless status). */
   classFor(messageId: string, participantId: string): DeliveryClass;
   /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
-}
-
-/** The session that owns an agent's side of a thread (owners are never closed). */
-export interface ThreadOwner {
-  sessionId: string;
-  liveness: 'live' | 'away';
 }
 
 // ---------------------------------------------------------------- leases
@@ -269,7 +269,7 @@ export interface PlanningService {
 // ---------------------------------------------------------------- sessions
 
 /** Kept in their own file so this one stays within the size limit. */
-export type { SessionRecord, SessionsService } from './sessions.contracts';
+export type { SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
 
 // ---------------------------------------------------------------- enrollment
 

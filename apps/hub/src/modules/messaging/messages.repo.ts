@@ -68,6 +68,20 @@ export class MessagesRepo {
     );
   }
 
+  /** Per thread, the highest seq among these messages that are addressed to `recipientId`. */
+  latestAddressedTo(
+    recipientId: string,
+    messageIds: string[],
+  ): Array<{ threadId: number; seq: number }> {
+    return this.#db.all<{ threadId: number; seq: number }>(
+      `SELECT thread_id AS threadId, MAX(seq) AS seq FROM messages
+       WHERE id IN (SELECT value FROM json_each($ids))
+         AND EXISTS (SELECT 1 FROM json_each(recipients) r WHERE r.value = $recipientId)
+       GROUP BY thread_id`,
+      { ids: JSON.stringify(messageIds), recipientId },
+    );
+  }
+
   /** The recipients for whom the message is status; empty for an unknown id. */
   statusFor(messageId: string): string[] {
     const row = this.#db.get<{ status_for: string }>(

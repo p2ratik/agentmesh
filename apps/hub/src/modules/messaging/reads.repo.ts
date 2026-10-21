@@ -13,6 +13,8 @@ const UNREAD = `
 export interface UnreadThread {
   threadId: number;
   unread: number;
+  /** Unread messages that are action for the participant; the rest are status. */
+  actions: number;
   lastSeq: number;
 }
 
@@ -44,12 +46,13 @@ export class ReadsRepo {
     );
   }
 
-  /** Threads with unread messages, most recent unread first. */
+  /** Threads with unread messages: any with an action first, then status-only; newest first. */
   unreadThreads(participantId: string): UnreadThread[] {
     return this.#db.all<UnreadThread>(
-      `SELECT m.thread_id AS threadId, COUNT(*) AS unread, MAX(m.seq) AS lastSeq
+      `SELECT m.thread_id AS threadId, COUNT(*) AS unread, MAX(m.seq) AS lastSeq,
+         SUM(NOT EXISTS (SELECT 1 FROM json_each(m.status_for) s WHERE s.value = $p)) AS actions
        FROM messages m ${UNREAD}
-       GROUP BY m.thread_id ORDER BY lastSeq DESC`,
+       GROUP BY m.thread_id ORDER BY actions = 0, lastSeq DESC`,
       { p: participantId },
     );
   }
