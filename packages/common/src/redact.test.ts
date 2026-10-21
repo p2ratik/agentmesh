@@ -57,6 +57,12 @@ describe('redactSecrets on hostile input', () => {
     ['one long word', 'a'.repeat(32_000)],
     ['key characters without a value', 'db.password_'.repeat(2_600)],
     ['JWT-like runs', 'eyJ-'.repeat(8_000)],
+    ['name/value keys without values', '- name: token\n  value: '.repeat(1_400)],
+    ['line breaks after a key', `token${'\n'.repeat(32_000)}`],
+    ['escaped quotes without an end', `password:"${'\\"'.repeat(16_000)}`],
+    ['escaped quotes after keys', 'password:"\\"'.repeat(2_700)],
+    ['escapes before key characters', `\\n${'token'.repeat(12)}`.repeat(500)],
+    ['escaped strings without an end', '{\\"password\\":\\"'.repeat(2_000)],
   ])('stays linear on %s', (_label, text) => {
     expect(timed(text)).toBeLessThan(250);
   });
@@ -82,8 +88,40 @@ describe('redactSecrets keeps what is not a credential', () => {
     // AWS resource names, not secrets: rotation alerts and their tasks name the secret by ARN.
     'Rotation failed for arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf',
     'secret_arn: arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf',
+    'token_signer_arn: arn:aws:iam::aws:policy/ReadOnlyAccess',
+    'token_fn: arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:rotate:$LATEST',
+    // A plain word as the last JSON member or keyword argument keeps its closing brackets.
+    '{"secret_scanning":true}',
+    '{"auth":{"token_type":"bearer","secret_scanning":false}}',
+    'connect(host, api_key=None)',
+    // Whole env references and placeholders.
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a literal env reference
+    'password: ${DB_PASSWORD}, token: $GITHUB_TOKEN',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a literal env reference
+    'api_key: $env:API_KEY and secret: ${process.env.SECRET}',
+    'password_file=$HOME/.pgpass',
+    '{"api_key":"<your-key>"}',
+    // Name/value entries whose value is a setting.
+    '- name: TOKEN_TTL\n  value: 3600',
+    "{ name: 'SECRET_SCANNING', value: 'enabled' }",
   ])('%s', (text) => {
     expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each([
+    // Shaped like an ARN only at the start, or not at all.
+    ['secretsmanager: hunter2', `secretsmanager: ${REDACTED}`],
+    ['password=arn:hunter2', `password=${REDACTED}`],
+    [
+      'secret_arn=arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf?token=abc123',
+      `secret_arn=${REDACTED}`,
+    ],
+    // Only a whole value is an env reference or a placeholder.
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a literal env reference
+    ['password="${PREFIX}hunter2"', `password="${REDACTED}"`],
+    ['api_key=<x>abc123def456', `api_key=${REDACTED}`],
+  ])('masks %s, which only starts like a kept value', (text, masked) => {
+    expect(redactSecrets(text)).toBe(masked);
   });
 
   it.each([
@@ -99,5 +137,38 @@ describe('redactSecrets keeps what is not a credential', () => {
     ['otp_token: 123456', `otp_token: ${REDACTED}`],
   ])('still masks %s', (text, masked) => {
     expect(redactSecrets(text)).toBe(masked);
+  });
+});
+
+// Gaps the patterns had in JSON text and in name/value entries.
+describe('redactSecrets in JSON and name/value entries', () => {
+  it.each([
+    // A quoted secret with an escaped quote in it showed its tail.
+    ['{"DB_PASSWORD":"Xy7\\"kP9q2"}', `{"DB_PASSWORD":"${REDACTED}"}`],
+    // A JSON object written inside a JSON string.
+    ['"{\\"password\\":\\"hunter2\\"}"', `"{\\"password\\":\\"${REDACTED}\\"}"`],
+    // ECS and Kubernetes environments: neither `name` nor `value` reads as a key.
+    [
+      "[{ name: 'DB_PASSWORD', value: 'hunter2' }]",
+      `[{ name: 'DB_PASSWORD', value: '${REDACTED}' }]`,
+    ],
+    ['{"name":"API_TOKEN","value":"abc123def456"}', `{"name":"API_TOKEN","value":"${REDACTED}"}`],
+    ['- name: DB_PASSWORD\n  value: hunter2', `- name: DB_PASSWORD\n  value: ${REDACTED}`],
+    [
+      '- name: JWT_SECRET\r\n  value: "c2VjcmV0LWtleQ=="',
+      `- name: JWT_SECRET\r\n  value: "${REDACTED}"`,
+    ],
+    [
+      '[{\\"name\\":\\"DB_PASSWORD\\",\\"value\\":\\"hunter2\\"}]',
+      `[{\\"name\\":\\"DB_PASSWORD\\",\\"value\\":\\"${REDACTED}\\"}]`,
+    ],
+  ])('masks %s', (text, masked) => {
+    expect(redactSecrets(text)).toBe(masked);
+  });
+
+  it('masks a token right after an escaped newline or tab, where \\b sees no boundary', () => {
+    const log = (first: string, second: string) =>
+      JSON.stringify({ log: `step failed\n${first}\t${second}` });
+    expect(redactSecrets(log(GITHUB, AWS))).toBe(log(REDACTED, REDACTED));
   });
 });

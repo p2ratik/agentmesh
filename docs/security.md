@@ -110,24 +110,56 @@ or forwarding a message. It is a safety net, not a licence: never send secrets o
 hub and the Discord bridge share one redactor, `redactSecrets` in `packages/common`: one pass of
 fast patterns over the whole text.
 
+What it finds in JSON text, configs and logs:
+- credential formats, also right after an escaped newline, tab or return (`"step failed\nghp_…"`),
+  where a word boundary is missing. There a credential is not masked if the text reads as a key
+  being assigned to, so the assignment below still finds it. Bearer tokens need a word boundary;
+- assignments whose key contains `password`, `secret`, `token` or `api_key`: `password=…`,
+  `"token": "…"`, a JSON string with an escaped quote in it (`"Xy7\"kP9"`), and a JSON object
+  written inside a JSON string (`{\"password\":\"…\"}`);
+- name/value entries, such as an ECS or Kubernetes `environment`
+  (`[{ name: 'DB_PASSWORD', value: '…' }]`, `- name: DB_PASSWORD` / `value: …`), when `value`
+  follows the name.
+
 Only credentials are masked: `Use max_tokens: 1024` reaches agents as written. In an assignment
-whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers of
-up to 10 characters (counts, limits, durations, also as `1024}` or `1024)`), plain settings
-(`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`, `required`/`optional`, `bearer`/`basic`),
-type names, env references, placeholders and AWS ARNs (`secret_arn: arn:aws:secretsmanager:…`, which
-names a secret but is not one). Numbers stay masked under a password, `otp` or `mfa` name (PINs and
-one-time codes).
+these values are kept, each only as the whole value:
+- numbers of up to 10 characters (counts, limits, durations); they stay masked under a password,
+  `otp` or `mfa` name (PINs and one-time codes);
+- plain settings (`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`, `required`/`optional`,
+  `bearer`/`basic`) and type names;
+- numbers and plain settings also as the last JSON member or keyword argument, with their closing
+  brackets (`1024}`, `"secret_scanning":true}`, `api_key=None)`);
+- env references (`$X`, `${X}`, `${process.env.X}`, `$env:X`, also followed by a path such as
+  `$HOME/.pgpass`) and placeholders (`<your-token>`). `${PREFIX}hunter2` and `<x>hunter2` are
+  masked;
+- AWS ARNs shaped `arn:partition:service:region:account:resource` (`secret_arn:
+  arn:aws:secretsmanager:…`), which name a secret but are not one. A query string is not part of
+  one, so `secret_arn=arn:…?token=…` is masked whole;
+- in text that names a Secrets Manager ARN, the `secretsmanager:` service part reads as a key. What
+  follows it is kept only if it is the rest of the ARN (`us-east-1:123456789012:secret:prod/db`), so
+  `secretsmanager: hunter2` is masked.
+
 - **Cost:** a digit-only secret of 10 characters or fewer under a `token`, `secret` or `api_key`
   name is shown; longer digit-only keys and session tokens are masked.
+
+- **Threat: a new pattern that masks less.** A longer match can swallow the key of the assignment
+  after it, and that assignment's value is then shown.
+- **Mitigation:** `redact.differential.test.ts` runs the redactor against a frozen copy of the one
+  before 2026-10-21 (`testing/redact-baseline.ts`). It plants secrets in about 12,000 generated
+  inputs and a list of hand-written ones, and checks that whatever the copy hid stays hidden and
+  that masking twice changes nothing. The new key forms (a name/value entry, a key inside a JSON
+  string) therefore take only a value that holds no `=` or `:` (base64 padding aside) and that
+  nothing assigns to. Otherwise they leave the text to the patterns as they were.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB), including rule notices built from external event text, and the bridge runs it on
   every notice (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns
   were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
 - **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
-  bounds the key to 64 characters on each side of the keyword. `redact.test.ts` keeps the 32 KB
-  worst cases under 250 ms; they run in about 1 ms. The 1 MB inputs we measured on 2026-10-21 took
-  up to about 85 ms.
+  bounds the key to 64 characters on each side of the keyword. Line breaks between a name and its
+  `value` are crossed once. `redact.test.ts` keeps the 32 KB worst cases under 250 ms; they run in
+  under 3 ms. The 1 MB inputs we measured on 2026-10-21 took up to about 90 ms (up to about 70 ms
+  before the JSON and name/value patterns).
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
 
@@ -188,21 +220,23 @@ The bridge masks everything it posts, because the mesh channels are readable by 
   token from the patterns' word-boundary anchors (`deploy failed ghp_…` becomes
   `deploy_failed_ghp_…`). Raw types come from a header or field configured on an authenticated
   source.
-- **Residual risk: what the patterns miss.** These gaps are as old as the redactor. A follow-up
-  task will close them, tested against this redactor from the start:
-  - in JSON text, a quoted secret that contains `"` (`"DB_PASSWORD":"Xy7\"kP9…"`) is masked up to
-    the `\"`, and the rest of it is shown;
-  - a token right after an escaped newline or tab in JSON (`"step failed\nghp_…"`) is not
-    recognised: after `\n` there is no word boundary;
-  - an escaped-quote pair inside a JSON string (`{\"password\":\"…\"}`) is not recognised;
-  - in name/value entries, such as an ECS or Kubernetes
-    `environment: [{ name: 'DB_PASSWORD', value: '…' }]`, neither key reads as a secret, so the
-    value is shown;
+- **Residual risk: what the patterns miss.** Each of these is shown exactly as it was before
+  2026-10-21. Closing them would take a decoding pass, or a match long enough to swallow the key
+  of the next assignment (see the differential test above):
+  - in a name/value entry or a JSON string inside a JSON string, a value that holds `=` or `:`
+    (`value: 'postgres://app:pw@db'`). Also an entry with `value` before `name`, and value keys
+    other than `value` (`ParameterKey`/`ParameterValue`);
+  - a quoted secret whose escaped quote is followed by `=` or `:` (`"Xy7\"k=P9"`) shows what
+    follows the `\"`. So does a quote escaped twice (JSON inside JSON inside JSON);
+  - a credential after any other escape (`"ghp_…`), or after an escaped newline where it
+    reads as a key being assigned to;
+  - an unquoted value stops at whitespace and quotes (`password=correct horse`, `token=ab"cd`),
+    so the rest of it is shown;
   - the cosmetic cost of masking whole text: a keyword followed by `:` or `=`, in a template, a
     title or a value, masks the next word (`SecretsManagerRotationFailed: [REDACTED] error
-    rate…`). An unquoted masked value can swallow a closing brace: `{"secret_scanning":true}`
-    becomes `{"secret_scanning":[REDACTED]`, so a masked object may no longer parse as JSON. Short
-    numbers keep their brace (`"max_tokens":1024}`); plain words do not yet.
+    rate…`). An unquoted masked value can swallow a closing brace (`{"api_key":abc123}` becomes
+    `{"api_key":[REDACTED]`), so a masked object may no longer parse as JSON. Kept numbers and
+    plain words keep theirs (`"max_tokens":1024}`, `"secret_scanning":true}`).
 
 ## Secrets in RPC results
 

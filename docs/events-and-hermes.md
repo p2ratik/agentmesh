@@ -113,8 +113,9 @@ Masking whole text has two costs:
 - A keyword followed by `:` or `=` masks the next word. With an alarm named
   `SecretsManagerRotationFailed`, `{{payload.alarm}}: {{summary}}` shows
   `SecretsManagerRotationFailed: [REDACTED] error rate…`.
-- Name/value entries (`[{ name: 'DB_PASSWORD', value: … }]`) are not recognised, so don't
-  template them from payloads.
+- Name/value entries (`[{ name: 'DB_PASSWORD', value: … }]`) are recognised only when `value`
+  follows the name and the value holds no `=` or `:` other than base64 padding, so don't template
+  them from payloads.
 
 Throttle keys render raw, because they are never posted.
 
