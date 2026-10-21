@@ -24,12 +24,24 @@ async function start(overrides: Record<string, unknown> = {}) {
   });
   await hub.start();
   const h = hub;
+  const sessionIds = new Map<string, string>();
+  /** Agents call as a session, like the plugin: their first call says hello. */
   const call = async <T = Record<string, unknown>>(
     caller: string,
     method: string,
     params: unknown = {},
     actAs?: string,
-  ) => (await h.dispatch({ caller, method, ...(actAs ? { actAs } : {}) }, params)) as T;
+  ): Promise<T> => {
+    const agent = h.context.index.kindOf(caller) === 'agent' && method !== 'session.hello';
+    if (agent && !sessionIds.has(caller)) {
+      await call(caller, 'session.hello', { clientVersion: '0.2.0' });
+    }
+    const session = agent ? sessionIds.get(caller) : undefined;
+    const ctx = { caller, method, ...(actAs ? { actAs } : {}), ...(session ? { session } : {}) };
+    const result = (await h.dispatch(ctx, params)) as T & { sessionId?: string };
+    if (method === 'session.hello' && result.sessionId) sessionIds.set(caller, result.sessionId);
+    return result;
+  };
   const inbox = async (id: string): Promise<MeshMessage[]> => {
     await h.tick();
     return ports.deliveredTo(id);
@@ -38,12 +50,24 @@ async function start(overrides: Record<string, unknown> = {}) {
 }
 
 describe('hub end to end (no NATS)', () => {
+  it('createHub without NATS still delivers through the injected ports', async () => {
+    const { call, inbox, ports } = await start();
+    // bob has no session: the session dispatcher would hold this, the injected port takes it.
+    await call('alice-agent', 'message.send', { kind: 'ask', to: ['bob-agent'], body: 'wired?' });
+    expect((await inbox('bob-agent')).map((m) => m.body)).toEqual(['wired?']);
+    expect(ports.events.map((e) => e.type)).toContain('message.created');
+  });
+
   it('connects an agent, then routes an ask and a threaded reply', async () => {
     const { call, inbox } = await start();
     const hello = await call<{
       self: { status: string };
       policy: { git: { integrationBranch: string } };
-    }>('alice-agent', 'session.hello', { clientVersion: 'test', repo: 'acme/api', branch: 'main' });
+    }>('alice-agent', 'session.hello', {
+      clientVersion: '0.2.0',
+      repo: 'acme/api',
+      branch: 'main',
+    });
     expect(hello.self.status).toBe('online');
     expect(hello.policy.git.integrationBranch).toBe('agents');
 
@@ -65,8 +89,11 @@ describe('hub end to end (no NATS)', () => {
     const answered = await inbox('alice-agent');
     expect(answered.at(-1)?.status).toBe('answer');
 
+    // Replying no longer marks the ask read: only a session ack or reading it does.
     const unread = await call<{ threads: unknown[] }>('bob-agent', 'inbox.get');
-    expect(unread.threads).toHaveLength(0);
+    expect(unread.threads).toHaveLength(1);
+    const reread = await call<{ threads: unknown[] }>('bob-agent', 'inbox.get');
+    expect(reread.threads).toHaveLength(0);
     const aliceInbox = await call<{ threads: Array<{ unread: number }> }>(
       'alice-agent',
       'inbox.get',
@@ -139,7 +166,7 @@ describe('hub end to end (no NATS)', () => {
   it('runs a /plan session into routed tasks', async () => {
     const { call, clock, hub: h } = await start();
     for (const id of ['alice-agent', 'bob-agent', 'carol-agent'])
-      await call(id, 'session.hello', { clientVersion: 't' });
+      await call(id, 'session.hello', { clientVersion: '0.2.0' });
     const plan = await call<{ id: string; facilitator: string }>(
       'discord-bridge',
       'plan.start',

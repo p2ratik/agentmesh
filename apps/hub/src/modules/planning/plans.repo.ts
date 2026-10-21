@@ -96,6 +96,13 @@ export class PlansRepo {
     ).lastInsertRowid;
   }
 
+  threadOf(id: number): number | null {
+    return (
+      this.#db.get<{ thread_id: number }>('SELECT thread_id FROM plans WHERE id = $id', { id })
+        ?.thread_id ?? null
+    );
+  }
+
   require(id: number): PlanRecord {
     const row = this.#db.get<PlanRow>('SELECT * FROM plans WHERE id = $id', { id });
     if (!row) throw new MeshError('not_found', `Plan ${planKey(id)} not found`);

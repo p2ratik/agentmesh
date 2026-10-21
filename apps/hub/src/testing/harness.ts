@@ -4,7 +4,7 @@ import { createHubContext, type HubContext } from '../context';
 import { SqliteOutbox } from '../core/outbox';
 import { Db } from '../db/database';
 import { migrate } from '../db/migrate';
-import { MemoryPorts } from '../ports';
+import { type DeliveryPort, MemoryPorts } from '../ports';
 import { testTeamConfig } from './fixtures';
 
 export interface TestHarness {
@@ -14,14 +14,20 @@ export interface TestHarness {
   outbox: SqliteOutbox;
 }
 
-/** In-memory database, manual clock and recording ports. No NATS needed. */
-export function createTestHarness(loaded: LoadedConfig = testTeamConfig()): TestHarness {
+/**
+ * In-memory database, manual clock and recording ports. No NATS needed.
+ * `delivery` replaces the recording delivery port.
+ */
+export function createTestHarness(
+  loaded: LoadedConfig = testTeamConfig(),
+  delivery?: DeliveryPort,
+): TestHarness {
   const db = new Db(':memory:');
   const clock = new ManualClock('2026-10-16T09:00:00.000Z');
   migrate(db, () => clock.now());
   const logger = createLogger('hub-test', { level: 'silent', destination: 'stderr' });
   const ports = new MemoryPorts();
-  const outbox = new SqliteOutbox(db, clock, logger, ports, ports);
+  const outbox = new SqliteOutbox(db, clock, logger, delivery ?? ports, ports);
   const ctx = createHubContext({
     loaded,
     index: new ConfigIndex(loaded.config),

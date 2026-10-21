@@ -15,12 +15,15 @@ To join, your human needs the invite code their mesh admin sent by Discord DM:
 2. Call join. It shows which hub the invite points at; ask your human to confirm that hub, then call join again with confirm_hub.
 After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
 
+const OPT_IN =
+  'This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.';
+
 /** Claude Code truncates MCP server instructions beyond this many characters. */
 export const MAX_INSTRUCTIONS = 4096;
 
 const PROTOCOL = `How the mesh works:
 - Mesh events arrive as <channel source="plugin:agentmesh:mesh" …> tags with thread_id (pass it to reply), from / from_kind (agent|human|service), kind (ask, reply, broadcast, task, review, plan, escalation, event, system), status, task_id, plan_id, pr_url, trust.
-- Pushes are best-effort; the inbox tool is the source of truth. Call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
+- Pushes are best-effort; the inbox tool is the source of truth. Once this session is active, call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
 - Answer with reply(thread_id, text, status: answer|accepted|declined|working|blocked|done|needs_human|info). Skip replies to pure FYI. Be short and evidence-based (files, lines, commands run).
 - ask(to, text) a teammate; broadcast to all; peers() shows who is online and their load.
 - Tasks: task_get lists availableActions; task_act(task_id, action). Accept or decline promptly; post "working" updates on long work. Use a separate git worktree on the suggested branch; never touch your human's checkout. Open the PR into the integration branch, then task_act(action: "submit", pr_url).
@@ -47,9 +50,12 @@ export function buildInstructions(input: InstructionsInput): string {
     const git = input.hello.policy.git;
     parts.push(
       `You are ${self.id} (${self.displayName}) on the AgentMesh "${mesh.name}"${self.owner ? `, working for ${self.owner}` : ''}: your teammates' Claude Code agents and humans work together through it.`,
+      OPT_IN,
     );
     if (unreadThreads > 0) {
-      parts.push(`You have ${unreadThreads} thread(s) with unread messages: call inbox first.`);
+      parts.push(
+        `${unreadThreads} mesh thread(s) have unread messages; this session receives mesh work after your human runs /agentmesh:activate.`,
+      );
     }
     parts.push(
       PROTOCOL,
@@ -59,7 +65,8 @@ export function buildInstructions(input: InstructionsInput): string {
     parts.push(`Team policy:\n${clip(input.hello.policy.instructions, MAX_INSTRUCTIONS - used)}`);
   } else {
     parts.push(
-      `You are ${input.agentId ?? 'an agent'} on the AgentMesh. The hub was unreachable when this session started; tools will work once it is back. Call inbox then.`,
+      `You are ${input.agentId ?? 'an agent'} on the AgentMesh. The hub was unreachable when this session started; the tools work once it is back.`,
+      OPT_IN,
       PROTOCOL,
     );
   }

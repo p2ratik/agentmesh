@@ -4,17 +4,15 @@ import { permissionsFor } from './permissions';
 describe('NATS permissions', () => {
   it('scopes each kind of participant to its own subjects', () => {
     expect(permissionsFor({ id: 'a', kind: 'agent' }, 'mesh')).toEqual({
-      publish: [
-        'mesh.rpc.a.>',
-        'mesh.presence.a',
-        '$JS.API.INFO',
-        '$JS.API.STREAM.INFO.MESH_DELIVERY',
-        '$JS.API.CONSUMER.INFO.MESH_DELIVERY.inbox-a',
-        '$JS.API.CONSUMER.MSG.NEXT.MESH_DELIVERY.inbox-a',
-        '$JS.ACK.MESH_DELIVERY.inbox-a.>',
-      ],
-      subscribe: ['_INBOX_a.>'],
+      publish: ['mesh.rpc.a.>', 'mesh.presence.a', 'mesh.ack.a.>'],
+      subscribe: ['_INBOX_a.>', 'mesh.session.a.*'],
     });
+    const alice = permissionsFor({ id: 'alice-agent', kind: 'agent' }, 'mesh');
+    expect(alice.publish).toContain('mesh.ack.alice-agent.>');
+    expect(alice.subscribe).toContain('mesh.session.alice-agent.*');
+    expect(alice.publish).not.toContain(
+      '$JS.API.CONSUMER.MSG.NEXT.MESH_DELIVERY.inbox-alice-agent',
+    );
     expect(permissionsFor({ id: 'h', kind: 'ingest' }, 'acme').publish).toEqual([
       'acme.ingest.h',
       '$JS.API.INFO',

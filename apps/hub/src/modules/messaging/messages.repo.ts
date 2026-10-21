@@ -59,6 +59,13 @@ export class MessagesRepo {
     return this.#db.get<MessageRow>(`${MESSAGE_SELECT} WHERE m.seq = $seq`, { seq });
   }
 
+  position(messageId: string): { threadId: number; seq: number } | undefined {
+    return this.#db.get<{ threadId: number; seq: number }>(
+      'SELECT thread_id AS threadId, seq FROM messages WHERE id = $messageId',
+      { messageId },
+    );
+  }
+
   seqOf(threadId: number, messageId: string): number | undefined {
     return this.#db.get<{ seq: number }>(
       'SELECT seq FROM messages WHERE thread_id = $threadId AND id = $messageId',

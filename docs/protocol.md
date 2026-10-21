@@ -10,17 +10,19 @@ Prefix `p` (default `mesh`), stream names use its upper-case form (`MESH_…`).
 | Subject | Kind | Who publishes | Purpose |
 | --- | --- | --- | --- |
 | `{p}.rpc.{caller}.{method}` | request/reply | every participant | Calls into the hub. The caller id in the subject is enforced by NATS permissions. |
-| `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch? }`. |
-| `{p}.deliver.{agent}` | stream `{P}_DELIVERY` (work queue) | hub | Each agent's durable inbox; consumer `inbox-{agent}`. |
+| `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch?, session? }`; `session` must be a hub-issued id or the heartbeat is ignored. The plugin sends one right after every subscribe. |
+| `{p}.session.{agent}.{session}` | core request/reply | hub | Deliveries to one session (`SessionInbound`: `deliver`), its activation code (`check`), and the notice that the hub no longer knows it (`expired`). |
+| `{p}.ack.{agent}.>` | core reply | agents | The session's `SessionAck`, sent on a hub-generated reply subject. |
 | `{p}.evt.{type}` | stream `{P}_EVENTS` (limits, 7 days) | hub | Activity feed; bridges read it with consumer `feed-{service}`. |
 | `{p}.ingest.{source}` | stream `{P}_INGEST` (work queue) | hub, ingest services | External events; consumer `hub-ingest`. |
 
 Replies use per-participant inboxes `_INBOX_{id}.…` so a client can only receive its own replies.
-JetStream dedup ids: `{messageId}:{recipient}` for deliveries, the event id for feed and ingest.
+JetStream dedup ids: the event id for feed and ingest. Agent deliveries no longer use JetStream; see
+[Per-session delivery](#per-session-delivery) and [ADR 0006](adr/0006-per-session-delivery.md).
 
 ## RPC
 
-Request: `{ v: 1, params, actAs?, idempotencyKey? }`. Response: `{ ok: true, result }` or
+Request: `{ v: 1, params, actAs?, idempotencyKey?, session? }`. Response: `{ ok: true, result, notes? }` or
 `{ ok: false, error: { code, message, details? } }`. Error codes: `invalid_request`,
 `unauthenticated`, `forbidden`, `not_found`, `conflict`, `invalid_transition`, `rate_limited`,
 `loop_detected`, `duplicate`, `paused`, `unavailable`, `timeout`, `internal`.
@@ -28,6 +30,16 @@ Request: `{ v: 1, params, actAs?, idempotencyKey? }`. Response: `{ ok: true, res
 `actAs` is honoured only for services with `canActAsHumans` (the Discord bridge); the hub then
 authorises as that human. A retried request with the same `idempotencyKey` returns the original
 result.
+
+`session` is the calling session's id, asserted by the client. The hub checks it against the
+authenticated caller's open sessions and refuses one that is not theirs. Agents must send it on
+every call except `session.hello` and `session.bye`: without it the hub answers `invalid_request`,
+"This session isn't registered with the hub…", with the plugin update instruction (a plugin older
+than 0.2.0 swallows its hello refusal, so this is where its human sees it). The plugin holds a
+call made while its hello is in flight until the hello lands. Services and the bridge (also when
+acting for a human) send no session. `notes` are short hub
+messages for the caller, such as "thr-4 belongs to your session s-2; run /agentmesh:take". The
+plugin appends a tool call's own notes to that call's result.
 
 Methods whose result carries a secret (such as an invite code) set `cacheResponse: false` in their
 contract. The hub records only that the key was used, never the result. A retry with the same key
@@ -39,13 +51,17 @@ per caller and method, so one interaction may use the same key for, say, `invite
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
-| `session.hello` | agent, service | Register a session; returns self, git policy, team policy, unread count |
-| `session.bye` | agent, service | Mark offline |
+| `session.hello` | agent, service | Register a session. Params carry `clientVersion` and `previousSessionId`; the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.2.0 are refused with an update instruction. |
+| `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
+| `session.activate` | agent | Turn this session on: `{ code, description }`, the code from its latest check and a one-line description. A wrong or stale code is refused with `invalid_request`. |
+| `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
+| `session.take` | agent | Move a thread or task (`threadId` or `taskId`, exactly one) to this session |
+| `session.bye` | agent, service | Close this session and release what it owns |
 | `presence.set` | agent | Declare online / busy / away with a note |
 | `peers.list` | any | Participants with presence and load |
-| `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`) |
-| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads |
-| `inbox.get` | agent | Unread messages; marks them read |
+| `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
+| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread. |
+| `inbox.get` | agent | Unread messages; marks them read. A session sees its own and unowned threads; threads other sessions of the agent own stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
 | `task.act` | agent, human | Apply a workflow action |
@@ -75,13 +91,91 @@ and `enrollment.invite` sets `cacheResponse: false`. `natsUrl` must be `tls://` 
 (`nats://` and `ws://` only for localhost), because the secret travels in the NATS CONNECT. See
 [security.md](security.md#invite-codes).
 
+## Per-session delivery
+
+Each agent session has its own subject. The hub's outbox picks a session for every pending message
+(rules below), sends a core request to `{p}.session.{agent}.{session}`, and keeps the message
+pending until the plugin acks. Why: [ADR 0006](adr/0006-per-session-delivery.md).
+
+- **Request:** `SessionInbound`, `{ type: 'deliver', messages }` with 1 to 100 messages
+  (`MAX_DELIVERY_MESSAGES`), kept under the server's `max_payload`. A message too big for one
+  request has its body clipped, with a note pointing at `thread`; the hub keeps the full text.
+  `{ type: 'expired' }` is published, with no reply, when a plugin heartbeats a session the hub no
+  longer knows; the plugin then says `session.hello` again. `{ type: 'check', code }` is a request
+  carrying the activation code (below).
+- **Ack:** `SessionAck`, `{ delivered: [id…] }`, sent after the plugin pushed those messages into
+  Claude Code (`{ delivered: [] }` after it pushed a check). The hub chose the reply subject,
+  `{p}.ack.{agent}.<token>`. It keeps only ids it sent, and a malformed reply counts as a failure.
+- **After the ack,** one transaction marks the rows published, advances the agent's read cursor and
+  records ownership. If a later request of a batch fails, the earlier acks are kept. A timeout or
+  a lost ack means the message is sent again; the plugin drops ids it already pushed.
+- **Already read:** a message at or below the agent's read cursor (read through `inbox` or
+  `thread`) counts as delivered with no push, no claim and no read change. While the agent has no
+  active, live session, everything else simply waits.
+- **Order:** within one batch, a thread's messages follow its first message, to the same session
+  or waiting together.
+- **Starvation:** the outbox takes up to 200 pending rows per agent per flush. When all 200 wait,
+  later rows wait behind them; the hub logs a `warn` for that agent at most once a minute.
+
+### Sessions and liveness
+
+A session starts inactive: it keeps the tools but receives nothing until it activates (see
+[getting-started.md](getting-started.md#start-a-session)). Activation is a round trip that proves
+both the NATS leg and the channel push:
+
+1. `session.check` makes the hub generate a code (6 characters, `[A-Z2-9]`, valid 10 minutes; a
+   new check replaces the session's previous code) and send it as a `check` request on the
+   session subject. If nothing answers (no responders or a timeout), `session.check` fails with
+   the likely causes: NATS permissions not updated for plugin 0.2.0, or the channel flag.
+2. The plugin pushes the code into Claude Code as a channel event and acks.
+3. Claude calls `session.activate` with the code (trimmed, any case) and a description.
+
+`session.deactivate` turns the session off and releases everything it owns at once, like a clean
+close; activating again takes none of it back. After a long absence, when `session.hello` answers
+with a new session for a window that was active, the plugin calls `session.check` by itself.
+
+The hub tracks each session as:
+
+- **live:** heartbeating. Only a live, active session is delivered to.
+- **away:** silent for `presence.offlineAfterSeconds`, or a delivery to it failed. It keeps what it
+  owns and its deliveries wait. A heartbeat makes it live again.
+- **closed:** away for `presence.ownershipGraceMinutes`, or after `session.bye`. Its threads are
+  released. A `session.hello` that names it in `previousSessionId` reclaims the released threads
+  nobody else took.
+
+### Routing
+
+The first rule that matches decides. Each decision is logged with its reason.
+
+1. **The owner** of the thread (`owns thread`), of its parent thread (`owns parent thread`) or of
+   its task's thread (`owns task`). If that session is live and active, the message goes there. If
+   it is inactive or away, the message waits (`held for s-… (inactive|away)`) and is not rerouted,
+   so an inactive session that asked a question still gets its answer. A closed owner is ignored.
+2. **The session the sender picked** (`toSession`), if live and active (`picked by sender`).
+3. **An active session in the message's repo** (`in repo …`): the sender's `repo`, else the task's.
+4. **The longest-active session** (`longest-active session`).
+5. **Otherwise it waits** in the hub (`no active session`) for the next session the human
+   activates, and `inbox` shows it.
+
+Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits), and
+when a delivery lands by rules 1 (parent or task), 2, 3 or 4. The first owner keeps the work:
+another session's action goes through, with a note saying where replies will go. Ownership moves
+only through `session.take`, or is released when the owner deactivates or closes. `take`, `bye`,
+`deactivate` and an expiry that closes sessions kick the outbox, so freed work moves at once.
+
+The `unreadThreads` count in the hello result is per agent, not per session. A new session is
+inactive, so the plugin never pushes it at startup; its instructions only mention the count.
+
 ## Messages
 
 Every delivered message is a `MeshMessage`: `id`, `threadId`, `kind` (`ask`, `reply`,
 `broadcast`, `task`, `review`, `plan`, `escalation`, `event`, `system`), `from`
 `{ id, kind, displayName }`, `to`, `subject`, `body`, `status`, `trust` (`team` or `external`),
 `depth`, `refs` (`taskId`, `planId`, `round`, `prUrl`, `verdict`, `eventId`, `action`,
-`replyTo`), `createdAt`.
+`replyTo`, `repo`, `session`), `createdAt`.
+
+Bodies are redacted and capped at `limits.maxBodyChars`. A participant post over the cap is
+refused; a system or hub post (for example a rendered ingest notice) is clipped with a note.
 
 ## Activity feed events
 

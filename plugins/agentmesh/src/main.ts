@@ -5,8 +5,9 @@ import { buildInstructions } from './instructions';
 import { runJoinCli } from './join/cli';
 import { callJoinTool, JOIN_TOOL, joinToolListing } from './join/tool';
 import { createMcpServer, type ToolHandler, VERSION } from './server';
-import { openSession, startSession } from './session';
+import { openSession, type Session, startSession } from './session';
 import { meshToolHandler } from './tools/registry';
+import type { ToolDeps } from './tools/types';
 
 const CHANNEL_READY_MS = 2000;
 
@@ -49,8 +50,8 @@ async function runConfigured(config: PluginConfig, logger: Logger): Promise<void
     hello: session.hello,
     problems: [],
   });
-  const handler = meshToolHandler({ hub: session.hub, agentId: config.agentId });
   const server = createMcpServer(instructions, () => handler);
+  const handler = meshToolHandler(toolDeps(session, config.agentId));
   // Claude Code subscribes to channel notifications just after the handshake and silently
   // drops earlier ones, so queued messages would be acked into the void at startup.
   server.oninitialized = () => {
@@ -92,7 +93,7 @@ async function runUnenrolled(logger: Logger): Promise<void> {
       );
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
-    handler = meshToolHandler({ hub: session.hub, agentId });
+    handler = meshToolHandler(toolDeps(session, agentId));
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => undefined);
     logger.info({ agent: agentId, version: VERSION }, 'joined the mesh');
@@ -100,6 +101,10 @@ async function runUnenrolled(logger: Logger): Promise<void> {
 
   await server.connect(new StdioServerTransport());
   logger.info({ version: VERSION }, 'agentmesh plugin waiting for join');
+}
+
+function toolDeps(session: Session, agentId: string): ToolDeps {
+  return { hub: session.hub, agentId, activation: session.activation };
 }
 
 /** Exits when Claude Code closes stdin, on signals, or if orphaned. */

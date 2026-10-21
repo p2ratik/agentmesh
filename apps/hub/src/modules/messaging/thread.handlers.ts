@@ -18,7 +18,7 @@ function listParticipant(requested: string | undefined, actor: Actor): string | 
 
 export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers {
   return {
-    /** The team is trusted: anyone may read any thread. Reading advances a participant's cursor. */
+    /** The team is trusted: anyone may read any thread. Reading advances a participant's cursor, unless another session owns the thread. */
     'thread.get': (params, call) => {
       const threadId = internalId('thread', params.threadId);
       const thread = messaging.thread(threadId);
@@ -31,7 +31,11 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       }
       const rows = messaging.messages.recent(thread.id, params.limit, beforeSeq);
       const last = rows.at(-1);
-      if (last) messaging.reads.advance(thread.id, call.actor.id, last.seq);
+      // A session that does not own the thread only looks; the owner has not seen it yet.
+      const owner = messaging.ownerOf(thread.id, call.actor.id);
+      const mayMarkRead =
+        call.session === null || owner === null || owner.sessionId === call.session;
+      if (last && mayMarkRead) messaging.reads.advance(thread.id, call.actor.id, last.seq);
       return {
         thread: messaging.summary(thread.id),
         messages: rows.map((row) => messaging.toMessage(row)),
@@ -55,6 +59,6 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       return messaging.closeThread(threadId, call.actor.id);
     },
     'inbox.get': (params, call) =>
-      readInbox(messaging, call.actor.id, params.limit, params.perThread),
+      readInbox(messaging, call.actor.id, call.session, params.limit, params.perThread),
   };
 }

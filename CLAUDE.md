@@ -51,9 +51,9 @@ file is gitignored and is never committed.
 
 - **Ask a peer.** Pratik's Claude, working on the API, asks Sagar's Claude
   (`ask to:sagar-agent`) whether the web client handles a new status code.
-  - Sagar's laptop is offline, so the message waits in his durable inbox.
-  - When Sagar starts Claude Code, it is delivered as a channel event, and his agent replies in
-    the same thread.
+  - Sagar's laptop is offline, so the message waits in the hub's outbox.
+  - When Sagar starts Claude Code and activates a session, it is delivered to that session as a
+    channel event, and his agent replies in the same thread.
   - Discord `#mesh-council` shows the whole thread. Each agent posts under its own name and
     avatar, with a `→ recipient` line.
 - **Create and route a task.** Someone runs `/task create area:security …` in Discord.
@@ -85,9 +85,9 @@ file is gitignored and is never committed.
  Laptop (each teammate)                    Hub VM (docker compose)                 Discord
 ┌───────────────────────────┐   TLS     ┌──────────────────────────────┐        ┌───────────┐
 │ Claude Code                │  nkey    │ NATS JetStream (:4222)       │        │ #council  │
-│  └ agentmesh plugin (MCP   │◄────────►│  {P}_DELIVERY  inbox-{agent} │        │ #tasks    │
+│  └ agentmesh plugin (MCP   │◄────────►│  {p}.session.{agent}.{id}    │        │ #tasks    │
 │    stdio + claude/channel) │          │  {P}_EVENTS    feed-{svc}    │        │ #reviews  │
-│    21 tools, inbox push,   │          │  {P}_INGEST    hub-ingest    │        │ #planning │
+│    25 tools, session push, │          │  {P}_INGEST    hub-ingest    │        │ #planning │
 │    presence heartbeat      │          │  {p}.rpc.{caller}.{method}   │        │ #escalate │
 └───────────────────────────┘          │                              │        │ #events   │
                                         │ Hub (Node, modular monolith) │        │ #alerts   │
@@ -100,18 +100,21 @@ file is gitignored and is never committed.
                                         └──────────────────────────────┘
 ```
 
-- **Local-first.** Agents run only on laptops. NATS JetStream queues messages for offline agents
-  (workqueue stream, one durable consumer per agent). Nothing runs Claude in the cloud.
+- **Local-first.** Agents run only on laptops. Messages for an offline agent wait in the hub's
+  SQLite outbox; the hub delivers them per session over NATS request/ack (ADR 0006). Nothing runs
+  Claude in the cloud.
 - **Hub is the single writer.**
   - Clients call `{p}.rpc.{caller}.{method}`. NATS permissions guarantee the caller id.
   - The router does auth, actAs (only bridges, for configured humans), roles, zod validation and
     idempotency.
   - State changes and the messages they emit commit in one SQLite transaction (outbox). A
-    publisher drains the outbox to JetStream.
+    publisher drains the outbox: agent deliveries go to one session each, feed events to
+    JetStream.
 - **Plugin** (`plugins/agentmesh`):
   - An MCP stdio server declaring the `claude/channel` capability. It pushes
-    `notifications/claude/channel` for inbox messages (coalesced, de-duplicated) and exposes tools
-    such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
+    `notifications/claude/channel` for the messages the hub delivers to its session (coalesced,
+    de-duplicated, acked only after the push). A session is inactive until `/agentmesh:activate`.
+    It exposes tools such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
   - Bundled into `dist/server.js`, which is committed so marketplace installs need no build.
 - **Discord bridge** (`apps/discord-bridge`):
   - Pure renderers turn feed events into `PostIntent`s; an executor performs them with
@@ -192,13 +195,13 @@ Run `pnpm check` before calling anything done.
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
-- **Plugin:** 21 tools, plus `/agentmesh:join` and an unenrolled mode.
+- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take` and an unenrolled mode.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
   commands, buttons, echo guard, `/mesh invite|uninvite|remove`.
 - **CLI.**
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config.
-- **Docs, ADRs 0001–0005, CI.**
+- **Docs, ADRs 0001–0006, CI.**
 
 **Tested and passing:**
 - **Unit tests (about 215):** workflow engine, transitions, routing, leases overlap, planning rounds
@@ -277,8 +280,9 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   commit it. Bump the version in `plugin.json`, `package.json` and `src/server.ts` (`VERSION`):
   Claude Code caches plugins by version, so `claude plugin update` ignores same-version changes.
 - Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with
-  the channel flag, and pushes sent before it subscribes. The handshake doesn't reveal either
-  case. The hub's unread cursor and the `inbox` tool are the source of truth.
+  the channel flag, and the handshake doesn't reveal it. That is why a session receives nothing
+  until `/agentmesh:activate` proves a push arrives, and why the plugin acks only after pushing.
+  The hub's unread cursor and the `inbox` tool are the source of truth.
 - MCP server instructions are truncated at 4096 characters. Keep session state first, and keep
   the test in `instructions.test.ts`.
 - Git: the default branch is `main`. Agents work on `agent/*` branches and merge into `agents`.

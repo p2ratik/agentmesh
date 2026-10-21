@@ -1,8 +1,18 @@
 import { MeshError } from '@agentmesh/common';
-import type { ParticipantKind, PeerInfo, PresenceStatus } from '@agentmesh/protocol';
+import type {
+  ParticipantKind,
+  PeerInfo,
+  PresenceStatus,
+  SessionSummary,
+} from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { PresenceService } from '../../contracts';
-import { type DeclaredStatus, ParticipantsRepo, type PresenceFields } from './participants.repo';
+import {
+  type DeclaredStatus,
+  type ParticipantRow,
+  ParticipantsRepo,
+  type PresenceFields,
+} from './participants.repo';
 import {
   configuredParticipants,
   hubDisplayName,
@@ -20,6 +30,7 @@ export class PresenceServiceImpl implements PresenceService {
   readonly #ctx: HubContext;
   readonly #repo: ParticipantsRepo;
   #load: () => Map<string, number> = () => new Map();
+  #sessions: (agentId: string) => SessionSummary[] = () => [];
 
   constructor(ctx: HubContext) {
     this.#ctx = ctx;
@@ -64,7 +75,7 @@ export class PresenceServiceImpl implements PresenceService {
   peer(participantId: string): PeerInfo {
     const row = this.#repo.get(participantId);
     if (!row) throw new MeshError('not_found', `Participant ${participantId} not found`);
-    return toPeerInfo(row, this.#ctx.index, this.#load().get(participantId) ?? 0);
+    return this.#toPeer(row, this.#load());
   }
 
   /** `all` means the team (agents and humans); pass `service` for services. */
@@ -74,7 +85,7 @@ export class PresenceServiceImpl implements PresenceService {
       kind === 'all'
         ? this.#repo.list(null).filter((r) => r.kind !== 'service')
         : this.#repo.list(kind);
-    return rows.map((row) => toPeerInfo(row, this.#ctx.index, load.get(row.id) ?? 0));
+    return rows.map((row) => this.#toPeer(row, load));
   }
 
   lastAssignedAt(participantId: string): string | null {
@@ -87,6 +98,15 @@ export class PresenceServiceImpl implements PresenceService {
 
   setLoadReader(reader: () => Map<string, number>): void {
     this.#load = reader;
+  }
+
+  setSessionReader(reader: (agentId: string) => SessionSummary[]): void {
+    this.#sessions = reader;
+  }
+
+  #toPeer(row: ParticipantRow, load: Map<string, number>): PeerInfo {
+    const sessions = row.kind === 'agent' ? this.#sessions(row.id) : [];
+    return toPeerInfo(row, this.#ctx.index, load.get(row.id) ?? 0, sessions);
   }
 
   /** Tick: participants silent for longer than `presence.offlineAfterSeconds` go offline. */

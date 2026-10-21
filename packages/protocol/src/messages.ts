@@ -39,6 +39,9 @@ export const MessageRefs = z.object({
   eventId: z.string().optional(),
   action: z.string().optional(),
   verdict: z.string().optional(),
+  repo: z.string().max(200).optional(),
+  /** The sender's pick of the recipient session. */
+  session: z.string().optional(),
 });
 export type MessageRefs = z.infer<typeof MessageRefs>;
 

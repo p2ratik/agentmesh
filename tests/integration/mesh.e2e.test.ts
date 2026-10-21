@@ -3,7 +3,7 @@ import { createLogger } from '@agentmesh/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
-import { type Agent, PLUGIN, spawnAgent, untilConnected } from './support';
+import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './support';
 
 /**
  * Real NATS (no auth) + real hub + the bundled plugin over MCP stdio.
@@ -41,6 +41,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('mesh end to end over NATS', () =>
     expect(await untilConnected(() => alice.call('peers', { kind: 'agent' }))).toMatch(
       /bob-agent .* online/,
     );
+    await Promise.all([activate(alice, 'render api'), activate(bob, 'web client')]);
     const sent = await alice.call('ask', { to: 'bob-agent', text: 'Is the render API ready?' });
     const threadId = /thr-\d+/.exec(sent)?.[0] ?? '';
     const asked = await bob.waitFor((e) => e.meta.thread_id === threadId);
@@ -54,13 +55,14 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('mesh end to end over NATS', () =>
     expect(answer.content).toBe('Yes, ship it.');
   }, 60_000);
 
-  it('queues messages for an offline teammate and delivers them on connect', async () => {
+  it('queues messages for an offline teammate until one of its sessions activates', async () => {
     const [alice] = agents;
     if (!alice) throw new Error('first test must run');
     await alice.call('ask', { to: 'carol-agent', text: 'Can you review the queue PR when back?' });
     await new Promise((r) => setTimeout(r, 1500));
     const carol = await spawn('carol-agent');
     agents.push(carol);
+    await activate(carol, 'queue');
     const queued = await carol.waitFor((e) => e.content.includes('review the queue PR'));
     expect(queued.meta.from).toBe('alice-agent');
   }, 60_000);

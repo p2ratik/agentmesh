@@ -25,7 +25,6 @@ export const LimitsConfig = z.object({
   perSenderPerDay: z.number().int().positive().default(500),
   dedupWindowSeconds: z.number().int().nonnegative().default(120),
   maxBodyChars: z.number().int().positive().default(32_000),
-  deliveryRetentionDays: z.number().int().positive().default(14),
 });
 export type LimitsConfig = z.infer<typeof LimitsConfig>;
 
@@ -70,4 +69,6 @@ export const EnrollmentConfig = z.object({
 export const PresenceConfig = z.object({
   heartbeatSeconds: z.number().int().min(5).default(20),
   offlineAfterSeconds: z.number().int().min(10).default(75),
+  /** How long a silent (away) session keeps its threads before they are released. */
+  ownershipGraceMinutes: z.number().int().min(1).default(120),
 });

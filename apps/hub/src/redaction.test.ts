@@ -48,6 +48,8 @@ const call = (actor: Actor, method: CallContext['method']): CallContext => ({
   actor,
   caller: actor,
   method,
+  session: null,
+  notes: [],
 });
 
 const expectMasked = (text: string | null | undefined) => {

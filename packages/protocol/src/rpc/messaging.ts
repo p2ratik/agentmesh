@@ -26,6 +26,8 @@ export const messagingMethods = {
         status: ReplyStatus.optional(),
         prUrl: z.string().max(500).optional(),
         taskId: z.string().optional(),
+        toSession: z.string().optional(),
+        repo: z.string().max(200).optional(),
       })
       .refine((p) => p.to !== undefined || p.threadId !== undefined, {
         message: 'Pass `to` to start a thread or `threadId` to reply in one.',
@@ -76,6 +78,16 @@ export const messagingMethods = {
         }),
       ),
       remainingThreads: z.number().int().nonnegative(),
+      /** Unread threads owned by the agent's other sessions (left unread here), for `take`. */
+      otherSessions: z
+        .array(
+          z.object({
+            threadId: z.string(),
+            sessionId: z.string(),
+            liveness: z.enum(['live', 'away']),
+          }),
+        )
+        .default([]),
     }),
   }),
   'thread.close': defineMethod({

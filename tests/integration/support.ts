@@ -1,4 +1,6 @@
 import { join } from 'node:path';
+import type { RpcClient } from '@agentmesh/bus';
+import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -78,6 +80,31 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
       throw new Error(`${env.agentId}: no matching channel event; got ${JSON.stringify(events)}`);
     },
   };
+}
+
+/**
+ * Opts the session in the way Claude does after /agentmesh:activate: asks for
+ * a check (retrying until the plugin listens on its session subject), reads the
+ * code the hub pushed, and sends it back with a description.
+ */
+export async function activate(agent: Agent, description: string): Promise<void> {
+  const before = agent.events.length;
+  await untilConnected(() => agent.call('activate', {}));
+  const check = await agent.waitFor(
+    (e) => agent.events.indexOf(e) >= before && e.content.includes('Code:'),
+  );
+  const code = /Code: (\w+)/.exec(check.content)?.[1] ?? '';
+  await agent.call('activate', { code, description });
+}
+
+/** Calls the hub as a fresh session of the client's agent: the hub refuses agent calls without one. */
+export async function callAsSession<M extends RpcMethodName>(
+  rpc: RpcClient,
+  method: M,
+  params: RpcParamsInput<M>,
+): Promise<RpcResult<M>> {
+  const { sessionId } = await rpc.call('session.hello', { clientVersion: '0.2.0' });
+  return rpc.call(method, params, { session: sessionId });
 }
 
 /** Retries a tool call until the hub answers (plugins connect in the background). */

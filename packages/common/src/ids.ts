@@ -19,6 +19,14 @@ export type SequentialKind = 'thread' | 'task' | 'plan';
 export const newMessageId = (): string => `${ID_PREFIX.message}-${ulid()}`;
 export const newEventId = (): string => `${ID_PREFIX.event}-${ulid()}`;
 
+const SESSION_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
+/** Hub-issued session id: `s-` plus 12 random `[a-z0-9]` (matches the protocol's pattern). */
+export function newSessionId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return `s-${Array.from(bytes, (b) => SESSION_ALPHABET[b % SESSION_ALPHABET.length]).join('')}`;
+}
+
 export function formatId(kind: SequentialKind, n: number): string {
   return `${ID_PREFIX[kind]}-${n}`;
 }

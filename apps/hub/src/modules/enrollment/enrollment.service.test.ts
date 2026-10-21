@@ -17,22 +17,8 @@ const newKey = () => `U${Array.from(randomBytes(55), (b) => BASE32[b % 32]).join
 
 function setup(enrollment: Record<string, unknown> = { natsUrl: NATS_URL }) {
   const h = createTestHarness(testTeamConfig({ enrollment }));
-  const inboxes = {
-    ensured: [] as string[],
-    removed: [] as string[],
-    fail: false,
-    during: () => {},
-  };
   let changes = 0;
   const service = new EnrollmentServiceImpl(h.ctx, {
-    inboxes: {
-      ensure: async (id) => {
-        if (inboxes.fail) throw new Error('nats down');
-        inboxes.during();
-        inboxes.ensured.push(id);
-      },
-      remove: async (id) => void inboxes.removed.push(id),
-    },
     onMembersChanged: () => {
       changes += 1;
     },
@@ -47,7 +33,7 @@ function setup(enrollment: Record<string, unknown> = { natsUrl: NATS_URL }) {
     await h.outbox.flush();
     return h.ports.events.map((e) => e.type);
   };
-  return { ...h, service, inboxes, invite, redeemCode, events, changes: () => changes };
+  return { ...h, service, invite, redeemCode, events, changes: () => changes };
 }
 
 const code = (error: unknown) => (error as MeshError).code;
@@ -165,7 +151,7 @@ describe('cancelling invites', () => {
 });
 
 describe('enrollment redemption', () => {
-  it('joins atomically: member, inbox, event, and the index resolves the agent at once', async () => {
+  it('joins atomically: member, event, and the index resolves the agent at once', async () => {
     const s = setup();
     expect(() => resolveCaller(s.ctx.index, 'dana-agent')).toThrowError(/Unknown participant/);
     const nkey = newKey();
@@ -173,7 +159,6 @@ describe('enrollment redemption', () => {
     expect(member).toMatchObject({ agentId: 'dana-agent', nkey, status: 'active' });
     expect(resolveCaller(s.ctx.index, 'dana-agent')).toMatchObject({ kind: 'agent' });
     expect(s.ctx.index.agent('dana-agent')?.nkey).toBe(nkey);
-    expect(s.inboxes.ensured).toEqual(['dana-agent']);
     expect(await s.events()).toContain('member.joined');
     expect(s.changes()).toBe(1);
   });
@@ -210,29 +195,10 @@ describe('enrollment redemption', () => {
     });
     expect(s.service.list().map((m) => m.humanId)).toEqual(['fay']);
   });
-
-  it('refuses an invite cancelled while its inbox was being created', async () => {
-    const s = setup();
-    const { code: invite, inviteId } = s.invite();
-    s.inboxes.during = () => void s.service.cancelInvite({ inviteId }, ALICE);
-    await expect(s.redeemCode(invite)).rejects.toMatchObject({ code: 'unauthenticated' });
-    expect(s.service.list()).toEqual([]);
-    expect(await s.events()).toEqual([]);
-  });
-
-  it('keeps the invite unused when the inbox cannot be created, so a retry works', async () => {
-    const s = setup();
-    const { code: invite } = s.invite();
-    s.inboxes.fail = true;
-    await expect(s.redeemCode(invite)).rejects.toThrowError('nats down');
-    expect(s.ctx.index.agent('dana-agent')).toBeUndefined();
-    s.inboxes.fail = false;
-    await expect(s.redeemCode(invite)).resolves.toMatchObject({ agentId: 'dana-agent' });
-  });
 });
 
 describe('enrollment removal', () => {
-  it('revokes the member, drops their inbox and stops resolving them', async () => {
+  it('revokes the member and stops resolving them', async () => {
     const s = setup();
     await s.redeemCode(s.invite().code);
     expect(await s.service.remove('dana', ALICE)).toEqual({
@@ -240,7 +206,6 @@ describe('enrollment removal', () => {
       agentIds: ['dana-agent'],
     });
     expect(() => resolveCaller(s.ctx.index, 'dana-agent')).toThrowError(/Unknown participant/);
-    expect(s.inboxes.removed).toEqual(['dana-agent']);
     expect(await s.events()).toEqual(['member.joined', 'member.removed']);
     expect(s.service.list()[0]).toMatchObject({ status: 'revoked' });
     expect(await s.service.remove('dana', ALICE)).toEqual({ removed: false, agentIds: [] });
