@@ -1,6 +1,6 @@
 import type { NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
-import { parseTokenAfter, subjects } from '@agentmesh/protocol';
+import { parseTokenAfter, SessionId, subjects } from '@agentmesh/protocol';
 import { z } from 'zod';
 import type { PresenceService } from '../../contracts';
 
@@ -10,13 +10,15 @@ export type Subscription = ReturnType<NatsConnection['subscribe']>;
 const Heartbeat = z.object({
   repo: z.string().max(300).optional(),
   branch: z.string().max(300).optional(),
-  session: z.string().max(64).optional(),
+  /** A subject token when the hub answers `expired`, so only a hub-issued id. */
+  session: SessionId.optional(),
 });
 export type Heartbeat = z.infer<typeof Heartbeat>;
 
 /**
  * Parses a heartbeat: `{p}.presence.{id}` with an optional JSON body
- * `{ repo?, branch? }`. An empty body is a plain heartbeat; malformed ones yield null.
+ * `{ repo?, branch?, session? }`. An empty body is a plain heartbeat; malformed ones
+ * (a session that is not a hub-issued id included) yield null.
  */
 export function parseHeartbeat(
   prefix: string,
