@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DeclaredStatus, GitPolicy, PeerInfo } from '../primitives';
+import { SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
 export const sessionMethods = {
@@ -24,6 +25,34 @@ export const sessionMethods = {
     callers: ['agent', 'service'],
     params: z.object({}),
     result: z.object({ ok: z.literal(true) }),
+  }),
+  'session.activate': defineMethod({
+    description: 'Make this session the one that receives work, with a short description.',
+    callers: ['agent'],
+    params: z.object({ description: z.string().min(1).max(200) }),
+    result: SessionView,
+  }),
+  'session.deactivate': defineMethod({
+    description: 'Stop receiving work in this session.',
+    callers: ['agent'],
+    params: z.object({}),
+    result: SessionView,
+  }),
+  'session.describe': defineMethod({
+    description: 'Change this session description.',
+    callers: ['agent'],
+    params: z.object({ description: z.string().min(1).max(200) }),
+    result: SessionView,
+  }),
+  'session.take': defineMethod({
+    description: 'Take over a thread or task from the session that owns it.',
+    callers: ['agent'],
+    params: z
+      .object({ threadId: z.string().optional(), taskId: z.string().optional() })
+      .refine((p) => (p.threadId === undefined) !== (p.taskId === undefined), {
+        message: 'Pass exactly one of `threadId` and `taskId`.',
+      }),
+    result: z.object({ threadId: z.string(), previousSession: z.string().nullable() }),
   }),
   'presence.set': defineMethod({
     description: 'Declare your status (online, busy, away) with an optional note.',

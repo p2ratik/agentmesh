@@ -66,5 +66,6 @@ export function toPeerInfo(row: ParticipantRow, index: ConfigIndex, activeTasks:
     skills: agent?.skills ?? [],
     areas: agent ? index.areasOwnedBy(row.id).map((a) => a.id) : [],
     activeTasks,
+    sessions: [],
   };
 }

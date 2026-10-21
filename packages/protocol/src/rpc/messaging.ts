@@ -26,6 +26,8 @@ export const messagingMethods = {
         status: ReplyStatus.optional(),
         prUrl: z.string().max(500).optional(),
         taskId: z.string().optional(),
+        toSession: z.string().optional(),
+        repo: z.string().max(200).optional(),
       })
       .refine((p) => p.to !== undefined || p.threadId !== undefined, {
         message: 'Pass `to` to start a thread or `threadId` to reply in one.',

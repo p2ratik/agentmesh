@@ -6,5 +6,6 @@ export * from './messages';
 export * from './planning';
 export * from './primitives';
 export * from './rpc';
+export * from './sessions';
 export * from './subjects';
 export * from './tasks';

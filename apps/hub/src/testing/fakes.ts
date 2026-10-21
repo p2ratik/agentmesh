@@ -170,6 +170,7 @@ export class FakePresence implements PresenceService {
       skills: agent?.skills ?? [],
       areas: this.#index.areasOwnedBy(id).map((a) => a.id),
       activeTasks: this.#load().get(id) ?? 0,
+      sessions: [],
     };
   }
   peers(): PeerInfo[] {

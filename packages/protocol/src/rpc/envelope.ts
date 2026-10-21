@@ -10,9 +10,11 @@ export const RpcRequestEnvelope = z.object({
   actAs: z.string().optional(),
   /** Retrying a request with the same key returns the original result. */
   idempotencyKey: z.string().min(1).max(120).optional(),
+  /** Calling session id; the hub validates it against the caller's live sessions. */
+  session: z.string().max(64).optional(),
 });
 export type RpcRequestEnvelope = z.infer<typeof RpcRequestEnvelope>;
 
 export type RpcResponseEnvelope<T = unknown> =
-  | { ok: true; result: T }
+  | { ok: true; result: T; notes?: string[] }
   | { ok: false; error: ErrorPayload };

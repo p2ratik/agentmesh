@@ -17,6 +17,7 @@ function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'
       skills: [],
       areas: [],
       activeTasks: 0,
+      sessions: [],
     },
     mesh: { name: 'acme', prefix: 'mesh' },
     policy: {

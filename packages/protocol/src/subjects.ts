@@ -22,6 +22,10 @@ export interface Subjects {
   eventAll: string;
   ingest(source: string): string;
   ingestAll: string;
+  session(agentId: string, sessionId: string): string;
+  sessionAll(agentId: string): string;
+  ack(agentId: string, token: string): string;
+  ackAll(agentId: string): string;
 }
 
 export function subjects(prefix: string): Subjects {
@@ -38,6 +42,10 @@ export function subjects(prefix: string): Subjects {
     eventAll: `${prefix}.evt.>`,
     ingest: (source) => `${prefix}.ingest.${source}`,
     ingestAll: `${prefix}.ingest.>`,
+    session: (agentId, sessionId) => `${prefix}.session.${agentId}.${sessionId}`,
+    sessionAll: (agentId) => `${prefix}.session.${agentId}.*`,
+    ack: (agentId, token) => `${prefix}.ack.${agentId}.${token}`,
+    ackAll: (agentId) => `${prefix}.ack.${agentId}.>`,
   };
 }
 
