@@ -11,8 +11,9 @@ const MASK_MARGIN = 4096;
  * expressions, so a template can never execute anything. Missing values
  * render as empty strings; objects render as (truncated) JSON.
  *
- * Values are filled in raw: whatever shows the text masks it whole (`post()`
- * the body, the rule action the subject and title, the bridge every post).
+ * Values are filled in raw: whatever shows or cuts the text masks it whole
+ * first (`post()` the body, the rule action the subject, title and notify
+ * text, the bridge every post).
  * Only an object is cut here, so its JSON is masked before the cut, unless
  * `redact: false`: throttle keys are never shown, and masked they would merge
  * (every secret's ARN would share one).

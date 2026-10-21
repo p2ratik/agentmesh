@@ -136,9 +136,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
   session and are refused with the same update instruction, so the refusal shows in tool errors.
 - **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
   cannot aim at a session it was not shown.
-- **External content.** A hub-posted body (such as a rendered ingest notice) is clipped to
-  `limits.maxBodyChars`. An ingest `notify` clips the rendered event text first, leaving room for
-  the footer that tells Claude to treat the text as data, so the footer always survives. The
+- **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then
+  clipped to `limits.maxBodyChars`. An ingest `notify` masks and clips the rendered event text
+  first, leaving room for the footer that tells Claude to treat the text as data, so the footer
+  always survives (see [Secrets in messages](#secrets-in-messages): mask before any cut). The
   message's `trust: external` flag is unaffected, and the plugin sets the push's `trust` meta from
   that flag.
 
@@ -199,8 +200,9 @@ pattern, so nothing downstream (the bridge included) could catch it. The code th
 
 Templates (`{{ path }}` in rules, `post_notice` in workflows) fill values in raw, and their text
 is masked as a whole wherever it is shown:
-- `post()` masks notify bodies;
-- the rule action masks subjects and titles;
+- `post()` masks every body before its size cap;
+- the rule action masks subjects and titles, and a notify's text before it clips it to leave room
+  for the external-content footer;
 - the bridge masks every notice.
 
 Masking each value on its own was tried and dropped. A private key split across values (the lines

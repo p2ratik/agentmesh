@@ -1,3 +1,4 @@
+import { redactSecrets } from '@agentmesh/common';
 import type { RuleAction } from '@agentmesh/config';
 import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
@@ -53,14 +54,15 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
       createdBy: messaging.hubId,
       participants: recipients,
     });
-    // Clipped here, so the post's own cap never cuts the footer that marks it as data.
+    // Clipped here, so the post's own cap never cuts the footer that marks it as data; masked
+    // before the clip, as a cut token no longer matches.
     const footer = externalFooter(event);
     const room = deps.ctx.loaded.config.limits.maxBodyChars - footer.length;
     messaging.post({
       threadId: thread.id,
       senderId: messaging.hubId,
       kind: 'event',
-      body: `${clipBody(render(action.notify.text), room)}${footer}`,
+      body: `${clipBody(redactSecrets(render(action.notify.text)), room)}${footer}`,
       trust: 'external',
       system: true,
       refs: { eventId: event.id },
