@@ -59,6 +59,17 @@ describe('planning sessions', () => {
     expect(s.ports.events.map((e) => e.type)).toContain('plan.started');
   });
 
+  it('starting a plan as an agent sends it no invite; a human starter still invites every agent', async () => {
+    const byAgent = setup();
+    byAgent.planning.start({ topic: 'Render status end to end' }, agent('alice-agent'));
+    const inbox = await byAgent.drain();
+    expect(inbox.get('alice-agent')).toBeUndefined();
+    for (const id of ['bob-agent', 'carol-agent']) expect(inbox.get(id)).toHaveLength(1);
+    const byHuman = setup();
+    byHuman.planning.start({ topic: 'Render status end to end' }, alice);
+    expect((await byHuman.drain()).get('alice-agent')).toHaveLength(1);
+  });
+
   it('a round prompt reaches every participant as action, including the one whose contribution opened it', async () => {
     const s = setup();
     s.planning.start({ topic: 'Render status end to end' }, alice);
