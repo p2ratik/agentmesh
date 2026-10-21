@@ -25,7 +25,6 @@ export const LimitsConfig = z.object({
   perSenderPerDay: z.number().int().positive().default(500),
   dedupWindowSeconds: z.number().int().nonnegative().default(120),
   maxBodyChars: z.number().int().positive().default(32_000),
-  deliveryRetentionDays: z.number().int().positive().default(14),
 });
 export type LimitsConfig = z.infer<typeof LimitsConfig>;
 
