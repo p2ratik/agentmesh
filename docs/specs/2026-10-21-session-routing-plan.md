@@ -433,6 +433,13 @@ export interface SessionsService {
 - The router builds `call` as `{ actor, caller, method, session: ctx.session ?? null, notes:
   ctx.notes ?? [] }`. Pass the same array, so notes added by handlers or `recordClaims` reach the
   response.
+- **Atomic claims.**
+  - For a method whose `claimTargets` can be non-empty, the router runs the handler and
+    `recordClaims` inside one `deps.transaction(() => …)`. `RouterDeps` gains `transaction<T>(fn:
+    () => T): T`, wired to `ctx.db.transaction`; nested handler transactions become savepoints.
+  - So the action and the ownership it creates commit together, or not at all.
+  - Every claiming handler is synchronous today. If one ever returns a promise, the router throws
+    `internal`, and a test pins that.
 - `activate` and `describe` store `redactSecrets(description)`. Import it from
   `modules/messaging/redact`, which is already shared.
 
@@ -458,6 +465,8 @@ export interface SessionsService {
     its description and owned task keys.
   - In `apps/hub/src/rpc/router.test.ts`, `router verifies the session and records claims after
     success` uses fake sessions deps.
+  - In the same file, `a failing claim rolls back the action`. A fake `recordClaims` throws after
+    the handler wrote a row through a real test `Db`, and the row is absent afterwards.
 - [ ] **Step 2:** Run `pnpm vitest run apps/hub/src/modules/sessions apps/hub/src/rpc`. Expected:
   fail.
 - [ ] **Step 3:** Implement. Keep `sessions.service.ts` under 300 lines: liveness goes to Task 5's
@@ -521,12 +530,17 @@ export interface SessionsService {
   - `apps/hub/src/modules/sessions/dispatcher.test.ts`.
 - Modify:
   - `apps/hub/src/ports.ts`: `DeliveryPort.deliver(recipientId: string, messages: MeshMessage[]):
-    Promise<string[]>` returns the delivered ids. `MemoryPorts` records each message and returns
-    every id.
+    Promise<DeliveryReceipt>`, where `DeliveryReceipt = { delivered: string[]; commit?: () =>
+    void }`.
+    - `commit` holds the follow-up database writes for the delivered messages. It is synchronous,
+      DB only, and runs inside the outbox's transaction.
+    - `MemoryPorts` records each message and returns `{ delivered: every id }`.
   - `apps/hub/src/core/outbox.ts`: group pending rows by recipient, oldest first, and call
     `deliver` once per recipient. Run the recipients concurrently with `Promise.allSettled`, so one
     slow or dead session never delays another agent's messages.
-    - Mark returned ids published.
+    - In one `db.transaction`, mark the returned ids published and run `receipt.commit?.()`. If
+      that throws, nothing is marked and the rows are retried. The plugin drops the redelivered ids
+      it already pushed.
     - Leave the rest pending, without incrementing `attempts`.
     - On a throw, increment `attempts` and record `last_error`.
     - Remove the per-recipient blocking; per-thread order is now the dispatcher's job.
@@ -554,7 +568,7 @@ export interface SessionTransport {
 }
 export class SessionDispatcher implements DeliveryPort {
   constructor(deps: { sessions: SessionsService; messaging: MessagingService; transport: SessionTransport; logger: Logger });
-  deliver(agentId: string, messages: MeshMessage[]): Promise<string[]>;
+  deliver(agentId: string, messages: MeshMessage[]): Promise<DeliveryReceipt>;
 }
 ```
 
@@ -567,10 +581,12 @@ export class SessionDispatcher implements DeliveryPort {
    `Promise.allSettled`. For each session:
    - On a throw: `sessions.unreachable(sessionId)`, log `warn` with the session id and reason
      (never message bodies), and skip.
-   - On success: `delivered(...)` for each acked message, then
-     `messaging.markRead(agentId, acked)`.
+   - On success, collect the acked messages with their routes. Write nothing yet.
 5. Log each routing decision at `debug` as `{ agent, message, session, reason }`.
-6. Return every acked id.
+6. Return `{ delivered: ackedIds, commit }`. `commit` calls `sessions.delivered(...)` for each acked
+   message, which claims ownership when `route.claim`, then `messaging.markRead(agentId, ackedIds)`.
+   - The outbox runs `commit` in the same transaction that marks the rows published.
+   - So "delivered", "read" and "owned" are one atomic step: there is no dual write.
 
 - [ ] **Step 1: Write the failing tests** in `dispatcher.test.ts`. Use `createServiceHarness`, the
   real sessions module and `FakeTransport`, which records sends and can ack a subset or throw:
@@ -595,6 +611,9 @@ export class SessionDispatcher implements DeliveryPort {
   - `routing survives a hub restart`: build a second `SessionsServiceImpl` over the same `ctx.db`,
     and `route` for the next message in thr-1 still returns s1.
   - `outbox.test.ts`: `returned ids are published and the rest stay pending`.
+  - `outbox.test.ts`: `a failing commit marks nothing and retries`. When `commit` throws, the rows
+    stay pending and the read cursor and owner are unchanged. The next flush delivers again, and
+    the second `commit` succeeds.
 - [ ] **Step 2:** Run `pnpm vitest run apps/hub/src/modules/sessions apps/hub/src/core`. Expected:
   fail.
 - [ ] **Step 3:** Implement.
@@ -863,6 +882,15 @@ never stop another nats-server process.
     `{p}.ack.{agent}.>`.
   - The `{P}_DELIVERY` stream is removed.
 - **Consequences:**
+  - The transactional outbox is kept end to end, so there is no dual write:
+    - **Producer side:** the state change and its deliveries and events commit in one SQLite
+      transaction, as before.
+    - **Consumer side:** "published", "read" and "owned" commit in one transaction after the
+      plugin's ack.
+    - **Claims:** an RPC's action and the ownership it creates commit in one transaction.
+  - Delivery is at-least-once. A hub crash between the plugin's push and the commit redelivers;
+    the plugin drops ids it already pushed. Only a plugin restart in that same window can show a
+    message twice. Nothing is lost.
   - Delivery needs the hub up; it always did for RPCs.
   - Sessions of one agent share NATS permissions.
   - A routing decision is logged with its reason.

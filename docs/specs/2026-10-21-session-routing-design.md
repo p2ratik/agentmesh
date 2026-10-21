@@ -347,6 +347,11 @@ The agent gets a short index and pulls details only when it needs them.
 - **Durability:**
   - The hub's database stays the source of truth.
   - A message routed to a session that dies before showing it is routed again, not dropped.
+  - The transactional outbox (ADR 0004) holds end to end, so there is no dual write:
+    - a state change and its deliveries commit together;
+    - "delivered", "read" and "owned" commit together after the plugin's ack;
+    - an action and the ownership it claims commit together.
+  - Delivery is at-least-once, and the plugin drops ids it already pushed.
   - Pushes stay best-effort, and `inbox` stays authoritative.
 - **Hooks:**
   - They ship in the plugin (`hooks/hooks.json`, commands under `${CLAUDE_PLUGIN_ROOT}`).
