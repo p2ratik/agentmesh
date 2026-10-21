@@ -11,9 +11,12 @@ import { IngestServiceImpl } from './ingest.service';
 
 /** Assembled at runtime so repository secret scanners never flag this file. */
 const TOKEN = ['ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB'].join('');
+const KEY = ['RSA PRIVATE ', 'KEY-----'].join('');
+
+/** A line with the token starting at `at`, so a cut at `at + 20` lands inside the raw token. */
+const tokenAt = (at: number) => `${'a'.repeat(at - 1)} ${TOKEN} and more`;
 
 const alice: Actor = { id: 'alice', kind: 'human', roles: ['admin'] };
-const PER_VALUE = '{{payload.alarm}}: {{summary}}';
 
 function setup() {
   const loaded = testTeamConfig({
@@ -25,9 +28,20 @@ function setup() {
         id: 'rotation',
         match: { source: 'hermes', type: 'secret.rotation' },
         throttle: { key: '{{payload.secret_arn}}', windowMinutes: 30 },
+        actions: [{ notify: { to: 'all-agents', text: '{{summary}}' } }],
+      },
+      {
+        id: 'leak',
+        match: { source: 'hermes', type: 'leak.found' },
         actions: [
-          { notify: { to: 'all-agents', subject: PER_VALUE, text: '{{summary}}' } },
-          { create_task: { title: PER_VALUE } },
+          {
+            notify: {
+              to: 'all-agents',
+              subject: '{{payload.subject}}',
+              text: '{{payload.begin}}\n{{payload.body}}\n{{payload.end}}',
+            },
+          },
+          { create_task: { title: '{{payload.title}}' } },
         ],
       },
       {
@@ -62,25 +76,40 @@ const rotation = (id: string, secret: string): IngestEvent => ({
   type: 'secret.rotation',
   severity: 'error',
   summary: 'Rotation failed for prod-db',
-  payload: {
-    alarm: 'SecretsManagerRotationFailed',
-    secret_arn: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${secret}`,
-  },
+  payload: { secret_arn: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${secret}` },
 });
 
-// Only in the hub and the inbox: where the bridge and post() publish these, they mask the whole
-// title, subject or body again (see docs/security.md).
-describe('the hub keeps a rule’s per-value masking in subjects and titles', () => {
-  it('in a notify subject and a create_task title', async () => {
+const expectMasked = (text: string | undefined) => {
+  expect(text).not.toContain('ghp_');
+  expect(text).toContain('[REDACTED]');
+};
+
+describe('rule actions mask what they build', () => {
+  it('redacts a notify subject and a create_task title whole, before they are cut', async () => {
     const s = setup();
-    await s.ingest.accept('hermes', rotation('r1', 'prod/db-AbCdEf'));
-    // createThread masked the finished subject again: "…Failed: [REDACTED] failed for prod-db".
-    const expected = 'SecretsManagerRotationFailed: Rotation failed for prod-db';
-    const task = s.tasks.get(1, alice);
-    expect(task.title).toBe(expected);
-    expect(s.subject(task.threadId)).toBe(expected);
+    // createThread cuts the subject at 120 characters, and the title is cut at 200: each cut
+    // lands 20 characters into the raw token, too few for it to match afterwards.
+    const payload = { subject: tokenAt(100), title: tokenAt(180) };
+    await s.ingest.accept('hermes', { id: 'l1', type: 'leak.found', severity: 'error', payload });
+    expectMasked(s.messaging.thread(1).subject);
+    expectMasked(s.tasks.get(1, alice).title);
     const notified = (await s.drain()).get('bob-agent') ?? [];
-    expect(notified.map((m) => m.subject)).toContain(expected);
+    expectMasked(notified.find((m) => m.kind === 'event')?.subject);
+  });
+
+  it('masks a private key split across template values in the posted body', async () => {
+    const s = setup();
+    // Masked value by value, the BEGIN line alone became [REDACTED], and post() no longer saw a key.
+    const payload = {
+      begin: `-----BEGIN ${KEY}`,
+      body: 'MIIEowIBAAKCAQEA7',
+      end: `-----END ${KEY}`,
+    };
+    await s.ingest.accept('hermes', { id: 'l2', type: 'leak.found', severity: 'error', payload });
+    const notified = (await s.drain()).get('bob-agent') ?? [];
+    const body = notified.find((m) => m.kind === 'event')?.body;
+    expect(body).toContain('[REDACTED]');
+    expect(body).not.toContain('MIIEowIBAAKCAQEA7');
   });
 
   it('throttles on the raw key, so each secret gets its own alert', async () => {
@@ -102,8 +131,7 @@ describe('the hub keeps a rule’s per-value masking in subjects and titles', ()
     await s.ingest.accept('hermes', { id: 'd1', type, severity: 'info', payload: {} });
     const task = s.tasks.get(1, alice);
     for (const text of [task.title, s.subject(task.threadId), s.messaging.thread(1).subject]) {
-      expect(text).not.toContain('ghp_');
-      expect(text).toContain('[REDACTED]');
+      expectMasked(text);
     }
   });
 });

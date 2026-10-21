@@ -22,16 +22,10 @@ export function redactDeep<T>(value: T): T {
 
 /**
  * The event as the renderers see it: every string masked (`redactDeep`), except
- * - an external event's `payload`, the raw webhook body (up to 1 MB, written by
- *   outsiders). No renderer shows it, so it is dropped rather than scanned;
- * - a notice. The hub fills its template (trusted config) with values it has
- *   already masked. Masking the finished text would match across the two:
- *   `{{alarm}}: {{summary}}` lost the summary's first word after an alarm
- *   named `SecretsManager…`.
- * Pure.
+ * an external event's `payload`, the raw webhook body (up to 1 MB, written by
+ * outsiders). No renderer shows it, so it is dropped rather than scanned. Pure.
  */
 export function maskEvent(event: DomainEvent): DomainEvent {
-  if (event.type === 'notice.posted') return event;
   if (event.type !== 'external.received') return redactDeep(event);
   const external = { ...event.data.event, payload: {} };
   return redactDeep({ ...event, data: { ...event.data, event: external } });

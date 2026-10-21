@@ -57,7 +57,7 @@ never make a post or a transition fail.
 | `release_leases` | Releases leases tied to the task. |
 | `clear_assignee` | Removes the assignee. |
 | `close_thread` | Closes the task's thread after this operation's messages. |
-| `post_notice` | `{ post_notice: { channel, text } }` — posts to a Discord purpose channel. Text placeholders: `{{task.id}}` `{{task.title}}` `{{task.state}}` `{{task.assignee}}` `{{actor}}`; each value passes through secret redaction before it is filled in. |
+| `post_notice` | `{ post_notice: { channel, text } }` — posts to a Discord purpose channel. Text placeholders: `{{task.id}}` `{{task.title}}` `{{task.state}}` `{{task.assignee}}` `{{actor}}`; the bridge passes the finished text through secret redaction before posting it. |
 
 Effects are named built-ins; config validation rejects unknown names. Adding one means adding it
 to `packages/config/src/effects.ts` and implementing it in `apps/hub/src/modules/tasks/effects`.

@@ -79,8 +79,7 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
     member (`authorize`), and `/mesh` admin commands require the admin role.
   - Invite codes go by DM only.
   - Everything the bridge posts is redacted (below) before it reaches Discord, not only mesh
-    messages. There are two exceptions: the template text of a notice (trusted config; the hub
-    masks each value it fills in), and the `/mesh invite` code, which goes untouched into the
+    messages. The one exception is the `/mesh invite` code, which goes untouched into the
     invitee's DM.
 - **Residual risk:** anyone the admin lets into the server sees vulnerability details while they
   are being fixed. A team that shares its server with outsiders should manage its own locked-down
@@ -107,46 +106,24 @@ branches, force-pushes, infrastructure CLIs and secrets on "ask".
 
 The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/OpenAI tokens, Discord
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
-or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
-
-Assignments are read two ways, and the hub masks the union of the values both readings find:
-- **The plain reading** is the original one. A quoted value runs from quote to quote (so a value
-  that ends in a backslash is masked whole). Otherwise the value stops at whitespace, separators
-  and `&`.
-- **The extended reading** also finds:
-  - a quoted value up to its closing quote, past backslash escapes, so a password containing `"`
-    in JSON is masked whole;
-  - an escaped-quote value or key inside a JSON string (`DB_PASSWORD=\"…\"`,
-    `{\"password\":\"…\"}`);
-  - the first word of a value whose quote is never closed (`password="hunter2 more` masks only
-    `hunter2`).
-
-Either reading can swallow an assignment the other finds. After a value that ends in `\`
-(`"C:\dir\" --password="x"`), the extended reading runs on to the next quote. The union masks
-that span, including the next key's name, and the plain reading still finds the next value. So
-the hub never masks less than the plain reading alone. Masking a span can join the text around
-it into a new value, so masking repeats (at most four rounds) until nothing changes. That keeps
-`redactSecrets` idempotent, and the bridge's second pass leaves the hub's text as it is.
-`redact.differential.test.ts` checks both properties, against the plain reading as it shipped
-before, on a corpus and on 20,000 seeded fuzz inputs.
+or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh. The
+hub and the Discord bridge share one redactor, `redactSecrets` in `packages/common`: one pass of
+fast patterns over the whole text.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
-  to 32 KB) and on every value a rule template fills in, which can be as large as an ingest event
-  (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns were
-  unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
+  to 32 KB), including rule notices built from external event text, and the bridge runs it on
+  every notice (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns
+  were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s, stalling the hub.
 - **Mitigation:** every pattern starts at the start of a run of key characters (a lookbehind) and
-  bounds the key to 64 characters on each side of the keyword. The alternatives inside each
-  quoted-value branch never overlap. `redact.test.ts` keeps the 32 KB worst cases under 250 ms,
-  including unclosed and escaped quoted values, Windows paths before keys and JSON inside JSON
-  strings. With both readings and the rounds, they ran in under 10 ms at 32 KB and up to about
-  230 ms at 1 MB when measured on 2026-10-21.
+  bounds the key to 64 characters on each side of the keyword. `redact.test.ts` keeps the 32 KB
+  worst cases under 250 ms; they run in about 1 ms. The 1 MB inputs we measured on 2026-10-21 took
+  up to about 85 ms.
 - **Cost:** a key with more than 64 characters before or after the keyword is no longer
   recognised.
 
-The hub redacts text before it cuts it. A cut token no longer matches its pattern, so nothing
-downstream (the bridge included) could catch it. Text is redacted where it comes in. The code that
-cuts it (`createThread`, `firstLine`, `slugify`) only cuts, because masking finished text breaks
-per-value masking (below). This covers:
+The hub redacts text where it comes in, before anything cuts it. A cut token no longer matches its
+pattern, so nothing downstream (the bridge included) could catch it. The code that cuts
+(`createThread`, `firstLine`, `slugify`) only cuts. This covers:
 - thread subjects: explicit ones (`message.send`), the first line of an ask or an escalation, and
   plan threads (`Plan: <topic>`);
 - task titles, which become thread subjects and branch names. Titles from `task.create`,
@@ -154,48 +131,35 @@ per-value masking (below). This covers:
   redacts the title again before `slugify` cuts it;
 - the one-line note a `request_changes` review leaves on the task's transition;
 - each contribution in a planning round's digest;
-- the `[source] type` fallback subject and title of rule actions;
-- each value a rule template (`{{ path }}`) or a workflow's `post_notice` fills in. An object is
-  masked as its JSON is written, so before it is cut to 500 characters. Each string and each key
-  is masked on its own. The whole value under a key that reads as a secret (`password`,
-  `api_key`, `max_tokens`…) is replaced, whatever its type, unless `redactSecrets` keeps it:
-  `true`, `false`, `null`, empty strings, `${VAR}` and `$VAR` references, `<placeholders>`,
-  dotted names and type words. Writing stops once past the cut, so a wide or deep payload costs
-  little. Measured on 2026-10-21, a 2.9 MB object with 150,000 keys rendered in 34 ms, against
-  1.1 s when the whole tree was masked; 3,000 nested records took under 1 ms, against 96 ms. The
-  finished JSON is not masked, for two reasons: JSON writes a newline as `\n`, which hides a
-  token after it from the patterns, and the unquoted-value pattern would swallow closing braces. The template text is trusted config and is not masked.
-  Masking the finished text would match across the template and a value: `{{alarm}}: {{summary}}`
-  lost the summary's first word after an alarm named `SecretsManager…`.
-  - **Cost:** a keyword in the template, or in a neighbouring value, no longer masks what follows
-    it. `Config drift: {{payload.name}}={{payload.value}}` shows `DB_PASSWORD=hunter2…` as is in
-    a notice. Agents see it the same way in a rule-made task title or thread subject. The same
-    holds inside one object for name/value entries, such as an ECS or Kubernetes
-    `environment: [{ name: 'DB_PASSWORD', value: '…' }]`: neither `name` nor `value` reads as a
-    secret, so the value is shown. Don't template key/value pairs from payloads, or subtrees that
-    hold such entries.
-  - In Discord, per-value masking survives only in notice text. The bridge's `maskEvent` masks
-    rule-made task titles and thread subjects again as whole strings, and `post()` does the same
-    for notify bodies. There, a value with a keyword can still mask the next word
-    (`SecretsManagerRotationFailed: [REDACTED] failed…`). This is deliberate: masking at the point
-    of posting is the safer default, and older rows were never redacted on the way in. Agents get
-    rule-made titles and subjects with per-value masking intact (the inbox `subject`,
-    `task_get`); only bodies are masked again for them.
-  - Throttle keys are rendered raw. They are never posted, and masking would merge keys: every
-    Secrets Manager ARN would share one, so only one alert would fire per window. They are stored
-    in `rule_throttles`, so never throttle on a secret.
+- rule actions. A notify subject and a `create_task` title are redacted whole once their template
+  is filled in, and so is the `[source] type` fallback;
+- object placeholders (`{{payload}}`), which render as JSON cut at 500 characters. The JSON is
+  masked first, up to 4 KB past the cut, so a token that straddles the cut is seen whole: one pass
+  over at most 4.6 KB, whatever the payload's size. If the JSON runs on past that window, the last
+  4 KB of the masked window are never shown, because a token there may be cut in two.
 
-The Discord bridge applies the same redaction (`redactSecrets` in `packages/common`) to
-everything it posts, because the mesh channels are readable by the whole server:
+Templates (`{{ path }}` in rules, `post_notice` in workflows) fill values in raw, and their text
+is masked as a whole wherever it is shown:
+- `post()` masks notify bodies;
+- the rule action masks subjects and titles;
+- the bridge masks every notice.
+
+Masking each value on its own was tried and dropped. A private key split across values (the lines
+of a log, a CloudWatch event's messages) lost its BEGIN line to the mask, so the key body was
+posted in clear.
+
+Throttle keys are rendered raw. They are never posted, and masking would merge keys: every Secrets
+Manager ARN would share one, so only one alert would fire per window. They are stored in
+`rule_throttles`, so never throttle on a secret.
+
+The bridge masks everything it posts, because the mesh channels are readable by the whole server:
 - **Feed posts:** `routeEvent` masks every string in a feed event before any renderer sees it
-  (`maskEvent`). That covers task titles, plan topics, summaries and draft titles, external
-  events, and anything rendered later.
+  (`maskEvent`). That covers task titles, plan topics, summaries and draft titles, notices,
+  external events, and anything rendered later.
   - It masks before rendering, never after. Renderers truncate, and a cut token is no longer
     recognised. They also compose text (`<url>`, `id: title`) that a second pass would mangle.
   - An external event's raw `payload` (the webhook body, up to 1 MB, written by outsiders) is
     dropped first. No renderer shows it, and scanning it would only cost time.
-  - Notices are posted as the hub composed them, from a trusted template and masked values
-    (above).
 - **Replies:** every RPC result is masked before a slash command renders its reply
   (`maskResults`). Hub errors are masked in every reply, including the one to a Discord message
   the hub refused to relay.
@@ -212,6 +176,20 @@ everything it posts, because the mesh channels are readable by the whole server:
   token from the patterns' word-boundary anchors (`deploy failed ghp_…` becomes
   `deploy_failed_ghp_…`). Raw types come from a header or field configured on an authenticated
   source.
+- **Residual risk: what the patterns miss.** These gaps are as old as the redactor. A follow-up
+  task will close them, tested against this redactor from the start:
+  - in JSON text, a quoted secret that contains `"` (`"DB_PASSWORD":"Xy7\"kP9…"`) is masked up to
+    the `\"`, and the rest of it is shown;
+  - a token right after an escaped newline or tab in JSON (`"step failed\nghp_…"`) is not
+    recognised: after `\n` there is no word boundary;
+  - an escaped-quote pair inside a JSON string (`{\"password\":\"…\"}`) is not recognised;
+  - in name/value entries, such as an ECS or Kubernetes
+    `environment: [{ name: 'DB_PASSWORD', value: '…' }]`, neither key reads as a secret, so the
+    value is shown;
+  - the cosmetic cost of masking whole text: a keyword followed by `:` or `=`, in a template, a
+    title or a value, masks the next word (`SecretsManagerRotationFailed: [REDACTED] error
+    rate…`). An unquoted masked value can swallow a closing brace (`"max_tokens":[REDACTED]`), so
+    a masked object may no longer parse as JSON.
 
 ## Secrets in RPC results
 

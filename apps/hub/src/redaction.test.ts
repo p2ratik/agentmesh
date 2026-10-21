@@ -112,8 +112,8 @@ describe('the hub redacts text before it cuts it', () => {
     expectMasked(task.history.find((h) => h.action === 'request_changes')?.note);
   });
 
-  // createThread only cuts (masking the finished subject would undo a rule's per-value masking),
-  // so a title is redacted where it comes in. Its thread subject is the title cut to 120.
+  // createThread only cuts, so a title is redacted where it comes in. Its thread subject is the
+  // title cut to 120.
   it('in a task title from task.create', async () => {
     const s = setup();
     const params = { title: tokenAt(100), description: '', priority: 'normal', labels: [] };

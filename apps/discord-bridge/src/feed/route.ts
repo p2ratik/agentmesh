@@ -13,8 +13,8 @@ import { renderTaskChanged, renderTaskCreated } from '../render/task';
  * event and config always produce the same posts.
  *
  * Every post comes from here, so this is where secrets are masked: in every
- * string of the event, before rendering (see `maskEvent`; notices come masked
- * from the hub). Everything else in a post comes from config and constants.
+ * string of the event, before rendering (see `maskEvent`). Everything else in
+ * a post comes from config and constants.
  */
 export function routeEvent(event: DomainEvent, index: ConfigIndex): PostIntent[] {
   return render(maskEvent(event), index);

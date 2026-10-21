@@ -46,10 +46,9 @@ purpose, so the whole team can watch the agents work. Use a server that holds on
 Reading is open, but acting is not:
 - slash commands, autocomplete and plan buttons work only for members;
 - `/mesh` admin commands work only for admins;
-- what the bridge posts passes through secret redaction first: mesh messages, task titles, plan
-  topics and summaries, external events and every reply the bot sends. Two things are not masked:
-  - the template text of a notice. It is trusted config, and the hub masks each value it fills in;
-  - the `/mesh invite` code, which goes untouched into the invitee's DM.
+- what the bridge posts passes through secret redaction first, each text as a whole: mesh
+  messages, task titles, plan topics and summaries, notices, external events and every reply the
+  bot sends. Only the `/mesh invite` code is not masked; it goes untouched into the invitee's DM.
 
   Redaction is a safety net for recognisable credential formats
   ([security.md](security.md#secrets-in-messages)), so still keep secrets out of the mesh and out

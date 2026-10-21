@@ -153,12 +153,15 @@ describe('routeEvent masks without mangling the post', () => {
     expect(intent?.content).toContain('ci-token-bot: Fix flaky retries');
   });
 
-  it('posts a notice as the hub composed it: the hub masks each template value', () => {
-    // Masking the finished text matched across the alarm name and the summary.
-    const text = '🚨 AWS alarm SecretsManagerRotationFailed: High error rate on api';
+  it('masks a notice as a whole string, so a key split across template values is seen whole', () => {
+    // Masked value by value, the BEGIN line alone became [REDACTED] and the key body posted.
+    const begin = ['-----BEGIN RSA PRIVATE ', 'KEY-----'].join('');
+    const end = ['-----END RSA PRIVATE ', 'KEY-----'].join('');
+    const text = `Leaked in the logs:\n${begin}\nMIIEowIBAAKCAQEA7\n${end}\nand ${TOKEN}`;
     const notice = { channel: 'alerts', text, severity: 'error' };
-    const [intent] = routeEvent(feed('notice.posted', notice), index);
-    expect(intent?.content).toContain(text);
+    const intents = routeEvent(feed('notice.posted', notice), index);
+    expectRedacted(intents);
+    expect(posted(intents)).not.toContain('MIIEowIBAAKCAQEA7');
   });
 
   it('never scans the raw webhook payload, which nothing renders', () => {

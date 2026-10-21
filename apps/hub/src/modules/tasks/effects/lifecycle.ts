@@ -1,4 +1,3 @@
-import { redactSecrets } from '@agentmesh/common';
 import { taskKey } from '../../../core/ids';
 import { dependenciesDoneText } from '../text';
 import { autoAssign } from './assign';
@@ -49,11 +48,7 @@ export const closeThread: Effect = (env, run) => {
   env.op.closeThread(run.task.threadId, env.deps.messaging.hubId);
 };
 
-/**
- * `{ post_notice: { channel, text } }` — text may use {{task.id}} {{task.title}} {{task.state}} {{task.assignee}} {{actor}}.
- * Each value is redacted before it is filled in; the template is trusted config, and the bridge
- * posts notices as they are (masking the finished text would match across template and value).
- */
+/** `{ post_notice: { channel, text } }` — text may use {{task.id}} {{task.title}} {{task.state}} {{task.assignee}} {{actor}}. */
 export const postNotice: Effect = (env, run) => {
   const channel = typeof run.params.channel === 'string' ? run.params.channel : 'events';
   const template =
@@ -67,7 +62,7 @@ export const postNotice: Effect = (env, run) => {
   };
   // Own keys only: `{{constructor}}` would otherwise find a function and fail the transition.
   const text = template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key: string) =>
-    Object.hasOwn(values, key) ? redactSecrets(values[key] ?? '') : '',
+    Object.hasOwn(values, key) ? (values[key] ?? '') : '',
   );
   env.ctx.outbox.enqueueEvent('notice.posted', { channel, text, severity: 'info' });
 };

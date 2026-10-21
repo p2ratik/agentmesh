@@ -24,9 +24,10 @@ export function externalFooter(event: RuleContext): string {
 export function runAction(deps: ActionDeps, action: RuleAction, event: RuleContext): void {
   const render = (template: string | undefined) =>
     template ? renderTemplate(template, event).trim() : '';
-  // The subject and title when a rule sets none. Redacted before createThread cuts it: a
-  // mesh-format event type may be 120 characters long.
-  const fallback = redactSecrets(`[${event.source}] ${event.type}`);
+  // A subject or title (`[source] type` when the rule sets none), redacted whole before it is cut,
+  // at 120 characters by createThread and at 200 here: a cut token no longer matches.
+  const heading = (template: string | undefined) =>
+    redactSecrets(render(template) || `[${event.source}] ${event.type}`);
   if ('notice' in action) {
     deps.ctx.outbox.enqueueEvent('notice.posted', {
       channel: action.notice.channel,
@@ -44,7 +45,7 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
     const { messaging } = deps;
     const thread = messaging.createThread({
       kind: 'event',
-      subject: render(action.notify.subject) || fallback,
+      subject: heading(action.notify.subject),
       createdBy: messaging.hubId,
       participants: recipients,
     });
@@ -63,7 +64,7 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
   const serious = event.severity === 'error' || event.severity === 'critical';
   deps.tasks.create(
     {
-      title: (render(spec.title) || fallback).slice(0, 200),
+      title: heading(spec.title).slice(0, 200),
       description:
         `${render(spec.description) || event.summary || ''}${externalFooter(event)}`.trim(),
       area: render(spec.area) || undefined,

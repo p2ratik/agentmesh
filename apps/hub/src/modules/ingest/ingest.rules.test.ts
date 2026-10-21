@@ -1,3 +1,4 @@
+import { redactSecrets } from '@agentmesh/common';
 import { describe, expect, it } from 'vitest';
 import { conditionHolds, lookup, type RuleContext, ruleMatches, typeMatches } from './rules/match';
 import { renderTemplate } from './rules/template';
@@ -57,97 +58,13 @@ describe('templates', () => {
     expect(renderTemplate('{{ process.exit }}', ctx)).toBe('');
   });
 
-  it('redacts each value before it is filled in and cut, never the finished text', () => {
-    const alarm = {
-      ...ctx,
-      summary: 'High error rate on api',
-      payload: { alarm: 'SecretsManagerRotationFailed' },
-    };
-    // Masking the finished text matched across template and value ("…Failed: [REDACTED] error").
-    expect(renderTemplate('🚨 AWS alarm {{payload.alarm}}: {{summary}}', alarm)).toBe(
-      '🚨 AWS alarm SecretsManagerRotationFailed: High error rate on api',
-    );
-    const leaked = {
-      ...ctx,
-      summary: `deploy with ${TOKEN}`,
-      payload: { log: `${'a'.repeat(479)} ${TOKEN}` },
-    };
-    const summary = renderTemplate('CI: {{summary}}', leaked);
-    expect(summary).toBe('CI: deploy with [REDACTED]');
-    // An object renders as JSON cut at 500 characters: 12 characters into the raw token.
-    const json = renderTemplate('{{payload}}', leaked);
-    expect(json).not.toContain('ghp_');
-    expect(json).toContain('[REDACTED]');
+  it('fills strings in raw: whatever shows the text masks it whole', () => {
+    // Masked value by value, a BEGIN line alone lost the anchor the key pattern needs downstream.
+    const leaked = { ...ctx, summary: `deploy with ${TOKEN}` };
+    expect(renderTemplate('CI: {{summary}}', leaked)).toBe(`CI: deploy with ${TOKEN}`);
   });
 
-  // An object is masked before it becomes JSON: JSON writes a newline as `\n`, so in the JSON a
-  // token after one no longer starts a word, in a value or in a key.
-  it('redacts the strings and the keys inside an object', () => {
-    const payload = { log: `step failed\n${TOKEN}`, steps: [{ out: `\t${TOKEN}` }] };
-    const json = renderTemplate('{{payload}}', { ...ctx, payload });
-    expect(json).toBe('{"log":"step failed\\n[REDACTED]","steps":[{"out":"\\t[REDACTED]"}]}');
-    const keyed = { [`note\n${TOKEN}`]: 1, [TOKEN]: 2 };
-    expect(renderTemplate('{{payload}}', { ...ctx, payload: keyed })).toBe(
-      '{"note\\n[REDACTED]":1,"[REDACTED]":2}',
-    );
-  });
-
-  it('redacts the whole value under a secret-looking key, unless it reads as a non-secret', () => {
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: a literal env reference, kept as is
-    const ref = '${API_TOKEN}';
-    const env = {
-      DB_PASSWORD: 'Xy7"kP9-qL2mZ8wR4tN6',
-      auth_token: { id: 7 },
-      use_token: true,
-      password: null,
-      api_token: ref,
-    };
-    expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
-      `{"DB_PASSWORD":"[REDACTED]","auth_token":"[REDACTED]","use_token":true,"password":null,"api_token":"${ref}"}`,
-    );
-  });
-
-  it('tests a value with its JSON quoting, so a leading quote or comma is seen', () => {
-    // As `password="Xy7…` and `api_key=,abc…`, the second was not recognised.
-    const env = { password: '"Xy7kP9qL2', api_key: ',abc123def' };
-    expect(renderTemplate('{{payload}}', { ...ctx, payload: env })).toBe(
-      '{"password":"[REDACTED]","api_key":"[REDACTED]"}',
-    );
-  });
-
-  it('keeps the JSON well-formed, and a non-secret parent intact', () => {
-    // Masking the finished JSON swallowed the `}` after a number: {"a":{"max_tokens":[REDACTED],"b":1}
-    const payload = { a: { max_tokens: 1024 }, b: 1 };
-    const json = renderTemplate('{{payload}}', { ...ctx, payload });
-    expect(JSON.parse(json)).toEqual({ a: { max_tokens: '[REDACTED]' }, b: 1 });
-    // Testing `repo={"name":"acme","has_token":false}` read `false}` as repo's secret.
-    const repo = { repo: { name: 'acme', has_token: false } };
-    expect(renderTemplate('{{payload}}', { ...ctx, payload: repo })).toBe(JSON.stringify(repo));
-  });
-
-  it('masks only what it shows of a deep or wide payload', () => {
-    const timed = (payload: unknown) => {
-      const started = performance.now();
-      const json = renderTemplate('{{payload}}', { ...ctx, payload });
-      return { json, ms: performance.now() - started };
-    };
-    // Testing each key against its stringified subtree scanned each byte once per ancestor.
-    let deep: unknown = {};
-    for (let i = 0; i < 900; i++) deep = { s: 'x'.repeat(1_100), c: deep };
-    expect(timed(deep).ms).toBeLessThan(100);
-    // Masking every key of a wide payload took half a second, to show its first 500 characters.
-    const wide = Object.fromEntries(Array.from({ length: 60_000 }, (_, i) => [`key${i}`, 'v']));
-    const { json, ms } = timed(wide);
-    expect(ms).toBeLessThan(100);
-    expect(json.startsWith('{"key0":"v","key1":"v"')).toBe(true);
-    expect(json.endsWith('…')).toBe(true);
-    // Recursing through every level overflowed the stack, and the rule action was dropped.
-    let deeper: unknown = {};
-    for (let i = 0; i < 10_000; i++) deeper = [deeper];
-    expect(() => renderTemplate('{{payload}}', { ...ctx, payload: deeper })).not.toThrow();
-  });
-
-  it('redacts an object before cutting it', () => {
+  it('masks an object before cutting it', () => {
     // The 500-character cut lands 20 characters into the token, too few to match afterwards.
     const payload = { pad: 'a'.repeat(463), log: TOKEN };
     const cut = renderTemplate('{{payload}}', { ...ctx, payload });
@@ -155,8 +72,35 @@ describe('templates', () => {
     expect(cut).toContain('"log":"[REDACTED]"');
   });
 
-  it('renders raw with redact: false, for text that is never shown', () => {
-    const leaked = { ...ctx, summary: `deploy with ${TOKEN}` };
-    expect(renderTemplate('{{summary}}', leaked, { redact: false })).toBe(`deploy with ${TOKEN}`);
+  it('never shows the end of the masked window, where a token may be cut', () => {
+    // Masking the 4.4 KB key shortened the window so much that the 500-character cut fell after
+    // the token the window's end cuts in two.
+    const key = ['RSA PRIVATE ', 'KEY-----'].join('');
+    const pem = `-----BEGIN ${key}${'M'.repeat(4_300)}-----END ${key}`;
+    const head = JSON.stringify({ a: pem, b: '' }).length - 2;
+    const windowEnd = 500 + 4_096;
+    const payload = { a: pem, b: `${'a'.repeat(windowEnd - 21 - head)} ${TOKEN}` };
+    // Masked whole, the token is recognised: the leak comes only from the window.
+    expect(redactSecrets(JSON.stringify(payload))).not.toContain('ghp_');
+    const json = renderTemplate('{{payload}}', { ...ctx, payload });
+    expect(json).not.toContain('ghp_');
+    expect(json).not.toContain('MMMM');
+  });
+
+  it('masks only what it can show of a 1 MB payload', () => {
+    // Masked whole, this took 85 ms per placeholder to show 500 characters.
+    const payload = { log: 'token=x '.repeat(125_000) };
+    const started = performance.now();
+    const json = renderTemplate('{{payload}}', { ...ctx, payload });
+    expect(performance.now() - started).toBeLessThan(50);
+    expect(json.startsWith('{"log":"token=[REDACTED] token=[REDACTED]')).toBe(true);
+  });
+
+  it('renders an object raw with redact: false, for throttle keys', () => {
+    const payload = { log: TOKEN };
+    expect(renderTemplate('{{payload}}', { ...ctx, payload }, { redact: false })).toBe(
+      JSON.stringify(payload),
+    );
+    expect(renderTemplate('{{payload}}', { ...ctx, payload })).toBe('{"log":"[REDACTED]"}');
   });
 });

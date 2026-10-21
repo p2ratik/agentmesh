@@ -13,8 +13,8 @@ const taskId = (raw: string) => internalId('task', raw);
 /**
  * RPC surface of the task module: protocol ids in, protocol shapes out.
  * Titles are redacted here, where they come in: the thread subject and the
- * branch name cut them, and a cut token no longer matches. (Rules pass titles
- * already masked per value, so `tasks.create` itself must not mask again.)
+ * branch name cut them, and a cut token no longer matches. (Rules redact their
+ * titles in their own action, before cutting them.)
  */
 export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
   return {
