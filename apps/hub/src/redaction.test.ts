@@ -15,6 +15,7 @@ import { createServiceHarness } from './testing/services';
 
 /** Assembled at runtime so repository secret scanners never flag this file. */
 const TOKEN = ['ghp', '_', '0123456789abcdefghijklmnopqrstuvwxyzAB'].join('');
+const ARN = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf';
 
 /**
  * A line with the token starting at `at`. Each test picks `at` so the hub's cut
@@ -122,6 +123,18 @@ describe('the hub redacts text before it cuts it', () => {
       call(alice, 'task.create'),
     );
     expectMasked(s.messaging.thread(internalId('thread', task.threadId)).subject);
+  });
+
+  it('keeps the settings and ARNs a task title names: only credentials are masked', async () => {
+    const s = setup();
+    const title = `Use max_tokens: 1024 to rotate ${ARN}`;
+    const params = { title, description: '', priority: 'normal', labels: [] };
+    const task = await s.taskRpc['task.create'](
+      { ...params, dependsOn: [] } as RpcParams<'task.create'>,
+      call(alice, 'task.create'),
+    );
+    expect(task.title).toBe(title);
+    expect(s.messaging.thread(internalId('thread', task.threadId)).subject).toBe(title);
   });
 
   it('in a review task title from review.request', async () => {

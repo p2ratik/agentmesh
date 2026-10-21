@@ -164,6 +164,19 @@ describe('routeEvent masks without mangling the post', () => {
     expect(posted(intents)).not.toContain('MIIEowIBAAKCAQEA7');
   });
 
+  it('keeps the settings and ARNs a task title or a notice names: only credentials are masked', () => {
+    const arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf';
+    const title = `Use max_tokens: 1024 to rotate ${arn}`;
+    const notice = { channel: 'alerts', text: `Rotation failed for ${arn}`, severity: 'error' };
+    const text = posted([
+      ...routeEvent(feed('task.created', { task: task(title) }), index),
+      ...routeEvent(feed('notice.posted', notice), index),
+    ]);
+    expect(text).toContain(title);
+    expect(text).toContain(`Rotation failed for ${arn}`);
+    expect(text).not.toContain('[REDACTED]');
+  });
+
   it('never scans the raw webhook payload, which nothing renders', () => {
     // Outsiders write payloads (up to 1 MB). Masking reads every property, so this throws if it runs.
     const payload = {

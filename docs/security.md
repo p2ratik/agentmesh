@@ -110,6 +110,16 @@ or forwarding a message. It is a safety net, not a licence: never send secrets o
 hub and the Discord bridge share one redactor, `redactSecrets` in `packages/common`: one pass of
 fast patterns over the whole text.
 
+Only credentials are masked: `Use max_tokens: 1024` reaches agents as written. In an assignment
+whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers of
+up to 10 characters (counts, limits, durations, also as `1024}` or `1024)`), plain settings
+(`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`, `required`/`optional`, `bearer`/`basic`),
+type names, env references, placeholders and AWS ARNs (`secret_arn: arn:aws:secretsmanager:…`, which
+names a secret but is not one). Numbers stay masked under a password, `otp` or `mfa` name (PINs and
+one-time codes).
+- **Cost:** a digit-only secret of 10 characters or fewer under a `token`, `secret` or `api_key`
+  name is shown; longer digit-only keys and session tokens are masked.
+
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB), including rule notices built from external event text, and the bridge runs it on
   every notice (up to 1 MB of external text). Before 2026-10-20 the `key=value` and JWT patterns
@@ -190,8 +200,9 @@ The bridge masks everything it posts, because the mesh channels are readable by 
     value is shown;
   - the cosmetic cost of masking whole text: a keyword followed by `:` or `=`, in a template, a
     title or a value, masks the next word (`SecretsManagerRotationFailed: [REDACTED] error
-    rate…`). An unquoted masked value can swallow a closing brace (`"max_tokens":[REDACTED]`), so
-    a masked object may no longer parse as JSON.
+    rate…`). An unquoted masked value can swallow a closing brace: `{"secret_scanning":true}`
+    becomes `{"secret_scanning":[REDACTED]`, so a masked object may no longer parse as JSON. Short
+    numbers keep their brace (`"max_tokens":1024}`); plain words do not yet.
 
 ## Secrets in RPC results
 
