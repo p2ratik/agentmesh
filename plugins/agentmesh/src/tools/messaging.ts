@@ -125,19 +125,24 @@ export const messagingTools = [
   defineTool({
     name: 'inbox',
     description:
-      'Unread messages from every thread you are in, newest first; marks them read. Call at session start and after compaction.',
+      'Unread messages from every thread you are in, newest first; marks them read. Once this session is active, call it at session start and after compaction.',
     input: z.object({ limit: z.number().int().min(1).max(50).optional() }),
     mutating: false,
     run: async (args, { hub }) => {
       const r = await hub.call('inbox.get', { limit: args.limit ?? 10, perThread: 5 });
-      if (r.threads.length === 0 && r.otherSessions === 0) return 'Inbox zero — nothing unread.';
+      const others = r.otherSessions;
+      if (r.threads.length === 0 && others.length === 0) return 'Inbox zero — nothing unread.';
       const parts = r.threads.map(
         (t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`,
       );
       if (r.remainingThreads > 0)
         parts.push(`(${r.remainingThreads} more thread(s) unread — call inbox again)`);
-      if (r.otherSessions > 0)
-        parts.push(`(${r.otherSessions} unread thread(s) belong to your other sessions)`);
+      if (others.length > 0) {
+        const owned = others.map((o) => `${o.threadId} (${o.sessionId}, ${o.liveness})`);
+        parts.push(
+          `(${others.length} unread thread(s) belong to your other sessions: ${owned.join(', ')})`,
+        );
+      }
       return parts.join('\n\n====\n\n');
     },
   }),

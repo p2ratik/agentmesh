@@ -94,6 +94,20 @@ describe('tool registry', () => {
     ]);
   });
 
+  it('inbox names the unread threads other sessions own, so the human can take them', async () => {
+    const otherSessions = [
+      { threadId: 'thr-4', sessionId: 's-aaaaaaaaaaaa', liveness: 'away' },
+      { threadId: 'thr-9', sessionId: 's-bbbbbbbbbbbb', liveness: 'live' },
+    ];
+    const inbox = (others: unknown[]) =>
+      fakeHub({ 'inbox.get': { threads: [], remainingThreads: 0, otherSessions: others } }).deps;
+    expect(text(await callTool('inbox', {}, inbox(otherSessions)))).toBe(
+      '(2 unread thread(s) belong to your other sessions: thr-4 (s-aaaaaaaaaaaa, away), ' +
+        'thr-9 (s-bbbbbbbbbbbb, live))',
+    );
+    expect(text(await callTool('inbox', {}, inbox([])))).toBe('Inbox zero — nothing unread.');
+  });
+
   it('tool results end with hub notes', async () => {
     const note = 'thr-2 belongs to your session s-bbbbbbbbbbbb (“billing”); its messages go there.';
     const { deps } = fakeHub({ 'message.send': sent }, { 'message.send': [note] });

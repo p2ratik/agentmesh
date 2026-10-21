@@ -93,9 +93,13 @@ export function buildModules(
     transport: nats.sessionTransport ?? null,
   });
   sessions = sessionsModule.service;
-  messaging.service.setOwnerReader((threadId, agentId) =>
-    sessionsModule.service.ownerOf(threadId, agentId),
-  );
+  messaging.service.setOwnerReader((threadId, agentId) => {
+    const sessionId = sessionsModule.service.ownerOf(threadId, agentId);
+    if (sessionId === null) return null;
+    // Owners are never closed: closing a session releases what it owns.
+    const away = sessionsModule.service.verify(agentId, sessionId).liveness === 'away';
+    return { sessionId, liveness: away ? 'away' : 'live' };
+  });
   presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
   const leases = createLeaseModule(ctx);
   const taskModule = createTaskModule(ctx, {

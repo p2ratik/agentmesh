@@ -194,7 +194,13 @@ export interface MessagingService {
   /** Whether the participant's read cursor is at or past the message (seen through inbox or thread). */
   isRead(participantId: string, messageId: string): boolean;
   /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
-  setOwnerReader(reader: (threadId: number, agentId: string) => string | null): void;
+  setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
+}
+
+/** The session that owns an agent's side of a thread (owners are never closed). */
+export interface ThreadOwner {
+  sessionId: string;
+  liveness: 'live' | 'away';
 }
 
 // ---------------------------------------------------------------- leases

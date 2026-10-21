@@ -1,6 +1,6 @@
 import { HOUR_MS } from '@agentmesh/common';
 import { describe, expect, it } from 'vitest';
-import type { CallContext } from '../../contracts';
+import type { CallContext, ThreadOwner } from '../../contracts';
 import { leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { postLimitViolation } from './limits';
@@ -145,7 +145,7 @@ describe('MessagingService', () => {
 describe('read state with sessions', () => {
   const setup = () => {
     const h = createServiceHarness();
-    const owners = new Map<number, string>();
+    const owners = new Map<number, ThreadOwner>();
     h.messaging.setOwnerReader((threadId) => owners.get(threadId) ?? null);
     const handlers = threadHandlers(h.messaging as MessagingServiceImpl);
     const bob = { id: 'bob-agent', kind: 'agent' as const, roles: [] };
@@ -182,7 +182,7 @@ describe('read state with sessions', () => {
     const { h, owners, handlers, call, thread, ask } = setup();
     const t = thread();
     ask(t.id, 'one');
-    owners.set(t.id, 'ses_1');
+    owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
     const params = { threadId: h.messaging.summary(t.id).id, limit: 30 };
     await handlers['thread.get'](params, call('ses_2'));
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
@@ -190,19 +190,21 @@ describe('read state with sessions', () => {
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
-  it("the inbox shows this session's and unowned threads and counts the rest", async () => {
+  it("the inbox shows this session's and unowned threads and names the rest", async () => {
     const { h, owners, handlers, call, thread, ask } = setup();
     const [mine, theirs, free] = [thread(), thread(), thread()] as const;
     for (const t of [mine, theirs, free]) ask(t.id, 'hi');
-    owners.set(mine.id, 'ses_1');
-    owners.set(theirs.id, 'ses_2');
+    owners.set(mine.id, { sessionId: 'ses_1', liveness: 'live' });
+    owners.set(theirs.id, { sessionId: 'ses_2', liveness: 'away' });
     const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
     const id = (t: { id: number }) => h.messaging.summary(t.id).id;
     expect(inbox.threads.map((x) => x.thread.id).sort()).toEqual([id(mine), id(free)].sort());
-    expect(inbox.otherSessions).toBe(1);
+    expect(inbox.otherSessions).toEqual([
+      { threadId: id(theirs), sessionId: 'ses_2', liveness: 'away' },
+    ]);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
     const all = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call(null));
     expect(all.threads).toHaveLength(1);
-    expect(all.otherSessions).toBe(0);
+    expect(all.otherSessions).toEqual([]);
   });
 });

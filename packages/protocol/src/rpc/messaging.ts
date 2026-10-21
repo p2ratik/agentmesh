@@ -78,8 +78,16 @@ export const messagingMethods = {
         }),
       ),
       remainingThreads: z.number().int().nonnegative(),
-      /** Unread threads owned by the agent's other sessions (left unread here). */
-      otherSessions: z.number().int().nonnegative().default(0),
+      /** Unread threads owned by the agent's other sessions (left unread here), for `take`. */
+      otherSessions: z
+        .array(
+          z.object({
+            threadId: z.string(),
+            sessionId: z.string(),
+            liveness: z.enum(['live', 'away']),
+          }),
+        )
+        .default([]),
     }),
   }),
   'thread.close': defineMethod({

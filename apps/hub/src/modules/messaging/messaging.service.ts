@@ -8,6 +8,7 @@ import type {
   PostInput,
   PostResult,
   PresenceService,
+  ThreadOwner,
   ThreadRecord,
 } from '../../contracts';
 import { threadKey } from '../../core/ids';
@@ -36,7 +37,7 @@ export class MessagingServiceImpl implements MessagingService {
   readonly messages: MessagesRepo;
   readonly reads: ReadsRepo;
   readonly #post: PostContext;
-  #ownerOf: (threadId: number, agentId: string) => string | null = () => null;
+  #ownerOf: (threadId: number, agentId: string) => ThreadOwner | null = () => null;
 
   constructor(ctx: HubContext, deps: MessagingDeps) {
     this.ctx = ctx;
@@ -162,12 +163,12 @@ export class MessagingServiceImpl implements MessagingService {
     return at !== undefined && cursor !== null && at.seq <= cursor;
   }
 
-  setOwnerReader(reader: (threadId: number, agentId: string) => string | null): void {
+  setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void {
     this.#ownerOf = reader;
   }
 
   /** The session that owns the agent's side of a thread; null when nobody does. */
-  ownerOf(threadId: number, agentId: string): string | null {
+  ownerOf(threadId: number, agentId: string): ThreadOwner | null {
     return this.#ownerOf(threadId, agentId);
   }
 

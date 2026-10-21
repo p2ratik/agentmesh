@@ -33,7 +33,8 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       const last = rows.at(-1);
       // A session that does not own the thread only looks; the owner has not seen it yet.
       const owner = messaging.ownerOf(thread.id, call.actor.id);
-      const mayMarkRead = call.session === null || owner === null || owner === call.session;
+      const mayMarkRead =
+        call.session === null || owner === null || owner.sessionId === call.session;
       if (last && mayMarkRead) messaging.reads.advance(thread.id, call.actor.id, last.seq);
       return {
         thread: messaging.summary(thread.id),
