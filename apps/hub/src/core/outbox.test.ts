@@ -147,6 +147,21 @@ describe('SqliteOutbox', () => {
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
+  it('stores each row’s class and thread, and hands the class over with the message', async () => {
+    const h = createTestHarness();
+    h.outbox.enqueueDelivery(message('msg-1'), 'bob-agent', false, 'status');
+    h.outbox.enqueueDelivery(message('msg-2'), 'bob-agent', false);
+    expect(h.ctx.db.all('SELECT message_id, class, thread_key FROM deliveries')).toEqual([
+      { message_id: 'msg-1', class: 'status', thread_key: 'thr-1' },
+      { message_id: 'msg-2', class: 'action', thread_key: 'thr-1' },
+    ]);
+    await h.outbox.flush();
+    expect(h.ports.deliveredTo('bob-agent').map((m) => [m.id, m.class])).toEqual([
+      ['msg-1', 'status'],
+      ['msg-2', 'action'],
+    ]);
+  });
+
   it('holds deliveries until released', async () => {
     const { outbox, ports } = createTestHarness();
     outbox.enqueueDelivery(message('msg-1'), 'bob-agent', true);

@@ -1,5 +1,5 @@
 import type { MessageKind, ReplyStatus, Trust } from '@agentmesh/protocol';
-import type { Db } from '../../db/database';
+import { type Db, fromJson } from '../../db/database';
 
 /** A stored message joined with its thread's subject. */
 export interface MessageRow {
@@ -29,6 +29,8 @@ export interface NewMessage {
   trust: Trust;
   depth: number;
   recipients: string;
+  /** JSON array of the recipients for whom the message is status, not action. */
+  statusFor: string;
   refs: string;
   at: string;
 }
@@ -48,9 +50,9 @@ export class MessagesRepo {
   insert(m: NewMessage): number {
     return this.#db.run(
       `INSERT INTO messages (id, thread_id, sender_id, kind, body, body_hash, status, trust, depth,
-         recipients, refs, created_at)
+         recipients, status_for, refs, created_at)
        VALUES ($id, $threadId, $senderId, $kind, $body, $bodyHash, $status, $trust, $depth,
-         $recipients, $refs, $at)`,
+         $recipients, $statusFor, $refs, $at)`,
       { ...m },
     ).lastInsertRowid;
   }
@@ -64,6 +66,15 @@ export class MessagesRepo {
       'SELECT thread_id AS threadId, seq FROM messages WHERE id = $messageId',
       { messageId },
     );
+  }
+
+  /** The recipients for whom the message is status; empty for an unknown id. */
+  statusFor(messageId: string): string[] {
+    const row = this.#db.get<{ status_for: string }>(
+      'SELECT status_for FROM messages WHERE id = $messageId',
+      { messageId },
+    );
+    return fromJson<string[]>(row?.status_for, []);
   }
 
   seqOf(threadId: number, messageId: string): number | undefined {

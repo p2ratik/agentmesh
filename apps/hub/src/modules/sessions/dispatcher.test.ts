@@ -1,4 +1,4 @@
-import type { MeshMessage, MessageRefs } from '@agentmesh/protocol';
+import type { MessageRefs, SessionDelivery } from '@agentmesh/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { createDispatchHarness } from '../../testing/services';
 import { readInbox } from '../messaging/inbox';
@@ -21,9 +21,12 @@ function setup() {
       participants: ['bob-agent'],
     }).id;
   let n = 0;
-  const ask = (threadId: number, refs: MessageRefs = {}): MeshMessage =>
-    h.messaging.post({ threadId, senderId: 'alice-agent', kind: 'ask', body: `q${++n}`, refs })
-      .message;
+  /** Posts an ask; returns it as the outbox hands it over. */
+  const ask = (threadId: number, refs: MessageRefs = {}): SessionDelivery => ({
+    ...h.messaging.post({ threadId, senderId: 'alice-agent', kind: 'ask', body: `q${++n}`, refs })
+      .message,
+    class: 'action',
+  });
   const pending = () =>
     h.ctx.db
       .all<{ message_id: string }>(

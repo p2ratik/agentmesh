@@ -1,6 +1,13 @@
 import { newMessageId } from '@agentmesh/common';
 import type { ConfigIndex } from '@agentmesh/config';
-import type { MeshMessage, PeerInfo, PresenceStatus, ThreadSummary } from '@agentmesh/protocol';
+import type {
+  DeliveryClass,
+  MeshMessage,
+  PeerInfo,
+  PresenceStatus,
+  SessionDelivery,
+  ThreadSummary,
+} from '@agentmesh/protocol';
 import type {
   CreateThreadInput,
   LeaseService,
@@ -124,6 +131,11 @@ export class FakeMessaging implements MessagingService {
     return false;
   }
 
+  classFor(messageId: string, participantId: string): DeliveryClass {
+    const cls = this.posts.find((p) => p.message.id === messageId)?.deliveryClass;
+    return typeof cls === 'function' ? cls(participantId) : (cls ?? 'action');
+  }
+
   setOwnerReader(): void {}
 
   /** Messages delivered to one participant, in order. */
@@ -202,7 +214,7 @@ export class FakeTransport implements SessionTransport {
   readonly sends: Array<{ agentId: string; sessionId: string; ids: string[] }> = [];
   readonly checks: Array<{ agentId: string; sessionId: string; code: string }> = [];
   /** Per session: ack a subset, reject, or hand back a promise the test settles. */
-  readonly respond = new Map<string, (messages: MeshMessage[]) => Promise<string[]>>();
+  readonly respond = new Map<string, (messages: SessionDelivery[]) => Promise<string[]>>();
   /** Set to make every check fail, as when nobody listens on the session subject. */
   checkError: Error | null = null;
 
@@ -211,7 +223,7 @@ export class FakeTransport implements SessionTransport {
     if (this.checkError) throw this.checkError;
   }
 
-  send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
+  send(agentId: string, sessionId: string, messages: SessionDelivery[]): Promise<string[]> {
     this.sends.push({ agentId, sessionId, ids: messages.map((m) => m.id) });
     const respond = this.respond.get(sessionId);
     return respond ? respond(messages) : Promise.resolve(messages.map((m) => m.id));

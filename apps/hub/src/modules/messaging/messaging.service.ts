@@ -1,5 +1,10 @@
 import { MeshError } from '@agentmesh/common';
-import type { MeshMessage, ParticipantRef, ThreadSummary } from '@agentmesh/protocol';
+import type {
+  DeliveryClass,
+  MeshMessage,
+  ParticipantRef,
+  ThreadSummary,
+} from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type {
   ControlService,
@@ -161,6 +166,11 @@ export class MessagingServiceImpl implements MessagingService {
     const at = this.messages.position(messageId);
     const cursor = at ? this.reads.cursor(at.threadId, participantId) : null;
     return at !== undefined && cursor !== null && at.seq <= cursor;
+  }
+
+  /** `status` when the message was stored as status for this participant; `action` otherwise. */
+  classFor(messageId: string, participantId: string): DeliveryClass {
+    return this.messages.statusFor(messageId).includes(participantId) ? 'status' : 'action';
   }
 
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void {

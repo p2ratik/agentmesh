@@ -1,9 +1,11 @@
 import { type Clock, type Logger, newEventId } from '@agentmesh/common';
 import type {
+  DeliveryClass,
   DomainEvent,
   DomainEventData,
   DomainEventType,
   MeshMessage,
+  SessionDelivery,
 } from '@agentmesh/protocol';
 import type { Outbox } from '../contracts';
 import type { Db } from '../db/database';
@@ -13,6 +15,7 @@ interface DeliveryRow {
   message_id: string;
   recipient_id: string;
   payload: string;
+  class: DeliveryClass;
 }
 
 interface EventRow {
@@ -32,8 +35,8 @@ const STARVED_WARN_MS = 60_000;
  * window is plan 2 work.
  */
 const PENDING_DELIVERIES = `
-  SELECT message_id, recipient_id, payload FROM (
-    SELECT message_id, recipient_id, payload, created_at, rowid AS seq,
+  SELECT message_id, recipient_id, payload, class FROM (
+    SELECT message_id, recipient_id, payload, class, created_at, rowid AS seq,
       ROW_NUMBER() OVER (PARTITION BY recipient_id ORDER BY created_at, rowid) AS n
     FROM deliveries WHERE state = 'pending')
   WHERE n <= ${BATCH} ORDER BY created_at, seq`;
@@ -67,15 +70,25 @@ export class SqliteOutbox implements Outbox {
     this.#events = events;
   }
 
-  enqueueDelivery(message: MeshMessage, recipientId: string, held: boolean): void {
+  /** `cls` is the message's class for this recipient: `action` (the default) or `status`. */
+  enqueueDelivery(
+    message: MeshMessage,
+    recipientId: string,
+    held: boolean,
+    cls: DeliveryClass = 'action',
+  ): void {
+    const delivery: SessionDelivery = { ...message, class: cls };
     this.#db.run(
-      `INSERT OR IGNORE INTO deliveries (message_id, recipient_id, payload, state, created_at)
-       VALUES ($messageId, $recipientId, $payload, $state, $at)`,
+      `INSERT OR IGNORE INTO deliveries
+         (message_id, recipient_id, payload, state, class, thread_key, created_at)
+       VALUES ($messageId, $recipientId, $payload, $state, $class, $threadKey, $at)`,
       {
         messageId: message.id,
         recipientId,
-        payload: JSON.stringify(message),
+        payload: JSON.stringify(delivery),
         state: held ? 'held' : 'pending',
+        class: cls,
+        threadKey: message.threadId,
         at: this.#clock.now().toISOString(),
       },
     );
@@ -163,7 +176,13 @@ export class SqliteOutbox implements Outbox {
   /** Returns whether more rows may be ready behind this batch. A batch that only waits must not spin. */
   async #deliverTo(recipientId: string, rows: DeliveryRow[]): Promise<boolean> {
     try {
-      const messages = rows.map((row) => JSON.parse(row.payload) as MeshMessage);
+      // The row's class column also covers rows queued before payloads carried one.
+      const messages = rows.map(
+        (row): SessionDelivery => ({
+          ...(JSON.parse(row.payload) as MeshMessage),
+          class: row.class,
+        }),
+      );
       const receipt = await this.#delivery.deliver(recipientId, messages);
       const at = this.#clock.now().toISOString();
       this.#db.transaction(() => {

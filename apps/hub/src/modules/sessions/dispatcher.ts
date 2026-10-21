@@ -1,12 +1,12 @@
 import type { Logger } from '@agentmesh/common';
-import type { MeshMessage } from '@agentmesh/protocol';
+import type { SessionDelivery } from '@agentmesh/protocol';
 import type { MessagingService, SessionsService } from '../../contracts';
 import type { DeliveryPort, DeliveryReceipt } from '../../ports';
 import type { Route } from './routing';
 
 export interface SessionTransport {
   /** Hands messages to one session; resolves with the ids it pushed into Claude Code. */
-  send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]>;
+  send(agentId: string, sessionId: string, messages: SessionDelivery[]): Promise<string[]>;
   /** Tells a plugin its session is gone so it says hello again. */
   expired(agentId: string, sessionId: string): void;
   /** Hands one session its activation code; resolves once it acked, throws if nobody answered. */
@@ -14,7 +14,7 @@ export interface SessionTransport {
 }
 
 interface Routed {
-  message: MeshMessage;
+  message: SessionDelivery;
   route: Extract<Route, { kind: 'deliver' }>;
 }
 
@@ -44,7 +44,7 @@ export class SessionDispatcher implements DeliveryPort {
     this.#logger = deps.logger;
   }
 
-  async deliver(agentId: string, messages: MeshMessage[]): Promise<DeliveryReceipt> {
+  async deliver(agentId: string, messages: SessionDelivery[]): Promise<DeliveryReceipt> {
     // Already read through inbox or thread: delivered, with nothing to push, claim or mark read.
     const seen = messages.filter((m) => this.#messaging.isRead(agentId, m.id)).map((m) => m.id);
     // No active, live session: every route would wait.
@@ -96,7 +96,7 @@ export class SessionDispatcher implements DeliveryPort {
    * wait with it, or go to its session (claims commit only after the sends, so
    * routing them afresh could split a new thread across sessions).
    */
-  #route(agentId: string, messages: MeshMessage[]): Routed[] {
+  #route(agentId: string, messages: SessionDelivery[]): Routed[] {
     const firstOfThread = new Map<string, Route>();
     const routed: Routed[] = [];
     for (const message of messages) {

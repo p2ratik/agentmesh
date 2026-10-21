@@ -4,6 +4,7 @@
  * (`thr-12`, `task-42`, `plan-7`) are produced only at the edges.
  */
 import type {
+  DeliveryClass,
   DomainEventData,
   DomainEventType,
   IngestEvent,
@@ -78,7 +79,12 @@ export interface HubModule<S> {
  * transaction as their state change; a dispatcher publishes them to NATS.
  */
 export interface Outbox {
-  enqueueDelivery(message: MeshMessage, recipientId: string, held: boolean): void;
+  enqueueDelivery(
+    message: MeshMessage,
+    recipientId: string,
+    held: boolean,
+    cls?: DeliveryClass,
+  ): void;
   enqueueEvent<T extends DomainEventType>(type: T, data: DomainEventData<T>): void;
   /** Schedules a flush without awaiting it. Call after committing. */
   kick(): void;
@@ -167,6 +173,7 @@ export interface PostInput {
   addToThread?: boolean;
   /** Hub-generated messages skip rate limits and dedup. */
   system?: boolean;
+  deliveryClass?: DeliveryClass | ((recipientId: string) => DeliveryClass);
 }
 
 export interface PostResult {
@@ -193,6 +200,7 @@ export interface MessagingService {
   markRead(participantId: string, messageIds: string[]): void;
   /** Whether the participant's read cursor is at or past the message (seen through inbox or thread). */
   isRead(participantId: string, messageId: string): boolean;
+  classFor(messageId: string, participantId: string): DeliveryClass;
   /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
 }
