@@ -2,6 +2,7 @@ import type { RuleAction } from '@agentmesh/config';
 import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
 import { systemActor } from '../../../rpc/actor';
+import { clipBody } from '../../messaging/limits';
 import type { RuleContext } from './match';
 import { areaRecipients } from './recipients';
 import { maskHead, renderTemplate } from './template';
@@ -52,11 +53,14 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
       createdBy: messaging.hubId,
       participants: recipients,
     });
+    // Clipped here, so the post's own cap never cuts the footer that marks it as data.
+    const footer = externalFooter(event);
+    const room = deps.ctx.loaded.config.limits.maxBodyChars - footer.length;
     messaging.post({
       threadId: thread.id,
       senderId: messaging.hubId,
       kind: 'event',
-      body: `${render(action.notify.text)}${externalFooter(event)}`,
+      body: `${clipBody(render(action.notify.text), room)}${footer}`,
       trust: 'external',
       system: true,
       refs: { eventId: event.id },
