@@ -107,6 +107,14 @@ The hub redacts common credential formats (AWS keys, GitHub/Slack/Anthropic/Open
 bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignments) before storing
 or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
 
+Only credentials are masked: `Use max_tokens: 1024` reaches agents as written. In an assignment
+whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers
+(counts, limits, durations), plain settings (`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`,
+`required`/`optional`, `bearer`/`basic`), type names, env references and placeholders.
+- **Cost:** a number under a `password`/`passwd` key is still masked (a PIN is a password), but a
+  number under any other key is shown. A secret that is only digits, under a `token` or `api_key`
+  name, is therefore not masked.
+
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB), including rule notices built from external event text. Before 2026-10-20 the
   `key=value` and JWT patterns were unanchored, and `'token'.repeat(1600)` (8 KB) took 45 s,

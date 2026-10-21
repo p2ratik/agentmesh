@@ -26,3 +26,28 @@ describe('redactSecrets on hostile input', () => {
     );
   });
 });
+
+// Agents need counts, limits and settings whose names happen to contain a keyword.
+describe('redactSecrets keeps what is not a credential', () => {
+  it.each([
+    'Use max_tokens: 1024 for the summary call.',
+    'prompt_tokens=812, completion_tokens=200',
+    'token_ttl: 3600 and temperature: 0.7',
+    'token_type: bearer',
+    'secret_scanning: enabled, push_protection: disabled',
+    'api_key: none',
+  ])('%s', (text) => {
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it.each([
+    ['DB_PASSWORD=hunter2-prod', `DB_PASSWORD=${REDACTED}`],
+    ['password: 123456', `password: ${REDACTED}`],
+    ['db_passwd=4242', `db_passwd=${REDACTED}`],
+    ['api_key: abc123def456', `api_key: ${REDACTED}`],
+    ['client_secret="s3cr3t-value"', `client_secret="${REDACTED}"`],
+    ['token=8f3e2a91c7', `token=${REDACTED}`],
+  ])('still masks %s', (text, masked) => {
+    expect(redactSecrets(text)).toBe(masked);
+  });
+});
