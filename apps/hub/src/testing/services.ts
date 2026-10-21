@@ -1,10 +1,13 @@
 import type { LoadedConfig } from '@agentmesh/config';
 import type { MeshMessage } from '@agentmesh/protocol';
-import type { MessagingService, PresenceService } from '../contracts';
+import type { MessagingService, PresenceService, SessionsService } from '../contracts';
 import { createControlModule } from '../modules/control';
 import { createMessagingModule } from '../modules/messaging';
 import { createPresenceModule } from '../modules/presence';
-import { FakeLeases } from './fakes';
+import { createSessionsModule } from '../modules/sessions';
+import { SessionDispatcher } from '../modules/sessions/dispatcher';
+import type { DeliveryPort } from '../ports';
+import { FakeLeases, FakeTransport } from './fakes';
 import { createTestHarness, type TestHarness } from './harness';
 
 export interface ServiceHarness extends TestHarness {
@@ -22,9 +25,9 @@ export interface ServiceHarness extends TestHarness {
  */
 export function createServiceHarness(
   loaded?: LoadedConfig,
-  options: { online?: string[] } = {},
+  options: { online?: string[]; delivery?: DeliveryPort } = {},
 ): ServiceHarness {
-  const base = createTestHarness(loaded);
+  const base = createTestHarness(loaded, options.delivery);
   const control = createControlModule(base.ctx, {
     peers: () => [],
     counts: () => ({ openThreads: 0, openTasks: 0, activePlans: 0 }),
@@ -54,4 +57,41 @@ export function createServiceHarness(
       return byRecipient;
     },
   };
+}
+
+export interface DispatchHarness extends ServiceHarness {
+  sessions: SessionsService;
+  transport: FakeTransport;
+  dispatcher: SessionDispatcher;
+}
+
+/**
+ * The service harness plus the real sessions module. The outbox delivers
+ * through a SessionDispatcher over a FakeTransport, as production does over NATS.
+ */
+export function createDispatchHarness(): DispatchHarness {
+  const transport = new FakeTransport();
+  // Built once the services it routes with exist; the outbox only calls it on flush.
+  let dispatcher: SessionDispatcher | null = null;
+  const h = createServiceHarness(undefined, {
+    delivery: {
+      deliver: (agentId, messages) => {
+        if (!dispatcher) throw new Error('dispatcher not built yet');
+        return dispatcher.deliver(agentId, messages);
+      },
+    },
+  });
+  const sessions = createSessionsModule(h.ctx, {
+    messaging: h.messaging,
+    presence: h.presence,
+    locate: () => null,
+    threadOf: () => null,
+  }).service;
+  dispatcher = new SessionDispatcher({
+    sessions,
+    messaging: h.messaging,
+    transport,
+    logger: h.ctx.logger,
+  });
+  return { ...h, sessions, transport, dispatcher };
 }

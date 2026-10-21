@@ -1,6 +1,7 @@
 /** The sessions module's contract (re-exported from `contracts.ts`). */
-import type { RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
+import type { MeshMessage, RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
 import type { CallContext } from './contracts';
+import type { Route } from './modules/sessions/routing';
 
 export interface SessionRecord {
   id: string;
@@ -37,6 +38,10 @@ export interface SessionsService {
   ): 'ok' | 'unknown';
   /** Marks the session away now (its delivery could not reach it). */
   unreachable(sessionId: string): void;
+  /** Where a message for this agent goes now, by the routing rules. DB reads only. */
+  route(agentId: string, message: MeshMessage): Route;
+  /** After the session acked the message: a claiming route makes it own the thread. DB only. */
+  delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void;
   /** Tick: silent live sessions go away; away ones past the grace period close and release. */
   expire(now: Date): { away: number; closed: number };
   take(agentId: string, sessionId: string, threadId: number): { previous: string | null };

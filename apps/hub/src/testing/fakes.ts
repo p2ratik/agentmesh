@@ -11,6 +11,7 @@ import type {
   ThreadRecord,
 } from '../contracts';
 import { optionalKey, threadKey } from '../core/ids';
+import type { SessionTransport } from '../modules/sessions/dispatcher';
 
 /**
  * In-memory MessagingService honoring the contract (recipient defaults,
@@ -188,6 +189,21 @@ export class FakePresence implements PresenceService {
     this.#load = reader;
   }
   setSessionReader(): void {}
+}
+
+/** Records every send. A session acks all it gets unless `respond` says otherwise. */
+export class FakeTransport implements SessionTransport {
+  readonly sends: Array<{ agentId: string; sessionId: string; ids: string[] }> = [];
+  /** Per session: ack a subset, reject, or hand back a promise the test settles. */
+  readonly respond = new Map<string, (messages: MeshMessage[]) => Promise<string[]>>();
+
+  send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
+    this.sends.push({ agentId, sessionId, ids: messages.map((m) => m.id) });
+    const respond = this.respond.get(sessionId);
+    return respond ? respond(messages) : Promise.resolve(messages.map((m) => m.id));
+  }
+
+  expired(): void {}
 }
 
 export class FakeLeases implements LeaseService {

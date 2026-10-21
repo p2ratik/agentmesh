@@ -1,5 +1,5 @@
-import { MeshError, newSessionId } from '@agentmesh/common';
-import type { RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
+import { MeshError, newSessionId, parseId } from '@agentmesh/common';
+import type { MeshMessage, RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type {
   CallContext,
@@ -7,11 +7,12 @@ import type {
   SessionRecord,
   SessionsService,
 } from '../../contracts';
-import { taskKey, threadKey } from '../../core/ids';
+import { internalId, taskKey, threadKey } from '../../core/ids';
 import { redactSecrets } from '../messaging/redact';
 import { claimTargets } from './claims';
 import { expireSessions, releaseAndClose } from './liveness';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
+import { type Route, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
 
 export interface SessionsDeps {
@@ -123,6 +124,35 @@ export class SessionsServiceImpl implements SessionsService {
 
   unreachable(sessionId: string): void {
     this.repo.markAway(sessionId, this.#now());
+  }
+
+  route(agentId: string, message: MeshMessage): Route {
+    const threadId = internalId('thread', message.threadId);
+    const owner = (id: number | null) => (id === null ? null : this.repo.owner(id, agentId));
+    // Lenient: a bad task ref must not wedge the agent's queue.
+    const taskId = message.refs.taskId ? parseId('task', message.refs.taskId) : null;
+    const task = taskId === null ? null : this.#deps.locate(taskId);
+    return routeDelivery({
+      sessions: this.repo.listLive(agentId).map((s) => ({
+        id: s.id,
+        active: s.active === 1,
+        liveness: s.liveness === 'live' ? 'live' : 'away',
+        repo: s.repo,
+        activatedAt: s.activated_at,
+      })),
+      threadOwner: owner(threadId),
+      parentOwner: owner(this.#deps.messaging.thread(threadId).parentId),
+      taskOwner: task && task.threadId !== threadId ? owner(task.threadId) : null,
+      picked: message.refs.session ?? null,
+      repo: message.refs.repo ?? task?.repo ?? null,
+    });
+  }
+
+  /** Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps it. */
+  delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void {
+    if (route.kind !== 'deliver' || !route.claim) return;
+    const threadId = internalId('thread', message.threadId);
+    claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
   }
 
   expire(now: Date) {

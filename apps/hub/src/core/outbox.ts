@@ -23,11 +23,26 @@ interface EventRow {
 const BATCH = 200;
 
 /**
+ * Each recipient's oldest pending rows, at most BATCH each, so a recipient whose
+ * messages wait for a session never starves the others.
+ * ponytail: more than BATCH rows waiting on one held session also hold back that
+ * agent's later rows for other threads; page per thread if that ever happens.
+ */
+const PENDING_DELIVERIES = `
+  SELECT message_id, recipient_id, payload FROM (
+    SELECT message_id, recipient_id, payload, created_at, rowid AS seq,
+      ROW_NUMBER() OVER (PARTITION BY recipient_id ORDER BY created_at, rowid) AS n
+    FROM deliveries WHERE state = 'pending')
+  WHERE n <= ${BATCH} ORDER BY created_at, seq`;
+
+/**
  * SQLite-backed outbox. Rows are written in the caller's transaction and
- * published afterwards, so a NATS outage delays delivery but never loses it.
- * Per-recipient order is preserved: after a failed delivery, later messages
- * for that recipient wait for the next flush. Feed events stop at the first
- * failure to keep their order.
+ * delivered afterwards, so an outage delays delivery but never loses it.
+ * Each recipient gets its pending messages as one batch, and recipients run
+ * concurrently, so one slow recipient never delays another. The ids the port
+ * returns are marked published in one transaction with the receipt's `commit`;
+ * the rest stay pending without counting an attempt (per-thread order is the
+ * port's job). Feed events stop at the first failure to keep their order.
  */
 export class SqliteOutbox implements Outbox {
   readonly #db: Db;
@@ -123,42 +138,54 @@ export class SqliteOutbox implements Outbox {
   }
 
   async #flushDeliveries(): Promise<void> {
-    const rows = this.#db.all<DeliveryRow>(
-      `SELECT message_id, recipient_id, payload FROM deliveries
-       WHERE state = 'pending' ORDER BY created_at, rowid LIMIT ${BATCH}`,
+    const rows = this.#db.all<DeliveryRow>(PENDING_DELIVERIES);
+    const byRecipient = Map.groupBy(rows, (row) => row.recipient_id);
+    // ponytail: a flush ends with its slowest recipient, so rows enqueued meanwhile wait up to
+    // one transport timeout (the dead session is then away and skipped); per-recipient loops
+    // if that ever matters.
+    const results = await Promise.allSettled(
+      [...byRecipient].map(([recipientId, batch]) => this.#deliverTo(recipientId, batch)),
     );
-    const blocked = new Set<string>();
-    for (const row of rows) {
-      if (blocked.has(row.recipient_id)) continue;
-      try {
-        await this.#delivery.deliver(row.recipient_id, JSON.parse(row.payload) as MeshMessage);
-        this.#db.run(
-          `UPDATE deliveries SET state = 'published', published_at = $at, attempts = attempts + 1
-           WHERE message_id = $messageId AND recipient_id = $recipientId`,
-          {
-            at: this.#clock.now().toISOString(),
-            messageId: row.message_id,
-            recipientId: row.recipient_id,
-          },
-        );
-      } catch (error) {
-        blocked.add(row.recipient_id);
-        this.#db.run(
-          `UPDATE deliveries SET attempts = attempts + 1, last_error = $error
-           WHERE message_id = $messageId AND recipient_id = $recipientId`,
-          {
-            error: String((error as Error)?.message ?? error),
-            messageId: row.message_id,
-            recipientId: row.recipient_id,
-          },
-        );
-        this.#logger.warn(
-          { err: error, recipient: row.recipient_id },
-          'delivery publish failed; will retry',
-        );
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.#logger.error({ err: result.reason }, 'delivery bookkeeping failed');
+      } else if (result.value) {
+        this.#again = true;
       }
     }
-    if (rows.length === BATCH) this.#again = true;
+  }
+
+  /** Returns whether more rows may be ready behind this batch. A batch that only waits must not spin. */
+  async #deliverTo(recipientId: string, rows: DeliveryRow[]): Promise<boolean> {
+    try {
+      const messages = rows.map((row) => JSON.parse(row.payload) as MeshMessage);
+      const receipt = await this.#delivery.deliver(recipientId, messages);
+      const at = this.#clock.now().toISOString();
+      this.#db.transaction(() => {
+        for (const messageId of receipt.delivered) {
+          this.#db.run(
+            `UPDATE deliveries SET state = 'published', published_at = $at, attempts = attempts + 1
+             WHERE message_id = $messageId AND recipient_id = $recipientId`,
+            { at, messageId, recipientId },
+          );
+        }
+        receipt.commit?.();
+      });
+      return rows.length === BATCH && receipt.delivered.length > 0;
+    } catch (error) {
+      const message = String((error as Error)?.message ?? error);
+      this.#db.transaction(() => {
+        for (const row of rows) {
+          this.#db.run(
+            `UPDATE deliveries SET attempts = attempts + 1, last_error = $error
+             WHERE message_id = $messageId AND recipient_id = $recipientId`,
+            { error: message, messageId: row.message_id, recipientId },
+          );
+        }
+      });
+      this.#logger.warn({ err: error, recipient: recipientId }, 'delivery failed; will retry');
+      return false;
+    }
   }
 
   async #flushEvents(): Promise<void> {
