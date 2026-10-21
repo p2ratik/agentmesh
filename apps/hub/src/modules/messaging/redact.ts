@@ -58,14 +58,19 @@ const PLAIN_WORDS = new Set([
   'basic',
 ]);
 
-/** Counts, limits and durations: `max_tokens: 1024`, `token_ttl: 3600`, `128k`. */
-const PLAIN_NUMBER = /^[+-]?\d[\d_.]*[kmb]?$/i;
-const PASSWORD_KEY = /pass(?:word|wd)/i;
+/**
+ * Counts, limits and durations: `max_tokens: 1024`, `token_ttl: 3600`, `128k`, also as the last
+ * JSON member or keyword argument (`1024}`, `1024)`). At most 10 characters: a digit-only key or
+ * session token is longer.
+ */
+const PLAIN_NUMBER = /^[+-]?\d[\d_.]{0,9}[kmb]?[)\]}]*$/i;
+/** Keys whose numbers are secrets anyway: passwords and PINs, one-time codes. */
+const NUMERIC_SECRET_KEY = /pass(?:word|wd)|otp|mfa/i;
 
 /**
  * Values that are clearly not secrets: env references (`${X}`, `$X`),
  * placeholders (`<your-token>`), member access in code (`req.headers.token`),
- * plain words and type annotations, numbers (except a password: a PIN is one),
+ * plain words and type annotations, short numbers (except a password, PIN or one-time code),
  * and values already masked.
  */
 export function isNonSecretValue(value: string, key = ''): boolean {
@@ -73,7 +78,7 @@ export function isNonSecretValue(value: string, key = ''): boolean {
   if (bare === '' || bare === REDACTED) return true;
   if (/^\$\{?[A-Za-z_]/.test(bare) || bare.startsWith('<')) return true;
   if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(bare)) return true;
-  if (PLAIN_NUMBER.test(bare)) return !PASSWORD_KEY.test(key);
+  if (PLAIN_NUMBER.test(bare)) return !NUMERIC_SECRET_KEY.test(key);
   return PLAIN_WORDS.has(bare.toLowerCase());
 }
 

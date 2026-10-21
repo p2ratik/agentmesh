@@ -108,12 +108,13 @@ bot tokens, JWTs, NATS seeds, private-key blocks, `password=`/`token=` assignmen
 or forwarding a message. It is a safety net, not a licence: never send secrets over the mesh.
 
 Only credentials are masked: `Use max_tokens: 1024` reaches agents as written. In an assignment
-whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers
-(counts, limits, durations), plain settings (`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`,
-`required`/`optional`, `bearer`/`basic`), type names, env references and placeholders.
-- **Cost:** a number under a `password`/`passwd` key is still masked (a PIN is a password), but a
-  number under any other key is shown. A secret that is only digits, under a `token` or `api_key`
-  name, is therefore not masked.
+whose name contains `password`, `secret`, `token` or `api_key`, these values are kept: numbers of
+up to 10 characters (counts, limits, durations, also as `1024}` or `1024)`), plain settings
+(`on`/`off`, `yes`/`no`, `enabled`/`disabled`, `none`, `required`/`optional`, `bearer`/`basic`),
+type names, env references and placeholders. Numbers stay masked under a password, `otp` or `mfa`
+name (PINs and one-time codes).
+- **Cost:** a digit-only secret of 10 characters or fewer under a `token`, `secret` or `api_key`
+  name is shown; longer digit-only keys and session tokens are masked.
 
 - **Threat: input that makes the redactor backtrack.** Redaction runs on every message body (up
   to 32 KB), including rule notices built from external event text. Before 2026-10-20 the

@@ -36,6 +36,8 @@ describe('redactSecrets keeps what is not a credential', () => {
     'token_type: bearer',
     'secret_scanning: enabled, push_protection: disabled',
     'api_key: none',
+    '{"model":"x","max_tokens":1024}',
+    'generate(prompt, max_tokens=1024)',
   ])('%s', (text) => {
     expect(redactSecrets(text)).toBe(text);
   });
@@ -47,6 +49,10 @@ describe('redactSecrets keeps what is not a credential', () => {
     ['api_key: abc123def456', `api_key: ${REDACTED}`],
     ['client_secret="s3cr3t-value"', `client_secret="${REDACTED}"`],
     ['token=8f3e2a91c7', `token=${REDACTED}`],
+    // Digit-only keys and session tokens are longer than any count; one-time codes are short.
+    ['api_key: 12345678901234567890123456789012', `api_key: ${REDACTED}`],
+    ['session_token=123456789012345', `session_token=${REDACTED}`],
+    ['otp_token: 123456', `otp_token: ${REDACTED}`],
   ])('still masks %s', (text, masked) => {
     expect(redactSecrets(text)).toBe(masked);
   });
