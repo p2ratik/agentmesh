@@ -29,7 +29,8 @@ interface EffectBase {
  * Applies workflow transitions: checks, convention field changes, history,
  * the `task.changed` feed event, one summary message for the task thread
  * (skipping anyone an effect already messaged; status, except for an agent the
- * task was just taken from), then the transition's effects
+ * task was just taken from or a reviewer still owing a verdict when the task
+ * ends: see `summaryClass`), then the transition's effects
  * and the target state's `onEnter` effects. Everything runs inside the
  * caller's transaction; messages go through the operation queue.
  */
@@ -174,6 +175,14 @@ export class TransitionRunner {
     const to = messaging
       .participants(task.threadId)
       .filter((id) => id !== actor.id && id !== messaging.hubId && !scope.notified.has(id));
+    const terminal = this.#views.isTerminal(task);
+    const change = {
+      action,
+      assignee: task.assignee,
+      takenFrom,
+      terminal,
+      pendingReviewers: terminal ? this.#pendingReviewers(task) : [],
+    };
     return {
       threadId: task.threadId,
       senderId: sender,
@@ -189,8 +198,20 @@ export class TransitionRunner {
       to,
       system: true,
       refs: { action, ...(task.prUrl ? { prUrl: task.prUrl } : {}) },
-      deliveryClass: (id) => summaryClass(id, { action, assignee: task.assignee, takenFrom }),
+      deliveryClass: (id) => summaryClass(id, change),
     };
+  }
+
+  /** Reviewers of a started round (round 0 only pins them) with no verdict in it yet. */
+  #pendingReviewers(task: TaskRecord): string[] {
+    if (task.reviewRound === 0) return [];
+    const decided = new Set(
+      this.#repos.reviews
+        .list(task.id, task.reviewRound)
+        .filter((r) => r.verdict !== 'comment')
+        .map((r) => r.reviewer),
+    );
+    return this.#views.currentReviewers(task).filter((id) => !decided.has(id));
   }
 
   #runEffects(

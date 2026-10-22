@@ -16,15 +16,21 @@ export interface SummaryChange {
   assignee: string | null;
   /** The previous assignee, when an `assign`, `handoff` or `claim` moved the task to someone else. */
   takenFrom: string | null;
+  /** The transition ended the task (a terminal state, such as cancelled or done). */
+  terminal: boolean;
+  /** Reviewers of the current round who have not given a verdict yet. */
+  pendingReviewers: readonly string[];
 }
 
 /**
- * The transition summary is status, except where it gives a next step: the
- * agent the task was just taken from has to stop, and the assignee of a task
- * someone else unblocked can resume.
+ * The transition summary is status, except where it gives a next step or a
+ * reason to stop: the agent the task was just taken from has to stop, so does
+ * a reviewer still owing a verdict when the task ends, and the assignee of a
+ * task someone else unblocked can resume.
  */
 export function summaryClass(recipientId: string, change: SummaryChange): DeliveryClass {
   if (recipientId === change.takenFrom) return 'action';
+  if (change.terminal && change.pendingReviewers.includes(recipientId)) return 'action';
   return change.action === 'unblock' && recipientId === change.assignee ? 'action' : 'status';
 }
 

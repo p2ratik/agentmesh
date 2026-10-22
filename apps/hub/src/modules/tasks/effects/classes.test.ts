@@ -8,9 +8,17 @@ import {
 } from './classes';
 
 const task = { assignee: 'alice-agent' };
-const accepted = { action: 'accept', assignee: 'alice-agent', takenFrom: null };
-const reassigned = { action: 'assign', assignee: 'alice-agent', takenFrom: 'bob-agent' };
-const unblocked = { action: 'unblock', assignee: 'alice-agent', takenFrom: null };
+const change = { assignee: 'alice-agent', takenFrom: null, terminal: false, pendingReviewers: [] };
+const accepted = { ...change, action: 'accept' };
+const reassigned = { ...change, action: 'assign', takenFrom: 'bob-agent' };
+const unblocked = { ...change, action: 'unblock' };
+const cancelled = {
+  ...change,
+  action: 'cancel',
+  terminal: true,
+  pendingReviewers: ['carol-agent'],
+};
+const reviewing = { ...change, action: 'block', pendingReviewers: ['carol-agent'] };
 
 const rows: Array<[site: string, expected: DeliveryClass, actual: () => DeliveryClass]> = [
   ['summary, to a participant', 'status', () => summaryClass('bob-agent', accepted)],
@@ -30,6 +38,17 @@ const rows: Array<[site: string, expected: DeliveryClass, actual: () => Delivery
     () => summaryClass('alice-agent', unblocked),
   ],
   ['summary of an unblock, to anyone else', 'status', () => summaryClass('bob-agent', unblocked)],
+  [
+    'summary of a terminal state, to a reviewer owing a verdict',
+    'action',
+    () => summaryClass('carol-agent', cancelled),
+  ],
+  ['summary of a terminal state, to anyone else', 'status', () => summaryClass('dan', cancelled)],
+  [
+    'summary of a non-terminal state, to a reviewer owing a verdict',
+    'status',
+    () => summaryClass('carol-agent', reviewing),
+  ],
   ['review submitted, to the assignee', 'action', () => reviewSubmittedClass('alice-agent', task)],
   ['review submitted, to anyone else', 'status', () => reviewSubmittedClass('bob-agent', task)],
   ['assignee brief: assigned', 'action', () => assigneeNoticeClass('assign')],

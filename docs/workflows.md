@@ -50,7 +50,9 @@ Each task notice is `action` (interrupts the agent) or `status` (rides along lat
 - `action`: assignee briefs (assigned, changes requested, approved, cancelled), review requests,
   "no reviewer found", "dependencies done", a verdict to the assignee, a `blocked` update to the
   creator, the summary to an agent the task was just taken from (`assign`, `handoff`, `claim`),
-  and the summary of an `unblock` to the assignee (they can resume).
+  the summary of a transition into a terminal state (a cancel, or done) to a reviewer of the
+  current round who has not given a verdict yet (a reason to stop), and the summary of an
+  `unblock` to the assignee (they can resume).
 - `status`: other summaries, a verdict to anyone but the assignee, a terminal update (`done`) to
   the creator, and board offers.
 

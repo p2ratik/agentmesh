@@ -28,6 +28,22 @@ describe('echoes and classes', () => {
     ]);
   });
 
+  it('a cancel tells a reviewer still owing a verdict as action, and one who gave it as status', async () => {
+    const { tasks, drain } = setup();
+    const reviewers = ['carol-agent', 'bob-agent'];
+    tasks.create({ ...base, area: 'api', assignee: 'alice-agent', reviewers }, human('bob'));
+    const owner = agent('alice-agent');
+    tasks.act(1, 'accept', {}, owner, []);
+    tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner, []);
+    tasks.submitReview(1, 'comment', 'Looking', agent('carol-agent'), []);
+    tasks.submitReview(1, 'approve', 'LGTM', agent('bob-agent'), []);
+    await drain();
+    tasks.act(1, 'cancel', { note: 'superseded' }, human('bob'));
+    const inbox = await drain();
+    const cancel = (id: string) => inbox.get(id)?.find((m) => m.refs.action === 'cancel')?.class;
+    expect([cancel('carol-agent'), cancel('bob-agent')]).toEqual(['action', 'status']);
+  });
+
   it('a creator assigning the task to itself gets no brief', async () => {
     const { tasks, drain } = setup();
     const self = agent('bob-agent');
