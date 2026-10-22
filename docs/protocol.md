@@ -101,8 +101,8 @@ pending until the plugin acks. Why: [ADR 0006](adr/0006-per-session-delivery.md)
 
 - **Request:** `SessionInbound`, `{ type: 'deliver', messages }` with 1 to 100 `SessionDelivery`
   items (`MAX_DELIVERY_MESSAGES`), each a message plus its delivery class (see
-  [Delivery classes](#delivery-classes)), kept under the server's `max_payload`. A message too big for one
-  request has its body clipped, with a note pointing at `thread`; the hub keeps the full text.
+  [Delivery classes](#delivery-classes)). The request is kept under the server's `max_payload`: a
+  message too big for one has its body clipped, with a note pointing at `thread`; the hub keeps the full text.
   `{ type: 'expired' }` is published, with no reply, when a plugin heartbeats a session the hub no
   longer knows; the plugin then says `session.hello` again. `{ type: 'check', code }` is a request
   carrying the activation code (below).
@@ -166,8 +166,6 @@ A session starts inactive: it keeps the tools but receives nothing until it acti
 [getting-started.md](getting-started.md#start-a-session)). Activation is a round trip that proves
 both the NATS leg and the channel push:
 
-(`activate` first waits up to 3 s for the session to listen, then asks for the check.)
-
 1. `session.check` makes the hub generate a code (6 characters, `[A-Z2-9]`, valid 10 minutes; a
    new check replaces the session's previous code) and send it as a `check` request on the
    session subject. If nothing answers (no responders or a timeout), `session.check` fails with
@@ -175,6 +173,7 @@ both the NATS leg and the channel push:
 2. The plugin pushes the code into Claude Code as a channel event and acks.
 3. Claude calls `session.activate` with the code (trimmed, any case) and a description.
 
+The `activate` tool first waits up to 3 s for the session to listen, then asks for the check.
 `session.deactivate` turns the session off and releases everything it owns at once, like a clean
 close; activating again takes none of it back. After a long absence, when `session.hello` answers
 with a new session for a window that was active, the plugin calls `session.check` by itself.

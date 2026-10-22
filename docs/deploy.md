@@ -141,10 +141,10 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
     update instruction. On start the hub deletes the old `{P}_DELIVERY` stream; anything still
     queued there is not pushed, but it stays in the hub database and members read it with `inbox`.
     Each session must then run `/agentmesh:activate` to receive messages.
+    `limits.deliveryRetentionDays` is ignored now and can be dropped from `mesh.yaml`.
   - **To plugin 0.3.0 (delivery classes, FYI ride-along).** The hub refuses plugins older than
     0.3.0, so update every plugin (`claude plugin update agentmesh@agentmesh`, once per Claude
     config directory) and restart the sessions. No NATS permission change is needed.
-    `limits.deliveryRetentionDays` is ignored now and can be dropped from `mesh.yaml`.
 
 ## Switching an existing deploy to invites (`--auth-callout`)
 

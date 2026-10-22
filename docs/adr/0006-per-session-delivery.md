@@ -80,8 +80,8 @@ The full evidence is in the [design](../specs/2026-10-21-session-routing-design.
   [security.md](../security.md#sessions-and-per-session-delivery).
 - **Upgrade.** On start the hub deletes the leftover `{P}_DELIVERY` stream. Anything still queued
   there is not pushed, but it is in the hub database and reachable through `inbox`. The hub refuses
-  `session.hello` from plugins older than 0.2.0, and their later sessionless calls, so the hub and
-  every plugin upgrade together; there is no compatibility mode. Agents need new NATS permissions:
+  `session.hello` from plugins older than 0.3.0 (0.2.0 when this shipped), and their later sessionless
+  calls, so the hub and every plugin upgrade together; there is no compatibility mode. Agents need new NATS permissions:
   a static `nats.conf` is re-rendered and reloaded before the hub restarts, and in auth-callout
   mode plugins reconnect for a new JWT ([deploy.md](../deploy.md#operations)).
 
