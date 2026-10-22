@@ -156,9 +156,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
 - Per-thread and per-sender rate limits, and duplicate suppression.
 - Planning contributions are delivered as one digest per round, not one message per agent.
-- **Kill switch**: `/mesh pause` holds the deliveries created while paused; `/mesh resume`
-  releases them. Deliveries already queued before the pause can still flow, and while paused a
-  status item carried from an earlier delivery can ride along with one of those.
+- **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
+  also holds deliveries queued before it, in the same transaction, so nothing is pushed while
+  paused and no status item rides along either. A batch already being handed over when the pause
+  lands can still finish.
 
 ## Secrets in messages
 

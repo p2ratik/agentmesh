@@ -5,8 +5,6 @@
  */
 import type {
   DeliveryClass,
-  DomainEventData,
-  DomainEventType,
   IngestEvent,
   MemberRecord,
   MeshMessage,
@@ -29,7 +27,8 @@ import type {
 } from '@agentmesh/protocol';
 import type { ThreadOwner } from './sessions.contracts';
 
-/** The sessions module's contract has its own file, to keep this one within the size limit. */
+/** The sessions module's and the outbox's contracts have their own files, to keep this one small. */
+export type { Outbox } from './outbox.contracts';
 export type { SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
 
 /** Who is acting. For bridge calls with `actAs`, this is the human, not the bridge. */
@@ -75,29 +74,6 @@ export interface HubModule<S> {
   ticks?: TickJob[];
   start?(): Promise<void>;
   stop?(): Promise<void>;
-}
-
-// ---------------------------------------------------------------- outbox
-
-/**
- * Transactional outbox: services write deliveries/events inside the same DB
- * transaction as their state change; a dispatcher publishes them to NATS.
- */
-export interface Outbox {
-  enqueueDelivery(
-    message: MeshMessage,
-    recipientId: string,
-    held: boolean,
-    /** The recipient's delivery class; `action` when omitted. */
-    cls?: DeliveryClass,
-  ): void;
-  enqueueEvent<T extends DomainEventType>(type: T, data: DomainEventData<T>): void;
-  /** Schedules a flush without awaiting it. Call after committing. */
-  kick(): void;
-  flush(): Promise<void>;
-  /** Kill-switch resume: held deliveries become pending. Returns how many. */
-  releaseHeld(): number;
-  heldCount(): number;
 }
 
 // ---------------------------------------------------------------- control

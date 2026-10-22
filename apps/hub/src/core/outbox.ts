@@ -132,6 +132,14 @@ export class SqliteOutbox implements Outbox {
     return this.#flushing;
   }
 
+  /**
+   * A row a flush already took still publishes if its session acks it (it was pushed);
+   * the rest of that flush stays held.
+   */
+  holdPending(): number {
+    return this.#db.run("UPDATE deliveries SET state = 'held' WHERE state = 'pending'").changes;
+  }
+
   releaseHeld(): number {
     const { changes } = this.#db.run(
       "UPDATE deliveries SET state = 'pending' WHERE state = 'held'",

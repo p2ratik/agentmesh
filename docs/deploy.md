@@ -109,8 +109,7 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
   - Auth-callout mode: restart the hub. Their next connect is refused, but a session that is
     already connected lasts until its NATS credentials expire (`enrollment.userJwtTtlMinutes`).
   - Invited members are removed with `/mesh remove` instead.
-- **Kill switch**: `/mesh pause` in Discord holds the deliveries created while paused; `/mesh resume`
-  releases them. Deliveries queued before the pause can still flow.
+- **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
 - **Backups**: the state is in two volumes. Stop the hub for a consistent copy
   (`docker compose stop hub`, then start it again):
 
