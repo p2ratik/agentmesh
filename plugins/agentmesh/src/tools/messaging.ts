@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { formatPeers, formatThread } from './format';
+import { firstLine } from '../inbox/fyi';
+import { formatPeers, formatThread, formatThreadHeader } from './format';
 import { defineTool, withKey } from './types';
 
 const Status = z.enum([
@@ -125,16 +126,25 @@ export const messagingTools = [
   defineTool({
     name: 'inbox',
     description:
-      'Unread messages from every thread you are in, newest first; marks them read. Once this session is active, call it at session start and after compaction.',
+      'Unread messages from every thread you are in: threads that need you first, then FYI (status only); marks them read. Once this session is active, call it at session start and after compaction.',
     input: z.object({ limit: z.number().int().min(1).max(50).optional() }),
     mutating: false,
     run: async (args, { hub }) => {
       const r = await hub.call('inbox.get', { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
       if (r.threads.length === 0 && others.length === 0) return 'Inbox zero — nothing unread.';
-      const parts = r.threads.map(
-        (t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`,
-      );
+      const needs = r.threads
+        .filter((t) => !t.fyi)
+        .map((t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`);
+      const fyi = r.threads
+        .filter((t) => t.fyi)
+        .map(
+          (t) =>
+            `· ${formatThreadHeader(t.thread)} — ${firstLine(t.messages.at(-1)?.body ?? '', 100)}`,
+        );
+      const parts: string[] = [];
+      if (needs.length > 0) parts.push(`Needs you:\n${needs.join('\n\n====\n\n')}`);
+      if (fyi.length > 0) parts.push(`FYI:\n${fyi.join('\n')}`);
       if (r.remainingThreads > 0)
         parts.push(`(${r.remainingThreads} more thread(s) unread — call inbox again)`);
       if (others.length > 0) {

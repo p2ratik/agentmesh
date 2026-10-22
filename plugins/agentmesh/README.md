@@ -98,7 +98,7 @@ planning etiquette).
   (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
   to call `inbox` — the hub keeps everything.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
-- **"This session isn't registered with the hub"**: the plugin is older than 0.2.0. Run
+- **"This session isn't registered with the hub"**: the plugin is older than 0.3.0. Run
   `claude plugin update agentmesh@agentmesh` and restart Claude Code.
 - **"not configured"**: set the options in `/plugin` or write `~/.agentmesh/agent.json`.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set

@@ -1,4 +1,5 @@
 import { MeshError } from '@agentmesh/common';
+import type { SessionDelivery } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { HubClient } from '../hub';
 import { fakeHub, text } from './fake-hub';
@@ -13,6 +14,38 @@ const task = {
 };
 
 const sent = { threadId: 'thr-2', messageId: 'msg-1', deliveredTo: ['bob-agent'], held: false };
+
+const fyiItem = (id: string, body: string, threadId = 'thr-5'): SessionDelivery => ({
+  id,
+  threadId,
+  kind: 'reply',
+  from: { id: 'bob-agent', kind: 'agent', displayName: "Bob's Claude" },
+  to: ['alice-agent'],
+  subject: 'Billing v2',
+  body,
+  status: 'working',
+  trust: 'team',
+  depth: 1,
+  refs: {},
+  createdAt: '2026-10-22T09:00:00.000Z',
+  class: 'status',
+});
+
+const thread = (id: string, subject: string, taskId: string | null) => ({
+  id,
+  kind: taskId ? 'task' : 'conversation',
+  subject,
+  createdBy: 'bob-agent',
+  createdAt: '2026-10-22T08:00:00.000Z',
+  updatedAt: '2026-10-22T09:00:00.000Z',
+  depth: 0,
+  parentId: null,
+  participants: ['alice-agent', 'bob-agent'],
+  taskId,
+  planId: null,
+  status: 'open',
+  messageCount: 3,
+});
 
 describe('tool registry', () => {
   it('lists every tool with an object JSON schema', () => {
@@ -118,6 +151,55 @@ describe('tool registry', () => {
     expect(
       (await callTool('reply', { thread_id: 'thr-2', text: 'ok' }, quiet)).content,
     ).toHaveLength(1);
+  });
+
+  it('tool results end with buffered FYIs, which are then reported seen', async () => {
+    const note = 'thr-2 belongs to your session s-bbbbbbbbbbbb (“billing”); its messages go there.';
+    const { deps, calls } = fakeHub({ 'message.send': sent }, { 'message.send': [note] });
+    deps.fyi.add([fyiItem('m7', 'PR is up')]);
+    const result = await callTool('reply', { thread_id: 'thr-2', text: 'on it' }, deps);
+    expect(result.content.map((c) => c.text)).toEqual([
+      'Replied in thr-2 to bob-agent (msg-1).',
+      note,
+      'FYI (1):\n· thr-5 «Billing v2» PR is up',
+    ]);
+    expect(calls.map((c) => [c.method, c.params])).toEqual([
+      ['message.send', expect.anything()],
+      ['messages.seen', { messageIds: ['m7'] }],
+    ]);
+    // Shown once; errors carry FYIs too.
+    expect(
+      (await callTool('reply', { thread_id: 'thr-2', text: 'ok' }, deps)).content,
+    ).toHaveLength(2);
+    deps.fyi.add([fyiItem('m8', 'merged')]);
+    const refused = await callTool('ask', { text: 'no recipient' }, deps);
+    expect(refused.isError).toBe(true);
+    expect(text(refused, 1)).toBe('FYI (1):\n· thr-5 «Billing v2» merged');
+    expect(calls.filter((c) => c.method === 'messages.seen')).toHaveLength(2);
+  });
+
+  it('inbox shows Needs you before FYI', async () => {
+    const needs = {
+      thread: thread('thr-1', 'Login', null),
+      unread: 1,
+      messages: [fyiItem('m1', 'Does the web client handle 409?', 'thr-1')],
+      fyi: false,
+    };
+    const fyi = {
+      thread: thread('thr-5', 'Billing v2', 'task-3'),
+      unread: 2,
+      messages: [fyiItem('m2', 'started'), fyiItem('m3', 'PR is up\nCI pending')],
+      fyi: true,
+    };
+    const inbox = (threads: unknown[]) =>
+      fakeHub({ 'inbox.get': { threads, remainingThreads: 0, otherSessions: [] } }).deps;
+    const fyiLine =
+      '· thr-5 «Billing v2» · task · open · participants: alice-agent, bob-agent · task-3 — PR is up';
+    const both = text(await callTool('inbox', {}, inbox([needs, fyi])));
+    expect(both).toMatch(/^Needs you:\n1 unread · thr-1 «Login» /);
+    expect(both).toContain('Does the web client handle 409?');
+    expect(both.endsWith(`\n\n====\n\nFYI:\n${fyiLine}`)).toBe(true);
+    expect(text(await callTool('inbox', {}, inbox([fyi])))).toBe(`FYI:\n${fyiLine}`);
   });
 
   it('overlapping tool calls each get only their own hub notes', async () => {

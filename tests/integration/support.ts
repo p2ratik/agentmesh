@@ -103,7 +103,7 @@ export async function callAsSession<M extends RpcMethodName>(
   method: M,
   params: RpcParamsInput<M>,
 ): Promise<RpcResult<M>> {
-  const { sessionId } = await rpc.call('session.hello', { clientVersion: '0.2.0' });
+  const { sessionId } = await rpc.call('session.hello', { clientVersion: '0.3.0' });
   return rpc.call(method, params, { session: sessionId });
 }
 

@@ -1,11 +1,16 @@
 import { createLogger } from '@agentmesh/common';
-import type { MeshMessage, SessionAck } from '@agentmesh/protocol';
+import type { SessionAck, SessionDelivery } from '@agentmesh/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type { HubClient } from '../hub';
+import { FyiBuffer } from './fyi';
 import type { ChannelEvent } from './render';
 import { runSessionInbox } from './session-inbox';
 
-const message = (id: string, threadId: string): MeshMessage => ({
+const message = (
+  id: string,
+  threadId: string,
+  kind: SessionDelivery['class'] = 'action',
+): SessionDelivery => ({
   id,
   threadId,
   kind: 'ask',
@@ -18,7 +23,9 @@ const message = (id: string, threadId: string): MeshMessage => ({
   depth: 1,
   refs: {},
   createdAt: '2026-10-21T09:00:00.000Z',
+  class: kind,
 });
+const status = (id: string, threadId: string) => message(id, threadId, 'status');
 
 type Callback = (err: Error | null, msg: unknown) => void;
 
@@ -36,11 +43,15 @@ function harness(failThread?: string) {
       };
     },
   };
+  /** Each `reportSeen` call (the real client skips empty ones). */
+  const reported: string[][] = [];
   const hub = {
     config: { prefix: 'mesh', agentId: 'alice-agent' },
     sessionId: 's-aaaaaaaaaaaa',
     connection: nc,
+    reportSeen: (ids: string[]) => reported.push(ids),
   } as unknown as HubClient;
+  const fyi = new FyiBuffer();
   const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
   const warn = vi.spyOn(logger, 'warn');
   const error = vi.spyOn(logger, 'error');
@@ -52,6 +63,7 @@ function harness(failThread?: string) {
     hub,
     logger,
     signal: new AbortController().signal,
+    fyi,
     push: async (event) => {
       if (event.meta.thread_id === failThread) throw new Error('transport closed');
       pushed.push(event);
@@ -76,7 +88,20 @@ function harness(failThread?: string) {
     live?.callback(null, { subject: live.subject, json, respond });
     return { acked, respond };
   };
-  return { hub, inbox, subs, pushed, checks, onExpired, onListening, warn, error, send };
+  return {
+    hub,
+    inbox,
+    subs,
+    pushed,
+    checks,
+    onExpired,
+    onListening,
+    warn,
+    error,
+    send,
+    fyi,
+    reported,
+  };
 }
 
 describe('runSessionInbox', () => {
@@ -109,6 +134,52 @@ describe('runSessionInbox', () => {
     expect(h.pushed.map((e) => e.meta.message_id)).toEqual(['m1', 'm2']);
     expect(h.pushed[1]?.content).toBe('body m2');
     expect(ack.delivered).toEqual(['m1', 'm2']);
+  });
+
+  it('status items are acked without a channel event', async () => {
+    const h = harness();
+    const ack = await h.send({
+      type: 'deliver',
+      messages: [status('s1', 'thr-1'), status('s2', 'thr-2')],
+    }).acked;
+    expect(ack.delivered).toEqual(['s1', 's2']);
+    expect(h.pushed).toEqual([]);
+    expect(h.reported.flat()).toEqual([]);
+    expect(h.fyi.take().ids).toEqual(['s1', 's2']);
+  });
+
+  it('the next action push carries the buffered FYIs and reports them seen', async () => {
+    const h = harness();
+    await h.send({ type: 'deliver', messages: [status('s1', 'thr-1')] }).acked;
+    const ack = await h.send({
+      type: 'deliver',
+      messages: [status('s2', 'thr-2'), message('a1', 'thr-2'), message('a2', 'thr-3')],
+    }).acked;
+    expect(h.pushed.map((e) => e.content)).toEqual([
+      'body a1\n\nFYI (2):\n· thr-1 «Render queue» body s1\n· thr-2 «Render queue» body s2',
+      'body a2',
+    ]);
+    expect(ack.delivered).toEqual(['s2', 'a1', 'a2']);
+    expect(h.reported.flat()).toEqual(['s1', 's2']);
+    expect(h.fyi.take().ids).toEqual([]);
+  });
+
+  it('a redelivered status id is acked without buffering it twice', async () => {
+    const h = harness();
+    await h.send({ type: 'deliver', messages: [status('s1', 'thr-1')] }).acked;
+    // The hub carries a thread's unread status along with each later delivery in it.
+    await h.send({ type: 'deliver', messages: [status('s1', 'thr-1'), message('a1', 'thr-1')] })
+      .acked;
+    const ack = await h.send({
+      type: 'deliver',
+      messages: [status('s1', 'thr-1'), message('a2', 'thr-1')],
+    }).acked;
+    expect(h.pushed.map((e) => e.content)).toEqual([
+      'body a1\n\nFYI (1):\n· thr-1 «Render queue» body s1',
+      'body a2',
+    ]);
+    expect(ack.delivered).toEqual(['s1', 'a2']);
+    expect(h.reported.flat()).toEqual(['s1']);
   });
 
   it('calls onExpired for an expiry notice', async () => {

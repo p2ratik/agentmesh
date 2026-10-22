@@ -99,6 +99,17 @@ export class HubClient {
     }
   }
 
+  /**
+   * Tells the hub these messages were shown (FYIs that rode along). Fire and
+   * forget: on failure they stay unread, so `inbox` still lists them.
+   */
+  reportSeen(messageIds: string[]): void {
+    if (messageIds.length === 0) return;
+    this.call('messages.seen', { messageIds }).catch((err) =>
+      this.#logger.warn({ err, count: messageIds.length }, 'could not report FYIs as seen'),
+    );
+  }
+
   /** Best effort within `timeoutMs` (Windows kills the process ~300ms after stdin closes). */
   async close(timeoutMs: number): Promise<void> {
     const nc = this.#nc;

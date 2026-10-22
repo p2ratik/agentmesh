@@ -104,7 +104,7 @@ async function runUnenrolled(logger: Logger): Promise<void> {
 }
 
 function toolDeps(session: Session, agentId: string): ToolDeps {
-  return { hub: session.hub, agentId, activation: session.activation };
+  return { hub: session.hub, agentId, activation: session.activation, fyi: session.fyi };
 }
 
 /** Exits when Claude Code closes stdin, on signals, or if orphaned. */

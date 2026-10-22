@@ -3,6 +3,7 @@ import type { RpcResult } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { PluginConfig } from './config';
 import { HubClient } from './hub';
+import { FyiBuffer } from './inbox/fyi';
 import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
 import { pushEvent, VERSION } from './server';
@@ -22,6 +23,8 @@ export interface Session {
   /** Says hello (again), one call at a time; resolves null if it failed. */
   sayHello(): Promise<Hello | null>;
   activation: ActivationState;
+  /** Status items waiting to ride along (on tool results and action pushes). */
+  fyi: FyiBuffer;
   /** Runs after each hello that lands; `renewed` when the hub replaced the previous session. */
   onHello: ((renewed: boolean) => void) | null;
 }
@@ -39,6 +42,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     presence,
     hello: null,
     activation: newActivationState(),
+    fyi: new FyiBuffer(),
     onHello: null,
     sayHello: () => {
       inFlight ??= register(hub, presence, logger)
@@ -99,6 +103,7 @@ export function startSession(
       hub,
       logger,
       signal: abort.signal,
+      fyi: session.fyi,
       push: (event) => pushEvent(server, event),
       pushCheck: (code) =>
         pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? undefined)),

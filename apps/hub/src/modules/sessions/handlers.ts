@@ -10,10 +10,7 @@ import type {
 import { internalId, taskKey, threadKey } from '../../core/ids';
 import { ActivationChecks } from './checks';
 import type { SessionTransport } from './dispatcher';
-import { isAtLeast } from './version';
-
-/** Older plugins cannot take per-session delivery; there is no compatibility mode. */
-const MIN_CLIENT_VERSION = '0.2.0';
+import { isAtLeast, MIN_CLIENT_VERSION } from './version';
 
 const UNREACHABLE =
   'The hub could not reach this session: nothing answered on its session subject. Likely ' +
@@ -72,7 +69,8 @@ export function sessionHandlers(
         ctx.logger.warn({ participant: agentId, clientVersion }, 'refused an outdated plugin');
         throw new MeshError(
           'invalid_request',
-          `This AgentMesh plugin (${clientVersion}) predates per-session delivery. Update it: ` +
+          `This AgentMesh plugin (${clientVersion}) is older than this hub needs ` +
+            `(${MIN_CLIENT_VERSION}). Update it: ` +
             'claude plugin update agentmesh@agentmesh, then restart Claude Code.',
         );
       }

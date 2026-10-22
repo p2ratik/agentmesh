@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
+import { formatFyi } from '../inbox/fyi';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
 import { planningTools } from './planning';
@@ -45,7 +46,8 @@ export function listTools(tools: readonly ToolDef[] = ALL_TOOLS): ToolListing[] 
 /**
  * Runs a tool and turns every failure into a readable `isError` result:
  * bad arguments list the issues, hub errors keep their code, a missing setup
- * returns the setup problem.
+ * returns the setup problem. Buffered FYIs end the result and are reported
+ * seen (`messages.seen` is no tool, so this never recurses).
  */
 export async function callTool(
   name: string,
@@ -60,15 +62,31 @@ export async function callTool(
       `AgentMesh is not configured: ${deps.problems.join('; ')}. Ask your human to finish the plugin setup.`,
     );
   }
+  const result = await callConfigured(tool, rawArgs, deps);
+  const fyi = deps.fyi.take();
+  if (fyi.ids.length > 0) {
+    result.content.push({ type: 'text', text: formatFyi(fyi) });
+    deps.hub.reportSeen(fyi.ids);
+  }
+  return result;
+}
+
+/** Validates the arguments and runs the tool; the result ends with this call's hub notes. */
+async function callConfigured(
+  tool: ToolDef,
+  rawArgs: unknown,
+  deps: ToolDeps,
+): Promise<ToolResult> {
   const parsed = tool.input.safeParse(rawArgs ?? {});
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.') || '(args)'}: ${i.message}`);
-    return error(`Invalid arguments for ${name}:\n${issues.join('\n')}`);
+    return error(`Invalid arguments for ${tool.name}:\n${issues.join('\n')}`);
   }
   // Only this call's hub notes end its result, never those of parallel calls or background hellos.
   const notes: string[] = [];
   const hub: ToolDeps['hub'] = {
     call: (method, params, options) => deps.hub.call(method, params, options, notes),
+    reportSeen: (ids) => deps.hub.reportSeen(ids),
   };
   const result = await run(tool, parsed.data, { ...deps, hub });
   if (notes.length > 0) result.content.push({ type: 'text', text: notes.join('\n') });

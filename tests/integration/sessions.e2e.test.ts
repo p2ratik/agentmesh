@@ -104,7 +104,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('per-session delivery end to end',
     expect(queued.meta.from).toBe('alice-agent');
   }, 60_000);
 
-  it('pre-0.2.0 plugins are told to update', async () => {
+  it('pre-0.3.0 plugins are told to update', async () => {
     const nc = await connectBus({
       servers: [NATS],
       name: 'old-plugin',
@@ -113,7 +113,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('per-session delivery end to end',
     });
     try {
       const rpc = new RpcClient(nc, PREFIX, 'alice-agent', 5000);
-      await expect(rpc.call('session.hello', { clientVersion: '0.1.7' })).rejects.toMatchObject({
+      await expect(rpc.call('session.hello', { clientVersion: '0.2.0' })).rejects.toMatchObject({
         code: 'invalid_request',
         message: expect.stringContaining('claude plugin update'),
       });

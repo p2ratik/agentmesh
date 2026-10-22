@@ -46974,6 +46974,7 @@ var MessageRefs = external_exports.object({
   /** The sender's pick of the recipient session. */
   session: external_exports.string().optional()
 });
+var DeliveryClass = external_exports.enum(["action", "status"]);
 var MeshMessage = external_exports.object({
   id: external_exports.string(),
   threadId: external_exports.string(),
@@ -47395,7 +47396,9 @@ var messagingMethods = {
         external_exports.object({
           thread: ThreadSummary,
           unread: external_exports.number().int().nonnegative(),
-          messages: external_exports.array(MeshMessage)
+          messages: external_exports.array(MeshMessage),
+          /** True when every unread message in the thread is status for the caller. */
+          fyi: external_exports.boolean().default(false)
         })
       ),
       remainingThreads: external_exports.number().int().nonnegative(),
@@ -47408,6 +47411,12 @@ var messagingMethods = {
         })
       ).default([])
     })
+  }),
+  "messages.seen": defineMethod({
+    description: "Mark messages you have read (e.g. FYI items shown in a session) as seen.",
+    callers: ["agent"],
+    params: external_exports.object({ messageIds: external_exports.array(external_exports.string()).min(1).max(500) }),
+    result: external_exports.object({ ok: external_exports.literal(true) })
   }),
   "thread.close": defineMethod({
     description: "Close a conversation thread you participate in.",
@@ -47498,10 +47507,11 @@ var SessionView = external_exports.object({
   owns: external_exports.array(external_exports.string())
 });
 var MAX_DELIVERY_MESSAGES = 100;
+var SessionDelivery = MeshMessage.extend({ class: DeliveryClass.default("action") });
 var SessionInbound = external_exports.discriminatedUnion("type", [
   external_exports.object({
     type: external_exports.literal("deliver"),
-    messages: external_exports.array(MeshMessage).min(1).max(MAX_DELIVERY_MESSAGES)
+    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
   }),
   external_exports.object({ type: external_exports.literal("expired") }),
   external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) })
@@ -47781,6 +47791,7 @@ var MAX_INSTRUCTIONS = 4096;
 var PROTOCOL = `How the mesh works:
 - Mesh events arrive as <channel source="plugin:agentmesh:mesh" \u2026> tags with thread_id (pass it to reply), from / from_kind (agent|human|service), kind (ask, reply, broadcast, task, review, plan, escalation, event, system), status, task_id, plan_id, pr_url, trust.
 - Pushes are best-effort; the inbox tool is the source of truth. Once this session is active, call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
+- Status updates ride along at the end of your next mesh tool result; they never start a turn.
 - Answer with reply(thread_id, text, status: answer|accepted|declined|working|blocked|done|needs_human|info). Skip replies to pure FYI. Be short and evidence-based (files, lines, commands run).
 - ask(to, text) a teammate; broadcast to all; peers() shows who is online and their load.
 - Tasks: task_get lists availableActions; task_act(task_id, action). Accept or decline promptly; post "working" updates on long work. Use a separate git worktree on the suggested branch; never touch your human's checkout. Open the PR into the integration branch, then task_act(action: "submit", pr_url).
@@ -48226,6 +48237,107 @@ import { homedir as homedir5 } from "node:os";
 // src/tools/registry.ts
 import { randomUUID } from "node:crypto";
 
+// src/inbox/render.ts
+var META_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+var MAX_CONTENT = 12e3;
+function renderEvent(messages, footer = "", maxChars = MAX_CONTENT) {
+  const last = messages.at(-1);
+  if (!last) throw new Error("renderEvent needs at least one message");
+  const body = clip2(
+    messages.length === 1 ? last.body : transcript(messages, last),
+    last.threadId,
+    maxChars
+  );
+  return { content: footer ? `${body}
+
+${footer}` : body, meta: buildMeta(messages, last) };
+}
+function transcript(messages, last) {
+  const header = `${messages.length} new messages in ${last.threadId} \xAB${oneLine(last.subject)}\xBB:`;
+  const entries = messages.map((m) => {
+    const tags = [m.kind, m.status, m.trust === "external" ? "external" : null].filter(Boolean);
+    return `--- ${m.from.displayName} (${tags.join(", ")}, ${m.createdAt.slice(11, 16)} UTC) ---
+${m.body}`;
+  });
+  return [header, ...entries].join("\n\n");
+}
+function clip2(content, threadId, maxChars) {
+  if (content.length <= maxChars) return content;
+  return `${content.slice(0, maxChars)}
+
+\u2026 (truncated \u2014 call thread(thread_id: "${threadId}") for the rest)`;
+}
+function buildMeta(messages, last) {
+  const raw = {
+    thread_id: last.threadId,
+    message_id: last.id,
+    from: last.from.id,
+    from_name: last.from.displayName,
+    from_kind: last.from.kind,
+    kind: last.kind,
+    status: last.status,
+    task_id: last.refs.taskId,
+    plan_id: last.refs.planId,
+    round: last.refs.round,
+    pr_url: last.refs.prUrl,
+    verdict: last.refs.verdict,
+    trust: messages.some((m) => m.trust === "external") ? "external" : "team",
+    depth: last.depth,
+    count: messages.length > 1 ? messages.length : void 0,
+    subject: oneLine(last.subject)
+  };
+  return sanitizeMeta(raw);
+}
+function sanitizeMeta(raw) {
+  const meta3 = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!META_KEY.test(key) || value === null || value === void 0 || value === "") continue;
+    meta3[key] = oneLine(String(value));
+  }
+  return meta3;
+}
+function oneLine(text2) {
+  return text2.replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+// src/inbox/fyi.ts
+var MAX_ITEMS = 50;
+var FyiBuffer = class {
+  #items = [];
+  #dropped = 0;
+  /** Keeps the newest 50, dropping the oldest first. */
+  add(messages) {
+    this.#items.push(...messages);
+    const over = this.#items.length - MAX_ITEMS;
+    if (over <= 0) return;
+    this.#items.splice(0, over);
+    this.#dropped += over;
+  }
+  /** Empties the buffer. */
+  take() {
+    const items = this.#items;
+    const taken = {
+      lines: items.map(fyiLine),
+      ids: items.map((m) => m.id),
+      dropped: this.#dropped
+    };
+    this.#items = [];
+    this.#dropped = 0;
+    return taken;
+  }
+};
+function formatFyi(taken) {
+  if (taken.lines.length === 0) return "";
+  const more = taken.dropped > 0 ? [`\xB7 \u2026and ${taken.dropped} more: call inbox`] : [];
+  return [`FYI (${taken.lines.length}):`, ...taken.lines, ...more].join("\n");
+}
+function firstLine(text2, max) {
+  return (text2.trim().split("\n")[0] ?? "").trim().slice(0, max);
+}
+function fyiLine(m) {
+  return `\xB7 ${m.threadId} \xAB${oneLine(m.subject).slice(0, 60)}\xBB ${firstLine(m.body, 100)}`;
+}
+
 // src/tools/format.ts
 function formatPeers(peers) {
   if (peers.length === 0) return "Nobody is configured on this mesh.";
@@ -48287,7 +48399,7 @@ ${t.description}
 ` : "",
     `Your available actions: ${t.availableActions.join(", ") || "none"}`,
     t.reviews.length > 0 ? `Reviews:
-${t.reviews.map((r) => `- round ${r.round} ${r.reviewer}: ${r.verdict} \u2014 ${firstLine(r.body)}`).join("\n")}` : "",
+${t.reviews.map((r) => `- round ${r.round} ${r.reviewer}: ${r.verdict} \u2014 ${firstLine2(r.body)}`).join("\n")}` : "",
     `History: ${t.history.map((h) => `${h.action}(${h.actor})`).join(" \u2192 ")}`
   ];
   return lines.filter(Boolean).join("\n");
@@ -48317,7 +48429,7 @@ function formatLeases(leases) {
     (l) => `- ${l.path}${l.repo ? ` (${l.repo})` : ""} \xB7 ${l.holder} \xB7 until ${l.expiresAt}${l.taskId ? ` \xB7 ${l.taskId}` : ""}${l.reason ? ` \xB7 ${l.reason}` : ""}`
   ).join("\n");
 }
-function firstLine(text2) {
+function firstLine2(text2) {
   return (text2.split("\n")[0] ?? "").slice(0, 160);
 }
 
@@ -48505,16 +48617,22 @@ var messagingTools = [
   }),
   defineTool({
     name: "inbox",
-    description: "Unread messages from every thread you are in, newest first; marks them read. Once this session is active, call it at session start and after compaction.",
+    description: "Unread messages from every thread you are in: threads that need you first, then FYI (status only); marks them read. Once this session is active, call it at session start and after compaction.",
     input: external_exports.object({ limit: external_exports.number().int().min(1).max(50).optional() }),
     mutating: false,
     run: async (args, { hub }) => {
       const r = await hub.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
       if (r.threads.length === 0 && others.length === 0) return "Inbox zero \u2014 nothing unread.";
-      const parts = r.threads.map(
-        (t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages)}`
+      const needs = r.threads.filter((t) => !t.fyi).map((t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages)}`);
+      const fyi = r.threads.filter((t) => t.fyi).map(
+        (t) => `\xB7 ${formatThreadHeader(t.thread)} \u2014 ${firstLine(t.messages.at(-1)?.body ?? "", 100)}`
       );
+      const parts = [];
+      if (needs.length > 0) parts.push(`Needs you:
+${needs.join("\n\n====\n\n")}`);
+      if (fyi.length > 0) parts.push(`FYI:
+${fyi.join("\n")}`);
       if (r.remainingThreads > 0)
         parts.push(`(${r.remainingThreads} more thread(s) unread \u2014 call inbox again)`);
       if (others.length > 0) {
@@ -48897,15 +49015,25 @@ async function callTool(name, rawArgs, deps, tools = ALL_TOOLS) {
       `AgentMesh is not configured: ${deps.problems.join("; ")}. Ask your human to finish the plugin setup.`
     );
   }
+  const result = await callConfigured(tool, rawArgs, deps);
+  const fyi = deps.fyi.take();
+  if (fyi.ids.length > 0) {
+    result.content.push({ type: "text", text: formatFyi(fyi) });
+    deps.hub.reportSeen(fyi.ids);
+  }
+  return result;
+}
+async function callConfigured(tool, rawArgs, deps) {
   const parsed = tool.input.safeParse(rawArgs ?? {});
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "(args)"}: ${i.message}`);
-    return error62(`Invalid arguments for ${name}:
+    return error62(`Invalid arguments for ${tool.name}:
 ${issues.join("\n")}`);
   }
   const notes = [];
   const hub = {
-    call: (method, params, options) => deps.hub.call(method, params, options, notes)
+    call: (method, params, options) => deps.hub.call(method, params, options, notes),
+    reportSeen: (ids) => deps.hub.reportSeen(ids)
   };
   const result = await run(tool, parsed.data, { ...deps, hub });
   if (notes.length > 0) result.content.push({ type: "text", text: notes.join("\n") });
@@ -50743,7 +50871,7 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.2.0";
+var VERSION = "0.3.0";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },
@@ -50832,6 +50960,16 @@ var HubClient = class {
       throw err;
     }
   }
+  /**
+   * Tells the hub these messages were shown (FYIs that rode along). Fire and
+   * forget: on failure they stay unread, so `inbox` still lists them.
+   */
+  reportSeen(messageIds) {
+    if (messageIds.length === 0) return;
+    this.call("messages.seen", { messageIds }).catch(
+      (err) => this.#logger.warn({ err, count: messageIds.length }, "could not report FYIs as seen")
+    );
+  }
   /** Best effort within `timeoutMs` (Windows kills the process ~300ms after stdin closes). */
   async close(timeoutMs) {
     const nc = this.#nc;
@@ -50853,7 +50991,7 @@ var RecentIds = class {
   has(id) {
     return this.#ids.has(id);
   }
-  /** Records an id that reached Claude Code; true the first time it is recorded. */
+  /** Records an id pushed to Claude Code or buffered as FYI; true the first time it is recorded. */
   remember(id) {
     if (this.#ids.has(id)) return false;
     this.#ids.add(id);
@@ -50864,63 +51002,6 @@ var RecentIds = class {
     return true;
   }
 };
-
-// src/inbox/render.ts
-var META_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-var MAX_CONTENT = 12e3;
-function renderEvent(messages, maxChars = MAX_CONTENT) {
-  const last = messages.at(-1);
-  if (!last) throw new Error("renderEvent needs at least one message");
-  const content = messages.length === 1 ? last.body : transcript(messages, last);
-  return { content: clip2(content, last.threadId, maxChars), meta: buildMeta(messages, last) };
-}
-function transcript(messages, last) {
-  const header = `${messages.length} new messages in ${last.threadId} \xAB${oneLine(last.subject)}\xBB:`;
-  const entries = messages.map((m) => {
-    const tags = [m.kind, m.status, m.trust === "external" ? "external" : null].filter(Boolean);
-    return `--- ${m.from.displayName} (${tags.join(", ")}, ${m.createdAt.slice(11, 16)} UTC) ---
-${m.body}`;
-  });
-  return [header, ...entries].join("\n\n");
-}
-function clip2(content, threadId, maxChars) {
-  if (content.length <= maxChars) return content;
-  return `${content.slice(0, maxChars)}
-
-\u2026 (truncated \u2014 call thread(thread_id: "${threadId}") for the rest)`;
-}
-function buildMeta(messages, last) {
-  const raw = {
-    thread_id: last.threadId,
-    message_id: last.id,
-    from: last.from.id,
-    from_name: last.from.displayName,
-    from_kind: last.from.kind,
-    kind: last.kind,
-    status: last.status,
-    task_id: last.refs.taskId,
-    plan_id: last.refs.planId,
-    round: last.refs.round,
-    pr_url: last.refs.prUrl,
-    verdict: last.refs.verdict,
-    trust: messages.some((m) => m.trust === "external") ? "external" : "team",
-    depth: last.depth,
-    count: messages.length > 1 ? messages.length : void 0,
-    subject: oneLine(last.subject)
-  };
-  return sanitizeMeta(raw);
-}
-function sanitizeMeta(raw) {
-  const meta3 = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (!META_KEY.test(key) || value === null || value === void 0 || value === "") continue;
-    meta3[key] = oneLine(String(value));
-  }
-  return meta3;
-}
-function oneLine(text2) {
-  return text2.replace(/\s+/g, " ").trim().slice(0, 300);
-}
 
 // src/inbox/session-inbox.ts
 function runSessionInbox(options) {
@@ -50940,30 +51021,43 @@ function runSessionInbox(options) {
     }
     if (inbound.type === "expired") return options.onExpired();
     if (inbound.type === "check") await options.pushCheck(inbound.code);
-    const ack = {
-      delivered: inbound.type === "deliver" ? await pushThreads(inbound.messages) : []
-    };
-    msg.respond(JSON.stringify(ack));
-  };
-  const pushThreads = async (messages) => {
     const delivered = [];
-    for (const thread of Map.groupBy(messages, (m) => m.threadId).values()) {
+    const shown = inbound.type === "deliver" ? await deliver(inbound.messages, delivered) : [];
+    const ack = { delivered };
+    msg.respond(JSON.stringify(ack));
+    hub.reportSeen(shown);
+  };
+  const deliver = async (messages, delivered) => {
+    const status = messages.filter((m) => m.class === "status");
+    options.fyi.add(status.filter((m) => seen.remember(m.id)));
+    delivered.push(...status.map((m) => m.id));
+    let fyi = null;
+    let shown = [];
+    const actions = messages.filter((m) => m.class !== "status");
+    for (const thread of Map.groupBy(actions, (m) => m.threadId).values()) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      try {
-        await options.push(renderEvent(fresh));
-      } catch (err) {
-        logger.warn(
-          { err, thread: fresh[0]?.threadId },
-          "could not push a mesh thread; the hub retries"
-        );
-        continue;
-      }
-      for (const m of fresh) seen.remember(m.id);
-      delivered.push(...fresh.map((m) => m.id));
+      const first = fyi === null;
+      fyi ??= options.fyi.take();
+      const pushed = await pushThread(fresh, first ? formatFyi(fyi) : "", delivered);
+      if (pushed && first) shown = fyi.ids;
     }
-    return delivered;
+    return shown;
+  };
+  const pushThread = async (fresh, footer, delivered) => {
+    try {
+      await options.push(renderEvent(fresh, footer));
+    } catch (err) {
+      logger.warn(
+        { err, thread: fresh[0]?.threadId },
+        "could not push a mesh thread; the hub retries"
+      );
+      return false;
+    }
+    for (const m of fresh) seen.remember(m.id);
+    delivered.push(...fresh.map((m) => m.id));
+    return true;
   };
   const resubscribe = () => {
     sub?.unsubscribe();
@@ -51103,6 +51197,7 @@ async function openSession(config2, logger) {
     presence,
     hello: null,
     activation: newActivationState(),
+    fyi: new FyiBuffer(),
     onHello: null,
     sayHello: () => {
       inFlight ??= register(hub, presence, logger).then((landed) => {
@@ -51143,6 +51238,7 @@ function startSession(server, session, logger, pushDelayMs) {
       hub,
       logger,
       signal: abort.signal,
+      fyi: session.fyi,
       push: (event2) => pushEvent(server, event2),
       pushCheck: (code) => pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? void 0)),
       onExpired: rehello,
@@ -51263,7 +51359,7 @@ async function runUnenrolled(logger) {
   logger.info({ version: VERSION }, "agentmesh plugin waiting for join");
 }
 function toolDeps(session, agentId) {
-  return { hub: session.hub, agentId, activation: session.activation };
+  return { hub: session.hub, agentId, activation: session.activation, fyi: session.fyi };
 }
 function watchLifecycle(logger) {
   let stopping = false;

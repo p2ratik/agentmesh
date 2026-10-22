@@ -1,7 +1,13 @@
 import type { Msg, NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
-import { type MeshMessage, type SessionAck, SessionInbound, subjects } from '@agentmesh/protocol';
+import {
+  type SessionAck,
+  type SessionDelivery,
+  SessionInbound,
+  subjects,
+} from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
+import { type FyiBuffer, formatFyi, type TakenFyi } from './fyi';
 import { RecentIds } from './recent-ids';
 import { type ChannelEvent, renderEvent } from './render';
 
@@ -9,6 +15,8 @@ export interface SessionInboxOptions {
   hub: HubClient;
   logger: Logger;
   signal: AbortSignal;
+  /** Status items wait here to ride along; tool results take them too. */
+  fyi: FyiBuffer;
   /** Writes one channel notification to Claude Code. */
   push(event: ChannelEvent): Promise<void>;
   /** Pushes the activation check that carries `code`. */
@@ -23,13 +31,17 @@ export interface SessionInboxOptions {
 }
 
 /**
- * Takes the hub's deliveries on `{p}.session.{agent}.{session}` and pushes
- * them into Claude Code: one event per thread, threads in arrival order. The
- * reply (`SessionAck`) lists the ids whose push succeeded, plus redeliveries
- * already pushed; the hub retries the rest. An activation check is pushed,
- * then acked. Batches are handled one at a time, so pushes keep the hub's
- * order. `resubscribe` follows `hub.sessionId`; `retryFailed` resubscribes
- * after the server refused or ended the subscription (a permissions violation).
+ * Takes the hub's deliveries on `{p}.session.{agent}.{session}`. Status items
+ * go into the FYI buffer, never into a push of their own (a push starts a
+ * turn); each id once per process, though the hub carries a thread's unread
+ * status along with later deliveries. Action items are pushed into Claude
+ * Code, one event per thread in arrival order; the first push takes the FYI
+ * buffer as its footer, and those ids are reported seen. The reply
+ * (`SessionAck`) lists the ids buffered or pushed now or before; the hub
+ * retries the rest. An activation check is pushed, then acked. Batches are
+ * handled one at a time, so pushes keep the hub's order. `resubscribe` follows
+ * `hub.sessionId`; `retryFailed` resubscribes after the server refused or
+ * ended the subscription (a permissions violation).
  */
 export function runSessionInbox(options: SessionInboxOptions): {
   stop(): void;
@@ -53,32 +65,52 @@ export function runSessionInbox(options: SessionInboxOptions): {
     }
     if (inbound.type === 'expired') return options.onExpired();
     if (inbound.type === 'check') await options.pushCheck(inbound.code);
-    const ack: SessionAck = {
-      delivered: inbound.type === 'deliver' ? await pushThreads(inbound.messages) : [],
-    };
+    const delivered: string[] = [];
+    const shown = inbound.type === 'deliver' ? await deliver(inbound.messages, delivered) : [];
+    const ack: SessionAck = { delivered };
     msg.respond(JSON.stringify(ack));
+    hub.reportSeen(shown);
   };
 
-  /** Pushes one event per thread; returns the ids pushed now or before. */
-  const pushThreads = async (messages: MeshMessage[]): Promise<string[]> => {
-    const delivered: string[] = [];
-    for (const thread of Map.groupBy(messages, (m) => m.threadId).values()) {
+  /** Buffers the status items, then pushes the action threads; returns the FYI ids shown. */
+  const deliver = async (messages: SessionDelivery[], delivered: string[]): Promise<string[]> => {
+    const status = messages.filter((m) => m.class === 'status');
+    options.fyi.add(status.filter((m) => seen.remember(m.id)));
+    delivered.push(...status.map((m) => m.id));
+    let fyi: TakenFyi | null = null;
+    let shown: string[] = [];
+    const actions = messages.filter((m) => m.class !== 'status');
+    for (const thread of Map.groupBy(actions, (m) => m.threadId).values()) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      try {
-        await options.push(renderEvent(fresh));
-      } catch (err) {
-        logger.warn(
-          { err, thread: fresh[0]?.threadId },
-          'could not push a mesh thread; the hub retries',
-        );
-        continue;
-      }
-      for (const m of fresh) seen.remember(m.id);
-      delivered.push(...fresh.map((m) => m.id));
+      const first = fyi === null;
+      fyi ??= options.fyi.take();
+      // ponytail: FYIs on a failed first push are not re-buffered; they stay unread for inbox.
+      const pushed = await pushThread(fresh, first ? formatFyi(fyi) : '', delivered);
+      if (pushed && first) shown = fyi.ids;
     }
-    return delivered;
+    return shown;
+  };
+
+  /** Pushes one thread's new action items; true (and acked) when Claude Code took them. */
+  const pushThread = async (
+    fresh: SessionDelivery[],
+    footer: string,
+    delivered: string[],
+  ): Promise<boolean> => {
+    try {
+      await options.push(renderEvent(fresh, footer));
+    } catch (err) {
+      logger.warn(
+        { err, thread: fresh[0]?.threadId },
+        'could not push a mesh thread; the hub retries',
+      );
+      return false;
+    }
+    for (const m of fresh) seen.remember(m.id);
+    delivered.push(...fresh.map((m) => m.id));
+    return true;
   };
 
   const resubscribe = (): void => {

@@ -1,4 +1,4 @@
-/** Remembers recently seen ids so redelivered messages are not pushed twice. */
+/** Remembers recently seen ids so redelivered messages are not pushed (or buffered as FYI) twice. */
 export class RecentIds {
   readonly #max: number;
   readonly #ids = new Set<string>();
@@ -11,7 +11,7 @@ export class RecentIds {
     return this.#ids.has(id);
   }
 
-  /** Records an id that reached Claude Code; true the first time it is recorded. */
+  /** Records an id pushed to Claude Code or buffered as FYI; true the first time it is recorded. */
   remember(id: string): boolean {
     if (this.#ids.has(id)) return false;
     this.#ids.add(id);

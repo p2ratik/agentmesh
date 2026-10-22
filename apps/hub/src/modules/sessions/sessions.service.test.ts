@@ -154,15 +154,15 @@ describe('sessions service', () => {
     expect(presence.isOnline('alice-agent')).toBe(false);
   });
 
-  it('hello refuses plugins older than 0.2.0', async () => {
+  it('hello refuses plugins older than 0.3.0', async () => {
     const { rpc, call } = setup();
     await expect(
-      rpc('session.hello', { clientVersion: '0.1.7' }, call(null)),
+      rpc('session.hello', { clientVersion: '0.2.0' }, call(null)),
     ).rejects.toMatchObject({
       code: 'invalid_request',
       message: expect.stringContaining('claude plugin update'),
     });
-    const hello = await rpc('session.hello', { clientVersion: '0.2.0' }, call(null));
+    const hello = await rpc('session.hello', { clientVersion: '0.3.0' }, call(null));
     expect(hello.sessionId).toMatch(SESSION_ID_PATTERN);
     expect(hello.reclaimed).toEqual([]);
     expect(hello.self.status).toBe('online');

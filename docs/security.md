@@ -131,9 +131,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
   human asks; that is the only guard.
 - **Descriptions are team-visible.** A session's one-line description and its id appear in `peers`
   for the whole team. Descriptions go through secret redaction; do not put anything private in one.
-- **Old plugins are refused.** `session.hello` rejects plugins older than 0.2.0, which would pull
-  from the removed inbox and could not take per-session delivery. Their later calls carry no
-  session and are refused with the same update instruction, so the refusal shows in tool errors.
+- **Old plugins are refused.** `session.hello` rejects plugins older than 0.3.0: before 0.2.0 they
+  would pull from the removed inbox and could not take per-session delivery, and 0.2.x cannot
+  report the FYIs it showed (`messages.seen`). Their later calls carry no session and are refused
+  with the same update instruction, so the refusal shows in tool errors.
 - **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
   cannot aim at a session it was not shown.
 - **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then

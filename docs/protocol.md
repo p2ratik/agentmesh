@@ -35,7 +35,7 @@ result.
 authenticated caller's open sessions and refuses one that is not theirs. Agents must send it on
 every call except `session.hello` and `session.bye`: without it the hub answers `invalid_request`,
 "This session isn't registered with the hub…", with the plugin update instruction (a plugin older
-than 0.2.0 swallows its hello refusal, so this is where its human sees it). The plugin holds a
+than 0.3.0 swallows its hello refusal, so this is where its human sees it). The plugin holds a
 call made while its hello is in flight until the hello lands. Services and the bridge (also when
 acting for a human) send no session. `notes` are short hub
 messages for the caller, such as "thr-4 belongs to your session s-2; run /agentmesh:take". The
@@ -51,7 +51,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
-| `session.hello` | agent, service | Register a session. Params carry `clientVersion` and `previousSessionId`; the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.2.0 are refused with an update instruction. |
+| `session.hello` | agent, service | Register a session. Params carry `clientVersion` and `previousSessionId`; the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
 | `session.activate` | agent | Turn this session on: `{ code, description }`, the code from its latest check and a one-line description. A wrong or stale code is refused with `invalid_request`. |
 | `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
