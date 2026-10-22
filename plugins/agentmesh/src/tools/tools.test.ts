@@ -178,6 +178,23 @@ describe('tool registry', () => {
     expect(calls.filter((c) => c.method === 'messages.seen')).toHaveLength(2);
   });
 
+  // The MCP SDK still runs a cancelled call to the end, then drops its result.
+  it('a cancelled call leaves its FYIs buffered and reports nothing', async () => {
+    const { deps, calls } = fakeHub({ 'message.send': sent });
+    deps.fyi.add([fyiItem('m7', 'PR is up')]);
+    const cancel = new AbortController();
+    cancel.abort();
+    const result = await callTool(
+      'reply',
+      { thread_id: 'thr-2', text: 'on it' },
+      deps,
+      cancel.signal,
+    );
+    expect(result.content).toHaveLength(1);
+    expect(calls.map((c) => c.method)).toEqual(['message.send']);
+    expect(deps.fyi.take().ids).toEqual(['m7']);
+  });
+
   it('inbox shows Needs you before FYI', async () => {
     const needs = {
       thread: thread('thr-1', 'Login', null),

@@ -49007,8 +49007,8 @@ function listTools(tools = ALL_TOOLS) {
     };
   });
 }
-async function callTool(name, rawArgs, deps, tools = ALL_TOOLS) {
-  const tool = tools.find((t) => t.name === name);
+async function callTool(name, rawArgs, deps, signal) {
+  const tool = ALL_TOOLS.find((t) => t.name === name);
   if (!tool) return error62(`Unknown tool "${name}".`);
   if ("problems" in deps) {
     return error62(
@@ -49016,6 +49016,7 @@ async function callTool(name, rawArgs, deps, tools = ALL_TOOLS) {
     );
   }
   const result = await callConfigured(tool, rawArgs, deps);
+  if (signal?.aborted) return result;
   const fyi = deps.fyi.take();
   if (fyi.ids.length > 0) {
     result.content.push({ type: "text", text: formatFyi(fyi) });
@@ -49055,7 +49056,7 @@ ${JSON.stringify(err.details.issues)}` : "";
 function meshToolHandler(deps) {
   return {
     list: () => listTools(),
-    call: (name, args) => callTool(name, args, deps)
+    call: (name, args, signal) => callTool(name, args, deps, signal)
   };
 }
 function error62(text2) {
@@ -50883,7 +50884,7 @@ function createMcpServer(instructions, handler) {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: handler().list() }));
   server.setRequestHandler(
     CallToolRequestSchema,
-    async (request) => handler().call(request.params.name, request.params.arguments)
+    async (request, extra) => handler().call(request.params.name, request.params.arguments, extra.signal)
   );
   return server;
 }

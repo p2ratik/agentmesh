@@ -13,7 +13,8 @@ export const VERSION = '0.3.0';
 /** The tools the session offers right now; it changes when an unenrolled plugin joins. */
 export interface ToolHandler {
   list(): ToolListing[];
-  call(name: string, args: unknown): Promise<ToolResult>;
+  /** `signal` aborts when Claude Code cancels the call; the SDK then drops the result. */
+  call(name: string, args: unknown, signal?: AbortSignal): Promise<ToolResult>;
 }
 
 /**
@@ -33,8 +34,8 @@ export function createMcpServer(instructions: string, handler: () => ToolHandler
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: handler().list() }));
   server.setRequestHandler(
     CallToolRequestSchema,
-    async (request): Promise<CallToolResult> =>
-      handler().call(request.params.name, request.params.arguments),
+    async (request, extra): Promise<CallToolResult> =>
+      handler().call(request.params.name, request.params.arguments, extra.signal),
   );
   return server;
 }

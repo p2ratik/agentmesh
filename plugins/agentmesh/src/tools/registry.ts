@@ -53,9 +53,9 @@ export async function callTool(
   name: string,
   rawArgs: unknown,
   deps: ToolDeps | { problems: string[] },
-  tools: readonly ToolDef[] = ALL_TOOLS,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
-  const tool = tools.find((t) => t.name === name);
+  const tool = ALL_TOOLS.find((t) => t.name === name);
   if (!tool) return error(`Unknown tool "${name}".`);
   if ('problems' in deps) {
     return error(
@@ -63,6 +63,8 @@ export async function callTool(
     );
   }
   const result = await callConfigured(tool, rawArgs, deps);
+  // A cancelled call still runs to the end, but Claude never sees its result: keep the FYIs.
+  if (signal?.aborted) return result;
   const fyi = deps.fyi.take();
   if (fyi.ids.length > 0) {
     result.content.push({ type: 'text', text: formatFyi(fyi) });
@@ -112,7 +114,7 @@ async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolRe
 export function meshToolHandler(deps: ToolDeps | { problems: string[] }) {
   return {
     list: () => listTools(),
-    call: (name: string, args: unknown) => callTool(name, args, deps),
+    call: (name: string, args: unknown, signal?: AbortSignal) => callTool(name, args, deps, signal),
   };
 }
 
