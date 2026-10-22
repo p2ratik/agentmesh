@@ -1,9 +1,11 @@
 import { type Clock, type Logger, newEventId } from '@agentmesh/common';
 import type {
+  DeliveryClass,
   DomainEvent,
   DomainEventData,
   DomainEventType,
   MeshMessage,
+  SessionDelivery,
 } from '@agentmesh/protocol';
 import type { Outbox } from '../contracts';
 import type { Db } from '../db/database';
@@ -13,6 +15,8 @@ interface DeliveryRow {
   message_id: string;
   recipient_id: string;
   payload: string;
+  class: DeliveryClass;
+  thread: string;
 }
 
 interface EventRow {
@@ -21,28 +25,30 @@ interface EventRow {
 }
 
 const BATCH = 200;
-/** How often a recipient whose whole window waits is warned about. */
-const STARVED_WARN_MS = 60_000;
+/** Most pending rows taken per (recipient, thread) in one pass. */
+const THREAD_WINDOW = 50;
 
 /**
- * Each recipient's oldest pending rows, at most BATCH each, so a recipient whose
- * messages wait for a session never starves the others.
- * ponytail: more than BATCH rows waiting on one held session also hold back that
- * agent's later rows for other threads (warned once a minute); a per-thread
- * window is plan 2 work.
+ * Each (recipient, thread) pair's oldest pending rows, at most THREAD_WINDOW, so
+ * rows waiting on one held thread never hold back the same agent's other threads.
+ * A NULL thread_key (not expected) is its own partition.
  */
 const PENDING_DELIVERIES = `
-  SELECT message_id, recipient_id, payload FROM (
-    SELECT message_id, recipient_id, payload, created_at, rowid AS seq,
-      ROW_NUMBER() OVER (PARTITION BY recipient_id ORDER BY created_at, rowid) AS n
+  SELECT message_id, recipient_id, payload, class, thread FROM (
+    SELECT message_id, recipient_id, payload, class, created_at, rowid AS seq,
+      COALESCE(thread_key, message_id) AS thread,
+      ROW_NUMBER() OVER (
+        PARTITION BY recipient_id, COALESCE(thread_key, message_id)
+        ORDER BY created_at, rowid) AS n
     FROM deliveries WHERE state = 'pending')
-  WHERE n <= ${BATCH} ORDER BY created_at, seq`;
+  WHERE n <= ${THREAD_WINDOW} ORDER BY created_at, seq`;
 
 /**
  * SQLite-backed outbox. Rows are written in the caller's transaction and
  * delivered afterwards, so an outage delays delivery but never loses it.
- * Each recipient gets its pending messages as one batch, and recipients run
- * concurrently, so one slow recipient never delays another. The ids the port
+ * Each recipient gets its pending messages (a window per thread) as one batch,
+ * and recipients run concurrently, so one slow recipient never delays another.
+ * The ids the port
  * returns are marked published in one transaction with the receipt's `commit`;
  * the rest stay pending without counting an attempt (per-thread order is the
  * port's job). Feed events stop at the first failure to keep their order.
@@ -56,8 +62,6 @@ export class SqliteOutbox implements Outbox {
   #flushing: Promise<void> | null = null;
   #again = false;
   #scheduled = false;
-  /** When each starved recipient was last warned about (epoch ms). */
-  readonly #starvedWarned = new Map<string, number>();
 
   constructor(db: Db, clock: Clock, logger: Logger, delivery: DeliveryPort, events: EventPort) {
     this.#db = db;
@@ -67,15 +71,25 @@ export class SqliteOutbox implements Outbox {
     this.#events = events;
   }
 
-  enqueueDelivery(message: MeshMessage, recipientId: string, held: boolean): void {
+  /** `cls` is the message's class for this recipient: `action` (the default) or `status`. */
+  enqueueDelivery(
+    message: MeshMessage,
+    recipientId: string,
+    held: boolean,
+    cls: DeliveryClass = 'action',
+  ): void {
+    const delivery: SessionDelivery = { ...message, class: cls };
     this.#db.run(
-      `INSERT OR IGNORE INTO deliveries (message_id, recipient_id, payload, state, created_at)
-       VALUES ($messageId, $recipientId, $payload, $state, $at)`,
+      `INSERT OR IGNORE INTO deliveries
+         (message_id, recipient_id, payload, state, class, thread_key, created_at)
+       VALUES ($messageId, $recipientId, $payload, $state, $class, $threadKey, $at)`,
       {
         messageId: message.id,
         recipientId,
-        payload: JSON.stringify(message),
+        payload: JSON.stringify(delivery),
         state: held ? 'held' : 'pending',
+        class: cls,
+        threadKey: message.threadId,
         at: this.#clock.now().toISOString(),
       },
     );
@@ -116,6 +130,14 @@ export class SqliteOutbox implements Outbox {
       }
     })();
     return this.#flushing;
+  }
+
+  /**
+   * A row a flush already took still publishes if its session acks it (it was pushed);
+   * the rest of that flush stays held.
+   */
+  holdPending(): number {
+    return this.#db.run("UPDATE deliveries SET state = 'held' WHERE state = 'pending'").changes;
   }
 
   releaseHeld(): number {
@@ -163,7 +185,13 @@ export class SqliteOutbox implements Outbox {
   /** Returns whether more rows may be ready behind this batch. A batch that only waits must not spin. */
   async #deliverTo(recipientId: string, rows: DeliveryRow[]): Promise<boolean> {
     try {
-      const messages = rows.map((row) => JSON.parse(row.payload) as MeshMessage);
+      // The row's class column also covers rows queued before payloads carried one.
+      const messages = rows.map(
+        (row): SessionDelivery => ({
+          ...(JSON.parse(row.payload) as MeshMessage),
+          class: row.class,
+        }),
+      );
       const receipt = await this.#delivery.deliver(recipientId, messages);
       const at = this.#clock.now().toISOString();
       this.#db.transaction(() => {
@@ -176,8 +204,19 @@ export class SqliteOutbox implements Outbox {
         }
         receipt.commit?.();
       });
-      if (rows.length === BATCH && receipt.delivered.length === 0) this.#warnStarved(recipientId);
-      return rows.length === BATCH && receipt.delivered.length > 0;
+      // Loop again only if a thread's full window delivered something: more may sit behind it.
+      const delivered = new Set(receipt.delivered);
+      let more = false;
+      for (const [thread, threadRows] of Map.groupBy(rows, (row) => row.thread)) {
+        if (threadRows.length < THREAD_WINDOW) continue;
+        if (threadRows.some((row) => delivered.has(row.message_id))) more = true;
+        else
+          this.#logger.debug(
+            { recipient: recipientId, thread, waiting: threadRows.length },
+            'a full window of this thread waits; later rows in it wait behind them',
+          );
+      }
+      return more;
     } catch (error) {
       const message = String((error as Error)?.message ?? error);
       this.#db.transaction(() => {
@@ -192,17 +231,6 @@ export class SqliteOutbox implements Outbox {
       this.#logger.warn({ err: error, recipient: recipientId }, 'delivery failed; will retry');
       return false;
     }
-  }
-
-  /** A full window that only waits holds back everything behind it for this recipient. */
-  #warnStarved(recipientId: string): void {
-    const now = this.#clock.now().getTime();
-    if (now - (this.#starvedWarned.get(recipientId) ?? -Infinity) < STARVED_WARN_MS) return;
-    this.#starvedWarned.set(recipientId, now);
-    this.#logger.warn(
-      { recipient: recipientId, waiting: BATCH },
-      'every pending delivery in this recipient’s window waits; later ones wait behind them',
-    );
   }
 
   async #flushEvents(): Promise<void> {

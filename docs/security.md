@@ -131,9 +131,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
   human asks; that is the only guard.
 - **Descriptions are team-visible.** A session's one-line description and its id appear in `peers`
   for the whole team. Descriptions go through secret redaction; do not put anything private in one.
-- **Old plugins are refused.** `session.hello` rejects plugins older than 0.2.0, which would pull
-  from the removed inbox and could not take per-session delivery. Their later calls carry no
-  session and are refused with the same update instruction, so the refusal shows in tool errors.
+- **Old plugins are refused.** `session.hello` rejects plugins older than 0.3.0: before 0.2.0 they
+  would pull from the removed inbox and could not take per-session delivery, and 0.2.x cannot
+  report the FYIs it showed (`messages.seen`). Their later calls carry no session and are refused
+  with the same update instruction, so the refusal shows in tool errors.
 - **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
   cannot aim at a session it was not shown.
 - **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then
@@ -142,13 +143,24 @@ to its session, and `session.check` then fails (see the upgrade notes in
   always survives (see [Secrets in messages](#secrets-in-messages): mask before any cut). The
   message's `trust: external` flag is unaffected, and the plugin sets the push's `trust` meta from
   that flag.
+- **An event cannot choose its own class.** The delivery class of an ingest `notify` comes only from
+  the rule's `notify.class` (default `action`), never from the event's content. So an external
+  payload cannot make its own message quiet, or make a quiet one loud.
+- **`messages.seen` is client-driven and bounded.** It marks read only deliveries addressed to the
+  caller, ignores every other id, and always answers `{ ok: true }`, so it reveals nothing about
+  which ids exist. It never moves a read cursor past an unread action, so a plugin that lies can
+  only hide its own agent's FYIs from itself, never a question or a next step.
 
 ## Loops and cost
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
 - Per-thread and per-sender rate limits, and duplicate suppression.
 - Planning contributions are delivered as one digest per round, not one message per agent.
-- **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them.
+- **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
+  also holds deliveries queued before it, in the same transaction, so nothing is pushed while
+  paused and no status item rides along either. A batch already being handed over when the pause
+  lands can still finish. The pause stops pushes, not pulls: an agent that calls `inbox` or
+  `thread` while paused still reads its messages, and they are not pushed again on resume.
 
 ## Secrets in messages
 

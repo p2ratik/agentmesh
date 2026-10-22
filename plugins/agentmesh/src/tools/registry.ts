@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
+import { formatFyi, seenIds } from '../inbox/fyi';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
 import { planningTools } from './planning';
@@ -45,30 +46,49 @@ export function listTools(tools: readonly ToolDef[] = ALL_TOOLS): ToolListing[] 
 /**
  * Runs a tool and turns every failure into a readable `isError` result:
  * bad arguments list the issues, hub errors keep their code, a missing setup
- * returns the setup problem.
+ * returns the setup problem. Buffered FYIs end the result and are reported
+ * seen (`messages.seen` is no tool, so this never recurses).
  */
 export async function callTool(
   name: string,
   rawArgs: unknown,
   deps: ToolDeps | { problems: string[] },
-  tools: readonly ToolDef[] = ALL_TOOLS,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
-  const tool = tools.find((t) => t.name === name);
+  const tool = ALL_TOOLS.find((t) => t.name === name);
   if (!tool) return error(`Unknown tool "${name}".`);
   if ('problems' in deps) {
     return error(
       `AgentMesh is not configured: ${deps.problems.join('; ')}. Ask your human to finish the plugin setup.`,
     );
   }
+  const result = await callConfigured(tool, rawArgs, deps);
+  // A cancelled call still runs to the end, but Claude never sees its result: keep the FYIs.
+  if (signal?.aborted) return result;
+  const fyi = deps.fyi.take();
+  if (fyi.items.length > 0) {
+    result.content.push({ type: 'text', text: formatFyi(fyi) });
+    deps.hub.reportSeen(seenIds(fyi));
+  }
+  return result;
+}
+
+/** Validates the arguments and runs the tool; the result ends with this call's hub notes. */
+async function callConfigured(
+  tool: ToolDef,
+  rawArgs: unknown,
+  deps: ToolDeps,
+): Promise<ToolResult> {
   const parsed = tool.input.safeParse(rawArgs ?? {});
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.') || '(args)'}: ${i.message}`);
-    return error(`Invalid arguments for ${name}:\n${issues.join('\n')}`);
+    return error(`Invalid arguments for ${tool.name}:\n${issues.join('\n')}`);
   }
   // Only this call's hub notes end its result, never those of parallel calls or background hellos.
   const notes: string[] = [];
   const hub: ToolDeps['hub'] = {
     call: (method, params, options) => deps.hub.call(method, params, options, notes),
+    reportSeen: (ids) => deps.hub.reportSeen(ids),
   };
   const result = await run(tool, parsed.data, { ...deps, hub });
   if (notes.length > 0) result.content.push({ type: 'text', text: notes.join('\n') });
@@ -94,7 +114,7 @@ async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolRe
 export function meshToolHandler(deps: ToolDeps | { problems: string[] }) {
   return {
     list: () => listTools(),
-    call: (name: string, args: unknown) => callTool(name, args, deps),
+    call: (name: string, args: unknown, signal?: AbortSignal) => callTool(name, args, deps, signal),
   };
 }
 

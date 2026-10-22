@@ -21,11 +21,12 @@ async function connected(replies: unknown[]) {
   } as unknown as NatsConnection;
   vi.mocked(connectBus).mockResolvedValue(nc);
   const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
+  const warn = vi.spyOn(logger, 'warn');
   const config = { agentId: 'alice-agent', servers: [], prefix: 'mesh', heartbeatSeconds: 30 };
   const hub = new HubClient(config, logger);
   hub.connect();
   await hub.whenConnected();
-  return { hub, envelopes };
+  return { hub, envelopes, warn };
 }
 
 const ok = (notes?: string[]) => ({ ok: true, result: { ok: true }, ...(notes ? { notes } : {}) });
@@ -47,7 +48,7 @@ describe('HubClient', () => {
   it('a call made before the hello lands waits for it and carries the session', async () => {
     const { hub, envelopes } = await connected([ok()]);
     const hello = Promise.withResolvers<void>();
-    hub.pendingHello = hello.promise;
+    hub.sayHello = () => hello.promise;
     const calling = hub.call('session.bye', {});
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(envelopes).toEqual([]);
@@ -55,6 +56,21 @@ describe('HubClient', () => {
     hello.resolve();
     await calling;
     expect(envelopes.map((e) => e.session)).toEqual(['s-aaaaaaaaaaaa']);
+  });
+
+  it('reports shown messages as seen and only warns when that fails', async () => {
+    const { hub, envelopes, warn } = await connected([
+      ok(),
+      { ok: false, error: { code: 'internal', message: 'disk full' } },
+    ]);
+    hub.reportSeen(['m1', 'm2']);
+    hub.reportSeen([]);
+    hub.reportSeen(['m3']);
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledOnce());
+    expect(envelopes.map((e) => e.params)).toEqual([
+      { messageIds: ['m1', 'm2'] },
+      { messageIds: ['m3'] },
+    ]);
   });
 
   it('reports a session the hub no longer knows, and still fails the call', async () => {

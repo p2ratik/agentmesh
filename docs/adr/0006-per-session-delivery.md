@@ -74,16 +74,31 @@ The full evidence is in the [design](../specs/2026-10-21-session-routing-design.
 - **Ordering** is per thread per agent, kept by the dispatcher. The outbox runs recipients
   concurrently and takes up to 200 pending rows per recipient per flush. If all 200 wait for a held
   session, the agent's later rows wait behind them; the hub warns once a minute. A per-thread
-  window is later work (plan 2).
+  window is later work (plan 2). Plan 2 did it: see "Plan 2" below.
 - **Delivery needs the hub up.** RPCs always did.
 - **Sessions of one agent share NATS permissions.** See the threat note in
   [security.md](../security.md#sessions-and-per-session-delivery).
 - **Upgrade.** On start the hub deletes the leftover `{P}_DELIVERY` stream. Anything still queued
   there is not pushed, but it is in the hub database and reachable through `inbox`. The hub refuses
-  `session.hello` from plugins older than 0.2.0, and their later sessionless calls, so the hub and
-  every plugin upgrade together; there is no compatibility mode. Agents need new NATS permissions:
+  `session.hello` from plugins older than 0.3.0 (0.2.0 when this shipped), and their later sessionless
+  calls, so the hub and every plugin upgrade together; there is no compatibility mode. Agents need new NATS permissions:
   a static `nats.conf` is re-rendered and reloaded before the hub restarts, and in auth-callout
   mode plugins reconnect for a new JWT ([deploy.md](../deploy.md#operations)).
+
+## Plan 2: delivery classes
+
+- **Classes.** Each delivery is `action` or `status`, decided per recipient by the code that
+  creates it. Status never starts a turn and never claims ownership; the plugin shows it as an
+  `FYI (n):` block with the next mesh tool result. A teammate message is status only as a
+  `working`/`info` reply, so a question can never go quiet. An agent is not told about its own
+  call (echoes); a consequence it must learn becomes a note on its tool result.
+- **Ride-along.** A status item is published but stays unread until the plugin reports it shown
+  (`messages.seen`). A later delivery in its thread carries along the thread's unread status
+  items (newest 20), so one lost with a dead session is not lost. The cost: an FYI can be shown
+  twice, accepted for FYI.
+- **Per-thread window.** The outbox picks pending rows per (recipient, thread), 50 per thread, so
+  a held thread no longer blocks the agent's others. This replaces the 200-per-recipient limit.
+- Hub minimum plugin version: 0.3.0. Details: [protocol.md](../protocol.md#delivery-classes).
 
 ## Alternatives considered
 

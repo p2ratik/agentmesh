@@ -1,5 +1,11 @@
 import { MeshError } from '@agentmesh/common';
-import type { MeshMessage, ParticipantRef, ThreadSummary } from '@agentmesh/protocol';
+import type {
+  DeliveryClass,
+  MeshMessage,
+  ParticipantRef,
+  SessionDelivery,
+  ThreadSummary,
+} from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type {
   ControlService,
@@ -157,17 +163,48 @@ export class MessagingServiceImpl implements MessagingService {
     }
   }
 
+  /**
+   * The plugin reports these ids, so only messages addressed to the agent move its cursors.
+   * A cursor never passes an unread action: the dispatcher would count it as read and never
+   * push it. Status items above that cap stay unread and ride along again.
+   */
+  markSeen(agentId: string, messageIds: string[]): void {
+    for (const { threadId, seq } of this.messages.latestAddressedTo(agentId, messageIds)) {
+      const action = this.reads.oldestUnreadAction(threadId, agentId);
+      this.reads.advance(threadId, agentId, action === null ? seq : Math.min(seq, action - 1));
+    }
+  }
+
+  /**
+   * The agent's unread status items in the message's thread that are older than it,
+   * newest `limit`, oldest first. The dispatcher carries them along with every delivery
+   * in that thread, so a cursor that passes them never hides one no session was shown,
+   * and nothing newer (held, or past the outbox's window) is shown early.
+   */
+  unreadStatusBefore(agentId: string, messageId: string, limit: number): SessionDelivery[] {
+    const at = this.messages.position(messageId);
+    if (!at) return [];
+    return this.reads
+      .unreadStatus(at.threadId, agentId, at.seq, limit)
+      .map((row) => ({ ...this.toMessage(row), class: 'status' }));
+  }
+
   isRead(participantId: string, messageId: string): boolean {
     const at = this.messages.position(messageId);
     const cursor = at ? this.reads.cursor(at.threadId, participantId) : null;
     return at !== undefined && cursor !== null && at.seq <= cursor;
   }
 
+  /** `status` when the message was stored as status for this participant; `action` otherwise. */
+  classFor(messageId: string, participantId: string): DeliveryClass {
+    return this.messages.statusFor(messageId).includes(participantId) ? 'status' : 'action';
+  }
+
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void {
     this.#ownerOf = reader;
   }
 
-  /** The session that owns the agent's side of a thread; null when nobody does. */
+  /** The session that owns the agent's side of a thread (or its parent or task), as routing does. */
   ownerOf(threadId: number, agentId: string): ThreadOwner | null {
     return this.#ownerOf(threadId, agentId);
   }

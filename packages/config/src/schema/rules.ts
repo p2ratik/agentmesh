@@ -1,4 +1,4 @@
-import { Priority, Severity } from '@agentmesh/protocol';
+import { DeliveryClass, Priority, Severity } from '@agentmesh/protocol';
 import { z } from 'zod';
 
 /** A condition on one value inside the event (`payload.branch`, `severity`, …). */
@@ -38,6 +38,8 @@ export const NotifyAction = z.object({
     repo: Template.optional(),
     subject: Template.optional(),
     text: Template,
+    /** `status` notices ride along as FYI instead of interrupting the recipient. */
+    class: DeliveryClass.default('action'),
   }),
 });
 

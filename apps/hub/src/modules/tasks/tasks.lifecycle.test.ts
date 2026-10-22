@@ -1,30 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Actor, TaskCreateInput } from '../../contracts';
 import { leaveTeam } from '../../testing/harness';
-import { createServiceHarness } from '../../testing/services';
-import { TaskServiceImpl } from './tasks.service';
-
-const agent = (id: string): Actor => ({ id, kind: 'agent', roles: [] });
-const human = (id: string): Actor => ({ id, kind: 'human', roles: [] });
-
-const base: TaskCreateInput = {
-  title: 'Add retries to the queue consumer',
-  description: 'Exponential backoff, idempotency key.',
-  priority: 'normal',
-  labels: [],
-  dependsOn: [],
-};
-
-function setup(online = ['alice-agent', 'bob-agent', 'carol-agent']) {
-  const h = createServiceHarness(undefined, { online });
-  const tasks = new TaskServiceImpl(h.ctx, {
-    messaging: h.messaging,
-    presence: h.presence,
-    leases: h.leases,
-  });
-  h.presence.setLoadReader(() => tasks.activeLoad());
-  return { ...h, tasks };
-}
+import { agent, baseTask as base, human, createTaskHarness as setup } from '../../testing/tasks';
 
 describe('task lifecycle', () => {
   it('routes a new task to an online owner of its area and briefs only them', async () => {
@@ -54,6 +30,7 @@ describe('task lifecycle', () => {
     expect(third.state).toBe('backlog');
     const inbox = await drain();
     expect(inbox.get('alice-agent')?.[0]?.body).toContain('claim');
+    expect(inbox.get('alice-agent')?.[0]?.class).toBe('status');
     expect(inbox.get('bob-agent')).toBeUndefined();
   });
 
@@ -116,7 +93,9 @@ describe('review loop', () => {
     expect(submitted.state).toBe('in_review');
     expect(submitted.reviewers).not.toContain(owner.id);
     const reviewer = agent(submitted.reviewers[0] ?? '');
-    await drain();
+    expect((await drain()).get(reviewer.id)?.map((m) => [m.refs.action, m.class])).toEqual([
+      ['review_requested', 'action'],
+    ]);
 
     const changes = tasks.submitReview(1, 'request_changes', 'Missing tests', reviewer);
     expect(changes.state).toBe('changes_requested');

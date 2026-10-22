@@ -5,8 +5,9 @@ import type { MessagingServiceImpl } from './messaging.service';
 type OtherSession = RpcResult<'inbox.get'>['otherSessions'][number];
 
 /**
- * Unread threads for a participant (most recent first), each with its unread
- * count and newest `perThread` unread messages. Returned threads are marked
+ * Unread threads for a participant: those needing it first, then FYI ones
+ * (every unread message is status), each group most recent first. Each has its
+ * unread count and newest `perThread` unread messages. Returned threads are marked
  * read up to their latest message; the rest stay unread for the next call.
  * A session sees its own threads and unowned ones; threads owned by the
  * agent's other sessions are only named (`otherSessions`) and stay unread.
@@ -36,7 +37,12 @@ export function readInbox(
         participantId,
         messaging.messages.maxSeq(entry.threadId),
       );
-      return { thread: messaging.summary(entry.threadId), unread: entry.unread, messages };
+      return {
+        thread: messaging.summary(entry.threadId),
+        unread: entry.unread,
+        messages,
+        fyi: entry.actions === 0,
+      };
     });
     return { threads, remainingThreads: unread.length - picked.length, otherSessions };
   });

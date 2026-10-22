@@ -3,6 +3,7 @@ import type { RpcResult } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { PluginConfig } from './config';
 import { HubClient } from './hub';
+import { FyiBuffer } from './inbox/fyi';
 import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
 import { pushEvent, VERSION } from './server';
@@ -22,8 +23,12 @@ export interface Session {
   /** Says hello (again), one call at a time; resolves null if it failed. */
   sayHello(): Promise<Hello | null>;
   activation: ActivationState;
+  /** Status items waiting to ride along (on tool results and action pushes). */
+  fyi: FyiBuffer;
   /** Runs after each hello that lands; `renewed` when the hub replaced the previous session. */
   onHello: ((renewed: boolean) => void) | null;
+  /** Resolved once the inbox first listens on the session subject (the hub's check goes there). */
+  listening: PromiseWithResolvers<void>;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
@@ -39,7 +44,9 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     presence,
     hello: null,
     activation: newActivationState(),
+    fyi: new FyiBuffer(),
     onHello: null,
+    listening: Promise.withResolvers(),
     sayHello: () => {
       inFlight ??= register(hub, presence, logger)
         .then((landed) => {
@@ -48,13 +55,12 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
         })
         .finally(() => {
           inFlight = null;
-          hub.pendingHello = null;
         });
-      // Calls made meanwhile wait for it: the hub refuses agent calls without a session.
-      hub.pendingHello = inFlight;
       return inFlight;
     },
   };
+  // A call without a session says hello first (or waits for this one): the hub refuses it otherwise.
+  hub.sayHello = session.sayHello;
   // The handshake must not wait on the network; a late hello still sets `hub.sessionId`.
   session.hello = await Promise.race([
     session.sayHello(),
@@ -99,11 +105,15 @@ export function startSession(
       hub,
       logger,
       signal: abort.signal,
+      fyi: session.fyi,
       push: (event) => pushEvent(server, event),
       pushCheck: (code) =>
         pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? undefined)),
       onExpired: rehello,
-      onListening: () => presence.beat(),
+      onListening: () => {
+        presence.beat();
+        session.listening.resolve();
+      },
     });
     if (!hub.sessionId) rehello();
   };
@@ -115,10 +125,13 @@ export function startSession(
     hub.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    await Promise.race([
-      hub.call('session.bye', {}, { timeoutMs: SHUTDOWN_MS }).catch(() => undefined),
-      new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS)),
-    ]);
+    // Without a session there is nothing to close, and the call would open one.
+    if (hub.sessionId) {
+      await Promise.race([
+        hub.call('session.bye', {}, { timeoutMs: SHUTDOWN_MS }).catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS)),
+      ]);
+    }
     await hub.close(SHUTDOWN_MS);
   };
 }

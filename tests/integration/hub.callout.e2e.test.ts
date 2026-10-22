@@ -144,7 +144,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
     const dana = createUser();
     const first = connected(await asAgent(dana, 'dana-agent', { token: code }));
     const hello = await new RpcClient(first, PREFIX, 'dana-agent', 4000).call('session.hello', {
-      clientVersion: '0.2.0',
+      clientVersion: '0.3.0',
     });
     expect(hello.self.id).toBe('dana-agent');
     expect(typeof (await asAgent(createUser(), 'dana-agent', { token: code }))).toBe('string');

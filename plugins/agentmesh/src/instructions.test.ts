@@ -71,6 +71,16 @@ describe('buildInstructions', () => {
     }
   });
 
+  it('says status updates ride along and stays under 4096', () => {
+    const line =
+      'Status updates ride along at the end of your next mesh tool result; they never start a turn.';
+    for (const h of [hello('Escalate crucial decisions to aheen. '.repeat(300), 2), null]) {
+      const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+      expect(text).toContain(line);
+    }
+  });
+
   it('keeps a short policy whole', () => {
     const text = buildInstructions({
       agentId: 'bob-agent',

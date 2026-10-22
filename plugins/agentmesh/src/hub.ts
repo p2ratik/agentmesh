@@ -14,7 +14,7 @@ export const UNREACHABLE =
 
 /** How the hub's `not_found` starts when it no longer knows the session a call carried. */
 const UNKNOWN_SESSION = 'Unknown or closed session';
-/** How long a call waits for an in-flight hello before it goes without a session. */
+/** How long a call waits for a hello before it goes without a session. */
 const HELLO_WAIT_MS = 5000;
 
 /**
@@ -30,8 +30,8 @@ export class HubClient {
   sessionId: string | null = null;
   /** Called when a call fails because the hub no longer knows `sessionId`. */
   onSessionLost: (() => void) | null = null;
-  /** The `session.hello` in flight, if any: calls made before it lands wait for it briefly. */
-  pendingHello: Promise<unknown> | null = null;
+  /** Says hello, or joins the hello in flight (`Session.sayHello`); sessionless calls wait for it. */
+  sayHello: (() => Promise<unknown>) | null = null;
   readonly #logger: Logger;
   #nc: NatsConnection | null = null;
   #rpc: RpcClient | null = null;
@@ -79,9 +79,9 @@ export class HubClient {
     notes?: string[],
   ): Promise<RpcResult<M>> {
     if (!this.#rpc) throw new MeshError('unavailable', UNREACHABLE);
-    // The hub refuses agent calls without a session, so give an in-flight hello a moment to land.
-    if (!this.sessionId && this.pendingHello && method !== 'session.hello') {
-      await Promise.race([this.pendingHello, sleep(HELLO_WAIT_MS, undefined, { ref: false })]);
+    // The hub refuses agent calls without a session, so say hello first and give it a moment.
+    if (!this.sessionId && this.sayHello && method !== 'session.hello') {
+      await Promise.race([this.sayHello(), sleep(HELLO_WAIT_MS, undefined, { ref: false })]);
     }
     const session = this.sessionId;
     try {
@@ -97,6 +97,17 @@ export class HubClient {
       }
       throw err;
     }
+  }
+
+  /**
+   * Tells the hub these messages were shown (FYIs that rode along). Fire and
+   * forget: on failure they stay unread, so `inbox` still lists them.
+   */
+  reportSeen(messageIds: string[]): void {
+    if (messageIds.length === 0) return;
+    this.call('messages.seen', { messageIds }).catch((err) =>
+      this.#logger.warn({ err, count: messageIds.length }, 'could not report FYIs as seen'),
+    );
   }
 
   /** Best effort within `timeoutMs` (Windows kills the process ~300ms after stdin closes). */

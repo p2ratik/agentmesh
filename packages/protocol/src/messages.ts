@@ -45,6 +45,10 @@ export const MessageRefs = z.object({
 });
 export type MessageRefs = z.infer<typeof MessageRefs>;
 
+/** `action` interrupts a session; `status` rides along later as FYI. */
+export const DeliveryClass = z.enum(['action', 'status']);
+export type DeliveryClass = z.infer<typeof DeliveryClass>;
+
 /** The envelope delivered to every recipient and published on the activity feed. */
 export const MeshMessage = z.object({
   id: z.string(),

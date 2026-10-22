@@ -1,38 +1,8 @@
-import type { MeshMessage, MessageRefs } from '@agentmesh/protocol';
 import { describe, expect, it, vi } from 'vitest';
-import { createDispatchHarness } from '../../testing/services';
+import { createBobDispatchHarness as setup } from '../../testing/services';
 import { readInbox } from '../messaging/inbox';
 import type { MessagingServiceImpl } from '../messaging/messaging.service';
 import { SessionsServiceImpl } from './sessions.service';
-
-function setup() {
-  const h = createDispatchHarness();
-  /** A bob-agent session, activated at the clock's current time. */
-  const active = () => {
-    const id = h.sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
-    h.sessions.activate('bob-agent', id, 'web client');
-    return id;
-  };
-  const thread = () =>
-    h.messaging.createThread({
-      kind: 'conversation',
-      subject: 'x',
-      createdBy: 'alice-agent',
-      participants: ['bob-agent'],
-    }).id;
-  let n = 0;
-  const ask = (threadId: number, refs: MessageRefs = {}): MeshMessage =>
-    h.messaging.post({ threadId, senderId: 'alice-agent', kind: 'ask', body: `q${++n}`, refs })
-      .message;
-  const pending = () =>
-    h.ctx.db
-      .all<{ message_id: string }>(
-        "SELECT message_id FROM deliveries WHERE state = 'pending' ORDER BY rowid",
-      )
-      .map((r) => r.message_id);
-  const liveness = (sessionId: string) => h.sessions.verify('bob-agent', sessionId).liveness;
-  return { ...h, active, thread, ask, pending, liveness };
-}
 
 describe('SessionDispatcher', () => {
   it('never delivers to an agent whose only session is inactive, nor routes for it', async () => {

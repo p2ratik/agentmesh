@@ -1,4 +1,4 @@
-import type { DomainEvent, MeshMessage } from '@agentmesh/protocol';
+import type { DomainEvent, SessionDelivery } from '@agentmesh/protocol';
 
 /** What a delivery handed over, and the database writes that go with it. */
 export interface DeliveryReceipt {
@@ -14,10 +14,11 @@ export interface DeliveryReceipt {
 /** Where the outbox publishes. NATS in production, in-memory in tests. */
 export interface DeliveryPort {
   /**
-   * Hands one recipient its pending messages, oldest first. Must be
-   * idempotent per (message, recipient): a message can be handed over again.
+   * Hands one recipient its pending messages, oldest first, each with its class
+   * for that recipient. Must be idempotent per (message, recipient): a message
+   * can be handed over again.
    */
-  deliver(recipientId: string, messages: MeshMessage[]): Promise<DeliveryReceipt>;
+  deliver(recipientId: string, messages: SessionDelivery[]): Promise<DeliveryReceipt>;
 }
 
 export interface EventPort {
@@ -27,13 +28,13 @@ export interface EventPort {
 
 /** Records everything; used by unit tests. */
 export class MemoryPorts implements DeliveryPort, EventPort {
-  readonly deliveries: Array<{ recipientId: string; message: MeshMessage }> = [];
+  readonly deliveries: Array<{ recipientId: string; message: SessionDelivery }> = [];
   readonly events: DomainEvent[] = [];
   /** Fails the next N calls; with `failRecipient` set, only deliveries to that recipient. */
   failNext = 0;
   failRecipient: string | null = null;
 
-  async deliver(recipientId: string, messages: MeshMessage[]): Promise<DeliveryReceipt> {
+  async deliver(recipientId: string, messages: SessionDelivery[]): Promise<DeliveryReceipt> {
     if (this.failRecipient === null || this.failRecipient === recipientId) this.#maybeFail();
     for (const message of messages) this.deliveries.push({ recipientId, message });
     return { delivered: messages.map((m) => m.id) };
@@ -44,7 +45,7 @@ export class MemoryPorts implements DeliveryPort, EventPort {
     this.events.push(event);
   }
 
-  deliveredTo(recipientId: string): MeshMessage[] {
+  deliveredTo(recipientId: string): SessionDelivery[] {
     return this.deliveries.filter((d) => d.recipientId === recipientId).map((d) => d.message);
   }
 

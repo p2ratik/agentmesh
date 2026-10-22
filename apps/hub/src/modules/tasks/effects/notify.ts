@@ -2,33 +2,42 @@ import { nextActionsFor } from '../next-actions';
 import {
   approvedBrief,
   assignmentBrief,
+  branchNote,
   changesRequestedBrief,
   creatorUpdate,
   stateBrief,
 } from '../text';
 import { ASSIGNING_ACTIONS } from '../workflow/conventions';
 import { isTerminalState } from '../workflow/engine';
+import { assigneeNoticeClass, creatorNoticeClass } from './classes';
 import type { Effect, EffectEnv, EffectRun } from './types';
 
 /**
  * A detailed brief for the assignee, shaped by what just happened: an
  * assignment gets the full brief (branch, base, dependencies, next calls);
  * review outcomes and terminal states get focused notes. The assignee is not
- * told about their own actions, except when they claimed the task.
+ * told about their own actions. When they took the task themselves (a claim,
+ * or creating it for themselves), the operation turns the brief into a note on
+ * their result with its git part: their result shows the task, not the branch.
  */
 export const notifyAssignee: Effect = (env, run) => {
   const { task } = run;
   const assignee = task.assignee;
-  if (!assignee || (assignee === run.actor.id && run.action !== 'claim')) return;
-  env.post({
-    threadId: task.threadId,
-    senderId: env.deps.messaging.hubId,
-    kind: 'task',
-    body: assigneeBody(env, run, assignee),
-    to: [assignee],
-    trust: task.trust,
-    refs: { action: run.action ?? 'assigned' },
-  });
+  const assignment = run.action === null || ASSIGNING_ACTIONS.has(run.action);
+  if (!assignee || (assignee === run.actor.id && !assignment)) return;
+  env.post(
+    {
+      threadId: task.threadId,
+      senderId: env.deps.messaging.hubId,
+      kind: 'task',
+      body: assigneeBody(env, run, assignee),
+      to: [assignee],
+      trust: task.trust,
+      refs: { action: run.action ?? 'assigned' },
+      deliveryClass: assigneeNoticeClass(run.action),
+    },
+    assignment ? { noteForCaller: branchNote(env.ctx.index, task, assignee) } : {},
+  );
 };
 
 function assigneeBody(env: EffectEnv, run: EffectRun, assignee: string): string {
@@ -75,5 +84,6 @@ export const notifyCreator: Effect = (env, run) => {
     to: [creator],
     trust: task.trust,
     refs: { action: run.action ?? 'update' },
+    deliveryClass: creatorNoticeClass(run.workflow.states[task.state]),
   });
 };

@@ -9,6 +9,7 @@ import {
 } from '@agentmesh/protocol';
 import type { Actor, CallContext, RpcHandler, RpcHandlerMap, SessionsService } from '../contracts';
 import { isClaiming } from '../modules/sessions/claims';
+import { MIN_CLIENT_VERSION } from '../modules/sessions/version';
 import { resolveActAs, resolveCaller } from './actor';
 import type { IdempotencyStore } from './idempotency';
 
@@ -59,9 +60,9 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
   };
 }
 
-/** Plugins older than 0.2.0 swallow the hello refusal; their other calls must say this instead. */
+/** Plugins older than the minimum swallow the hello refusal; their other calls must say this instead. */
 const NO_SESSION =
-  "This session isn't registered with the hub. If your AgentMesh plugin is older than 0.2.0, " +
+  `This session isn't registered with the hub. If your AgentMesh plugin is older than ${MIN_CLIENT_VERSION}, ` +
   'update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.';
 
 /**

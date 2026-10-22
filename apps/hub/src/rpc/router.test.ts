@@ -173,7 +173,7 @@ describe('RPC router sessions', () => {
       code: 'invalid_request',
       message:
         "This session isn't registered with the hub. If your AgentMesh plugin is older than " +
-        '0.2.0, update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.',
+        '0.3.0, update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.',
     });
     const hello = { clientVersion: '0.2.0' };
     await expect(

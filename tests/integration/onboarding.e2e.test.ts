@@ -25,7 +25,8 @@ import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './supp
 const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
 const OFFSET = Math.floor(Date.now() % 400);
 const PORT = 6000 + OFFSET;
-const MONITOR = 6500 + OFFSET;
+// fetch refuses "bad ports" (6566, 6665–6669, 6679, 6697…) without connecting; 7100–7499 has none.
+const MONITOR = 7100 + OFFSET;
 const URL = `nats://127.0.0.1:${PORT}`;
 const HUB = `127.0.0.1:${PORT}`;
 const PREFIX = 'onboard';
