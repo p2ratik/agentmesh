@@ -26,6 +26,7 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
     agentId: 'alice-agent',
     activation: newActivationState(),
     fyi: new FyiBuffer(),
+    listening: Promise.resolve(),
   };
   return { deps, calls };
 }

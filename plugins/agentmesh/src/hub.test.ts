@@ -48,7 +48,7 @@ describe('HubClient', () => {
   it('a call made before the hello lands waits for it and carries the session', async () => {
     const { hub, envelopes } = await connected([ok()]);
     const hello = Promise.withResolvers<void>();
-    hub.pendingHello = hello.promise;
+    hub.sayHello = () => hello.promise;
     const calling = hub.call('session.bye', {});
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(envelopes).toEqual([]);

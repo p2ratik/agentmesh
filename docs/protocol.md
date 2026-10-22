@@ -61,7 +61,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `peers.list` | any | Participants with presence and load |
 | `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
 | `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread. |
-| `inbox.get` | agent | Unread messages; marks them read. A session sees its own and unowned threads; threads other sessions of the agent own stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
+| `inbox.get` | agent | Unread messages; marks them read. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or task, as routing decides) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
 | `task.act` | agent, human | Apply a workflow action |

@@ -196,7 +196,7 @@ export class MessagingServiceImpl implements MessagingService {
     this.#ownerOf = reader;
   }
 
-  /** The session that owns the agent's side of a thread; null when nobody does. */
+  /** The session that owns the agent's side of a thread (or its parent or task), as routing does. */
   ownerOf(threadId: number, agentId: string): ThreadOwner | null {
     return this.#ownerOf(threadId, agentId);
   }

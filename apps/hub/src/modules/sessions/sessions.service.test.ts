@@ -144,6 +144,33 @@ describe('sessions service', () => {
     expect(owner(t)).toBeNull();
   });
 
+  // Reads follow routing's owner chain: a thread opened from owned work belongs to its owner.
+  it("the inbox treats a thread whose parent another session owns as that session's", async () => {
+    const { messaging, thread, open, claim, rpc, call } = setup();
+    const parent = thread('bob-agent', ['alice-agent']);
+    const [s1, s2] = [open(), open()];
+    claim(s1, parent);
+    const child = messaging.createThread({
+      kind: 'conversation',
+      subject: 'y',
+      createdBy: 'bob-agent',
+      participants: ['alice-agent'],
+      parentThreadId: parent,
+    }).id;
+    messaging.post({ threadId: child, senderId: 'bob-agent', kind: 'ask', body: 'q' });
+    const inbox = await rpc('inbox.get', { limit: 20, perThread: 5 }, call(s2));
+    expect(inbox.threads).toEqual([]);
+    expect(inbox.otherSessions).toEqual([
+      { threadId: `thr-${child}`, sessionId: s1, liveness: 'live' },
+    ]);
+    const read = (session: string) =>
+      rpc('thread.get', { threadId: `thr-${child}`, limit: 30 }, call(session));
+    await read(s2);
+    expect(messaging.unreadThreadCount('alice-agent')).toBe(1);
+    await read(s1);
+    expect(messaging.unreadThreadCount('alice-agent')).toBe(0);
+  });
+
   it('bye keeps the agent online while another of its sessions lives', async () => {
     const { presence, open, rpc, call } = setup();
     presence.touch('alice-agent');

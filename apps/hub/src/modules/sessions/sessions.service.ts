@@ -11,7 +11,7 @@ import { internalId, taskKey, threadKey } from '../../core/ids';
 import { claimTargets } from './claims';
 import { expireSessions, releaseAndClose } from './liveness';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
-import { type Route, routeDelivery } from './routing';
+import { chainOwner, type Route, type RouteInput, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
 
 export interface SessionsDeps {
@@ -137,25 +137,19 @@ export class SessionsServiceImpl implements SessionsService {
   }
 
   route(agentId: string, message: MeshMessage): Route {
-    const threadId = internalId('thread', message.threadId);
-    const owner = (id: number | null) => (id === null ? null : this.repo.owner(id, agentId));
     // Lenient: a bad task ref must not wedge the agent's queue.
     const taskId = message.refs.taskId ? parseId('task', message.refs.taskId) : null;
-    const task = taskId === null ? null : this.#deps.locate(taskId);
+    const input = this.#routeInput(agentId, internalId('thread', message.threadId), taskId);
     return routeDelivery({
-      sessions: this.repo.listLive(agentId).map((s) => ({
-        id: s.id,
-        active: s.active === 1,
-        liveness: s.liveness === 'live' ? 'live' : 'away',
-        repo: s.repo,
-        activatedAt: s.activated_at,
-      })),
-      threadOwner: owner(threadId),
-      parentOwner: owner(this.#deps.messaging.thread(threadId).parentId),
-      taskOwner: task && task.threadId !== threadId ? owner(task.threadId) : null,
+      ...input,
       picked: message.refs.session ?? null,
-      repo: message.refs.repo ?? task?.repo ?? null,
+      repo: message.refs.repo ?? input.repo,
     });
+  }
+
+  effectiveOwner(threadId: number, agentId: string): string | null {
+    const { taskId } = this.#deps.messaging.thread(threadId);
+    return chainOwner(this.#routeInput(agentId, threadId, taskId))?.session.id ?? null;
   }
 
   /** Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps it. */
@@ -238,6 +232,26 @@ export class SessionsServiceImpl implements SessionsService {
 
   ownerOf(threadId: number, agentId: string): string | null {
     return this.repo.owner(threadId, agentId);
+  }
+
+  /** Routing's view of a thread: the agent's open sessions and the owner chain; no sender pick. */
+  #routeInput(agentId: string, threadId: number, taskId: number | null): RouteInput {
+    const owner = (id: number | null) => (id === null ? null : this.repo.owner(id, agentId));
+    const task = taskId === null ? null : this.#deps.locate(taskId);
+    return {
+      sessions: this.repo.listLive(agentId).map((s) => ({
+        id: s.id,
+        active: s.active === 1,
+        liveness: s.liveness === 'live' ? 'live' : 'away',
+        repo: s.repo,
+        activatedAt: s.activated_at,
+      })),
+      threadOwner: owner(threadId),
+      parentOwner: owner(this.#deps.messaging.thread(threadId).parentId),
+      taskOwner: task && task.threadId !== threadId ? owner(task.threadId) : null,
+      picked: null,
+      repo: task?.repo ?? null,
+    };
   }
 
   #row(agentId: string, sessionId: string): SessionRow {

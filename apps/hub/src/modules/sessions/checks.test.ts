@@ -52,9 +52,15 @@ describe('activation check', () => {
   it('a session nobody answers for fails the check and names the likely causes', async () => {
     const { transport, rpc } = setup();
     transport.checkError = new Error('503');
-    await expect(rpc('session.check', {})).rejects.toMatchObject({
-      code: 'unavailable',
-      message: expect.stringMatching(/nats\.conf[\s\S]*--dangerously-load-development-channels/),
-    });
+    const failed = await rpc('session.check', {}).catch((err: Error) => err);
+    expect(failed).toMatchObject({ code: 'unavailable' });
+    const { message } = failed as Error;
+    expect(message).toContain('the session started seconds ago (try again in a few seconds)');
+    expect(message).toContain(
+      'NATS permissions predate plugin 0.2.0 (static mode: re-render nats.conf and reload NATS; ' +
+        'auth-callout mode: restart Claude Code)',
+    );
+    // A session without the channel flag still answers: the plugin's own copy covers that case.
+    expect(message).not.toContain('--dangerously-load-development-channels');
   });
 });

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { defineTool } from './types';
 
 const Description = z.string().min(1).max(200);
+/** How long `activate` waits for the session to listen before asking for the check anyway. */
+const LISTEN_WAIT_MS = 3000;
 
 const CHECK_SENT =
   'Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh.';
@@ -15,10 +17,12 @@ export const sessionTools = [
       'Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing.',
     input: z.object({ code: z.string().optional(), description: Description.optional() }),
     mutating: false,
-    run: async (args, { hub, activation }) => {
+    run: async (args, { hub, activation, listening }) => {
       if (args.code === undefined) {
         // The hub sends the code over this session's subject; only the push shows it to Claude,
-        // so getting it back proves both legs.
+        // so getting it back proves both legs. In the first seconds nobody listens there yet;
+        // if that never changes, the hub's failure says why.
+        await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
         await hub.call('session.check', {});
         return CHECK_SENT;
       }

@@ -59,4 +59,6 @@ export interface SessionsService {
   /** Whether any session of the agent is active and live, so routing could deliver now. */
   hasReadySession(agentId: string): boolean;
   ownerOf(threadId: number, agentId: string): string | null;
+  /** The session routing treats as owning the thread's work: its owner, its parent's, then its task's. */
+  effectiveOwner(threadId: number, agentId: string): string | null;
 }

@@ -212,7 +212,7 @@ export interface MessagingService {
   unreadStatusIn(agentId: string, threadKey: string, limit: number): SessionDelivery[];
   /** The class the message was stored with for this participant (`action` unless status). */
   classFor(messageId: string, participantId: string): DeliveryClass;
-  /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
+  /** Wired once the sessions module exists: the thread's effective owner session, or null. */
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
 }
 

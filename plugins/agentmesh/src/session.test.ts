@@ -129,12 +129,24 @@ describe('session listening', () => {
   });
 
   it('a call made while a hello is in flight carries the session it opens', async () => {
-    const { wire } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
+    const { hellos, wire } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
     const session = await openSession(config, logger);
     session.hub.sessionId = null;
     const hello = session.sayHello();
     await Promise.all([hello, session.hub.call('session.bye', {})]);
     expect(wire).toContain('req mesh.rpc.alice-agent.session.bye s-bbbbbbbbbbbb');
+    expect(hellos).toHaveLength(2);
+  });
+
+  // Without a session the hub refuses the call as if the plugin were too old to have one.
+  it('a call with no session says hello first', async () => {
+    const { hellos, wire } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
+    const session = await openSession(config, logger);
+    // As after a first hello that failed while NATS stayed up: no session, no hello in flight.
+    session.hub.sessionId = null;
+    await session.hub.call('session.check', {});
+    expect(hellos).toHaveLength(2);
+    expect(wire).toContain('req mesh.rpc.alice-agent.session.check s-bbbbbbbbbbbb');
   });
 });
 

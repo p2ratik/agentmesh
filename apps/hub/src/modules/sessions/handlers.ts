@@ -13,11 +13,10 @@ import type { SessionTransport } from './dispatcher';
 import { isAtLeast, MIN_CLIENT_VERSION } from './version';
 
 const UNREACHABLE =
-  'The hub could not reach this session: nothing answered on its session subject. Likely ' +
-  "causes: the hub's NATS permissions were not updated for plugin 0.2.0 (your mesh admin " +
-  're-renders nats.conf and reloads NATS), or this Claude Code session was started without ' +
-  'the channel flag (restart it with claude --dangerously-load-development-channels ' +
-  'plugin:agentmesh@agentmesh). If the session only just started, try again in a few seconds.';
+  'The hub could not reach this session: nothing answered on its session subject. Either ' +
+  'the session started seconds ago (try again in a few seconds), or its NATS permissions ' +
+  'predate plugin 0.2.0 (static mode: re-render nats.conf and reload NATS; auth-callout ' +
+  'mode: restart Claude Code).';
 
 export interface SessionHandlerDeps {
   presence: PresenceService;

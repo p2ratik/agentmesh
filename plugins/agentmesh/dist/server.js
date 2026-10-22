@@ -48776,6 +48776,7 @@ var planningTools = [
 
 // src/tools/sessions.ts
 var Description = external_exports.string().min(1).max(200);
+var LISTEN_WAIT_MS = 3e3;
 var CHECK_SENT = "Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh.";
 var sessionTools = [
   defineTool({
@@ -48783,8 +48784,9 @@ var sessionTools = [
     description: "Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing.",
     input: external_exports.object({ code: external_exports.string().optional(), description: Description.optional() }),
     mutating: false,
-    run: async (args, { hub, activation }) => {
+    run: async (args, { hub, activation, listening }) => {
       if (args.code === void 0) {
+        await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
         await hub.call("session.check", {});
         return CHECK_SENT;
       }
@@ -50906,8 +50908,8 @@ var HubClient = class {
   sessionId = null;
   /** Called when a call fails because the hub no longer knows `sessionId`. */
   onSessionLost = null;
-  /** The `session.hello` in flight, if any: calls made before it lands wait for it briefly. */
-  pendingHello = null;
+  /** Says hello, or joins the hello in flight (`Session.sayHello`); sessionless calls wait for it. */
+  sayHello = null;
   #logger;
   #nc = null;
   #rpc = null;
@@ -50943,8 +50945,8 @@ var HubClient = class {
   /** Calls the hub as this session. Its notes go into `notes` when given, else are dropped. */
   async call(method, params, options = {}, notes) {
     if (!this.#rpc) throw new MeshError("unavailable", UNREACHABLE);
-    if (!this.sessionId && this.pendingHello && method !== "session.hello") {
-      await Promise.race([this.pendingHello, sleep2(HELLO_WAIT_MS, void 0, { ref: false })]);
+    if (!this.sessionId && this.sayHello && method !== "session.hello") {
+      await Promise.race([this.sayHello(), sleep2(HELLO_WAIT_MS, void 0, { ref: false })]);
     }
     const session = this.sessionId;
     try {
@@ -51200,18 +51202,18 @@ async function openSession(config2, logger) {
     activation: newActivationState(),
     fyi: new FyiBuffer(),
     onHello: null,
+    listening: Promise.withResolvers(),
     sayHello: () => {
       inFlight ??= register(hub, presence, logger).then((landed) => {
         if (landed) session.onHello?.(landed.renewed);
         return landed?.hello ?? null;
       }).finally(() => {
         inFlight = null;
-        hub.pendingHello = null;
       });
-      hub.pendingHello = inFlight;
       return inFlight;
     }
   };
+  hub.sayHello = session.sayHello;
   session.hello = await Promise.race([
     session.sayHello(),
     new Promise((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS2))
@@ -51243,7 +51245,10 @@ function startSession(server, session, logger, pushDelayMs) {
       push: (event2) => pushEvent(server, event2),
       pushCheck: (code) => pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? void 0)),
       onExpired: rehello,
-      onListening: () => presence.beat()
+      onListening: () => {
+        presence.beat();
+        session.listening.resolve();
+      }
     });
     if (!hub.sessionId) rehello();
   };
@@ -51254,10 +51259,12 @@ function startSession(server, session, logger, pushDelayMs) {
     hub.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    await Promise.race([
-      hub.call("session.bye", {}, { timeoutMs: SHUTDOWN_MS }).catch(() => void 0),
-      new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS))
-    ]);
+    if (hub.sessionId) {
+      await Promise.race([
+        hub.call("session.bye", {}, { timeoutMs: SHUTDOWN_MS }).catch(() => void 0),
+        new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS))
+      ]);
+    }
     await hub.close(SHUTDOWN_MS);
   };
 }
@@ -51360,7 +51367,13 @@ async function runUnenrolled(logger) {
   logger.info({ version: VERSION }, "agentmesh plugin waiting for join");
 }
 function toolDeps(session, agentId) {
-  return { hub: session.hub, agentId, activation: session.activation, fyi: session.fyi };
+  return {
+    hub: session.hub,
+    agentId,
+    activation: session.activation,
+    fyi: session.fyi,
+    listening: session.listening.promise
+  };
 }
 function watchLifecycle(logger) {
   let stopping = false;
