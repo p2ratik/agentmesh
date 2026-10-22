@@ -141,9 +141,14 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
     queued there is not pushed, but it stays in the hub database and members read it with `inbox`.
     Each session must then run `/agentmesh:activate` to receive messages.
     `limits.deliveryRetentionDays` is ignored now and can be dropped from `mesh.yaml`.
-  - **To plugin 0.3.0 (delivery classes, FYI ride-along).** The hub refuses plugins older than
-    0.3.0, so update every plugin (`claude plugin update agentmesh@agentmesh`, once per Claude
-    config directory) and restart the sessions. No NATS permission change is needed.
+  - **To plugin 0.3.0 (delivery classes, FYI ride-along).** The new hub refuses plugins older than
+    0.3.0, so update the plugins first, then the hub. A 0.3.0 plugin works against a 0.2.x hub
+    (everything arrives as action, as before), so nobody is refused in between:
+    1. Every member updates the plugin (`claude plugin update agentmesh@agentmesh`, once per Claude
+       config directory) and restarts their sessions.
+    2. `git pull` and `docker compose up -d --build` restart the hub.
+
+    No NATS permission change is needed.
 
 ## Switching an existing deploy to invites (`--auth-callout`)
 

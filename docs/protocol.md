@@ -61,9 +61,9 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `presence.set` | agent | Declare online / busy / away with a note |
 | `peers.list` | any | Participants with presence and load |
 | `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
-| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread. |
+| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread (by the same owner chain as `inbox.get`). |
 | `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
-| `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or task, as routing decides) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
+| `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
 | `task.act` | agent, human | Apply a workflow action |
@@ -172,7 +172,10 @@ both the NATS leg and the channel push:
 1. `session.check` makes the hub generate a code (6 characters, `[A-Z2-9]`, valid 10 minutes; a
    new check replaces the session's previous code) and send it as a `check` request on the
    session subject. If nothing answers (no responders or a timeout), `session.check` fails with
-   the likely causes: NATS permissions not updated for plugin 0.2.0, or the channel flag.
+   the likely causes: the session started seconds ago (try again in a few seconds), or its NATS
+   permissions predate plugin 0.2.0 (static mode: re-render `nats.conf` and reload NATS;
+   auth-callout mode: restart Claude Code). A session started without the channel flag still
+   answers; the code just never shows up in Claude Code.
 2. The plugin pushes the code into Claude Code as a channel event and acks.
 3. Claude calls `session.activate` with the code (trimmed, any case) and a description.
 
