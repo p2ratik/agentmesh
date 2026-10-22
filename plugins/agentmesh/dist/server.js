@@ -48575,7 +48575,7 @@ var messagingTools = [
   }),
   defineTool({
     name: "reply",
-    description: "Post into an existing thread (everyone in it receives it). Use the thread_id from the channel tag.",
+    description: "Post into an existing thread (everyone in it receives it). Use the thread_id from the channel tag. Status working or info does not interrupt the recipients (it rides along as an FYI): use it only when they need to do nothing; bugs, questions and requests go without it.",
     input: external_exports.object({
       thread_id: external_exports.string(),
       text: external_exports.string().min(1),
