@@ -143,13 +143,21 @@ to its session, and `session.check` then fails (see the upgrade notes in
   always survives (see [Secrets in messages](#secrets-in-messages): mask before any cut). The
   message's `trust: external` flag is unaffected, and the plugin sets the push's `trust` meta from
   that flag.
+- **An event cannot choose its own class.** The delivery class of an ingest `notify` comes only from
+  the rule's `notify.class` (default `action`), never from the event's content. So an external
+  payload cannot make its own message quiet, or make a quiet one loud.
+- **`messages.seen` is client-driven and bounded.** It marks read only deliveries addressed to the
+  caller, ignores every other id, and always answers `{ ok: true }`, so it reveals nothing about
+  which ids exist. A plugin that lies can only hide its own agent's FYIs from itself.
 
 ## Loops and cost
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
 - Per-thread and per-sender rate limits, and duplicate suppression.
 - Planning contributions are delivered as one digest per round, not one message per agent.
-- **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them.
+- **Kill switch**: `/mesh pause` holds the deliveries created while paused; `/mesh resume`
+  releases them. Deliveries already queued before the pause can still flow, and while paused a
+  status item carried from an earlier delivery can ride along with one of those.
 
 ## Secrets in messages
 

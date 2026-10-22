@@ -78,6 +78,18 @@ admin, or restart Claude Code if the hub uses auth callout.
 The slash commands are user-only. Claude updates the description with `describe_session` when the
 session's focus changes.
 
+## FYI (status items)
+
+Not every message needs you now. The hub marks progress reports and similar notices as status.
+They never start a turn. They ride along as an `FYI (n):` block at the end of the next mesh tool
+result, or under the next action push. A cancelled tool call keeps them for the next result. More
+than 50 waiting are summarised as "…and N more: call inbox". Questions, asks, broadcasts and
+escalations are always pushed.
+
+`inbox` has two sections, "Needs you:" and "FYI:". It can occasionally list an FYI that also
+appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update with
+`claude plugin update agentmesh@agentmesh` and restart your sessions.
+
 ## Tools
 
 `peers` · `set_status` · `ask` · `reply` · `broadcast` · `inbox` · `thread` · `escalate` ·

@@ -35,8 +35,9 @@ result.
 authenticated caller's open sessions and refuses one that is not theirs. Agents must send it on
 every call except `session.hello` and `session.bye`: without it the hub answers `invalid_request`,
 "This session isn't registered with the hub…", with the plugin update instruction (a plugin older
-than 0.3.0 swallows its hello refusal, so this is where its human sees it). The plugin holds a
-call made while its hello is in flight until the hello lands. Services and the bridge (also when
+than 0.3.0 swallows its hello refusal, so this is where its human sees it). A call made before the
+plugin has a session says hello first, and one made while its hello is in flight waits for it, up
+to 5 s. Services and the bridge (also when
 acting for a human) send no session. `notes` are short hub
 messages for the caller, such as "thr-4 belongs to your session s-2; run /agentmesh:take". The
 plugin appends a tool call's own notes to that call's result.
@@ -61,7 +62,8 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `peers.list` | any | Participants with presence and load |
 | `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
 | `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread. |
-| `inbox.get` | agent | Unread messages; marks them read. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or task, as routing decides) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
+| `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read; other ids are ignored. Always answers `{ ok: true }`. |
+| `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or task, as routing decides) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
 | `task.act` | agent, human | Apply a workflow action |
@@ -97,8 +99,9 @@ Each agent session has its own subject. The hub's outbox picks a session for eve
 (rules below), sends a core request to `{p}.session.{agent}.{session}`, and keeps the message
 pending until the plugin acks. Why: [ADR 0006](adr/0006-per-session-delivery.md).
 
-- **Request:** `SessionInbound`, `{ type: 'deliver', messages }` with 1 to 100 messages
-  (`MAX_DELIVERY_MESSAGES`), kept under the server's `max_payload`. A message too big for one
+- **Request:** `SessionInbound`, `{ type: 'deliver', messages }` with 1 to 100 `SessionDelivery`
+  items (`MAX_DELIVERY_MESSAGES`), each a message plus its delivery class (see
+  [Delivery classes](#delivery-classes)), kept under the server's `max_payload`. A message too big for one
   request has its body clipped, with a note pointing at `thread`; the hub keeps the full text.
   `{ type: 'expired' }` is published, with no reply, when a plugin heartbeats a session the hub no
   longer knows; the plugin then says `session.hello` again. `{ type: 'check', code }` is a request
@@ -114,14 +117,56 @@ pending until the plugin acks. Why: [ADR 0006](adr/0006-per-session-delivery.md)
   active, live session, everything else simply waits.
 - **Order:** within one batch, a thread's messages follow its first message, to the same session
   or waiting together.
-- **Starvation:** the outbox takes up to 200 pending rows per agent per flush. When all 200 wait,
-  later rows wait behind them; the hub logs a `warn` for that agent at most once a minute.
+- **Window:** the outbox picks pending rows per (recipient, thread), at most 50 per thread per
+  pass, so a thread held for an inactive or away session never blocks the agent's other threads.
+  Rows behind a full window of 50 waiting rows wait for it (logged at `debug`).
+
+### Delivery classes
+
+Every delivery has a class, `DeliveryClass`: `action` or `status`. The class is decided per
+recipient by the code that creates the message, and travels with it in `SessionDelivery`.
+
+- **Action** items are pushed into the session and start a turn, as before.
+- **Status** items are routed like action ones but never start a turn and never claim ownership.
+  The plugin keeps them and shows them as an `FYI (n):` block at the end of the next mesh tool
+  result, or under the next action push (see the
+  [plugin README](../plugins/agentmesh/README.md#fyi-status-items)).
+
+Who decides:
+
+- **Teammate messages:** a `reply` with status `working` or `info` is status. Everything else is
+  action, including every ask, broadcast and escalation. There is no sender "FYI" flag, on purpose:
+  a question must never be able to go quiet.
+- **Hub notices** follow fixed rules. Tasks: `apps/hub/src/modules/tasks/effects/classes.ts`
+  (assignee briefs are action; the transition summary is status, except for the agent a task was
+  taken from and the assignee of a task someone else unblocked; a verdict is action for the
+  assignee). Planning: the round prompt, approval, cancel and hand-offs are action; the
+  "synthesizing" notice and materialized tasks are status. Board offers are status;
+  `no_reviewer` is action.
+- **External events:** the rule's `notify.class` (default `action`). The event's content can never
+  change it ([security.md](security.md#sessions-and-per-session-delivery)).
+
+**No echoes.** An agent is not told about its own call on the task it acted on, including hub steps
+that call triggered, such as the approval after its own review. New work for it is still
+delivered: a dependent task becoming ready, or auto-assigned to it. Self-assignment (a claim, or
+assigning to yourself) gives a caller note instead of a brief: "task-N: base branch `X` ·
+suggested branch `Y` · work in a separate git worktree." `no_reviewer` for the caller is a note
+too. Notes come back in the RPC response's `notes`. Tasks created by other modules (plan
+materialize, ingest `create_task`) notify everyone.
+
+**Read state.** A status item is published but stays unread until the plugin reports it shown with
+`messages.seen { messageIds }` (1 to 500 ids; only the caller's own deliveries are marked).
+`inbox` and `thread` also mark items read. The hub also carries a thread's unread status items
+(the newest 20) along with every later delivery in that thread, so a session that died before
+showing one cannot lose it. As a result an FYI may occasionally be shown twice.
 
 ### Sessions and liveness
 
 A session starts inactive: it keeps the tools but receives nothing until it activates (see
 [getting-started.md](getting-started.md#start-a-session)). Activation is a round trip that proves
 both the NATS leg and the channel push:
+
+(`activate` first waits up to 3 s for the session to listen, then asks for the check.)
 
 1. `session.check` makes the hub generate a code (6 characters, `[A-Z2-9]`, valid 10 minutes; a
    new check replaces the session's previous code) and send it as a `check` request on the

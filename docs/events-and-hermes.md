@@ -122,7 +122,7 @@ Throttle keys render raw, because they are never posted.
 
 | Action | Fields | Result |
 | --- | --- | --- |
-| `notify` | `to: area-owners \| online \| all-agents \| [ids]`, `area` or `repo` (for area-owners), `subject`, `text` | A new `event` thread with the recipients; pushed into their sessions. |
+| `notify` | `to: area-owners \| online \| all-agents \| [ids]`, `area` or `repo` (for area-owners), `subject`, `text`, `class` | A new `event` thread with the recipients. `class` is `action` (default: pushed into their sessions, starts a turn) or `status` (an FYI that rides along with a later tool result). It comes from the rule only; the event's content cannot change it. |
 | `create_task` | `title`, `description`, `area`, `repo`, `assignee`, `priority`, `labels`, `workflow` | A task, routed like any other (priority defaults to `high` for error/critical). |
 | `notice` | `channel` (Discord purpose), `text` | A post in that Discord channel. |
 

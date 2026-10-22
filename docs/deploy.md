@@ -109,7 +109,8 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
   - Auth-callout mode: restart the hub. Their next connect is refused, but a session that is
     already connected lasts until its NATS credentials expire (`enrollment.userJwtTtlMinutes`).
   - Invited members are removed with `/mesh remove` instead.
-- **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
+- **Kill switch**: `/mesh pause` in Discord holds the deliveries created while paused; `/mesh resume`
+  releases them. Deliveries queued before the pause can still flow.
 - **Backups**: the state is in two volumes. Stop the hub for a consistent copy
   (`docker compose stop hub`, then start it again):
 
@@ -140,6 +141,9 @@ TLS reverse proxy (Caddy, nginx) in front of `/v1/ingest/github` only. HMAC veri
     update instruction. On start the hub deletes the old `{P}_DELIVERY` stream; anything still
     queued there is not pushed, but it stays in the hub database and members read it with `inbox`.
     Each session must then run `/agentmesh:activate` to receive messages.
+  - **To plugin 0.3.0 (delivery classes, FYI ride-along).** The hub refuses plugins older than
+    0.3.0, so update every plugin (`claude plugin update agentmesh@agentmesh`, once per Claude
+    config directory) and restart the sessions. No NATS permission change is needed.
     `limits.deliveryRetentionDays` is ignored now and can be dropped from `mesh.yaml`.
 
 ## Switching an existing deploy to invites (`--auth-callout`)

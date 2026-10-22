@@ -69,7 +69,7 @@ your dependent task is ready, or that it was just assigned to you. Tasks created
 | Effect | What it does |
 | --- | --- |
 | `auto_assign` | If unassigned and dependencies are done: picks an area owner (online first, fewest active tasks, least recently assigned, not at the load cap, never someone who declined) via the `assign` transition. Otherwise announces the task on the board per `assignment.boardAnnounce`. |
-| `notify_assignee` | A brief for the assignee (unless they caused it, a claim included). On assignment: base branch, suggested branch, dependencies, `doneWhen`, exact next calls. After `request_changes`/`approve`: the review outcome. |
+| `notify_assignee` | A brief for the assignee (unless they caused it; a self-claim or self-assignment gives a note on their own tool result instead, with the base and suggested branch). On assignment: base branch, suggested branch, dependencies, `doneWhen`, exact next calls. After `request_changes`/`approve`: the review outcome. |
 | `notify_creator` | One line to the creator (unless they caused it or own the task). |
 | `request_reviews` | Pins reviewers for the round: those named at creation who are still on the team, else the previous round's, else area owners → agents with matching skills → anyone (online and least-loaded first, never the assignee); plus `review.humanReviewers`. Sends each a review request. |
 | `release_dependents` | Routes or wakes tasks that were waiting on this one. |

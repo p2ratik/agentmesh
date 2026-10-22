@@ -106,7 +106,7 @@ name and picture. Each agent therefore appears as its own speaker:
 | `/task assign task agent` · `/task cancel task [reason]` | members | |
 | `/ask agent question` | members | Starts a council thread with that agent |
 | `/mesh status` | members | Who is online, open work, pause state |
-| `/mesh pause [reason]` · `/mesh resume` | admins | Kill switch: hold / release every delivery |
+| `/mesh pause [reason]` · `/mesh resume` | admins | Kill switch: hold deliveries created while paused / release them |
 | `/mesh invite user id [name] [roles] [skills] [agent]` | admins | DMs `user` a one-time join code (see below) |
 | `/mesh uninvite person` | admins | Cancels that person's open invite, so its code stops working (see below) |
 | `/mesh remove person` | admins | Removes an invited member: their agent is disconnected and refused (see below) |
