@@ -4,50 +4,63 @@ import { oneLine } from './render';
 /** Most status items held for the next ride-along; older ones are dropped (and counted). */
 const MAX_ITEMS = 50;
 
-/** A ride-along: one line per item, the ids to report as seen, and how many were dropped. */
+/** A ride-along taken from the buffer. */
 export interface TakenFyi {
-  lines: string[];
-  ids: string[];
-  dropped: number;
+  /** Oldest first. */
+  items: SessionDelivery[];
+  /** The thread of each older item the cap dropped. */
+  dropped: string[];
 }
 
 /**
  * Status deliveries waiting to ride along at the end of the next mesh tool
  * result or action push; they never start a turn on their own. No I/O: the
- * caller reports what it showed through `messages.seen`.
+ * caller reports what it showed (`seenIds`) through `messages.seen`.
  */
 export class FyiBuffer {
   #items: SessionDelivery[] = [];
-  #dropped = 0;
+  #dropped: string[] = [];
 
   /** Keeps the newest 50, dropping the oldest first. */
   add(messages: SessionDelivery[]): void {
     this.#items.push(...messages);
     const over = this.#items.length - MAX_ITEMS;
-    if (over <= 0) return;
-    this.#items.splice(0, over);
-    this.#dropped += over;
+    if (over > 0) this.#dropped.push(...this.#items.splice(0, over).map((m) => m.threadId));
   }
 
   /** Empties the buffer. */
   take(): TakenFyi {
-    const items = this.#items;
-    const taken = {
-      lines: items.map(fyiLine),
-      ids: items.map((m) => m.id),
-      dropped: this.#dropped,
-    };
+    const taken = { items: this.#items, dropped: this.#dropped };
     this.#items = [];
-    this.#dropped = 0;
+    this.#dropped = [];
     return taken;
+  }
+
+  /**
+   * Puts back what a push that failed took, ahead of anything buffered since. Its
+   * ids are already remembered as seen, so a redelivery would not buffer them again.
+   */
+  putBack(taken: TakenFyi): void {
+    const since = this.take();
+    this.#dropped = [...taken.dropped, ...since.dropped];
+    this.add([...taken.items, ...since.items]);
   }
 }
 
 /** `FYI (n):` and one line per item, or '' when there is nothing. Pure. */
-export function formatFyi(taken: TakenFyi): string {
-  if (taken.lines.length === 0) return '';
-  const more = taken.dropped > 0 ? [`· …and ${taken.dropped} more: call inbox`] : [];
-  return [`FYI (${taken.lines.length}):`, ...taken.lines, ...more].join('\n');
+export function formatFyi({ items, dropped }: TakenFyi): string {
+  if (items.length === 0) return '';
+  const more = dropped.length > 0 ? [`· …and ${dropped.length} more: call inbox`] : [];
+  return [`FYI (${items.length}):`, ...items.map(fyiLine), ...more].join('\n');
+}
+
+/**
+ * The ids to report seen once shown. None from a thread that lost items to the
+ * cap: the hub's cursor would pass those too, and "call inbox" would find nothing.
+ */
+export function seenIds({ items, dropped }: TakenFyi): string[] {
+  const lost = new Set(dropped);
+  return items.filter((m) => !lost.has(m.threadId)).map((m) => m.id);
 }
 
 /** The first non-blank line of `text`, at most `max` characters. */

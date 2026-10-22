@@ -48304,32 +48304,38 @@ function oneLine(text2) {
 var MAX_ITEMS = 50;
 var FyiBuffer = class {
   #items = [];
-  #dropped = 0;
+  #dropped = [];
   /** Keeps the newest 50, dropping the oldest first. */
   add(messages) {
     this.#items.push(...messages);
     const over = this.#items.length - MAX_ITEMS;
-    if (over <= 0) return;
-    this.#items.splice(0, over);
-    this.#dropped += over;
+    if (over > 0) this.#dropped.push(...this.#items.splice(0, over).map((m) => m.threadId));
   }
   /** Empties the buffer. */
   take() {
-    const items = this.#items;
-    const taken = {
-      lines: items.map(fyiLine),
-      ids: items.map((m) => m.id),
-      dropped: this.#dropped
-    };
+    const taken = { items: this.#items, dropped: this.#dropped };
     this.#items = [];
-    this.#dropped = 0;
+    this.#dropped = [];
     return taken;
   }
+  /**
+   * Puts back what a push that failed took, ahead of anything buffered since. Its
+   * ids are already remembered as seen, so a redelivery would not buffer them again.
+   */
+  putBack(taken) {
+    const since = this.take();
+    this.#dropped = [...taken.dropped, ...since.dropped];
+    this.add([...taken.items, ...since.items]);
+  }
 };
-function formatFyi(taken) {
-  if (taken.lines.length === 0) return "";
-  const more = taken.dropped > 0 ? [`\xB7 \u2026and ${taken.dropped} more: call inbox`] : [];
-  return [`FYI (${taken.lines.length}):`, ...taken.lines, ...more].join("\n");
+function formatFyi({ items, dropped }) {
+  if (items.length === 0) return "";
+  const more = dropped.length > 0 ? [`\xB7 \u2026and ${dropped.length} more: call inbox`] : [];
+  return [`FYI (${items.length}):`, ...items.map(fyiLine), ...more].join("\n");
+}
+function seenIds({ items, dropped }) {
+  const lost = new Set(dropped);
+  return items.filter((m) => !lost.has(m.threadId)).map((m) => m.id);
 }
 function firstLine(text2, max) {
   return (text2.trim().split("\n")[0] ?? "").trim().slice(0, max);
@@ -48625,9 +48631,10 @@ var messagingTools = [
       const others = r.otherSessions;
       if (r.threads.length === 0 && others.length === 0) return "Inbox zero \u2014 nothing unread.";
       const needs = r.threads.filter((t) => !t.fyi).map((t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages)}`);
-      const fyi = r.threads.filter((t) => t.fyi).map(
-        (t) => `\xB7 ${formatThreadHeader(t.thread)} \u2014 ${firstLine(t.messages.at(-1)?.body ?? "", 100)}`
-      );
+      const fyi = r.threads.filter((t) => t.fyi).map((t) => {
+        const latest = firstLine(t.messages.at(-1)?.body ?? "", 100);
+        return `\xB7 ${t.unread} unread \xB7 ${formatThreadHeader(t.thread)} \u2014 ${latest}`;
+      });
       const parts = [];
       if (needs.length > 0) parts.push(`Needs you:
 ${needs.join("\n\n====\n\n")}`);
@@ -49020,9 +49027,9 @@ async function callTool(name, rawArgs, deps, signal) {
   const result = await callConfigured(tool, rawArgs, deps);
   if (signal?.aborted) return result;
   const fyi = deps.fyi.take();
-  if (fyi.ids.length > 0) {
+  if (fyi.items.length > 0) {
     result.content.push({ type: "text", text: formatFyi(fyi) });
-    deps.hub.reportSeen(fyi.ids);
+    deps.hub.reportSeen(seenIds(fyi));
   }
   return result;
 }
@@ -51034,17 +51041,15 @@ function runSessionInbox(options) {
     const status = messages.filter((m) => m.class === "status");
     options.fyi.add(status.filter((m) => seen.remember(m.id)));
     delivered.push(...status.map((m) => m.id));
-    let fyi = null;
-    let shown = [];
+    const shown = [];
     const actions = messages.filter((m) => m.class !== "status");
     for (const thread of Map.groupBy(actions, (m) => m.threadId).values()) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      const first = fyi === null;
-      fyi ??= options.fyi.take();
-      const pushed = await pushThread(fresh, first ? formatFyi(fyi) : "", delivered);
-      if (pushed && first) shown = fyi.ids;
+      const fyi = options.fyi.take();
+      if (await pushThread(fresh, formatFyi(fyi), delivered)) shown.push(...seenIds(fyi));
+      else options.fyi.putBack(fyi);
     }
     return shown;
   };

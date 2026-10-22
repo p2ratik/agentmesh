@@ -138,10 +138,10 @@ export const messagingTools = [
         .map((t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`);
       const fyi = r.threads
         .filter((t) => t.fyi)
-        .map(
-          (t) =>
-            `· ${formatThreadHeader(t.thread)} — ${firstLine(t.messages.at(-1)?.body ?? '', 100)}`,
-        );
+        .map((t) => {
+          const latest = firstLine(t.messages.at(-1)?.body ?? '', 100);
+          return `· ${t.unread} unread · ${formatThreadHeader(t.thread)} — ${latest}`;
+        });
       const parts: string[] = [];
       if (needs.length > 0) parts.push(`Needs you:\n${needs.join('\n\n====\n\n')}`);
       if (fyi.length > 0) parts.push(`FYI:\n${fyi.join('\n')}`);

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
-import { formatFyi } from '../inbox/fyi';
+import { formatFyi, seenIds } from '../inbox/fyi';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
 import { planningTools } from './planning';
@@ -66,9 +66,9 @@ export async function callTool(
   // A cancelled call still runs to the end, but Claude never sees its result: keep the FYIs.
   if (signal?.aborted) return result;
   const fyi = deps.fyi.take();
-  if (fyi.ids.length > 0) {
+  if (fyi.items.length > 0) {
     result.content.push({ type: 'text', text: formatFyi(fyi) });
-    deps.hub.reportSeen(fyi.ids);
+    deps.hub.reportSeen(seenIds(fyi));
   }
   return result;
 }

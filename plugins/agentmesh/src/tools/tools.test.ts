@@ -192,7 +192,7 @@ describe('tool registry', () => {
     );
     expect(result.content).toHaveLength(1);
     expect(calls.map((c) => c.method)).toEqual(['message.send']);
-    expect(deps.fyi.take().ids).toEqual(['m7']);
+    expect(deps.fyi.take().items.map((m) => m.id)).toEqual(['m7']);
   });
 
   it('inbox shows Needs you before FYI', async () => {
@@ -211,7 +211,7 @@ describe('tool registry', () => {
     const inbox = (threads: unknown[]) =>
       fakeHub({ 'inbox.get': { threads, remainingThreads: 0, otherSessions: [] } }).deps;
     const fyiLine =
-      '· thr-5 «Billing v2» · task · open · participants: alice-agent, bob-agent · task-3 — PR is up';
+      '· 2 unread · thr-5 «Billing v2» · task · open · participants: alice-agent, bob-agent · task-3 — PR is up';
     const both = text(await callTool('inbox', {}, inbox([needs, fyi])));
     expect(both).toMatch(/^Needs you:\n1 unread · thr-1 «Login» /);
     expect(both).toContain('Does the web client handle 409?');

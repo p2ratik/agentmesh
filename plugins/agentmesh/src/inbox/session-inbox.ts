@@ -7,7 +7,7 @@ import {
   subjects,
 } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
-import { type FyiBuffer, formatFyi, type TakenFyi } from './fyi';
+import { type FyiBuffer, formatFyi, seenIds } from './fyi';
 import { RecentIds } from './recent-ids';
 import { type ChannelEvent, renderEvent } from './render';
 
@@ -35,8 +35,8 @@ export interface SessionInboxOptions {
  * go into the FYI buffer, never into a push of their own (a push starts a
  * turn); each id once per process, though the hub carries a thread's unread
  * status along with later deliveries. Action items are pushed into Claude
- * Code, one event per thread in arrival order; the first push takes the FYI
- * buffer as its footer, and those ids are reported seen. The reply
+ * Code, one event per thread in arrival order; the first push that works takes
+ * the FYI buffer as its footer, and those ids are reported seen. The reply
  * (`SessionAck`) lists the ids buffered or pushed now or before; the hub
  * retries the rest. An activation check is pushed, then acked. Batches are
  * handled one at a time, so pushes keep the hub's order. `resubscribe` follows
@@ -77,18 +77,17 @@ export function runSessionInbox(options: SessionInboxOptions): {
     const status = messages.filter((m) => m.class === 'status');
     options.fyi.add(status.filter((m) => seen.remember(m.id)));
     delivered.push(...status.map((m) => m.id));
-    let fyi: TakenFyi | null = null;
-    let shown: string[] = [];
+    const shown: string[] = [];
     const actions = messages.filter((m) => m.class !== 'status');
     for (const thread of Map.groupBy(actions, (m) => m.threadId).values()) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      const first = fyi === null;
-      fyi ??= options.fyi.take();
-      // ponytail: FYIs on a failed first push are not re-buffered; they stay unread for inbox.
-      const pushed = await pushThread(fresh, first ? formatFyi(fyi) : '', delivered);
-      if (pushed && first) shown = fyi.ids;
+      // The buffer rides along with the first push that works. A failed push puts it back,
+      // since RecentIds would not let a redelivery buffer those items again.
+      const fyi = options.fyi.take();
+      if (await pushThread(fresh, formatFyi(fyi), delivered)) shown.push(...seenIds(fyi));
+      else options.fyi.putBack(fyi);
     }
     return shown;
   };

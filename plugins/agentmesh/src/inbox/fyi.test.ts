@@ -1,6 +1,6 @@
 import type { SessionDelivery } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
-import { FyiBuffer, formatFyi } from './fyi';
+import { FyiBuffer, formatFyi, seenIds } from './fyi';
 
 const status = (id: string, extra: Partial<SessionDelivery> = {}): SessionDelivery => ({
   id,
@@ -19,17 +19,34 @@ const status = (id: string, extra: Partial<SessionDelivery> = {}): SessionDelive
   ...extra,
 });
 
+const ids = (taken: { items: SessionDelivery[] }) => taken.items.map((m) => m.id);
+
 describe('FyiBuffer', () => {
   it('keeps the newest 50, counts the dropped ones, and empties on take', () => {
     const fyi = new FyiBuffer();
     fyi.add(Array.from({ length: 30 }, (_, i) => status(`m${i}`)));
     fyi.add(Array.from({ length: 23 }, (_, i) => status(`m${30 + i}`)));
     const taken = fyi.take();
-    expect(taken.ids).toHaveLength(50);
-    expect(taken.ids[0]).toBe('m3');
-    expect(taken.ids.at(-1)).toBe('m52');
-    expect(taken.dropped).toBe(3);
-    expect(fyi.take()).toEqual({ lines: [], ids: [], dropped: 0 });
+    expect(ids(taken)).toHaveLength(50);
+    expect(ids(taken)[0]).toBe('m3');
+    expect(ids(taken).at(-1)).toBe('m52');
+    expect(taken.dropped).toEqual(['thr-3', 'thr-3', 'thr-3']);
+    expect(fyi.take()).toEqual({ items: [], dropped: [] });
+  });
+
+  it('puts back what a failed push took ahead of later items, drops included', () => {
+    const fyi = new FyiBuffer();
+    fyi.add([
+      status('lost', { threadId: 'thr-1' }),
+      ...Array.from({ length: 50 }, (_, i) => status(`m${i}`)),
+    ]);
+    const taken = fyi.take();
+    fyi.add([status('later', { threadId: 'thr-9' })]);
+    fyi.putBack(taken);
+    const again = fyi.take();
+    expect(ids(again)).toEqual([...ids(taken).slice(1), 'later']);
+    expect(again.dropped).toEqual(['thr-1', 'thr-3']);
+    expect(seenIds(again)).toEqual(['later']);
   });
 });
 

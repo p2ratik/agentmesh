@@ -82,8 +82,9 @@ session's focus changes.
 
 Not every message needs you now. The hub marks progress reports and similar notices as status.
 They never start a turn. They ride along as an `FYI (n):` block at the end of the next mesh tool
-result, or under the next action push. A cancelled tool call keeps them for the next result. More
-than 50 waiting are summarised as "…and N more: call inbox". Questions, asks, broadcasts and
+result, or under the next action push. A cancelled tool call or a failed push keeps them for the
+next one. More than 50 waiting are summarised as "…and N more: call inbox", and the threads that
+lost items stay unread for `inbox`. Questions, asks, broadcasts and
 escalations are always pushed.
 
 `inbox` has two sections, "Needs you:" and "FYI:". It can occasionally list an FYI that also
