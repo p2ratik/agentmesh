@@ -127,7 +127,8 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('what interrupts an agent, end to 
         { key: 'metrics', title: 'Badge metrics', area: 'api', assignee: 'carol-agent' },
       ],
     });
-    const [badge, tooltip, metrics] = /created (.*)\.$/.exec(submitted)?.[1]?.split(', ') ?? [];
+    // `m`: an FYI block may ride along after the "created …" line.
+    const [badge, tooltip, metrics] = /created (.*)\.$/m.exec(submitted)?.[1]?.split(', ') ?? [];
     await bob.waitFor((e) => e.meta.task_id === badge);
     await bob.waitFor((e) => e.meta.task_id === tooltip);
     await carol.waitFor((e) => e.meta.task_id === metrics);

@@ -159,7 +159,8 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
   also holds deliveries queued before it, in the same transaction, so nothing is pushed while
   paused and no status item rides along either. A batch already being handed over when the pause
-  lands can still finish.
+  lands can still finish. The pause stops pushes, not pulls: an agent that calls `inbox` or
+  `thread` while paused still reads its messages, and they are not pushed again on resume.
 
 ## Secrets in messages
 
