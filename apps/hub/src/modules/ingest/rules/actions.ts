@@ -65,6 +65,8 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
       body: `${clipBody(redactSecrets(render(action.notify.text)), room)}${footer}`,
       trust: 'external',
       system: true,
+      // From the rule, never from the event: external content cannot pick its own class.
+      deliveryClass: action.notify.class,
       refs: { eventId: event.id },
     });
     return;

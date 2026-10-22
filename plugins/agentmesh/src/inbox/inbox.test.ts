@@ -54,8 +54,15 @@ describe('renderEvent', () => {
   });
 
   it('truncates long content and points to the thread tool', () => {
-    const event = renderEvent([message('m1', 'thr-9', { body: 'x'.repeat(500) })], 100);
+    const event = renderEvent([message('m1', 'thr-9', { body: 'x'.repeat(500) })], '', 100);
     expect(event.content).toContain('thread(thread_id: "thr-9")');
+  });
+
+  it('ends with the FYI footer, which clipping never cuts', () => {
+    const footer = 'FYI (1):\n· thr-3 «Billing» PR is up';
+    const long = renderEvent([message('m1', 'thr-9', { body: 'x'.repeat(500) })], footer, 100);
+    expect(long.content).toMatch(/for the rest\)\n\nFYI \(1\):\n· thr-3 «Billing» PR is up$/);
+    expect(renderEvent([message('m1')], footer).content).toBe(`body m1\n\n${footer}`);
   });
 
   it('drops keys Claude Code would silently discard', () => {

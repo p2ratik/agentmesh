@@ -94,7 +94,7 @@ export function buildModules(
   });
   sessions = sessionsModule.service;
   messaging.service.setOwnerReader((threadId, agentId) => {
-    const sessionId = sessionsModule.service.ownerOf(threadId, agentId);
+    const sessionId = sessionsModule.service.effectiveOwner(threadId, agentId);
     if (sessionId === null) return null;
     // Owners are never closed: closing a session releases what it owns.
     const away = sessionsModule.service.verify(agentId, sessionId).liveness === 'away';

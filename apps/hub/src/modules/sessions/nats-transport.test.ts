@@ -1,12 +1,15 @@
 import type { NatsConnection } from '@agentmesh/bus';
 import { createLogger } from '@agentmesh/common';
-import type { MeshMessage } from '@agentmesh/protocol';
+import type { SessionDelivery } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import { deliveryChunks, NatsSessionTransport } from './nats-transport';
 
 /** The transport only reads ids, thread ids and bodies; the rest of a message does not matter here. */
 const messages = (n: number, body = 'x') =>
-  Array.from({ length: n }, (_, i) => ({ id: `msg-${i}`, threadId: 'thr-1', body }) as MeshMessage);
+  Array.from(
+    { length: n },
+    (_, i) => ({ id: `msg-${i}`, threadId: 'thr-1', body }) as SessionDelivery,
+  );
 
 const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
 
@@ -15,7 +18,7 @@ function fakeNats(ack: (ids: string[], call: number) => string[], maxPayload = 1
   const requests: Array<{
     subject: string;
     type: string;
-    messages: MeshMessage[];
+    messages: SessionDelivery[];
     bytes: number;
     noMux: boolean;
     reply: string;
@@ -27,7 +30,7 @@ function fakeNats(ack: (ids: string[], call: number) => string[], maxPayload = 1
       if (bytes > maxPayload) throw new Error('max_payload size exceeded');
       const { type, messages: sent = [] } = JSON.parse(data) as {
         type: string;
-        messages?: MeshMessage[];
+        messages?: SessionDelivery[];
       };
       requests.push({ subject, type, messages: sent, bytes, noMux: opts.noMux, reply: opts.reply });
       const delivered = ack(
@@ -65,6 +68,17 @@ describe('NatsSessionTransport', () => {
     expect(requests).toHaveLength(2);
   });
 
+  it('sends each message with its own class', async () => {
+    const { nc, requests } = fakeNats((ids) => ids);
+    const transport = new NatsSessionTransport(nc, 'mesh', logger);
+    const [fyi, ask] = messages(2);
+    await transport.send('bob-agent', 'ses-1', [
+      { ...fyi, class: 'status' },
+      { ...ask, class: 'action' },
+    ] as SessionDelivery[]);
+    expect(requests[0]?.messages.map((m) => m.class)).toEqual(['status', 'action']);
+  });
+
   it('throws when the first request fails', async () => {
     const { nc } = fakeNats(() => {
       throw new Error('no responders');
@@ -80,7 +94,11 @@ describe('NatsSessionTransport', () => {
     const { nc, requests } = fakeNats((ids) => ids, maxPayload);
     const transport = new NatsSessionTransport(nc, 'mesh', logger);
     const [small, big, last] = [...messages(1), ...messages(1, 'y'.repeat(5000)), ...messages(1)];
-    const batch = [small, { ...big, id: 'msg-big' }, { ...last, id: 'msg-last' }] as MeshMessage[];
+    const batch = [
+      small,
+      { ...big, id: 'msg-big' },
+      { ...last, id: 'msg-last' },
+    ] as SessionDelivery[];
     expect(await transport.send('bob-agent', 'ses-1', batch)).toEqual([
       'msg-0',
       'msg-big',

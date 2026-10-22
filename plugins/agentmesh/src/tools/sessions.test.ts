@@ -1,5 +1,5 @@
 import { MeshError } from '@agentmesh/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fakeHub, text } from './fake-hub';
 import { callTool } from './registry';
 
@@ -24,6 +24,35 @@ describe('session tools', () => {
     );
     // The code reaches Claude only through the hub's push, which is what proves pushes work.
     expect(text(result)).not.toContain('Code:');
+  });
+
+  // The hub sends the code to the session subject; one sent before the plugin subscribes is lost.
+  it('activate waits for the session to listen before asking for a check', async () => {
+    const { deps, calls } = fakeHub({ 'session.check': { ok: true } });
+    const listening = Promise.withResolvers<void>();
+    deps.listening = listening.promise;
+    const result = callTool('activate', {}, deps);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toEqual([]);
+    listening.resolve();
+    expect(text(await result)).toContain('Sent a test message to this session.');
+    expect(calls.map((c) => c.method)).toEqual(['session.check']);
+  });
+
+  it('activate asks for the check after 3 s even if the session never listens', async () => {
+    vi.useFakeTimers();
+    try {
+      const { deps, calls } = fakeHub({ 'session.check': { ok: true } });
+      deps.listening = new Promise(() => undefined);
+      const result = callTool('activate', {}, deps);
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(calls).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await result).isError).toBeUndefined();
+      expect(calls.map((c) => c.method)).toEqual(['session.check']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('activate with the code and a description activates through the hub', async () => {

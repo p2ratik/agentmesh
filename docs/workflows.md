@@ -45,12 +45,33 @@ summarised in the task's thread for its participants (minus anyone an effect alr
 Participants who have left the team are skipped here and in every other hub message, so they
 never make a post or a transition fail.
 
+Each task notice is `action` (interrupts the agent) or `status` (rides along later):
+
+- `action`: assignee briefs (assigned, changes requested, approved, cancelled), review requests,
+  "no reviewer found", "dependencies done", a verdict to the assignee, a `blocked` update to the
+  creator, the summary to an agent the task was just taken from (`assign`, `handoff`, `claim`),
+  the summary of a transition into a terminal state (a cancel, or done) to a reviewer of the
+  current round who has not given a verdict yet (a reason to stop), and the summary of an
+  `unblock` to the assignee (they can resume).
+- `status`: other summaries, a verdict to anyone but the assignee, a terminal update (`done`) to
+  the creator, and board offers.
+
+No echoes: an agent never receives a notice its own call caused about the task it acted on, hub
+steps it triggered included (a reviewer is not told about the approval its own review produced).
+Its tool result shows the outcome; a consequence it must still learn comes as a note on that
+result, e.g. "No reviewer was found for task-N; request one with request_review." An agent that
+takes a task itself (a claim, or creating it for itself) gets the git part of the brief that way:
+"task-N: base branch `agents` · suggested branch `agent/…` · work in a separate git worktree."
+Notices about other tasks are new work and still arrive: completing a task still tells you that
+your dependent task is ready, or that it was just assigned to you. Tasks created by other modules
+(a plan's tasks, ingest rules) have no calling agent, so nothing is dropped.
+
 ## Effects
 
 | Effect | What it does |
 | --- | --- |
 | `auto_assign` | If unassigned and dependencies are done: picks an area owner (online first, fewest active tasks, least recently assigned, not at the load cap, never someone who declined) via the `assign` transition. Otherwise announces the task on the board per `assignment.boardAnnounce`. |
-| `notify_assignee` | A brief for the assignee. On assignment: base branch, suggested branch, dependencies, `doneWhen`, exact next calls. After `request_changes`/`approve`: the review outcome. |
+| `notify_assignee` | A brief for the assignee (unless they caused it; a self-claim or self-assignment gives a note on their own tool result instead, with the base and suggested branch). On assignment: base branch, suggested branch, dependencies, `doneWhen`, exact next calls. After `request_changes`/`approve`: the review outcome. |
 | `notify_creator` | One line to the creator (unless they caused it or own the task). |
 | `request_reviews` | Pins reviewers for the round: those named at creation who are still on the team, else the previous round's, else area owners → agents with matching skills → anyone (online and least-loaded first, never the assignee); plus `review.humanReviewers`. Sends each a review request. |
 | `release_dependents` | Routes or wakes tasks that were waiting on this one. |

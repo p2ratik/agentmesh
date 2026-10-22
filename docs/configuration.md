@@ -94,13 +94,13 @@ For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent
 | `limits.perSenderPerDay` | `500` | Messages per participant per day. |
 | `limits.dedupWindowSeconds` | `120` | Same body, same sender, same thread → rejected as duplicate. |
 | `limits.maxBodyChars` | `32000` | Message size limit. A participant post over it is refused; a system or hub post is clipped with a note. An ingest `notify` clips the event text first, so its "external content" footer always survives. |
-
-`limits.deliveryRetentionDays` was removed with per-session delivery: undelivered messages wait in
-the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key is ignored.
 | `enrollment.natsUrl` | — | The NATS URL new members' laptops connect to, written into every invite code. Must be `tls://` or `wss://` (`nats://` and `ws://` only for localhost). Use `tls://`: the plugin refuses `wss://` and `ws://` invites until its NATS client supports websockets. Without it, `/mesh invite` is refused. |
 | `enrollment.inviteTtlHours` | `24` | How long an unused `/mesh invite` code stays valid (max 720). |
 | `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). |
 | `enrollment.redeemAttemptsPerMinute` | `5` | Failed invite redemptions allowed per minute, per invite and per client IP. |
+
+`limits.deliveryRetentionDays` was removed with per-session delivery: undelivered messages wait in
+the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key is ignored.
 
 ## Tasks, workflows, planning
 
@@ -123,6 +123,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | `ingest.sources[].auth` | — | `{ type: bearer, token }` (≥16 chars), `{ type: hmac-sha256, secret, header: x-hub-signature-256, prefix: "sha256=" }`, or `{ type: none }`. |
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
+| `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
 
 ## `discord`
 

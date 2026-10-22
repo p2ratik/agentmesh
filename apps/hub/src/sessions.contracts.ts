@@ -16,6 +16,12 @@ export interface SessionRecord {
   lastSeen: string;
 }
 
+/** The session that owns an agent's side of a thread (owners are never closed). */
+export interface ThreadOwner {
+  sessionId: string;
+  liveness: 'live' | 'away';
+}
+
 /** One Claude Code session per plugin process; each thread is owned per agent by one session. */
 export interface SessionsService {
   open(
@@ -53,4 +59,6 @@ export interface SessionsService {
   /** Whether any session of the agent is active and live, so routing could deliver now. */
   hasReadySession(agentId: string): boolean;
   ownerOf(threadId: number, agentId: string): string | null;
+  /** The session routing treats as owning the thread's work: its owner, its parent's, then its task's. */
+  effectiveOwner(threadId: number, agentId: string): string | null;
 }

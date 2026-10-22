@@ -4,8 +4,7 @@
  * (`thr-12`, `task-42`, `plan-7`) are produced only at the edges.
  */
 import type {
-  DomainEventData,
-  DomainEventType,
+  DeliveryClass,
   IngestEvent,
   MemberRecord,
   MeshMessage,
@@ -19,12 +18,18 @@ import type {
   RpcMethodName,
   RpcParams,
   RpcResult,
+  SessionDelivery,
   SessionSummary,
   TaskDetail,
   ThreadKind,
   ThreadSummary,
   Trust,
 } from '@agentmesh/protocol';
+import type { ThreadOwner } from './sessions.contracts';
+
+/** The sessions module's and the outbox's contracts have their own files, to keep this one small. */
+export type { Outbox } from './outbox.contracts';
+export type { SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
 
 /** Who is acting. For bridge calls with `actAs`, this is the human, not the bridge. */
 export interface Actor {
@@ -69,23 +74,6 @@ export interface HubModule<S> {
   ticks?: TickJob[];
   start?(): Promise<void>;
   stop?(): Promise<void>;
-}
-
-// ---------------------------------------------------------------- outbox
-
-/**
- * Transactional outbox: services write deliveries/events inside the same DB
- * transaction as their state change; a dispatcher publishes them to NATS.
- */
-export interface Outbox {
-  enqueueDelivery(message: MeshMessage, recipientId: string, held: boolean): void;
-  enqueueEvent<T extends DomainEventType>(type: T, data: DomainEventData<T>): void;
-  /** Schedules a flush without awaiting it. Call after committing. */
-  kick(): void;
-  flush(): Promise<void>;
-  /** Kill-switch resume: held deliveries become pending. Returns how many. */
-  releaseHeld(): number;
-  heldCount(): number;
 }
 
 // ---------------------------------------------------------------- control
@@ -167,6 +155,8 @@ export interface PostInput {
   addToThread?: boolean;
   /** Hub-generated messages skip rate limits and dedup. */
   system?: boolean;
+  /** One class for every recipient, or a function picking each one's; default `action`. */
+  deliveryClass?: DeliveryClass | ((recipientId: string) => DeliveryClass);
 }
 
 export interface PostResult {
@@ -193,14 +183,13 @@ export interface MessagingService {
   markRead(participantId: string, messageIds: string[]): void;
   /** Whether the participant's read cursor is at or past the message (seen through inbox or thread). */
   isRead(participantId: string, messageId: string): boolean;
-  /** Wired once the sessions module exists: the session that owns an agent's thread, or null. */
+  /** Client-driven: marks read only the messages addressed to the agent; other ids are ignored. */
+  markSeen(agentId: string, messageIds: string[]): void;
+  unreadStatusBefore(agentId: string, messageId: string, limit: number): SessionDelivery[];
+  /** The class the message was stored with for this participant (`action` unless status). */
+  classFor(messageId: string, participantId: string): DeliveryClass;
+  /** Wired once the sessions module exists: the thread's effective owner session, or null. */
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
-}
-
-/** The session that owns an agent's side of a thread (owners are never closed). */
-export interface ThreadOwner {
-  sessionId: string;
-  liveness: 'live' | 'away';
 }
 
 // ---------------------------------------------------------------- leases
@@ -257,11 +246,6 @@ export interface PlanningService {
   activeCount(): number;
   threadOf(planId: number): number | null;
 }
-
-// ---------------------------------------------------------------- sessions
-
-/** Kept in their own file so this one stays within the size limit. */
-export type { SessionRecord, SessionsService } from './sessions.contracts';
 
 // ---------------------------------------------------------------- enrollment
 

@@ -10,9 +10,14 @@ const UNREAD = `
   WHERE m.seq > tp.last_read_seq AND m.sender_id <> $p
     AND EXISTS (SELECT 1 FROM json_each(m.recipients) r WHERE r.value = $p)`;
 
+/** The message is status for P (P is listed in its `status_for`). */
+const STATUS = 'EXISTS (SELECT 1 FROM json_each(m.status_for) s WHERE s.value = $p)';
+
 export interface UnreadThread {
   threadId: number;
   unread: number;
+  /** Unread messages that are action for the participant; the rest are status. */
+  actions: number;
   lastSeq: number;
 }
 
@@ -44,12 +49,13 @@ export class ReadsRepo {
     );
   }
 
-  /** Threads with unread messages, most recent unread first. */
+  /** Threads with unread messages: any with an action first, then status-only; newest first. */
   unreadThreads(participantId: string): UnreadThread[] {
     return this.#db.all<UnreadThread>(
-      `SELECT m.thread_id AS threadId, COUNT(*) AS unread, MAX(m.seq) AS lastSeq
+      `SELECT m.thread_id AS threadId, COUNT(*) AS unread, MAX(m.seq) AS lastSeq,
+         SUM(NOT ${STATUS}) AS actions
        FROM messages m ${UNREAD}
-       GROUP BY m.thread_id ORDER BY lastSeq DESC`,
+       GROUP BY m.thread_id ORDER BY actions = 0, lastSeq DESC`,
       { p: participantId },
     );
   }
@@ -69,6 +75,34 @@ export class ReadsRepo {
       .all<MessageRow>(
         `${MESSAGE_SELECT} ${UNREAD} AND m.thread_id = $threadId ORDER BY m.seq DESC LIMIT $limit`,
         { p: participantId, threadId, limit },
+      )
+      .reverse();
+  }
+
+  /** The seq of the participant's oldest unread action in the thread; null when there is none. */
+  oldestUnreadAction(threadId: number, participantId: string): number | null {
+    return (
+      this.#db.get<{ seq: number | null }>(
+        `SELECT MIN(m.seq) AS seq FROM messages m ${UNREAD} AND m.thread_id = $threadId
+           AND NOT ${STATUS}`,
+        { p: participantId, threadId },
+      )?.seq ?? null
+    );
+  }
+
+  /** The newest `limit` unread status items of a thread before `beforeSeq`, oldest first. */
+  unreadStatus(
+    threadId: number,
+    participantId: string,
+    beforeSeq: number,
+    limit: number,
+  ): MessageRow[] {
+    return this.#db
+      .all<MessageRow>(
+        `${MESSAGE_SELECT} ${UNREAD} AND m.thread_id = $threadId AND ${STATUS}
+           AND m.seq < $beforeSeq
+         ORDER BY m.seq DESC LIMIT $limit`,
+        { p: participantId, threadId, beforeSeq, limit },
       )
       .reverse();
   }

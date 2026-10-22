@@ -1,6 +1,6 @@
 import { addMs, MINUTE_MS } from '@agentmesh/common';
 import { STANDARD_PLANNING_TEMPLATE } from '@agentmesh/config';
-import type { MessageKind, PlanState, ReplyStatus } from '@agentmesh/protocol';
+import type { DeliveryClass, MessageKind, PlanState, ReplyStatus } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, MessagingService, PresenceService, TaskService } from '../../contracts';
 import { internalId, planKey } from '../../core/ids';
@@ -27,6 +27,8 @@ interface PostOptions {
   kind?: MessageKind;
   status?: ReplyStatus;
   round?: string;
+  /** Defaults to action. */
+  deliveryClass?: DeliveryClass;
 }
 
 /**
@@ -92,9 +94,10 @@ export class PlanFlow {
   /**
    * Creates the drafted tasks in dependency order and closes the session.
    * Anyone who left the team since the synthesis is replaced: the hub creates
-   * the tasks, and their drafts are routed like unassigned ones.
+   * the tasks, and their drafts are routed like unassigned ones. The agent whose call
+   * triggered it (`caller`) sees the result on its own tool result, so it gets no notice.
    */
-  materialize(planId: number): void {
+  materialize(planId: number, caller?: string): void {
     const plan = this.#repo.require(planId);
     const onTeam = (id: string | undefined) => !!id && this.#ctx.index.kindOf(id) === 'agent';
     const facilitator: Actor = onTeam(plan.facilitator)
@@ -133,7 +136,12 @@ export class PlanFlow {
     }
     this.#update(plan, { state: 'materialized', deadline: null, taskIds: [...keyToId.values()] });
     const updated = this.#repo.require(planId);
-    this.post(updated, updated.participants, materializedText(updated, created));
+    this.post(
+      updated,
+      updated.participants.filter((p) => p !== caller),
+      materializedText(updated, created),
+      { deliveryClass: 'status' },
+    );
     this.emit(updated, plan.state, null);
   }
 
@@ -147,6 +155,7 @@ export class PlanFlow {
       body,
       to: [...to],
       system: true,
+      deliveryClass: options.deliveryClass ?? 'action',
       ...(options.status ? { status: options.status } : {}),
       refs: options.round ? { round: options.round } : {},
     });
@@ -179,7 +188,9 @@ export class PlanFlow {
       },
     );
     const others = updated.participants.filter((p) => p !== updated.facilitator);
-    if (others.length > 0) this.post(updated, others, synthesizingNotice(updated, now));
+    if (others.length > 0) {
+      this.post(updated, others, synthesizingNotice(updated, now), { deliveryClass: 'status' });
+    }
     this.emit(updated, 'collecting', 'synthesis');
   }
 

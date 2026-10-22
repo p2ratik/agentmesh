@@ -22,12 +22,17 @@ export class ControlServiceImpl implements ControlService {
     return state?.paused ? state.reason : null;
   }
 
-  /** Pausing again only updates the reason; the event fires on the transition. */
+  /**
+   * Holds every delivery: those queued before the pause too, so nothing (and no
+   * status riding along) reaches an agent until resume. Pausing again only updates
+   * the reason; the event fires on the transition.
+   */
   pause(by: string, reason: string | null): void {
     const { db, outbox, clock } = this.#ctx;
     db.transaction(() => {
       const wasPaused = this.isPaused();
       writePauseState(db, { paused: true, reason, by, at: clock.now().toISOString() });
+      outbox.holdPending();
       if (!wasPaused) outbox.enqueueEvent('mesh.paused', { by, reason });
     });
     outbox.kick();

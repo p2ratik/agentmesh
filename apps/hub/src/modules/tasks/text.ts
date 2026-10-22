@@ -40,6 +40,15 @@ export function suggestedBranch(index: ConfigIndex, task: TaskRecord, agentId: s
   });
 }
 
+const baseBranchOf = (index: ConfigIndex, task: TaskRecord): string =>
+  task.baseBranch ?? index.config.git.integrationBranch;
+
+/** An agent's own assignment, as a note on its result: the git part of the brief it doesn't get. */
+export function branchNote(index: ConfigIndex, task: TaskRecord, assignee: string): string {
+  const branch = suggestedBranch(index, task, assignee);
+  return `${taskKey(task.id)}: base branch \`${baseBranchOf(index, task)}\` · suggested branch \`${branch}\` · work in a separate git worktree.`;
+}
+
 export function createdText(task: TaskRecord, creatorName: string): string {
   const facts = factsLine(task);
   const description = task.description ? `\n\n${task.description}` : '';
@@ -80,8 +89,7 @@ export function assignmentBrief({
   dependencies,
   next,
 }: AssignmentBriefInput): string {
-  const git = index.config.git;
-  const base = task.baseBranch ?? git.integrationBranch;
+  const base = baseBranchOf(index, task);
   const waiting = dependencies.filter((d) => !d.done);
   const lines = [
     `${head(task)} is assigned to you.`,

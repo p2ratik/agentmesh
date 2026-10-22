@@ -282,6 +282,7 @@ Target users are self-hosted startup teams of 5–15 people who already know age
 - Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with
   the channel flag, and the handshake doesn't reveal it. That is why a session receives nothing
   until `/agentmesh:activate` proves a push arrives, and why the plugin acks only after pushing.
+  Action items are pushed; status items ride along as an `FYI` block on the next tool result.
   The hub's unread cursor and the `inbox` tool are the source of truth.
 - MCP server instructions are truncated at 4096 characters. Keep session state first, and keep
   the test in `instructions.test.ts`.

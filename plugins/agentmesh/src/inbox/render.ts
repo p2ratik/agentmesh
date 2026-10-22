@@ -13,15 +13,21 @@ const MAX_CONTENT = 12_000;
  * Renders messages of ONE thread as one channel event. A single message is
  * its body; several become a compact transcript. Meta describes the latest
  * message (plus `count`), and `trust` is `external` if any part is external.
+ * A `footer` (the FYIs riding along) ends the content, after any clipping.
  */
 export function renderEvent(
   messages: readonly MeshMessage[],
+  footer = '',
   maxChars = MAX_CONTENT,
 ): ChannelEvent {
   const last = messages.at(-1);
   if (!last) throw new Error('renderEvent needs at least one message');
-  const content = messages.length === 1 ? last.body : transcript(messages, last);
-  return { content: clip(content, last.threadId, maxChars), meta: buildMeta(messages, last) };
+  const body = clip(
+    messages.length === 1 ? last.body : transcript(messages, last),
+    last.threadId,
+    maxChars,
+  );
+  return { content: footer ? `${body}\n\n${footer}` : body, meta: buildMeta(messages, last) };
 }
 
 function transcript(messages: readonly MeshMessage[], last: MeshMessage): string {
@@ -75,6 +81,6 @@ export function sanitizeMeta(
   return meta;
 }
 
-function oneLine(text: string): string {
+export function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim().slice(0, 300);
 }

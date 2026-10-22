@@ -104,21 +104,43 @@ describe('SqliteOutbox', () => {
     expect(rows(h).find((r) => r.message_id === 'msg-carol')?.state).toBe('published');
   });
 
-  it('warns at most once a minute when a whole window of a recipient waits', async () => {
+  it('250 rows waiting on one held thread don’t hold back a deliverable message in another thread', async () => {
+    const h = createTestHarness(undefined, {
+      deliver: async (_to, messages) => ({
+        delivered: messages.filter((m) => m.threadId !== 'thr-held').map((m) => m.id),
+      }),
+    });
+    for (let i = 1; i <= 250; i++)
+      h.outbox.enqueueDelivery(
+        { ...message(`held-${i}`), threadId: 'thr-held' },
+        'bob-agent',
+        false,
+      );
+    h.outbox.enqueueDelivery({ ...message('open-1'), threadId: 'thr-open' }, 'bob-agent', false);
+    await h.outbox.flush();
+    expect(rows(h).find((r) => r.message_id === 'open-1')?.state).toBe('published');
+    expect(rows(h).filter((r) => r.state === 'pending')).toHaveLength(250);
+  });
+
+  it('a thread with more than 50 deliverable rows drains over successive loops in order', async () => {
+    const h = createTestHarness();
+    for (let i = 1; i <= 120; i++)
+      h.outbox.enqueueDelivery(message(`msg-${String(i).padStart(3, '0')}`), 'bob-agent', false);
+    await h.outbox.flush();
+    const ids = h.ports.deliveredTo('bob-agent').map((m) => m.id);
+    expect(ids).toHaveLength(120);
+    expect(ids).toEqual([...ids].sort());
+  });
+
+  it('logs at debug when a thread’s full window waits', async () => {
     const h = createTestHarness(undefined, { deliver: async () => ({ delivered: [] }) });
-    const warn = vi.spyOn(h.ctx.logger, 'warn');
-    const starved = () => warn.mock.calls.filter(([, msg]) => String(msg).includes('waits'));
-    for (let i = 1; i <= 200; i++)
-      h.outbox.enqueueDelivery(message(`msg-${i}`), 'bob-agent', false);
+    const debug = vi.spyOn(h.ctx.logger, 'debug');
+    for (let i = 1; i <= 50; i++) h.outbox.enqueueDelivery(message(`msg-${i}`), 'bob-agent', false);
     await h.outbox.flush();
-    expect(starved()).toEqual([
-      [{ recipient: 'bob-agent', waiting: 200 }, expect.stringContaining('waits')],
-    ]);
-    await h.outbox.flush();
-    expect(starved()).toHaveLength(1);
-    h.clock.advance(60_000);
-    await h.outbox.flush();
-    expect(starved()).toHaveLength(2);
+    expect(debug).toHaveBeenCalledWith(
+      { recipient: 'bob-agent', thread: 'thr-1', waiting: 50 },
+      expect.stringContaining('waits'),
+    );
   });
 
   it('a failing commit marks nothing and retries', async () => {
@@ -145,6 +167,21 @@ describe('SqliteOutbox', () => {
     expect(rows(h)).toMatchObject([{ state: 'published' }]);
     expect(h.sessions.ownerOf(t, 'bob-agent')).toBe(s1);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('stores each row’s class and thread, and hands the class over with the message', async () => {
+    const h = createTestHarness();
+    h.outbox.enqueueDelivery(message('msg-1'), 'bob-agent', false, 'status');
+    h.outbox.enqueueDelivery(message('msg-2'), 'bob-agent', false);
+    expect(h.ctx.db.all('SELECT message_id, class, thread_key FROM deliveries')).toEqual([
+      { message_id: 'msg-1', class: 'status', thread_key: 'thr-1' },
+      { message_id: 'msg-2', class: 'action', thread_key: 'thr-1' },
+    ]);
+    await h.outbox.flush();
+    expect(h.ports.deliveredTo('bob-agent').map((m) => [m.id, m.class])).toEqual([
+      ['msg-1', 'status'],
+      ['msg-2', 'action'],
+    ]);
   });
 
   it('holds deliveries until released', async () => {

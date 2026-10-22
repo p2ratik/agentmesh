@@ -75,6 +75,8 @@ export const messagingMethods = {
           thread: ThreadSummary,
           unread: z.number().int().nonnegative(),
           messages: z.array(MeshMessage),
+          /** True when every unread message in the thread is status for the caller. */
+          fyi: z.boolean().default(false),
         }),
       ),
       remainingThreads: z.number().int().nonnegative(),
@@ -89,6 +91,12 @@ export const messagingMethods = {
         )
         .default([]),
     }),
+  }),
+  'messages.seen': defineMethod({
+    description: 'Mark messages you have read (e.g. FYI items shown in a session) as seen.',
+    callers: ['agent'],
+    params: z.object({ messageIds: z.array(z.string()).min(1).max(500) }),
+    result: z.object({ ok: z.literal(true) }),
   }),
   'thread.close': defineMethod({
     description: 'Close a conversation thread you participate in.',

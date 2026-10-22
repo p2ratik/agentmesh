@@ -65,8 +65,9 @@ see it. Run `/agentmesh:activate` in each session that should receive mesh messa
 a test message with a code to the session over NATS, and the plugin pushes it into Claude Code;
 Claude reads it and confirms with the code and a one-line description of what the session is
 working on. If no test message arrives, the session was started without the channel flag, so
-restart it with the command above. If `activate` says the hub could not reach the session, the
-hub's NATS permissions were probably not updated for 0.2.0: ask your mesh admin.
+restart it with the command above. If `activate` says the hub could not reach the session, try
+again in a few seconds. If it keeps failing, the NATS permissions predate 0.2.0: ask your mesh
+admin, or restart Claude Code if the hub uses auth callout.
 
 - `/agentmesh:deactivate` turns the session off again and releases the work it owns; the next
   message about that work goes to another active session.
@@ -76,6 +77,19 @@ hub's NATS permissions were probably not updated for 0.2.0: ask your mesh admin.
 
 The slash commands are user-only. Claude updates the description with `describe_session` when the
 session's focus changes.
+
+## FYI (status items)
+
+Not every message needs you now. The hub marks progress reports and similar notices as status.
+They never start a turn. They ride along as an `FYI (n):` block at the end of the next mesh tool
+result, or under the next action push. A cancelled tool call or a failed push keeps them for the
+next one. More than 50 waiting are summarised as "…and N more: call inbox", and the threads that
+lost items stay unread for `inbox`. Questions, asks, broadcasts and
+escalations are always pushed.
+
+`inbox` has two sections, "Needs you:" and "FYI:". It can occasionally list an FYI that also
+appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update with
+`claude plugin update agentmesh@agentmesh` and restart your sessions.
 
 ## Tools
 
@@ -98,7 +112,7 @@ planning etiquette).
   (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
   to call `inbox` — the hub keeps everything.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
-- **"This session isn't registered with the hub"**: the plugin is older than 0.2.0. Run
+- **"This session isn't registered with the hub"**: the plugin is older than 0.3.0. Run
   `claude plugin update agentmesh@agentmesh` and restart Claude Code.
 - **"not configured"**: set the options in `/plugin` or write `~/.agentmesh/agent.json`.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set

@@ -1,6 +1,11 @@
 import type { LoadedConfig } from '@agentmesh/config';
-import type { MeshMessage } from '@agentmesh/protocol';
-import type { MessagingService, PresenceService, SessionsService } from '../contracts';
+import type { MessageRefs, SessionDelivery } from '@agentmesh/protocol';
+import type {
+  ControlService,
+  MessagingService,
+  PresenceService,
+  SessionsService,
+} from '../contracts';
 import { createControlModule } from '../modules/control';
 import { createMessagingModule } from '../modules/messaging';
 import { createPresenceModule } from '../modules/presence';
@@ -11,11 +16,12 @@ import { FakeLeases, FakeTransport } from './fakes';
 import { createTestHarness, type TestHarness } from './harness';
 
 export interface ServiceHarness extends TestHarness {
+  control: ControlService;
   messaging: MessagingService;
   presence: PresenceService;
   leases: FakeLeases;
-  /** Flushes the outbox and returns what each agent received since the last call. */
-  drain(): Promise<Map<string, MeshMessage[]>>;
+  /** Flushes the outbox and returns what each agent received (with its class) since the last call. */
+  drain(): Promise<Map<string, SessionDelivery[]>>;
 }
 
 /**
@@ -43,6 +49,7 @@ export function createServiceHarness(
   let seen = 0;
   return {
     ...base,
+    control,
     messaging,
     presence,
     leases: new FakeLeases(),
@@ -50,7 +57,7 @@ export function createServiceHarness(
       await base.outbox.flush();
       const fresh = base.ports.deliveries.slice(seen);
       seen = base.ports.deliveries.length;
-      const byRecipient = new Map<string, MeshMessage[]>();
+      const byRecipient = new Map<string, SessionDelivery[]>();
       for (const d of fresh) {
         byRecipient.set(d.recipientId, [...(byRecipient.get(d.recipientId) ?? []), d.message]);
       }
@@ -95,4 +102,46 @@ export function createDispatchHarness(): DispatchHarness {
     logger: h.ctx.logger,
   });
   return { ...h, sessions, transport, dispatcher };
+}
+
+/** The dispatch harness with helpers for alice-agent writing to bob-agent's sessions. */
+export function createBobDispatchHarness() {
+  const h = createDispatchHarness();
+  /** A bob-agent session, activated at the clock's current time. */
+  const active = () => {
+    const id = h.sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
+    h.sessions.activate('bob-agent', id, 'web client');
+    return id;
+  };
+  const thread = () =>
+    h.messaging.createThread({
+      kind: 'conversation',
+      subject: 'x',
+      createdBy: 'alice-agent',
+      participants: ['bob-agent'],
+    }).id;
+  let n = 0;
+  /** Posts an ask; returns it as the outbox hands it over. */
+  const ask = (threadId: number, refs: MessageRefs = {}): SessionDelivery => ({
+    ...h.messaging.post({ threadId, senderId: 'alice-agent', kind: 'ask', body: `q${++n}`, refs })
+      .message,
+    class: 'action',
+  });
+  /** Posts a status notice for bob (the outbox hands it over as status). */
+  const note = (threadId: number) =>
+    h.messaging.post({
+      threadId,
+      senderId: 'alice-agent',
+      kind: 'reply',
+      body: `n${++n}`,
+      deliveryClass: 'status',
+    }).message;
+  const pending = () =>
+    h.ctx.db
+      .all<{ message_id: string }>(
+        "SELECT message_id FROM deliveries WHERE state = 'pending' ORDER BY rowid",
+      )
+      .map((r) => r.message_id);
+  const liveness = (sessionId: string) => h.sessions.verify('bob-agent', sessionId).liveness;
+  return { ...h, active, thread, ask, note, pending, liveness };
 }

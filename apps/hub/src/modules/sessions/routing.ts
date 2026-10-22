@@ -36,25 +36,34 @@ const longestActive = (list: RouteSession[]): RouteSession | undefined =>
     undefined,
   );
 
-export function routeDelivery(input: RouteInput): Route {
-  const byId = new Map(input.sessions.map((s) => [s.id, s]));
+/** The first open owner in the chain: the thread's, its parent's, then its task's. */
+export function chainOwner(
+  input: RouteInput,
+): { session: RouteSession; claim: boolean; reason: string } | undefined {
   const owners = [
     { id: input.threadOwner, claim: false, reason: 'owns thread' },
     { id: input.parentOwner, claim: true, reason: 'owns parent thread' },
     { id: input.taskOwner, claim: true, reason: 'owns task' },
   ];
   for (const o of owners) {
-    const session = o.id ? byId.get(o.id) : undefined; // a closed owner is not listed: ignored
-    if (!session) continue;
-    if (ready(session)) {
-      return { kind: 'deliver', sessionId: session.id, claim: o.claim, reason: o.reason };
-    }
+    const session = input.sessions.find((s) => s.id === o.id); // a closed owner is not listed
+    if (session) return { session, claim: o.claim, reason: o.reason };
+  }
+  return undefined;
+}
+
+export function routeDelivery(input: RouteInput): Route {
+  const owner = chainOwner(input);
+  if (owner) {
+    const { session, claim, reason } = owner;
+    if (ready(session)) return { kind: 'deliver', sessionId: session.id, claim, reason };
     return {
       kind: 'wait',
       reason: `held for ${session.id} (${session.active ? 'away' : 'inactive'})`,
     };
   }
 
+  const byId = new Map(input.sessions.map((s) => [s.id, s]));
   const picked = input.picked ? byId.get(input.picked) : undefined;
   if (picked && ready(picked)) {
     return { kind: 'deliver', sessionId: picked.id, claim: true, reason: 'picked by sender' };

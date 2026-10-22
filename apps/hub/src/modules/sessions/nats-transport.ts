@@ -3,8 +3,8 @@ import type { NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
 import {
   MAX_DELIVERY_MESSAGES,
-  type MeshMessage,
   SessionAck,
+  type SessionDelivery,
   type SessionInbound,
   subjects,
 } from '@agentmesh/protocol';
@@ -18,7 +18,7 @@ const ENVELOPE_BYTES = 1024;
 const byteSize = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
 
 /** The message with its body cut to fit `maxBytes`; the hub keeps the full text. */
-function clipToFit(message: MeshMessage, maxBytes: number): MeshMessage {
+function clipToFit(message: SessionDelivery, maxBytes: number): SessionDelivery {
   const note = `\n… _(truncated: call thread(thread_id: "${message.threadId}") for the full text)_`;
   const fits = (n: number) =>
     byteSize({ ...message, body: message.body.slice(0, n) + note }) < maxBytes;
@@ -36,9 +36,9 @@ function clipToFit(message: MeshMessage, maxBytes: number): MeshMessage {
  * Splits a batch, in order, into deliveries the protocol and the server accept.
  * A message too big for a delivery on its own is clipped to fit.
  */
-export function deliveryChunks(messages: MeshMessage[], maxBytes: number): MeshMessage[][] {
-  const chunks: MeshMessage[][] = [];
-  let chunk: MeshMessage[] = [];
+export function deliveryChunks(messages: SessionDelivery[], maxBytes: number): SessionDelivery[][] {
+  const chunks: SessionDelivery[][] = [];
+  let chunk: SessionDelivery[] = [];
   let bytes = 0;
   for (const whole of messages) {
     const message = byteSize(whole) < maxBytes ? whole : clipToFit(whole, maxBytes);
@@ -78,7 +78,7 @@ export class NatsSessionTransport implements SessionTransport {
    * the order. A failed first request throws (timeouts, no-responders); a later
    * one stops the batch and keeps what got through, the rest waits.
    */
-  async send(agentId: string, sessionId: string, messages: MeshMessage[]): Promise<string[]> {
+  async send(agentId: string, sessionId: string, messages: SessionDelivery[]): Promise<string[]> {
     const maxPayload = this.#nc.info?.max_payload ?? DEFAULT_MAX_PAYLOAD;
     const acked: string[] = [];
     const chunks = deliveryChunks(messages, maxPayload - ENVELOPE_BYTES);
@@ -114,7 +114,7 @@ export class NatsSessionTransport implements SessionTransport {
   async #request(
     agentId: string,
     sessionId: string,
-    messages: MeshMessage[],
+    messages: SessionDelivery[],
     maxPayload: number,
   ): Promise<string[]> {
     const body: SessionInbound = { type: 'deliver', messages };

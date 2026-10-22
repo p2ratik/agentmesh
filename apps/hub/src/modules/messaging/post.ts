@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { DAY_MS, HOUR_MS, MeshError, newMessageId, redactSecrets } from '@agentmesh/common';
-import type { MeshMessage, ParticipantRef, ThreadSummary } from '@agentmesh/protocol';
+import type {
+  DeliveryClass,
+  MeshMessage,
+  ParticipantRef,
+  ThreadSummary,
+} from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { ControlService, PostInput, PostResult, ThreadRecord } from '../../contracts';
 import { threadKey } from '../../core/ids';
@@ -30,8 +35,8 @@ const sha256 = (text: string): string => createHash('sha256').update(text).diges
 /**
  * Stores one message and queues its side effects: redaction, limits (skipped
  * for system posts), recipients, agent deliveries (held while
- * paused) and the `message.created` feed event. Runs inside the caller's
- * transaction when there is one.
+ * paused, each with its class) and the `message.created` feed event. Runs
+ * inside the caller's transaction when there is one.
  */
 export function postMessage(pc: PostContext, input: PostInput): PostResult {
   const { db, clock, outbox, index } = pc.ctx;
@@ -46,6 +51,7 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
     if (!input.system) enforceLimits(pc, thread, input, bodyHash, now);
 
     const recipients = resolveRecipients(pc, thread, input, at);
+    const statusFor = recipients.filter((id) => classOf(input, id) === 'status');
     const message: MeshMessage = {
       id: newMessageId(),
       threadId: threadKey(thread.id),
@@ -71,6 +77,7 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
       trust: message.trust,
       depth: message.depth,
       recipients: toJson(recipients),
+      statusFor: toJson(statusFor),
       refs: toJson(message.refs),
       at,
     });
@@ -78,12 +85,20 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
 
     const held = pc.control.isPaused();
     const deliveredTo = recipients.filter((id) => index.kindOf(id) === 'agent');
-    for (const id of deliveredTo) outbox.enqueueDelivery(message, id, held);
+    for (const id of deliveredTo) {
+      outbox.enqueueDelivery(message, id, held, statusFor.includes(id) ? 'status' : 'action');
+    }
     outbox.enqueueEvent('message.created', { message, thread: pc.summary(thread.id) });
     return { message, deliveredTo, held };
   });
   outbox.kick();
   return result;
+}
+
+/** The message's class for one recipient: `action` unless the input says otherwise. */
+function classOf(input: PostInput, recipientId: string): DeliveryClass {
+  const cls = input.deliveryClass;
+  return typeof cls === 'function' ? cls(recipientId) : (cls ?? 'action');
 }
 
 function enforceLimits(

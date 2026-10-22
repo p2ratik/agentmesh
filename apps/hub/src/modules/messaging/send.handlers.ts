@@ -1,6 +1,6 @@
 import { MeshError, redactSecrets } from '@agentmesh/common';
-import type { MessageRefs } from '@agentmesh/protocol';
-import type { Actor, PostResult, RpcHandlerMap } from '../../contracts';
+import type { DeliveryClass, MessageRefs, RpcParams } from '@agentmesh/protocol';
+import type { Actor, PostInput, PostResult, RpcHandlerMap } from '../../contracts';
 import { internalId, taskKey } from '../../core/ids';
 import { firstLine } from './mappers';
 import type { MessagingServiceImpl } from './messaging.service';
@@ -66,44 +66,70 @@ function startThread(
   }).id;
 }
 
+type SendParams = RpcParams<'message.send'>;
+
+/**
+ * A teammate message is status only when it is a progress report (a `working`
+ * or `info` reply); a question or any other answer always needs its reader.
+ */
+function sendClass(params: SendParams): DeliveryClass {
+  const report = params.status === 'working' || params.status === 'info';
+  return params.kind === 'reply' && report ? 'status' : 'action';
+}
+
+/** What a `message.send` posts, minus its thread. */
+function sendInput(params: SendParams, actor: Actor): Omit<PostInput, 'threadId'> {
+  return {
+    senderId: actor.id,
+    kind: params.kind,
+    body: params.body,
+    status: params.status ?? null,
+    refs: {
+      ...taskRefs(params.taskId),
+      ...(params.prUrl ? { prUrl: params.prUrl } : {}),
+      ...(params.repo ? { repo: params.repo } : {}),
+      ...(params.toSession ? { session: params.toSession } : {}),
+    },
+    deliveryClass: sendClass(params),
+  };
+}
+
+/** The thread a `message.send` posts into: the one it names, or a new one with its recipients. */
+function sendThread(
+  messaging: MessagingServiceImpl,
+  params: SendParams,
+  actor: Actor,
+  recipients: string[],
+): number {
+  if (params.threadId) {
+    const threadId = internalId('thread', params.threadId);
+    assertCanPost(messaging, threadId, actor);
+    messaging.addParticipants(threadId, recipients);
+    return threadId;
+  }
+  if (recipients.length === 0) throw noRecipientsError(params.to ?? [], actor.id);
+  return startThread(messaging, actor, {
+    kind: 'conversation',
+    subject:
+      params.subject === undefined
+        ? firstLine(redactSecrets(params.body), MAX_AUTO_SUBJECT)
+        : redactSecrets(params.subject),
+    to: recipients,
+    ...(params.parentThreadId ? { parent: params.parentThreadId } : {}),
+  });
+}
+
 export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
   const { db, index } = messaging.ctx;
   return {
     'message.send': (params, call) => {
       const { actor } = call;
-      const message = {
-        senderId: actor.id,
-        kind: params.kind,
-        body: params.body,
-        status: params.status ?? null,
-        refs: {
-          ...taskRefs(params.taskId),
-          ...(params.prUrl ? { prUrl: params.prUrl } : {}),
-          ...(params.repo ? { repo: params.repo } : {}),
-          ...(params.toSession ? { session: params.toSession } : {}),
-        },
-      };
+      const input = sendInput(params, actor);
       const result: PostResult = db.transaction(() => {
-        const tokens = params.to ?? [];
-        const recipients = expandRecipients(tokens, actor.id, directory(messaging));
+        const recipients = expandRecipients(params.to ?? [], actor.id, directory(messaging));
         if (params.toSession) assertPick(messaging, params.toSession, recipients);
-        if (params.threadId) {
-          const threadId = internalId('thread', params.threadId);
-          assertCanPost(messaging, threadId, actor);
-          messaging.addParticipants(threadId, recipients);
-          return messaging.post({ ...message, threadId });
-        }
-        if (recipients.length === 0) throw noRecipientsError(tokens, actor.id);
-        const threadId = startThread(messaging, actor, {
-          kind: 'conversation',
-          subject:
-            params.subject === undefined
-              ? firstLine(redactSecrets(params.body), MAX_AUTO_SUBJECT)
-              : redactSecrets(params.subject),
-          to: recipients,
-          ...(params.parentThreadId ? { parent: params.parentThreadId } : {}),
-        });
-        return messaging.post({ ...message, threadId });
+        const threadId = sendThread(messaging, params, actor, recipients);
+        return messaging.post({ ...input, threadId });
       });
       return {
         messageId: result.message.id,

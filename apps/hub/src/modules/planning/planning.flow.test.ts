@@ -59,6 +59,43 @@ describe('planning sessions', () => {
     expect(s.ports.events.map((e) => e.type)).toContain('plan.started');
   });
 
+  it('starting a plan as an agent sends it no invite; a human starter still invites every agent', async () => {
+    const byAgent = setup();
+    byAgent.planning.start({ topic: 'Render status end to end' }, agent('alice-agent'));
+    const inbox = await byAgent.drain();
+    expect(inbox.get('alice-agent')).toBeUndefined();
+    for (const id of ['bob-agent', 'carol-agent']) expect(inbox.get(id)).toHaveLength(1);
+    const byHuman = setup();
+    byHuman.planning.start({ topic: 'Render status end to end' }, alice);
+    expect((await byHuman.drain()).get('alice-agent')).toHaveLength(1);
+  });
+
+  it('a round prompt reaches every participant as action, including the one whose contribution opened it', async () => {
+    const s = setup();
+    s.planning.start({ topic: 'Render status end to end' }, alice);
+    await s.drain();
+    for (const id of AGENTS) s.planning.contribute(1, `proposal from ${id}`, agent(id));
+    const inbox = await s.drain();
+    // carol-agent's contribution completed round 1.
+    for (const id of AGENTS) {
+      const round = inbox.get(id)?.find((m) => m.body.includes('Round 2/2'));
+      expect(round?.class, id).toBe('action');
+    }
+  });
+
+  it('materialized tasks notify participants as status', async () => {
+    const s = setup();
+    s.planning.start({ topic: 'Render status end to end' }, alice);
+    runRounds(s);
+    await s.drain();
+    s.planning.submit(1, 'Agreed: enum status.', drafts, agent('alice-agent'));
+    const inbox = await s.drain();
+    expect(inbox.get('alice-agent')?.find((m) => m.body.includes('is final'))).toBeUndefined();
+    for (const id of ['bob-agent', 'carol-agent']) {
+      expect(inbox.get(id)?.find((m) => m.body.includes('is final'))?.class, id).toBe('status');
+    }
+  });
+
   it('keeps contributions out of inboxes and moves on at quorum with a digest', async () => {
     const s = setup();
     s.planning.start({ topic: 'Render status end to end' }, alice);

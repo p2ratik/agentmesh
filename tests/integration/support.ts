@@ -19,6 +19,7 @@ export interface Agent {
   notifications: string[];
   /** Everything the plugin logged so far (it logs to stderr). */
   stderr(): string;
+  /** The result's text parts, joined by newlines; throws on an error result. */
   call(name: string, args: Record<string, unknown>): Promise<string>;
   waitFor(match: (e: Channel) => boolean, timeoutMs?: number): Promise<Channel>;
 }
@@ -66,7 +67,8 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
     stderr: () => logged.join(''),
     async call(name, args) {
       const result = await client.callTool({ name, arguments: args });
-      const text = (result.content as Array<{ text: string }>)[0]?.text ?? '';
+      // Every part: hub notes and the FYI ride-along follow the tool's own text.
+      const text = (result.content as Array<{ text: string }>).map((c) => c.text).join('\n');
       if (result.isError) throw new Error(text);
       return text;
     },
@@ -103,7 +105,7 @@ export async function callAsSession<M extends RpcMethodName>(
   method: M,
   params: RpcParamsInput<M>,
 ): Promise<RpcResult<M>> {
-  const { sessionId } = await rpc.call('session.hello', { clientVersion: '0.2.0' });
+  const { sessionId } = await rpc.call('session.hello', { clientVersion: '0.3.0' });
   return rpc.call(method, params, { session: sessionId });
 }
 
