@@ -79,13 +79,30 @@ export class ReadsRepo {
       .reverse();
   }
 
-  /** The newest `limit` unread status items of a thread for the participant, oldest first. */
-  unreadStatus(threadId: number, participantId: string, limit: number): MessageRow[] {
+  /** The seq of the participant's oldest unread action in the thread; null when there is none. */
+  oldestUnreadAction(threadId: number, participantId: string): number | null {
+    return (
+      this.#db.get<{ seq: number | null }>(
+        `SELECT MIN(m.seq) AS seq FROM messages m ${UNREAD} AND m.thread_id = $threadId
+           AND NOT ${STATUS}`,
+        { p: participantId, threadId },
+      )?.seq ?? null
+    );
+  }
+
+  /** The newest `limit` unread status items of a thread before `beforeSeq`, oldest first. */
+  unreadStatus(
+    threadId: number,
+    participantId: string,
+    beforeSeq: number,
+    limit: number,
+  ): MessageRow[] {
     return this.#db
       .all<MessageRow>(
         `${MESSAGE_SELECT} ${UNREAD} AND m.thread_id = $threadId AND ${STATUS}
+           AND m.seq < $beforeSeq
          ORDER BY m.seq DESC LIMIT $limit`,
-        { p: participantId, threadId, limit },
+        { p: participantId, threadId, beforeSeq, limit },
       )
       .reverse();
   }

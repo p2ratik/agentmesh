@@ -94,6 +94,30 @@ describe('read state with sessions', () => {
     ]);
   });
 
+  it('messages.seen never moves the cursor past an unread action', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    const note = (body: string) =>
+      h.messaging.post({
+        threadId: t.id,
+        senderId: 'alice-agent',
+        kind: 'reply',
+        body,
+        deliveryClass: 'status',
+      }).message.id;
+    const early = note('started');
+    const action = ask(t.id, 'Handles 418?').message.id;
+    const late = note('PR is up');
+    const seen = (messageIds: string[]) => handlers['messages.seen']({ messageIds }, call('ses_1'));
+    await seen([early, late]);
+    const read = (id: string) => h.messaging.isRead('bob-agent', id);
+    expect([read(early), read(action), read(late)]).toEqual([true, false, false]);
+    // Once the action is read, the status after it can be.
+    h.messaging.markRead('bob-agent', [action]);
+    await seen([late]);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
   it("messages.seen marks only the caller's own deliveries read", async () => {
     const { h, handlers, call } = setup();
     const t = h.messaging.createThread({
@@ -102,9 +126,16 @@ describe('read state with sessions', () => {
       createdBy: 'alice-agent',
       participants: ['bob-agent', 'carol-agent'],
     });
+    // Status items: the plugin reports only what rode along, and an action never reads as seen.
     const post = (to: string, body: string) =>
-      h.messaging.post({ threadId: t.id, senderId: 'alice-agent', kind: 'ask', body, to: [to] })
-        .message.id;
+      h.messaging.post({
+        threadId: t.id,
+        senderId: 'alice-agent',
+        kind: 'reply',
+        body,
+        to: [to],
+        deliveryClass: 'status',
+      }).message.id;
     const forBob = post('bob-agent', 'one');
     const forCarol = post('carol-agent', 'two');
     const seen = (messageIds: string[]) => handlers['messages.seen']({ messageIds }, call('ses_1'));

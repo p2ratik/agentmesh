@@ -1,6 +1,11 @@
 import type { LoadedConfig } from '@agentmesh/config';
 import type { MessageRefs, SessionDelivery } from '@agentmesh/protocol';
-import type { MessagingService, PresenceService, SessionsService } from '../contracts';
+import type {
+  ControlService,
+  MessagingService,
+  PresenceService,
+  SessionsService,
+} from '../contracts';
 import { createControlModule } from '../modules/control';
 import { createMessagingModule } from '../modules/messaging';
 import { createPresenceModule } from '../modules/presence';
@@ -11,6 +16,7 @@ import { FakeLeases, FakeTransport } from './fakes';
 import { createTestHarness, type TestHarness } from './harness';
 
 export interface ServiceHarness extends TestHarness {
+  control: ControlService;
   messaging: MessagingService;
   presence: PresenceService;
   leases: FakeLeases;
@@ -43,6 +49,7 @@ export function createServiceHarness(
   let seen = 0;
   return {
     ...base,
+    control,
     messaging,
     presence,
     leases: new FakeLeases(),

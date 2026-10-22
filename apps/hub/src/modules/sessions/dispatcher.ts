@@ -105,16 +105,19 @@ export class SessionDispatcher implements DeliveryPort {
   }
 
   /**
-   * Each thread's unread status items that are not in the batch, oldest first, to
-   * ride along with it. Their rows are already published, so they are never
-   * returned as delivered, claim nothing and are never marked read here; the
-   * plugin dedups any it already holds.
+   * Each thread's unread status items that are not in the batch and are older than
+   * the thread's newest message in it, oldest first, to ride along with it. So
+   * nothing held or past the outbox's window is shown early. Their rows are
+   * already published, so they are never returned as delivered, claim nothing and
+   * are never marked read here; the plugin dedups any it already holds.
    */
   #carried(agentId: string, messages: SessionDelivery[]): SessionDelivery[] {
     const inBatch = new Set(messages.map((m) => m.id));
-    return [...new Set(messages.map((m) => m.threadId))].flatMap((thread) =>
+    // The batch keeps the outbox's order, so the last message of a thread is its newest.
+    const newest = new Map(messages.map((m) => [m.threadId, m.id]));
+    return [...newest.values()].flatMap((id) =>
       this.#messaging
-        .unreadStatusIn(agentId, thread, CARRIED_PER_THREAD)
+        .unreadStatusBefore(agentId, id, CARRIED_PER_THREAD)
         .filter((m) => !inBatch.has(m.id)),
     );
   }

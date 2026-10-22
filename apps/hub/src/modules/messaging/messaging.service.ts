@@ -17,7 +17,7 @@ import type {
   ThreadOwner,
   ThreadRecord,
 } from '../../contracts';
-import { internalId, threadKey } from '../../core/ids';
+import { threadKey } from '../../core/ids';
 import { hubDisplayName } from '../presence/peer';
 import { toMeshMessage, toThreadSummary } from './mappers';
 import { type MessageRow, MessagesRepo } from './messages.repo';
@@ -163,21 +163,29 @@ export class MessagingServiceImpl implements MessagingService {
     }
   }
 
-  /** The plugin reports these ids, so only messages addressed to the agent move its cursors. */
+  /**
+   * The plugin reports these ids, so only messages addressed to the agent move its cursors.
+   * A cursor never passes an unread action: the dispatcher would count it as read and never
+   * push it. Status items above that cap stay unread and ride along again.
+   */
   markSeen(agentId: string, messageIds: string[]): void {
     for (const { threadId, seq } of this.messages.latestAddressedTo(agentId, messageIds)) {
-      this.reads.advance(threadId, agentId, seq);
+      const action = this.reads.oldestUnreadAction(threadId, agentId);
+      this.reads.advance(threadId, agentId, action === null ? seq : Math.min(seq, action - 1));
     }
   }
 
   /**
-   * The agent's unread status items in a thread (`key` is its protocol id), newest
-   * `limit`, oldest first. The dispatcher carries them along with every delivery in
-   * that thread, so a cursor that passes them never hides one no session was shown.
+   * The agent's unread status items in the message's thread that are older than it,
+   * newest `limit`, oldest first. The dispatcher carries them along with every delivery
+   * in that thread, so a cursor that passes them never hides one no session was shown,
+   * and nothing newer (held, or past the outbox's window) is shown early.
    */
-  unreadStatusIn(agentId: string, key: string, limit: number): SessionDelivery[] {
+  unreadStatusBefore(agentId: string, messageId: string, limit: number): SessionDelivery[] {
+    const at = this.messages.position(messageId);
+    if (!at) return [];
     return this.reads
-      .unreadStatus(internalId('thread', key), agentId, limit)
+      .unreadStatus(at.threadId, agentId, at.seq, limit)
       .map((row) => ({ ...this.toMessage(row), class: 'status' }));
   }
 

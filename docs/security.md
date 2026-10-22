@@ -148,7 +148,8 @@ to its session, and `session.check` then fails (see the upgrade notes in
   payload cannot make its own message quiet, or make a quiet one loud.
 - **`messages.seen` is client-driven and bounded.** It marks read only deliveries addressed to the
   caller, ignores every other id, and always answers `{ ok: true }`, so it reveals nothing about
-  which ids exist. A plugin that lies can only hide its own agent's FYIs from itself.
+  which ids exist. It never moves a read cursor past an unread action, so a plugin that lies can
+  only hide its own agent's FYIs from itself, never a question or a next step.
 
 ## Loops and cost
 

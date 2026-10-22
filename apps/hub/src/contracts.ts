@@ -209,7 +209,7 @@ export interface MessagingService {
   isRead(participantId: string, messageId: string): boolean;
   /** Client-driven: marks read only the messages addressed to the agent; other ids are ignored. */
   markSeen(agentId: string, messageIds: string[]): void;
-  unreadStatusIn(agentId: string, threadKey: string, limit: number): SessionDelivery[];
+  unreadStatusBefore(agentId: string, messageId: string, limit: number): SessionDelivery[];
   /** The class the message was stored with for this participant (`action` unless status). */
   classFor(messageId: string, participantId: string): DeliveryClass;
   /** Wired once the sessions module exists: the thread's effective owner session, or null. */

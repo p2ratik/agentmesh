@@ -62,7 +62,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `peers.list` | any | Participants with presence and load |
 | `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
 | `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread. |
-| `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read; other ids are ignored. Always answers `{ ok: true }`. |
+| `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
 | `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or task, as routing decides) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
@@ -156,9 +156,12 @@ materialize, ingest `create_task`) notify everyone.
 
 **Read state.** A status item is published but stays unread until the plugin reports it shown with
 `messages.seen { messageIds }` (1 to 500 ids; only the caller's own deliveries are marked).
+`messages.seen` never moves a thread's read cursor past an unread action, so it cannot make an
+action count as delivered before it was pushed; a status item after that action stays unread.
 `inbox` and `thread` also mark items read. The hub also carries a thread's unread status items
-(the newest 20) along with every later delivery in that thread, so a session that died before
-showing one cannot lose it. As a result an FYI may occasionally be shown twice.
+(the newest 20 older than the delivery's newest message in that thread) along with every later
+delivery in that thread, so a session that died before showing one cannot lose it, and nothing
+held or still queued is shown early. As a result an FYI may occasionally be shown twice.
 
 ### Sessions and liveness
 

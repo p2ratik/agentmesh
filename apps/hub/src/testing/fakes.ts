@@ -129,7 +129,7 @@ export class FakeMessaging implements MessagingService {
 
   markSeen(): void {}
 
-  unreadStatusIn(): SessionDelivery[] {
+  unreadStatusBefore(): SessionDelivery[] {
     return [];
   }
 
