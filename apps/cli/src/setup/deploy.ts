@@ -1,4 +1,5 @@
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { MeshError } from '@agentmesh/common';
 import { loadConfig } from '@agentmesh/config';
 import type { CliContext } from '../context';
@@ -34,6 +35,19 @@ function requireDone(p: WorkspacePaths, steps: StepName[]): void {
   if (missing) throw new MeshError('invalid_transition', `Run setup ${missing} first.`);
 }
 
+/**
+ * The seeds compose mounts, plus the auth-callout keys on a server. Checked before any copy:
+ * a missing bridge seed would make Docker create a root-owned directory in its place.
+ */
+function requireSeeds(p: WorkspacePaths, mode: SetupAnswers['hosting']['mode']): void {
+  const seeds = ['hub.nk', 'discord-bridge.nk'];
+  if (mode === 'server') seeds.push('hub-issuer.nk', 'hub-xkey.nk', 'hub-sys.nk');
+  const missing = seeds.find((name) => !existsSync(join(p.secretsDir, name)));
+  if (missing) {
+    throw new MeshError('not_found', `Missing deploy/secrets/${missing}; run setup render again.`);
+  }
+}
+
 /** Runs a step that pulls the images; its failure gains a line naming the image. */
 async function pulling(hint: string, step: () => Promise<unknown>): Promise<void> {
   try {
@@ -59,6 +73,7 @@ export async function deployWorkspace(
   const env = readEnvFile(p.envFile);
   // No stand-ins: an empty token, application id or server id fails here, before any copy.
   loadConfig(p.meshFile, { env: Object.fromEntries(env) });
+  requireSeeds(p, hosting.mode);
   // Not secrets, so a failed pull can print them.
   const registry = env.get('AGENTMESH_IMAGE_REGISTRY') ?? '';
   const version = env.get('AGENTMESH_VERSION') ?? '';

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { VERSION } from '@agentmesh/common';
@@ -154,6 +154,23 @@ describe('setup deploy', () => {
     expect(t.calls).toEqual([]);
     expect(t.err.join('\n')).toContain('discord.token');
     expect(readState(t.p).done.deploy).toBeUndefined();
+  });
+
+  it('a missing seed fails before anything is run', async () => {
+    const server = await workspace(serverAnswers(), ['discord', 'host']);
+    rmSync(join(server.p.secretsDir, 'discord-bridge.nk'));
+    expect(await server.deploy()).toBe(1);
+    expect(server.calls).toEqual([]);
+    expect(server.err).toEqual([
+      'error: Missing deploy/secrets/discord-bridge.nk; run setup render again.',
+    ]);
+    expect(readState(server.p).done.deploy).toBeUndefined();
+
+    const trial = await workspace(trialAnswers(), ['discord']);
+    rmSync(join(trial.p.secretsDir, 'hub.nk'));
+    expect(await trial.deploy()).toBe(1);
+    expect(trial.calls).toEqual([]);
+    expect(trial.err).toEqual(['error: Missing deploy/secrets/hub.nk; run setup render again.']);
   });
 
   it('trial deploy runs docker compose in deploy/', async () => {

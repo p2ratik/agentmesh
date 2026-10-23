@@ -112,6 +112,23 @@ describe('setup discord', () => {
     expect(readState(t.p).done.discord).toBeUndefined();
   });
 
+  it('403 on the server says the bot lacks access, not that the token is bad', async () => {
+    const routes = {
+      ...discordRoutes(),
+      [`/guilds/${GUILD}`]: () => new Response(null, { status: 403 }),
+    };
+    const t = await rendered(routes);
+    expect(await t.discordStep()).toBe(1);
+    expect(t.err.at(-1)).toBe(
+      `error: Discord API /guilds/${GUILD} answered 403: the bot has no access there. ` +
+        'Is it still in the server, with the permissions from the invite link?',
+    );
+    expect(t.all()).not.toMatch(/reset/i);
+    expect(t.all()).not.toContain(TOKEN);
+    expect(t.env().get('DISCORD_GUILD_ID')).toBe('');
+    expect(readState(t.p).done.discord).toBeUndefined();
+  });
+
   it('an empty token asks for it in the file, never in the chat', async () => {
     const t = await rendered(discordRoutes(), '');
     expect(await t.discordStep()).toBe(1);

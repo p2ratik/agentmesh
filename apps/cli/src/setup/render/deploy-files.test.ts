@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { parseAnswers } from '../answers';
 import { serverAnswers, trialAnswers } from '../testing';
-import { renderClaudeSettings, renderCompose, renderEnv } from './deploy-files';
+import {
+  renderClaudeSettings,
+  renderCompose,
+  renderEnv,
+  WORKSPACE_GITIGNORE,
+} from './deploy-files';
 
 const env = (hosting = parseAnswers(serverAnswers()).hosting) =>
   renderEnv({ hosting, version: '9.9.9', registry: 'ghcr.io/acme' });
@@ -73,6 +78,14 @@ describe('renderEnv', () => {
       expect(line).toMatch(/^[A-Z_]+=[^\s#]*$/);
       expect(lines[i - 1]).toMatch(/^# /);
     });
+  });
+});
+
+describe('WORKSPACE_GITIGNORE', () => {
+  it('ignores the secret files and the temp file an interrupted .env write leaves', () => {
+    expect(WORKSPACE_GITIGNORE).toBe(
+      'deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n',
+    );
   });
 });
 

@@ -5,6 +5,10 @@ describe('renderWorkspaceClaudeMd', () => {
   it('keeps Claude out of the secrets and away from /mesh admin commands', () => {
     const text = renderWorkspaceClaudeMd();
     expect(text).toMatch(/^# AgentMesh workspace\n/);
+    expect(text.split('\n').find((line) => line.startsWith('- '))).toBe(
+      '- Never ask the user to paste the Discord bot token, an invite code or any key into the ' +
+        'chat; secrets go into files the user edits.',
+    );
     expect(text).toContain('`deploy/.env`');
     expect(text).toContain('`deploy/secrets/`');
     expect(text).toContain('never run `docker compose config`');

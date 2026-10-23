@@ -110,8 +110,9 @@ AGENTMESH_LOG_LEVEL=info
 `;
 }
 
-/** The workspace's `.gitignore`: the files that hold secrets. */
-export const WORKSPACE_GITIGNORE = 'deploy/.env\ndeploy/secrets/\ndeploy/nats/nats.conf\n';
+/** The workspace's `.gitignore`: the files that hold secrets, and `.env`'s atomic-write temp file. */
+export const WORKSPACE_GITIGNORE =
+  'deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n';
 
 /** The workspace's `.claude/settings.json`: Claude must not open the token or the seeds. */
 export function renderClaudeSettings(): string {

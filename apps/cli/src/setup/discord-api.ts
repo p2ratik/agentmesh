@@ -56,11 +56,19 @@ export function discordApi(token: string, fetchImpl: typeof fetch): DiscordApi {
         'User-Agent': `DiscordBot (https://github.com/${DEFAULT_MARKETPLACE}, ${VERSION})`,
       },
     });
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       throw new MeshError(
         'unauthenticated',
-        `Discord rejected the bot token in deploy/.env (${response.status}). Reset it in the ` +
-          'developer portal, paste the new one into the file and run again.',
+        'Discord rejected the bot token in deploy/.env (401). Reset it in the developer ' +
+          'portal, paste the new one into the file and run again.',
+      );
+    }
+    // The token is fine: resetting it would break the running bridge for nothing.
+    if (response.status === 403) {
+      throw new MeshError(
+        'forbidden',
+        `Discord API ${path} answered 403: the bot has no access there. Is it still in the ` +
+          'server, with the permissions from the invite link?',
       );
     }
     if (!response.ok) {

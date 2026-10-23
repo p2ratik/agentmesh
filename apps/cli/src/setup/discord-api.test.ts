@@ -42,6 +42,20 @@ describe('discordApi', () => {
     expect(error.message).not.toContain(TOKEN);
   });
 
+  it('403 → forbidden: the token works, the bot lacks access; no token in the message', async () => {
+    const discord = fakeDiscord({
+      '/guilds/42': () => Response.json({ message: `no access ${TOKEN}` }, { status: 403 }),
+    });
+    const error = await failure(() => discordApi(TOKEN, discord.fetch).guild('42'));
+    expect(error).toMatchObject({
+      code: 'forbidden',
+      message:
+        'Discord API /guilds/42 answered 403: the bot has no access there. Is it still in the ' +
+        'server, with the permissions from the invite link?',
+    });
+    expect(error.message).not.toContain(TOKEN);
+  });
+
   it('any other status → unavailable, naming the path', async () => {
     const discord = fakeDiscord({ '/guilds/42': () => new Response(null, { status: 500 }) });
     const error = await failure(() => discordApi(TOKEN, discord.fetch).guild('42'));
