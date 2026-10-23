@@ -11,6 +11,10 @@ export interface CliContext {
   homeDir: string;
   stdout(text: string): void;
   stderr(text: string): void;
+  /** HTTP for commands that call out (Discord); defaults to the global `fetch`. */
+  fetch?: typeof fetch;
+  /** Waits between polls; tests resolve at once. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** One `agentmesh` subcommand. `name` may have two words (`keys add`). */

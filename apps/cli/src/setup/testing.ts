@@ -1,7 +1,25 @@
 import type { z } from 'zod';
 import type { SetupAnswers } from './answers';
+import { DISCORD_API } from './discord-api';
 
 export type AnswersInput = z.input<typeof SetupAnswers>;
+
+/**
+ * A fake Discord API for `ctx.fetch`. Each path answers with its JSON body, or calls its
+ * function for a fresh body or `Response`; other paths answer 404. Requests are recorded.
+ */
+export function fakeDiscord(routes: Record<string, unknown>) {
+  const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
+  const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    requests.push({ url, init });
+    const route = routes[url.slice(DISCORD_API.length)];
+    const answer = typeof route === 'function' ? route() : route;
+    if (answer instanceof Response) return answer;
+    return answer === undefined ? new Response(null, { status: 404 }) : Response.json(answer);
+  };
+  return { fetch: fetchImpl as typeof fetch, requests };
+}
 
 /** Test answers for a server at mesh.acme.dev: admin riya, teammate dana (owner of `security`). */
 export function serverAnswers(): AnswersInput {
