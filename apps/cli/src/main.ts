@@ -5,6 +5,7 @@ import { initCommand } from './commands/init';
 import { keysAddCommand, keysListCommand } from './commands/keys';
 import { natsConfigCommand } from './commands/nats-config';
 import { setupDiscordCommand } from './commands/setup/discord';
+import { setupHostCommand } from './commands/setup/host';
 import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
 import { validateCommand } from './commands/validate';
@@ -19,6 +20,7 @@ export const COMMANDS: readonly Command[] = [
   agentSetupCommand,
   setupRenderCommand,
   setupDiscordCommand,
+  setupHostCommand,
   setupStatusCommand,
 ];
 

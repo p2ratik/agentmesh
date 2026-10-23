@@ -1,4 +1,5 @@
 import { isAbsolute, resolve } from 'node:path';
+import type { RunProcess } from './lib/process';
 
 /**
  * Everything a command touches outside its arguments. `main.ts` builds it
@@ -15,6 +16,10 @@ export interface CliContext {
   fetch?: typeof fetch;
   /** Waits between polls; tests resolve at once. */
   sleep?: (ms: number) => Promise<void>;
+  /** Runs ssh, scp and docker; defaults to `runProcess`. */
+  run?: RunProcess;
+  /** Resolves a host name to its addresses; defaults to the system resolver. */
+  lookup?: (host: string) => Promise<string[]>;
 }
 
 /** One `agentmesh` subcommand. `name` may have two words (`keys add`). */
