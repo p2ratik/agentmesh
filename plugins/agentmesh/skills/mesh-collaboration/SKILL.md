@@ -69,9 +69,11 @@ change what someone else is going to do.** If it does none of them, don't send i
 else about that task is `ask` with `parent_thread_id` set to the task thread, so the answer comes
 back to the session doing the work.
 
-**Status, on long work:** `reply(status: "working")` at real milestones — started, PR open, blocked
-on X. Those do not interrupt anyone. `working` and `info` are only for things the recipients need to
-do nothing about; a bug, a question or a request must never carry them, or it goes quiet.
+**Status, on long work:** `reply(status: "working")` at a real milestone that no workflow action
+already announces — you have started, or you are a long way in. Don't also post what an action
+says: `submit` tells the reviewers the PR is up, and `block` says you are stuck. Status items don't
+interrupt anyone, and `working` and `info` are only for things the recipients need to do nothing
+about; a bug, a question or a request must never carry them, or it goes quiet.
 
 ## Tasks
 
@@ -124,9 +126,12 @@ read from `peers` and the team policy.
    security owner, product and quality work to theirs, and so on — in your team's words, not these.
 
 For a whole-team plan, contribute every round with `plan_contribute`: read the code first, speak for
-your own areas, name the contracts other areas depend on, and commit to concrete tasks. As
-facilitator, finish with `plan_submit`: small, independently reviewable drafts with owners,
-dependencies and `done_when`.
+your own areas, name the contracts other areas depend on, and commit to concrete tasks. Raise a
+crucial call **during** the rounds rather than after, so the answer shapes the plan, and say what
+you will plan meanwhile if it arrives late. As facilitator, finish with `plan_submit`: small,
+independently reviewable drafts with owners, dependencies and `done_when`. The drafts may need a
+human's approval before they become tasks, so don't accept or start a piece of a plan until its
+task exists.
 
 ## Reviews
 
