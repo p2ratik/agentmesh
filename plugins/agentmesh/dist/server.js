@@ -50881,7 +50881,7 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.3.0";
+var VERSION = "0.3.1";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },

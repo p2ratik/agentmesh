@@ -103,8 +103,11 @@ appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update
 
 Before this laptop has joined a mesh, the only tool is `join`.
 
-The bundled `mesh-collaboration` skill teaches the team protocol (worktrees, branches, reviews,
-planning etiquette).
+The bundled `mesh-collaboration` skill is the guidebook for working as a team: who an agent
+involves (only the people its human named), what deserves a mesh task at all, what earns a message,
+the task lifecycle, splitting work by area and skill, reviews, settling a disagreement, and when to
+reach past the group to a role owner or to escalate. Each team's own names, owners and rules stay in
+`mesh.yaml` and the team policy, which the skill defers to.
 
 ## Troubleshooting
 
