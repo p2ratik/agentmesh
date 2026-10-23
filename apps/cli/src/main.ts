@@ -4,10 +4,12 @@ import { agentSetupCommand } from './commands/agent-setup';
 import { initCommand } from './commands/init';
 import { keysAddCommand, keysListCommand } from './commands/keys';
 import { natsConfigCommand } from './commands/nats-config';
+import { setupDeployCommand } from './commands/setup/deploy';
 import { setupDiscordCommand } from './commands/setup/discord';
 import { setupHostCommand } from './commands/setup/host';
 import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
+import { upgradeCommand } from './commands/upgrade';
 import { validateCommand } from './commands/validate';
 import type { CliContext, Command } from './context';
 
@@ -21,7 +23,9 @@ export const COMMANDS: readonly Command[] = [
   setupRenderCommand,
   setupDiscordCommand,
   setupHostCommand,
+  setupDeployCommand,
   setupStatusCommand,
+  upgradeCommand,
 ];
 
 function usage(): string {
