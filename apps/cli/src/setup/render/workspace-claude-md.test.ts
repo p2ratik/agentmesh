@@ -1,0 +1,15 @@
+import { describe, expect, it } from 'vitest';
+import { renderWorkspaceClaudeMd } from './workspace-claude-md';
+
+describe('renderWorkspaceClaudeMd', () => {
+  it('keeps Claude out of the secrets and away from /mesh admin commands', () => {
+    const text = renderWorkspaceClaudeMd();
+    expect(text).toMatch(/^# AgentMesh workspace\n/);
+    expect(text).toContain('`deploy/.env`');
+    expect(text).toContain('`deploy/secrets/`');
+    expect(text).toContain('never run `docker compose config`');
+    expect(text).toContain('`setup status --dir .` and `doctor --dir .`');
+    expect(text).toContain('`agentmesh validate --config config`');
+    expect(text).toContain('Agents never run `/mesh` admin commands');
+  });
+});

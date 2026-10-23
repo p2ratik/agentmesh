@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync } from 'node:fs';
 import { MeshError } from '@agentmesh/common';
 import { writePrivateFile } from '../lib/files';
 
@@ -51,7 +51,19 @@ export function readEnvFile(path: string): Map<string, string> {
   return parseEnv(readFileSync(path, 'utf8'));
 }
 
-/** Sets values in an existing `.env`, which stays readable only by its owner. */
+/**
+ * Sets values in an existing `.env`, which stays readable only by its owner. The new text
+ * goes to a private temp file that replaces `.env` in one rename, so a crash mid-write
+ * never destroys the only copy of the bot token, and a failed write leaves no copy behind.
+ */
 export function updateEnvFile(path: string, values: Record<string, string>): void {
-  writePrivateFile(path, setEnvValues(readFileSync(path, 'utf8'), values), true);
+  const text = setEnvValues(readFileSync(path, 'utf8'), values);
+  const temp = `${path}.${process.pid}.tmp`;
+  try {
+    writePrivateFile(temp, text, true);
+    renameSync(temp, path);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
 }

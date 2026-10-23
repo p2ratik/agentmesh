@@ -16,6 +16,7 @@ describe('workspacePaths', () => {
     expect(p.envFile).toBe(join('ws', 'deploy', '.env'));
     expect(p.natsConf).toBe(join('ws', 'deploy', 'nats', 'nats.conf'));
     expect(p.claudeSettings).toBe(join('ws', '.claude', 'settings.json'));
+    expect(p.claudeMd).toBe(join('ws', 'CLAUDE.md'));
   });
 });
 

@@ -66,7 +66,9 @@ services:
       AGENTMESH_NKEY_SEED: /secrets/discord-bridge.nk
     volumes:
       - \${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
-      - ./secrets:/secrets:ro
+      # Only the bridge's own seed, never the whole secrets/ directory: the hub's seeds live
+      # there (on a server hub-issuer.nk signs any NATS identity), out of a bridge's reach.
+      - ./secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro
     depends_on: [hub]
     restart: unless-stopped
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -36,19 +36,48 @@ describe('setEnvValues', () => {
     expect(setEnvValues('A=1\r\nB=2\r\n', { A: '3' })).toBe('A=3\r\nB=2\r\n');
   });
 
-  it('refuses a value that would add a line', () => {
-    expect(() => setEnvValues(ENV, { DISCORD_APP_ID: '1\nNATS_BIND=0.0.0.0' })).toThrow(
-      'DISCORD_APP_ID',
-    );
+  it('refuses a value that would add a line, naming the key but never the value', () => {
+    for (const value of ['tok-secret\nNATS_BIND=0.0.0.0', 'tok-secret\r']) {
+      let message = '';
+      try {
+        setEnvValues(ENV, { DISCORD_BOT_TOKEN: value });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain('DISCORD_BOT_TOKEN');
+      expect(message).not.toContain('tok-secret');
+      expect(message).not.toContain('NATS_BIND');
+    }
   });
 });
 
 describe('env files', () => {
+  /** A `.env` that others may read, so the update has to tighten it. */
+  const envFile = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-env-'));
+    const path = join(dir, '.env');
+    writeFileSync(path, ENV, { mode: 0o644 });
+    return { dir, path };
+  };
+
   it('update then read', () => {
-    const path = join(mkdtempSync(join(tmpdir(), 'agentmesh-env-')), '.env');
-    writeFileSync(path, ENV);
+    const { path } = envFile();
     updateEnvFile(path, { DISCORD_GUILD_ID: '7' });
     expect(readEnvFile(path).get('DISCORD_GUILD_ID')).toBe('7');
     expect(readFileSync(path, 'utf8')).toBe(`${ENV}DISCORD_GUILD_ID=7\n`);
+  });
+
+  it('replaces the file in one rename and leaves no temp file behind', () => {
+    const { dir, path } = envFile();
+    const before = statSync(path, { bigint: true }).ino;
+    updateEnvFile(path, { DISCORD_GUILD_ID: '7' });
+    expect(statSync(path, { bigint: true }).ino).not.toBe(before);
+    expect(readdirSync(dir)).toEqual(['.env']);
+  });
+
+  it.skipIf(process.platform === 'win32')('stays readable only by its owner', () => {
+    const { path } = envFile();
+    updateEnvFile(path, { DISCORD_GUILD_ID: '7' });
+    expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 });

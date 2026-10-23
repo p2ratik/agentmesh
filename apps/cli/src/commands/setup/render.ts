@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { VERSION } from '@agentmesh/common';
 import { loadConfig } from '@agentmesh/config';
-import { parseCommandArgs } from '../../args';
+import { parseCommandArgs, usageError } from '../../args';
 import type { Command } from '../../context';
 import { SECRET_PLACEHOLDER } from '../../lib/config-files';
 import { writePrivateFile } from '../../lib/files';
@@ -27,6 +27,7 @@ import {
 import { renderMeshYaml } from '../../setup/render/mesh-yaml';
 import { renderPolicy } from '../../setup/render/policy';
 import { renderAnswersSummary } from '../../setup/render/summary';
+import { renderWorkspaceClaudeMd } from '../../setup/render/workspace-claude-md';
 import {
   loadAnswers,
   markDone,
@@ -42,6 +43,9 @@ const OPTIONS = {
   'dry-run': { type: 'boolean' },
   force: { type: 'boolean' },
 } as const;
+
+/** `host[:port]/namespace…` in lowercase. It goes into .env, so a newline must never pass. */
+const REGISTRY = /^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
 
 /** Only `setup discord` learns these; until then the config is checked with stand-ins. */
 const DISCORD_ENV = ['DISCORD_BOT_TOKEN', 'DISCORD_APP_ID', 'DISCORD_GUILD_ID'];
@@ -117,13 +121,19 @@ export const setupRenderCommand: Command = {
   help: `Usage: agentmesh setup render --dir <workspace> [--registry <r>] [--dry-run] [--force]
 
 Renders config/mesh.yaml, the team policy, deploy/docker-compose.yml, deploy/.env,
-.gitignore and .claude/settings.json from <workspace>/setup-answers.json, generates
-the keys and writes deploy/nats/nats.conf. --dry-run prints the summary and writes
-nothing. A rendered file that differs is kept unless --force; deploy/.env and
+.gitignore, .claude/settings.json and CLAUDE.md from <workspace>/setup-answers.json,
+generates the keys and writes deploy/nats/nats.conf. --dry-run prints the summary and
+writes nothing. A rendered file that differs is kept unless --force; deploy/.env and
 existing keys are always kept, and the settings in which a kept deploy/.env differs
 are named. --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}).`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: '' });
+    if (values.registry !== undefined && !REGISTRY.test(values.registry)) {
+      throw usageError(
+        `Invalid --registry: give a lowercase image registry such as ${DEFAULT_IMAGE_REGISTRY} ` +
+          'or registry.example.com:5000/team',
+      );
+    }
     const p = workspaceFrom(ctx, values.dir);
     const a = loadAnswers(p);
     if (values['dry-run']) {
@@ -152,6 +162,7 @@ are named. --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}
         [p.compose, renderCompose()],
         [p.gitignore, WORKSPACE_GITIGNORE],
         [p.claudeSettings, renderClaudeSettings()],
+        [p.claudeMd, renderWorkspaceClaudeMd()],
       ] as const
     ).map(([path, content]) => {
       const outcome = writeRendered(path, content, force);

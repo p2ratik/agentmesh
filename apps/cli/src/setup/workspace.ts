@@ -22,6 +22,7 @@ export interface WorkspacePaths {
   secretsDir: string;
   gitignore: string;
   claudeSettings: string;
+  claudeMd: string;
 }
 
 /** `--dir` is required, so setup never writes into the current directory by accident. */
@@ -47,6 +48,7 @@ export function workspacePaths(root: string): WorkspacePaths {
     secretsDir: join(deployDir, 'secrets'),
     gitignore: join(root, '.gitignore'),
     claudeSettings: join(root, '.claude', 'settings.json'),
+    claudeMd: join(root, 'CLAUDE.md'),
   };
 }
 

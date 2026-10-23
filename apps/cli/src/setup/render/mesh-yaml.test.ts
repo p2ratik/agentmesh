@@ -80,6 +80,16 @@ describe('renderPolicy', () => {
     expect(text).toContain(`## Working rules\n\n${rules}`);
   });
 
+  it('names the branches from the answers', () => {
+    const raw = serverAnswers();
+    raw.git = { integrationBranch: 'develop', protectedBranches: ['main', 'release'] };
+    const { text } = renderPolicy(parseAnswers(raw));
+    expect(text).toContain('merged into `develop`');
+    expect(text).toContain('Humans promote `develop` → `main`, `release`');
+    expect(text).toContain('Never push to `main`, `release` yourself');
+    expect(text).not.toContain('`agents`');
+  });
+
   it('long overview warns', () => {
     const raw = serverAnswers();
     raw.team = { ...raw.team, overview: 'x'.repeat(1200) };

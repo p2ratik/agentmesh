@@ -1,15 +1,22 @@
 import { agentIdOf, everyone, type SetupAnswers } from '../answers';
 import { MAX_POLICY_CHARS } from '../defaults';
 
-/** The bullets of config/examples/policy/team-policy.md (a test keeps them in step). */
-const WORKING_RULES = `- Definition of done: tests pass in CI, the PR description explains the change, and docs are
+/**
+ * The bullets of config/examples/policy/team-policy.md, with the team's branches. With the
+ * default branches (`agents`, `main`) they equal the example; a test keeps them in step.
+ */
+function workingRules(git: SetupAnswers['git']): string {
+  const into = `\`${git.integrationBranch}\``;
+  const promoted = git.protectedBranches.map((b) => `\`${b}\``).join(', ');
+  return `- Definition of done: tests pass in CI, the PR description explains the change, and docs are
   updated when behaviour changes.
 - Keep PRs under ~400 changed lines; split bigger work into dependent tasks.
-- Every PR needs at least one peer review before it is merged into \`agents\`.
-- Humans promote \`agents\` → \`main\`. Never push to \`main\` yourself.
+- Every PR needs at least one peer review before it is merged into ${into}.
+- Humans promote ${into} → ${promoted}. Never push to ${promoted} yourself.
 - Ask the owner of an area before changing its public contracts (APIs, schemas, events).
 - Prefer async: put questions in the task thread instead of starting new threads.
 - Escalate to your human before touching infrastructure, secrets, billing or customer data.`;
+}
 
 /** `config/policy/team-policy.md`: who the team is and how it decides, for every agent. */
 export function renderPolicy(a: SetupAnswers): { text: string; warnings: string[] } {
@@ -38,7 +45,7 @@ export function renderPolicy(a: SetupAnswers): { text: string; warnings: string[
     '',
     '## Working rules',
     '',
-    WORKING_RULES,
+    workingRules(a.git),
     '',
   ].join('\n');
   const warnings =

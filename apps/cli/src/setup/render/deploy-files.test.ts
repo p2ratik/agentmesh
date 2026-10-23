@@ -34,6 +34,18 @@ describe('renderCompose', () => {
     );
     expect(Object.keys(volumes)).toEqual(['nats-data', 'hub-data']);
   });
+
+  it('mounts every seed into the hub but only its own into the bridge', () => {
+    const compose = renderCompose();
+    const { services } = parse(compose);
+    expect(services.hub.volumes).toContain('./secrets:/secrets:ro');
+    expect(services['discord-bridge'].volumes).toEqual([
+      `\${AGENTMESH_CONFIG_DIR:-../config}:/config:ro`,
+      './secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro',
+    ]);
+    const bridge = compose.slice(compose.indexOf('  discord-bridge:'));
+    expect(bridge).not.toContain('./secrets:/secrets');
+  });
 });
 
 describe('renderEnv', () => {

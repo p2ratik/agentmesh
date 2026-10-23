@@ -79,6 +79,8 @@ describe('setup render', () => {
     const { config } = loadConfig(p.configDir, { env: DISCORD_ENV });
     expect(config.hub.authCallout?.issuer).toMatch(/^A/);
     expect(readFileSync(p.envFile, 'utf8')).toContain('NATS_PUBLIC_HOST=mesh.acme.dev');
+    expect(readFileSync(p.claudeMd, 'utf8')).toContain('# AgentMesh workspace');
+    expect(h.out.at(-1)).toMatch(/created\s+CLAUDE\.md\n/);
     expect(h.out.at(-1)).toContain(
       `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=`,
     );
@@ -196,6 +198,28 @@ describe('setup render', () => {
     const h = harness();
     expect(await h.run('setup', 'render')).toBe(2);
     expect(h.err.at(-1)).toContain('--dir');
+  });
+
+  it('refuses a --registry that would add a line to .env, before writing anything', async () => {
+    const h = harness();
+    const p = workspace(h, serverAnswers());
+    expect(await h.run('setup', 'render', '--dir', p.root, '--registry', 'ghcr.io/x\nEVIL=1')).toBe(
+      2,
+    );
+    expect(h.err.at(-1)).toContain('--registry');
+    expect(h.err.at(-1)).not.toContain('EVIL');
+    expect(readdirSync(p.root)).toEqual(['setup-answers.json']);
+    expect(existsSync(h.ctx.homeDir)).toBe(false);
+  });
+
+  it('accepts a registry with a port and a namespace', async () => {
+    const h = harness();
+    const p = workspace(h, trialAnswers());
+    const registry = 'registry.example.com:5000/team';
+    expect(await h.run('setup', 'render', '--dir', p.root, '--registry', registry)).toBe(0);
+    expect(readFileSync(p.envFile, 'utf8').split('\n')).toContain(
+      `AGENTMESH_IMAGE_REGISTRY=${registry}`,
+    );
   });
 });
 

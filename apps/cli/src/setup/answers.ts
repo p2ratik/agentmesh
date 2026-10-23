@@ -20,8 +20,10 @@ export type Person = z.infer<typeof Person>;
 export const Hosting = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('server'),
-    ssh: z.string().regex(/^[^@\s]+@[^@\s]+$/),
-    publicHost: z.string().regex(/^(?=.{1,253}$)([a-z0-9-]+\.)+[a-z]{2,}$/i),
+    /** `user@host`. Neither part may start with `-`, which ssh would read as an option. */
+    ssh: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.-]*$/),
+    /** A DNS name whose labels start and end with a letter or digit. */
+    publicHost: z.string().regex(/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i),
     remoteDir: z
       .string()
       .regex(/^\/[A-Za-z0-9._/-]+$/)
@@ -65,7 +67,8 @@ export const SetupAnswers = z
     git: z
       .object({
         integrationBranch: z.string().default('agents'),
-        protectedBranches: z.array(z.string()).default(['main']),
+        /** The team policy names them, so there is at least one. */
+        protectedBranches: z.array(z.string()).min(1).default(['main']),
       })
       .prefault({}),
     hosting: Hosting,
