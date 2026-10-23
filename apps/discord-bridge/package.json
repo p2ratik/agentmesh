@@ -1,6 +1,6 @@
 {
   "name": "@agentmesh/discord-bridge",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Mirrors the AgentMesh activity feed into Discord and relays humans' commands and replies.",

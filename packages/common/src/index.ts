@@ -5,3 +5,4 @@ export * from './logger';
 export * from './paths';
 export * from './redact';
 export * from './retry';
+export * from './version';

@@ -1,3 +1,4 @@
+import { VERSION } from '@agentmesh/common';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -8,7 +9,7 @@ import type { ChannelEvent } from './inbox/render';
 import type { ToolListing, ToolResult } from './tools/registry';
 
 export const SERVER_NAME = 'mesh';
-export const VERSION = '0.3.1';
+export { VERSION };
 
 /** The tools the session offers right now; it changes when an unenrolled plugin joins. */
 export interface ToolHandler {
