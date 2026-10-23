@@ -17,7 +17,7 @@ import {
 import { writeNatsConfig } from '../../lib/nats-config-file';
 import type { SetupAnswers } from '../../setup/answers';
 import { DEFAULT_IMAGE_REGISTRY } from '../../setup/defaults';
-import { readEnvFile } from '../../setup/env-file';
+import { parseEnv, readEnvFile } from '../../setup/env-file';
 import {
   renderClaudeSettings,
   renderCompose,
@@ -45,7 +45,30 @@ const OPTIONS = {
 
 /** Only `setup discord` learns these; until then the config is checked with stand-ins. */
 const DISCORD_ENV = ['DISCORD_BOT_TOKEN', 'DISCORD_APP_ID', 'DISCORD_GUILD_ID'];
+/** Later steps change these on purpose (setup discord, upgrade), so a kept .env may differ. */
+const ENV_SET_LATER = [...DISCORD_ENV, 'AGENTMESH_VERSION'];
 const CALLOUT_KEYS = ['hub-issuer', 'hub-xkey', 'hub-sys'];
+
+/**
+ * .env holds the bot token, so it is written once and never replaced, even with --force.
+ * A kept one is compared with the answers instead, because the hub reads NATS_PUBLIC_HOST
+ * and NATS_BIND there: the report names the settings that differ, never their values.
+ */
+function writeEnv(p: WorkspacePaths, a: SetupAnswers, registryFlag?: string): string {
+  const kept = existsSync(p.envFile) ? readEnvFile(p.envFile) : null;
+  const registry = registryFlag || kept?.get('AGENTMESH_IMAGE_REGISTRY') || DEFAULT_IMAGE_REGISTRY;
+  const text = renderEnv({ hosting: a.hosting, version: VERSION, registry });
+  const file = relative(p.root, p.envFile);
+  if (!kept) {
+    writePrivateFile(p.envFile, text, false);
+    return `  ${'created'.padEnd(10)}${file}`;
+  }
+  const stale = [...parseEnv(text)]
+    .filter(([key, value]) => !ENV_SET_LATER.includes(key) && kept.get(key) !== value)
+    .map(([key]) => key);
+  if (stale.length === 0) return `  ${'kept'.padEnd(10)}${file}`;
+  return `  ${'differs'.padEnd(10)}${file} (kept; edit ${stale.join(', ')} by hand, --force never replaces it)`;
+}
 
 interface KeyTarget {
   id: string;
@@ -97,8 +120,8 @@ Renders config/mesh.yaml, the team policy, deploy/docker-compose.yml, deploy/.en
 .gitignore and .claude/settings.json from <workspace>/setup-answers.json, generates
 the keys and writes deploy/nats/nats.conf. --dry-run prints the summary and writes
 nothing. A rendered file that differs is kept unless --force; deploy/.env and
-existing keys are always kept. --registry sets the image registry (default
-${DEFAULT_IMAGE_REGISTRY}).`,
+existing keys are always kept, and the settings in which a kept deploy/.env differs
+are named. --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}).`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: '' });
     const p = workspaceFrom(ctx, values.dir);
@@ -135,17 +158,7 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
       const note = outcome === 'differs' ? ' (kept; --force replaces it)' : '';
       return `  ${outcome.padEnd(10)}${relative(p.root, path)}${note}`;
     });
-    // .env holds the bot token, so it is written once and never replaced.
-    const envExists = existsSync(p.envFile);
-    if (!envExists) {
-      const registry = values.registry ?? DEFAULT_IMAGE_REGISTRY;
-      writePrivateFile(
-        p.envFile,
-        renderEnv({ hosting: a.hosting, version: VERSION, registry }),
-        false,
-      );
-    }
-    report.push(`  ${(envExists ? 'kept' : 'created').padEnd(10)}${relative(p.root, p.envFile)}`);
+    report.push(writeEnv(p, a, values.registry));
 
     for (const { id, seedDir } of targets) {
       if (findKeyHolder(readFileSync(p.meshFile, 'utf8'), id).nkey) continue;

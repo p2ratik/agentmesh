@@ -150,6 +150,29 @@ describe('setup render', () => {
     expect(config.agents[0]?.nkey).toBe(
       listKeyHolders(mesh).find((k) => k.id === 'riya-agent')?.nkey,
     );
+    expect(h.out.at(-1)).toMatch(/kept\s+deploy.\.env\n/);
+  });
+
+  it('--force names the kept .env settings that no longer match', async () => {
+    const h = harness();
+    const p = workspace(h, trialAnswers());
+    expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
+    const env = readFileSync(p.envFile, 'utf8');
+
+    writeFileSync(p.answers, JSON.stringify(serverAnswers()));
+    const argv = ['setup', 'render', '--dir', p.root, '--force', '--registry', 'ghcr.io/other'];
+    expect(await h.run(...argv)).toBe(0);
+
+    expect(readFileSync(p.envFile, 'utf8')).toBe(env);
+    const line = h.out
+      .at(-1)
+      ?.split('\n')
+      .find((l) => l.includes('.env'));
+    expect(line).toMatch(/^\s+differs\s+deploy.\.env \(kept; edit /);
+    for (const key of ['NATS_BIND', 'NATS_PUBLIC_HOST', 'AGENTMESH_IMAGE_REGISTRY']) {
+      expect(line).toContain(key);
+    }
+    expect(line).not.toMatch(/DISCORD|VERSION|0\.0\.0\.0|mesh\.acme\.dev|127\.0\.0\.1|ghcr/);
   });
 
   it('an existing admin seed is not overwritten', async () => {
