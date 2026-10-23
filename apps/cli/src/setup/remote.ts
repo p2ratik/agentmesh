@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@agentmesh/common';
 import type { ProcessResult, RunProcess } from '../lib/process';
 
 /**
@@ -20,7 +20,10 @@ export function sshUser(target: string): string {
 
 const STDERR_TAIL_LINES = 20;
 
-/** Runs a command; a non-zero exit throws with `what` and the last lines of its stderr. */
+/**
+ * Runs a command; a non-zero exit throws with `what` and the last lines of its stderr, with
+ * secrets masked: Docker Compose echoes a malformed `.env` line, bot token included.
+ */
 export async function runChecked(
   run: RunProcess,
   cmd: string,
@@ -30,6 +33,7 @@ export async function runChecked(
 ): Promise<ProcessResult> {
   const result = await run(cmd, args, opts);
   if (result.code === 0) return result;
-  const tail = result.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES).join('\n');
+  const lines = result.stderr.trimEnd().split(/\r?\n/).slice(-STDERR_TAIL_LINES);
+  const tail = redactSecrets(lines.join('\n'));
   throw new MeshError('unavailable', `${what} failed (exit ${result.code}):\n${tail}`);
 }

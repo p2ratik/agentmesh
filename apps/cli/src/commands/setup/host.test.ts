@@ -92,4 +92,19 @@ describe('setup host', () => {
     expect(message).not.toContain('line 10\n');
     expect(readState(t.p).done.host).toBeUndefined();
   });
+
+  it('masks a token that a failing command echoes from .env', async () => {
+    // Discord-token-shaped and fake; built at runtime so secret scanners skip it.
+    const token = [`MTIz${'A'.repeat(22)}`, 'GaBcDe', 'F'.repeat(34)].join('.');
+    const stderr = [
+      `failed to read /opt/agentmesh/deploy/.env: line 3: unterminated quoted value "${token}`,
+      `unexpected character "\\"" in variable name "\\"DISCORD_BOT_TOKEN=${token}\\""`,
+    ].join('\n');
+    const t = harness(serverAnswers(), { code: 1, stdout: '', stderr });
+    expect(await t.host()).toBe(1);
+    const message = t.err.join('\n');
+    expect(message).toContain('unterminated quoted value "[REDACTED]');
+    expect(message).toContain('DISCORD_BOT_TOKEN=[REDACTED]');
+    expect(message).not.toContain(token);
+  });
 });
