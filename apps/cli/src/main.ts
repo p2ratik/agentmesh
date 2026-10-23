@@ -4,6 +4,8 @@ import { agentSetupCommand } from './commands/agent-setup';
 import { initCommand } from './commands/init';
 import { keysAddCommand, keysListCommand } from './commands/keys';
 import { natsConfigCommand } from './commands/nats-config';
+import { setupRenderCommand } from './commands/setup/render';
+import { setupStatusCommand } from './commands/setup/status';
 import { validateCommand } from './commands/validate';
 import type { CliContext, Command } from './context';
 
@@ -14,6 +16,8 @@ export const COMMANDS: readonly Command[] = [
   keysListCommand,
   natsConfigCommand,
   agentSetupCommand,
+  setupRenderCommand,
+  setupStatusCommand,
 ];
 
 function usage(): string {

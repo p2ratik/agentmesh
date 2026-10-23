@@ -1,14 +1,12 @@
-import { natsUsersFromConfig } from '@agentmesh/bus/permissions';
 import { MeshError } from '@agentmesh/common';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom, resolveFrom } from '../context';
-import { loadTopology } from '../lib/config-files';
-import { writeFileWithDirs } from '../lib/files';
-import { DEFAULT_MAX_FILE_STORE, renderNatsConfig } from '../render/nats-config';
-
-/** Where deploy/docker-compose.yml mounts deploy/nats/tls inside the NATS container. */
-export const DEFAULT_TLS_CERT = '/etc/nats/tls/fullchain.pem';
-export const DEFAULT_TLS_KEY = '/etc/nats/tls/privkey.pem';
+import {
+  DEFAULT_TLS_CERT,
+  DEFAULT_TLS_KEY,
+  type TlsFiles,
+  writeNatsConfig,
+} from '../lib/nats-config-file';
 
 const OPTIONS = {
   config: { type: 'string' },
@@ -27,7 +25,7 @@ function tlsFrom(values: {
   tls?: boolean | undefined;
   'tls-cert'?: string | undefined;
   'tls-key'?: string | undefined;
-}): { certFile: string; keyFile: string } | undefined {
+}): TlsFiles | undefined {
   if (!values.tls && values['tls-cert'] === undefined && values['tls-key'] === undefined) {
     return undefined;
   }
@@ -63,19 +61,17 @@ development.`,
         '--dev cannot be combined with --tls or --auth-callout',
       );
     }
-    const { config } = loadTopology(configPathFrom(ctx, values.config), ctx.env);
-    const result = renderNatsConfig({
-      meshName: config.mesh.name,
-      prefix: config.mesh.prefix,
-      users: natsUsersFromConfig(config),
-      dev: values.dev ?? false,
-      maxFileStore: values['max-file-store'] ?? DEFAULT_MAX_FILE_STORE,
-      allowMissing: values['allow-missing'] ?? false,
-      ...(callout ? { authCallout: config.hub.authCallout ?? {} } : {}),
-      ...(tls ? { tls } : {}),
-    });
     const out = resolveFrom(ctx, values.out ?? 'deploy/nats/nats.conf');
-    writeFileWithDirs(out, result.text);
+    const result = writeNatsConfig({
+      configPath: configPathFrom(ctx, values.config),
+      env: ctx.env,
+      out,
+      tls: tls ?? false,
+      callout,
+      dev: values.dev ?? false,
+      ...(values['max-file-store'] !== undefined ? { maxFileStore: values['max-file-store'] } : {}),
+      allowMissing: values['allow-missing'] ?? false,
+    });
     const notes = [
       tls ? ' (TLS required)' : '',
       callout ? '; agents join via the hub callout' : '',

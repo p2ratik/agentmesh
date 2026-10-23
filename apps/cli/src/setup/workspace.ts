@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MeshError } from '@agentmesh/common';
 import { z } from 'zod';
+import { usageError } from '../args';
+import { type CliContext, resolveFrom } from '../context';
 import { writeFileAtomic, writeFileWithDirs } from '../lib/files';
 import { parseAnswers, type SetupAnswers } from './answers';
 
@@ -20,6 +22,12 @@ export interface WorkspacePaths {
   secretsDir: string;
   gitignore: string;
   claudeSettings: string;
+}
+
+/** `--dir` is required, so setup never writes into the current directory by accident. */
+export function workspaceFrom(ctx: CliContext, dir: string | undefined): WorkspacePaths {
+  if (!dir) throw usageError('Missing --dir <workspace>');
+  return workspacePaths(resolveFrom(ctx, dir));
 }
 
 export function workspacePaths(root: string): WorkspacePaths {

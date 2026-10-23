@@ -137,3 +137,24 @@ export function setPublicKey(text: string, participantId: string, publicKey: str
   doc.setIn(holder.yamlPath, publicKey);
   return doc.toString(TO_STRING);
 }
+
+function humanPath(doc: Document, humanId: string): Array<string | number> | null {
+  const human = listEntries(doc, 'humans').find((h) => h.id === humanId);
+  return human ? ['humans', human.index, 'discordUserId'] : null;
+}
+
+/** A human's `discordUserId` in mesh.yaml, or null when it is not set. */
+export function humanDiscordId(text: string, humanId: string): string | null {
+  const doc = parse(text);
+  const path = humanPath(doc, humanId);
+  return path ? stringOrNull(doc.getIn(path)) : null;
+}
+
+/** Writes a human's `discordUserId` into mesh.yaml, keeping comments. Returns the new text. */
+export function setHumanDiscordId(text: string, humanId: string, discordUserId: string): string {
+  const doc = parse(text);
+  const path = humanPath(doc, humanId);
+  if (!path) throw new MeshError('not_found', `No human "${humanId}" in mesh.yaml`);
+  doc.setIn(path, discordUserId);
+  return doc.toString(TO_STRING);
+}
