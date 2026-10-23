@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { type PluginConfig, resolveConfig } from './config';
 import { buildInstructions } from './instructions';
 import { runJoinCli } from './join/cli';
+import { CONNECT_TOOL, callConnectTool, connectToolListing } from './join/connect-tool';
 import { callJoinTool, JOIN_TOOL, joinToolListing } from './join/tool';
 import { createMcpServer, type ToolHandler, VERSION } from './server';
 import { openSession, type Session, startSession } from './session';
@@ -62,19 +63,24 @@ async function runConfigured(config: PluginConfig, logger: Logger): Promise<void
 }
 
 /**
- * No mesh configured yet: offer only `join`. Once it succeeds the same
- * session connects, swaps in the mesh tools and tells Claude Code they changed.
+ * No mesh configured yet: offer `join`, and `connect` for settings that
+ * `agentmesh setup admin` saved after this session started. Once either
+ * succeeds the same session connects, swaps in the mesh tools and tells
+ * Claude Code they changed.
  */
 async function runUnenrolled(logger: Logger): Promise<void> {
   const notJoined: ToolHandler = {
-    list: () => [joinToolListing],
-    call: async (name, args) =>
-      name === JOIN_TOOL
-        ? callJoinTool(args, { clientVersion: VERSION, onJoined })
-        : {
-            content: [{ type: 'text', text: 'This laptop has not joined a mesh yet; use join.' }],
-            isError: true,
-          },
+    list: () => [joinToolListing, connectToolListing],
+    call: async (name, args) => {
+      if (name === JOIN_TOOL) return callJoinTool(args, { clientVersion: VERSION, onJoined });
+      if (name === CONNECT_TOOL) {
+        return callConnectTool({ resolve: () => resolveConfig(), onConnected: onJoined });
+      }
+      return {
+        content: [{ type: 'text', text: 'This laptop has not joined a mesh yet; use join.' }],
+        isError: true,
+      };
+    },
   };
   let handler = notJoined;
   const instructions = buildInstructions({
