@@ -10,15 +10,17 @@ import { markDone, readState, type StepName, type WorkspacePaths } from './works
 
 /**
  * What `setup deploy` runs on the server before and after copying. `prepare` takes back
- * the seeds a previous deploy gave to uid 1000, so scp can replace them. `dir` is a
- * validated `hosting.remoteDir` (no spaces or shell characters), so it needs no quoting.
+ * the seeds a previous deploy gave to uid 1000, so scp can replace them, and closes
+ * `deploy/` to everyone but the ssh user: scp may create `.env` and the seeds readable by
+ * all (Windows scp picks the mode), and only `finish` tightens them. `dir` is a validated
+ * `hosting.remoteDir` (no spaces or shell characters), so it needs no quoting.
  */
 export function remoteCommands(dir: string): { prepare: string; finish: string } {
   const seeds = `${dir}/deploy/secrets/*.nk`;
   return {
     prepare:
       `sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && ` +
-      `mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats ${dir}/config`,
+      `mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats ${dir}/config && chmod 700 ${dir}/deploy`,
     finish:
       `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
       `cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord up -d`,

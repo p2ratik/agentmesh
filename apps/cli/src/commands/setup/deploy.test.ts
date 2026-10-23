@@ -73,7 +73,7 @@ async function workspace(answers: AnswersInput, done: StepName[], token = TOKEN)
 describe('setup deploy', () => {
   it('runs these commands on the server', () => {
     expect(prepare).toBe(
-      'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config',
+      'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config && chmod 700 /opt/agentmesh/deploy',
     );
     expect(finish).toBe(
       'chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d',
