@@ -117,6 +117,22 @@ describe('doctor', () => {
     expect(t.connects[0]?.servers).toEqual(['tls://mesh.acme.dev:4222']);
   });
 
+  it('a failed ssh is one problem, and the other checks still run', async () => {
+    const t = await workspace(serverAnswers());
+    t.ctx.run = async () => ({
+      code: 255,
+      stdout: '',
+      stderr: 'ssh: connect to host mesh.acme.dev port 22: Connection timed out',
+    });
+    expect(await t.doctor()).toBe(1);
+    const output = t.out.join('\n');
+    expect(output).toContain('AgentMesh for Acme: 1 problem\n');
+    expect(output).toContain(' ✗ Could not list the containers');
+    expect(output).toContain('Connection timed out');
+    expect(output).toContain(' ✓ Discord: category, 7 channels and the planning forum exist');
+    expect(output).toContain(' ✓ riya-agent connects to tls://mesh.acme.dev:4222');
+  });
+
   it('a Discord 403 is one problem, and the token is never printed', async () => {
     const t = await workspace(serverAnswers(), () =>
       Response.json({ message: `Missing Access ${TOKEN}` }, { status: 403 }),

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -39,6 +39,7 @@ describe('setup admin', () => {
     expect(saved.natsUrl).toBe('tls://mesh.acme.dev:4222');
     expect(saved.nkeySeed).toBe(join(w.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'));
     expect(saved.prefix).toBe('mesh');
+    if (process.platform !== 'win32') expect(statSync(w.agentFile).mode & 0o777).toBe(0o600);
     const output = w.out.join('\n');
     expect(output).toContain(`Saved ${w.agentFile} for riya-agent.`);
     expect(output).toContain('call the AgentMesh connect tool');

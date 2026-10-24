@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -79,6 +80,17 @@ describe('setup render', () => {
     expect(config.hub.authCallout?.issuer).toMatch(/^A/);
     expect(readFileSync(p.envFile, 'utf8')).toContain('NATS_PUBLIC_HOST=mesh.acme.dev');
     expect(readFileSync(p.claudeMd, 'utf8')).toContain('# AgentMesh workspace');
+    if (process.platform !== 'win32') {
+      const mode = (f: string) => statSync(f).mode & 0o777;
+      expect(mode(p.envFile)).toBe(0o600);
+      const keys = [p.secretsDir, join(h.ctx.homeDir, '.agentmesh')].flatMap((d) =>
+        readdirSync(d)
+          .filter((f) => f.endsWith('.nk'))
+          .map((f) => join(d, f)),
+      );
+      expect(keys.length).toBeGreaterThan(5);
+      for (const key of keys) expect(mode(key), key).toBe(0o600);
+    }
     expect(h.out.at(-1)).toMatch(/created\s+CLAUDE\.md\n/);
     expect(h.out.at(-1)).toContain(
       `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=`,

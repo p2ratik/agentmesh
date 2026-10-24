@@ -130,6 +130,22 @@ describe('setup deploy', () => {
     expect(readState(t.p).done.deploy).toBeDefined();
   });
 
+  it('a failed copy names the step, not the image, and is not marked done', async () => {
+    const t = await workspace(serverAnswers(), ['discord', 'host']);
+    // config/, .env and nats.conf have landed; the seeds copy fails last.
+    t.failWhen((call) => call.args.includes('deploy/secrets/hub.nk'));
+    expect(await t.deploy()).toBe(1);
+    expect(readState(t.p).done.deploy).toBeUndefined();
+    const message = t.err.join('\n');
+    expect(message).toContain('Copying to /opt/agentmesh/deploy/secrets/ failed');
+    expect(message).not.toContain('Check that');
+    expect(t.calls.some((c) => c.args.includes(finish))).toBe(false);
+
+    t.failWhen(() => false);
+    expect(await t.deploy()).toBe(0);
+    expect(readState(t.p).done.deploy).toBeDefined();
+  });
+
   it('a workspace path with a space and a drive letter', async () => {
     const t = await workspace(serverAnswers(), ['discord', 'host']);
     expect(t.p.root).toContain('First Last');

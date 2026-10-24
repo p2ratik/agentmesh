@@ -55,11 +55,14 @@ describe.skipIf(
 
   it('renders a trial workspace from the answers', () => {
     mkdirSync(ws, { recursive: true });
-    writeFileSync(join(ws, 'setup-answers.json'), JSON.stringify(trialAnswers()));
+    writeFileSync(
+      join(ws, 'setup-answers.json'),
+      JSON.stringify({ ...trialAnswers(), hosting: { mode: 'trial', testAgent: false } }),
+    );
     const rendered = cli('setup', 'render', '--dir', ws);
     expect(rendered.stderr).toBe('');
     expect(rendered.status).toBe(0);
-    expect(existsSync(join(home, '.agentmesh', 'riya-agent.nk'))).toBe(true);
+    expect(existsSync(join(home, '.agentmesh', 'acme-riya-agent.nk'))).toBe(true);
   });
 
   it('starts the hub from the workspace, and the admin agent connects', async () => {
@@ -97,5 +100,9 @@ describe.skipIf(
 
     expect(await joiner.call('connect', {})).toContain('Connected as riya-agent');
     expect(await untilConnected(() => joiner.call('peers', {}))).toContain('riya-agent');
+
+    // Step 7.3: with no test agent, @all has no recipient, so the hello goes to the admin.
+    const hello = await joiner.call('broadcast', { to: 'riya', text: 'Hello from setup' });
+    expect(hello).toContain('Broadcast to');
   }, 60_000);
 });

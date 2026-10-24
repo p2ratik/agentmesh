@@ -103,6 +103,26 @@ describe('classifyContainers', () => {
     ]);
   });
 
+  it('reads the JSON array that Compose before 2.21 prints', () => {
+    const rows = [
+      { Service: 'nats', State: 'running', Health: '' },
+      { Service: 'hub', State: 'running', Health: 'healthy' },
+      { Service: 'discord-bridge', State: 'running', Health: '' },
+    ];
+    expect(classifyContainers(JSON.stringify(rows))).toEqual([
+      { ok: true, label: 'nats, hub (healthy) and discord-bridge are running' },
+    ]);
+  });
+
+  it('no containers at all (after a failed deploy) is three not-running lines', () => {
+    const results = classifyContainers('');
+    expect(results.map((r) => r.label)).toEqual([
+      'nats is not running',
+      'hub is not running',
+      'discord-bridge is not running',
+    ]);
+  });
+
   it('a hub still starting fails and points at its logs', () => {
     const lines = [
       ps('nats', 'running'),
