@@ -5,7 +5,8 @@ import { DEFAULT_MARKETPLACE } from './defaults';
 
 /**
  * The few Discord REST calls setup and doctor make with the bot token. The token goes
- * only into the Authorization header; no error message ever contains it.
+ * only into the Authorization header, ids are checked before they go into a path, and no
+ * error message ever contains the token.
  */
 
 export const DISCORD_API = 'https://discord.com/api/v10';
@@ -29,6 +30,17 @@ const Channel = z.object({
 
 /** Base64url segments joined by dots. Anything else could echo the token in a header error. */
 const TOKEN_SHAPE = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * An id goes into the path, and error messages name the path. A value from .env that is not
+ * a snowflake (the token pasted in the wrong line) is refused without echoing it.
+ */
+function snowflake(id: string, setting: string): string {
+  if (Snowflake.safeParse(id).success) return id;
+  throw new MeshError('invalid_request', `${setting} (digits only). Run setup discord again.`);
+}
+const GUILD_ID = 'DISCORD_GUILD_ID in deploy/.env is not a Discord server id';
+const USER_ID = "The admin's Discord id is not a Discord user id";
 
 export interface DiscordApi {
   me(): Promise<{ id: string; username: string }>;
@@ -85,9 +97,10 @@ export function discordApi(token: string, fetchImpl: typeof fetch): DiscordApi {
     me: () => get('/users/@me', User),
     application: () => get('/applications/@me', Application),
     guilds: () => get('/users/@me/guilds', z.array(Guild)),
-    guild: (id) => get(`/guilds/${id}`, GuildDetail),
-    user: (id) => get(`/users/${id}`, User),
-    channels: (guildId) => get(`/guilds/${guildId}/channels`, z.array(Channel)),
+    guild: async (id) => get(`/guilds/${snowflake(id, GUILD_ID)}`, GuildDetail),
+    user: async (id) => get(`/users/${snowflake(id, USER_ID)}`, User),
+    channels: async (guildId) =>
+      get(`/guilds/${snowflake(guildId, GUILD_ID)}/channels`, z.array(Channel)),
   };
 }
 

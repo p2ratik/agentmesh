@@ -4,6 +4,7 @@ import { fakeDiscord } from './testing';
 
 const TOKEN = 'tok-SECRET-123';
 const BOT = { id: '100000000000000001', username: 'acme-bot', avatar: null };
+const GUILD = '200000000000000002';
 
 /** The error a call rejects with (or throws), so its message can be checked for the token. */
 async function failure(call: () => Promise<unknown>): Promise<{ code?: string; message: string }> {
@@ -44,24 +45,26 @@ describe('discordApi', () => {
 
   it('403 → forbidden: the token works, the bot lacks access; no token in the message', async () => {
     const discord = fakeDiscord({
-      '/guilds/42': () => Response.json({ message: `no access ${TOKEN}` }, { status: 403 }),
+      [`/guilds/${GUILD}`]: () => Response.json({ message: `no access ${TOKEN}` }, { status: 403 }),
     });
-    const error = await failure(() => discordApi(TOKEN, discord.fetch).guild('42'));
+    const error = await failure(() => discordApi(TOKEN, discord.fetch).guild(GUILD));
     expect(error).toMatchObject({
       code: 'forbidden',
       message:
-        'Discord API /guilds/42 answered 403: the bot has no access there. Is it still in the ' +
+        `Discord API /guilds/${GUILD} answered 403: the bot has no access there. Is it still in the ` +
         'server, with the permissions from the invite link?',
     });
     expect(error.message).not.toContain(TOKEN);
   });
 
   it('any other status → unavailable, naming the path', async () => {
-    const discord = fakeDiscord({ '/guilds/42': () => new Response(null, { status: 500 }) });
-    const error = await failure(() => discordApi(TOKEN, discord.fetch).guild('42'));
+    const discord = fakeDiscord({
+      [`/guilds/${GUILD}`]: () => new Response(null, { status: 500 }),
+    });
+    const error = await failure(() => discordApi(TOKEN, discord.fetch).guild(GUILD));
     expect(error).toMatchObject({
       code: 'unavailable',
-      message: 'Discord API /guilds/42 answered 500',
+      message: `Discord API /guilds/${GUILD} answered 500`,
     });
   });
 
@@ -75,15 +78,30 @@ describe('discordApi', () => {
     expect(discord.requests).toHaveLength(0);
   });
 
+  it('refuses an id that is not a snowflake before it reaches a path, without echoing it', async () => {
+    const discord = fakeDiscord({});
+    const api = discordApi(TOKEN, discord.fetch);
+    for (const call of [() => api.guild(TOKEN), () => api.channels(TOKEN), () => api.user(TOKEN)]) {
+      const error = await failure(call);
+      expect(error.code).toBe('invalid_request');
+      expect(error.message).not.toContain(TOKEN);
+    }
+    expect((await failure(() => api.channels(TOKEN))).message).toBe(
+      'DISCORD_GUILD_ID in deploy/.env is not a Discord server id (digits only). ' +
+        'Run setup discord again.',
+    );
+    expect(discord.requests).toHaveLength(0);
+  });
+
   it('parses channels, with a missing parent as null', async () => {
     const [category, council] = ['500000000000000005', '600000000000000006'];
     const discord = fakeDiscord({
-      '/guilds/42/channels': [
+      [`/guilds/${GUILD}/channels`]: [
         { id: category, name: 'AgentMesh', type: 4, position: 0 },
         { id: council, name: 'mesh-council', type: 0, parent_id: category },
       ],
     });
-    expect(await discordApi(TOKEN, discord.fetch).channels('42')).toEqual([
+    expect(await discordApi(TOKEN, discord.fetch).channels(GUILD)).toEqual([
       { id: category, name: 'AgentMesh', type: 4, parent_id: null },
       { id: council, name: 'mesh-council', type: 0, parent_id: category },
     ]);

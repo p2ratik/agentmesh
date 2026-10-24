@@ -132,6 +132,15 @@ describe('doctor', () => {
     expect(output).not.toContain(TOKEN);
   });
 
+  it('a guild id that is not a Discord id is never echoed (the token pasted there)', async () => {
+    const t = await workspace(trialAnswers());
+    updateEnvFile(t.p.envFile, { DISCORD_GUILD_ID: TOKEN });
+    expect(await t.doctor()).toBe(1);
+    const output = [...t.out, ...t.err].join('\n');
+    expect(output).toContain('DISCORD_GUILD_ID in deploy/.env is not a Discord server id');
+    expect(output).not.toContain(TOKEN);
+  });
+
   it('a key that cannot connect fails with the reason', async () => {
     const t = await workspace(trialAnswers());
     t.ctx.connectNats = async () => {
