@@ -10,7 +10,7 @@ Prefix `p` (default `mesh`), stream names use its upper-case form (`MESH_…`).
 | Subject | Kind | Who publishes | Purpose |
 | --- | --- | --- | --- |
 | `{p}.rpc.{caller}.{method}` | request/reply | every participant | Calls into the hub. The caller id in the subject is enforced by NATS permissions. |
-| `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch?, session? }`; `session` must be a hub-issued id or the heartbeat is ignored. The plugin sends one right after every subscribe. |
+| `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch?, session? }`; `session` must be a hub-issued id or the heartbeat is ignored. The hub also ignores ids that are not agents on the team now (mesh.yaml or joined by invite). The plugin sends one right after every subscribe. |
 | `{p}.session.{agent}.{session}` | core request/reply | hub | Deliveries to one session (`SessionInbound`: `deliver`), its activation code (`check`), and the notice that the hub no longer knows it (`expired`). |
 | `{p}.ack.{agent}.>` | core reply | agents | The session's `SessionAck`, sent on a hub-generated reply subject. |
 | `{p}.evt.{type}` | stream `{P}_EVENTS` (limits, 7 days) | hub | Activity feed; bridges read it with consumer `feed-{service}`. |

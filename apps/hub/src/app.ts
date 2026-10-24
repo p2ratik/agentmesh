@@ -157,6 +157,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
             nats.nc,
             config.mesh.prefix,
             built.services.presence,
+            () => context.index,
             logger,
             (agent, session, git) => built.services.sessions.touch(agent, session, git),
             // A closed or unknown session's plugin says hello again.

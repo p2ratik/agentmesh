@@ -1,5 +1,6 @@
 import type { NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
+import type { ConfigIndex } from '@agentmesh/config';
 import { parseTokenAfter, SessionId, subjects } from '@agentmesh/protocol';
 import { z } from 'zod';
 import type { PresenceService } from '../../contracts';
@@ -38,12 +39,15 @@ export function parseHeartbeat(
 
 /**
  * Subscribes to agent heartbeats. NATS permissions guarantee the subject's id
- * is the publisher, so only the id's kind is checked (configured agents only).
+ * is the publisher, so only the id's kind is checked: agents on the team now,
+ * including members who joined by invite after the hub started.
  */
 export function startPresenceListener(
   nc: NatsConnection,
   prefix: string,
   presence: PresenceService,
+  /** Read on every heartbeat: enrolled members join and leave without a restart. */
+  index: () => ConfigIndex,
   logger: Logger,
   onSession?: (
     agentId: string,
@@ -52,7 +56,6 @@ export function startPresenceListener(
   ) => 'ok' | 'unknown',
   onUnknown?: (agentId: string, sessionId: string) => void,
 ): Subscription {
-  const agents = new Set(presence.peers('agent').map((p) => p.id));
   return nc.subscribe(subjects(prefix).presenceAll, {
     callback: (err, msg) => {
       if (err) {
@@ -60,7 +63,7 @@ export function startPresenceListener(
         return;
       }
       const beat = parseHeartbeat(prefix, msg.subject, msg.string());
-      if (!beat || !agents.has(beat.participantId)) {
+      if (!beat || index().kindOf(beat.participantId) !== 'agent') {
         logger.debug({ subject: msg.subject }, 'ignored presence message');
         return;
       }
