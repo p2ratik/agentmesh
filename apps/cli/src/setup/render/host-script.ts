@@ -45,8 +45,15 @@ command -v apt-get >/dev/null || {
 }
 
 echo "== packages"
+# A new server is still busy with cloud-init and unattended-upgrades: wait for apt's lock.
+cloud-init status --wait >/dev/null 2>&1 || true
+echo 'DPkg::Lock::Timeout "300";' >/etc/apt/apt.conf.d/90agentmesh-lock-timeout
 apt-get update -qq
 command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
+docker compose version >/dev/null 2>&1 || {
+  echo "Docker has no Compose v2. Install it (apt-get install docker-compose-v2), then run setup host again." >&2
+  exit 1
+}
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null
 usermod -aG docker "$MESH_USER"
 

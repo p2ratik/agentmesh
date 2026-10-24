@@ -22,8 +22,14 @@ export const Hosting = z.discriminatedUnion('mode', [
     mode: z.literal('server'),
     /** `user@host`. Neither part may start with `-`, which ssh would read as an option. */
     ssh: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.-]*$/),
-    /** A DNS name whose labels start and end with a letter or digit. */
-    publicHost: z.string().regex(/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i),
+    /**
+     * A DNS name whose labels start and end with a letter or digit, in lowercase: certbot
+     * names /etc/letsencrypt/live/<name> in lowercase, and the renewal hook reads it there.
+     */
+    publicHost: z
+      .string()
+      .regex(/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i)
+      .toLowerCase(),
     remoteDir: z
       .string()
       .regex(/^\/[A-Za-z0-9._/-]+$/)

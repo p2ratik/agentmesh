@@ -23,6 +23,18 @@ describe('renderHostScript', () => {
     expect(script).not.toMatch(/\bgit\b/);
   });
 
+  it('waits for apt on a new server and refuses a Docker without Compose v2', () => {
+    const at = (text: string) => script.indexOf(text);
+    expect(at('cloud-init status --wait')).toBeGreaterThan(-1);
+    expect(at('cloud-init status --wait')).toBeLessThan(at('apt-get update'));
+    expect(at('DPkg::Lock::Timeout "300";')).toBeLessThan(at('apt-get update'));
+    expect(at('docker compose version')).toBeGreaterThan(at('get.docker.com'));
+    expect(at('docker compose version')).toBeLessThan(at('apt-get install -y -qq certbot'));
+    expect(script).toMatch(
+      /docker compose version >\/dev\/null 2>&1 \|\| \{\n.*docker-compose-v2.*\n\s+exit 1\n\}/,
+    );
+  });
+
   it('creates the workspace folders for the ssh user and gets a certificate only once', () => {
     for (const dir of ['', '/deploy', '/deploy/nats', '/deploy/secrets', '/config']) {
       expect(script).toContain(`"$AGENTMESH_DIR${dir}"`);

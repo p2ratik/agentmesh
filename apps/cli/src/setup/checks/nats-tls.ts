@@ -50,6 +50,20 @@ export function classifyCert(
   return { ok: true, label: `${where} answers TLS (cert valid to ${day(validTo)})` };
 }
 
+/**
+ * Why a connection failed. Node's AggregateError (every address of a name refused) has an
+ * empty message; its code or its first error still says why. Pure.
+ */
+export function connectionError(error: Error & { code?: string; errors?: unknown[] }): string {
+  const first = error.errors?.[0];
+  return (
+    error.message ||
+    error.code ||
+    (first instanceof Error ? first.message : '') ||
+    'connection failed'
+  );
+}
+
 /** Whether a NATS `INFO {…}` line offers TLS; null when the line is not one. */
 function offersTls(line: string): boolean | null {
   const json = /^INFO\s+(\{.*\})\s*$/.exec(line)?.[1];
@@ -94,7 +108,9 @@ export function checkNatsTls(
       timeoutMs,
     );
 
-    socket.on('error', (error) => fail(`${error.message}. Check that port ${port} is open.`));
+    socket.on('error', (error) =>
+      fail(`${connectionError(error)}. Check that port ${port} is open.`),
+    );
     let received = '';
     const onData = (chunk: Buffer) => {
       received += chunk.toString('latin1');

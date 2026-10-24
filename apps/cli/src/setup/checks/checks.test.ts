@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { renderChecklist } from '../render/checklist';
 import { classifyContainers } from './containers';
 import { classifyChannels } from './discord';
-import { checkNatsTls, classifyCert } from './nats-tls';
+import { checkNatsTls, classifyCert, connectionError } from './nats-tls';
 
 const NOW = new Date('2026-10-24T12:00:00Z');
 const HOST = 'mesh.acme.dev';
@@ -71,6 +71,19 @@ describe('checkNatsTls', () => {
     const result = await checkNatsTls('127.0.0.1', port, NOW, 50);
     expect(result.ok).toBe(false);
     expect(result.detail).toContain('No answer');
+  });
+});
+
+describe('connectionError', () => {
+  it("names the reason when every address refused (an AggregateError's empty message)", () => {
+    const refused = (address: string) =>
+      Object.assign(new Error(`connect ECONNREFUSED ${address}`), { code: 'ECONNREFUSED' });
+    const both = new AggregateError([refused('::1:4222'), refused('127.0.0.1:4222')], '');
+    expect(connectionError(Object.assign(both, { code: 'ECONNREFUSED' }))).toBe('ECONNREFUSED');
+    expect(connectionError(new AggregateError([refused('::1:4222')], ''))).toBe(
+      'connect ECONNREFUSED ::1:4222',
+    );
+    expect(connectionError(refused('127.0.0.1:4222'))).toBe('connect ECONNREFUSED 127.0.0.1:4222');
   });
 });
 

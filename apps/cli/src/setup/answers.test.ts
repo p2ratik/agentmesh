@@ -67,6 +67,11 @@ describe('parseAnswers', () => {
       }
       expect(() => parseAnswers(hosting({ publicHost: 'mesh.acme.dev' }))).not.toThrow();
     });
+
+    it('lowercases the public host, as certbot names its live folder', () => {
+      const { hosting: parsed } = parseAnswers(hosting({ publicHost: 'Mesh.Acme.DEV' }));
+      expect(parsed.mode === 'server' && parsed.publicHost).toBe('mesh.acme.dev');
+    });
   });
 
   it('needs at least one protected branch for the policy to name', () => {
