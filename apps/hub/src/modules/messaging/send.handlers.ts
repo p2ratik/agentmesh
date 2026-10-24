@@ -120,7 +120,7 @@ function sendThread(
 }
 
 export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
-  const { db, index } = messaging.ctx;
+  const { db } = messaging.ctx;
   return {
     'message.send': (params, call) => {
       const { actor } = call;
@@ -142,6 +142,8 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
     /** Pings a human (the agent's owner by default) in an existing or new escalation thread. */
     escalate: (params, call) => {
       const { actor } = call;
+      // Read per call: people who joined by invite since the hub started can escalate and be pinged.
+      const { index } = messaging.ctx;
       const to = params.to ?? index.agent(actor.id)?.owner;
       if (!to || index.kindOf(to) !== 'human') {
         throw new MeshError('invalid_request', 'Escalations must go to a configured human');
