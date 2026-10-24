@@ -1,5 +1,7 @@
 import { isAbsolute, resolve } from 'node:path';
 import type { RunProcess } from './lib/process';
+import type { ConnectNats } from './setup/checks/agent';
+import type { CheckResult } from './setup/checks/result';
 
 /**
  * Everything a command touches outside its arguments. `main.ts` builds it
@@ -20,6 +22,10 @@ export interface CliContext {
   run?: RunProcess;
   /** Resolves a host name to its addresses; defaults to the system resolver. */
   lookup?: (host: string) => Promise<string[]>;
+  /** Opens one NATS connection with a seed file; defaults to `connectOnce`. */
+  connectNats?: ConnectNats;
+  /** Checks the certificate NATS presents; defaults to `checkNatsTls`. */
+  probeNatsTls?: (host: string, port: number, now: Date) => Promise<CheckResult>;
 }
 
 /** One `agentmesh` subcommand. `name` may have two words (`keys add`). */

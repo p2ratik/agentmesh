@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { isMeshError } from '@agentmesh/common';
 import { agentSetupCommand } from './commands/agent-setup';
+import { doctorCommand } from './commands/doctor';
 import { initCommand } from './commands/init';
 import { keysAddCommand, keysListCommand } from './commands/keys';
 import { natsConfigCommand } from './commands/nats-config';
@@ -27,6 +28,7 @@ export const COMMANDS: readonly Command[] = [
   setupDeployCommand,
   setupAdminCommand,
   setupStatusCommand,
+  doctorCommand,
   upgradeCommand,
 ];
 
