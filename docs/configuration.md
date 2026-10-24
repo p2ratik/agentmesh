@@ -64,6 +64,13 @@ For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent
 - `agentmesh validate` lists these owners as **Pending**, so a typo stays visible.
 - A human or service id as an owner is still an error.
 
+The same holds for `review.humanReviewers`, `planning.facilitator` and the ids in a rule's
+`notify.to`: each may name someone who will join by invite. Until they join, reviews leave that
+human out, the initiator's agent facilitates plans instead, and notices skip them. The hub warns
+about them, and `agentmesh validate` lists them as **Pending**. The wrong kind of id (an agent as a
+human reviewer, a human as facilitator, a service as a notify target, or the hub) is still an
+error.
+
 ## Git and policy
 
 | Key | Default | Meaning |
@@ -84,7 +91,7 @@ For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent
 | `assignment.boardAnnounce` | `matching-skills` | Who hears about unowned tasks: `matching-skills`, `online`, `none`. |
 | `review.requiredApprovals` | `1` | Approvals in the current round that fire `approve`. `0` approves immediately. |
 | `review.maxReviewers` | `2` | Agents picked per round. |
-| `review.humanReviewers` | `[]` | Humans always added as reviewers. |
+| `review.humanReviewers` | `[]` | Humans always added as reviewers. Someone who joins by invite is added once they have joined (see [Areas](#areas)). |
 | `leases.defaultTtlMinutes` | `120` | Lease lifetime when none is given. |
 | `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
@@ -108,7 +115,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | --- | --- | --- |
 | `tasks.defaultWorkflow` | `feature` | Workflow for new tasks. Built-ins: `feature`, `review`. |
 | `workflows` | built-ins | Inline workflows; files in `include.workflows` dirs are merged. Same id overrides a built-in. See [workflows.md](workflows.md). |
-| `planning.facilitator` | `initiator` | `initiator` (the agent of whoever started it) or a fixed agent id. |
+| `planning.facilitator` | `initiator` | `initiator` (the agent of whoever started it) or a fixed agent id. An agent that joins by invite may be named; until it joins, the initiator's agent facilitates. |
 | `planning.requireApproval` | `false` | `true`: a human approves before tasks are created. |
 | `planning.quorum` | `1` | Share of online participants whose contributions end a round early. |
 | `planning.defaultTemplate` | `standard` | Template id. |

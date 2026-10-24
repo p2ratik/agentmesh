@@ -3,7 +3,7 @@ import type { LoadedConfig } from '@agentmesh/config';
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '../../contracts';
 import { testTeamConfig } from '../../testing/fixtures';
-import { leaveTeam } from '../../testing/harness';
+import { joinTeam, leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { TaskServiceImpl } from '../tasks/tasks.service';
 import { PlanningServiceImpl } from './planning.service';
@@ -190,6 +190,14 @@ describe('planning sessions', () => {
     leaveTeam(s.ctx, 'carol');
     expect(s.planning.approve(1).state).toBe('materialized');
     expect(s.tasks.get(1, alice).assignee).not.toBe('carol-agent');
+  });
+
+  // mesh.yaml may name a facilitator who joins by invite; until they do, the initiator's agent stands in.
+  it('lets the initiator facilitate until the configured facilitator has joined', () => {
+    const s = setup(testTeamConfig({ planning: { facilitator: 'dana-agent' } }));
+    expect(s.planning.start({ topic: 'Render status' }, alice).facilitator).toBe('alice-agent');
+    joinTeam(s.ctx, 'dana');
+    expect(s.planning.start({ topic: 'Billing v2' }, alice).facilitator).toBe('dana-agent');
   });
 
   it('hands off a late synthesis once, then stalls and escalates', async () => {

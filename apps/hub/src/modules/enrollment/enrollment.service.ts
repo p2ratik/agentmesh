@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { HOUR_MS, isValidParticipantId, MeshError } from '@agentmesh/common';
-import { ConfigIndex, claimedByConfig, pendingAreaOwners, withMembers } from '@agentmesh/config';
+import { ConfigIndex, claimedByConfig, pendingInvitees, withMembers } from '@agentmesh/config';
 import {
   type CancelStatus,
   encodeInvite,
@@ -55,11 +55,11 @@ export class EnrollmentServiceImpl implements EnrollmentService {
     if (shadowed.length > 0) {
       this.#ctx.logger.warn({ members: shadowed }, 'enrolled members shadowed by mesh.yaml');
     }
-    const pending = pendingAreaOwners(config);
+    const pending = pendingInvitees(config);
     if (pending.length > 0) {
       this.#ctx.logger.warn(
-        { owners: pending },
-        'area owners not on the team yet (join by invite)',
+        { people: pending },
+        'people in mesh.yaml not on the team yet (join by invite)',
       );
     }
     this.#ctx.setIndex(new ConfigIndex(config));
