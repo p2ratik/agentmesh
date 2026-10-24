@@ -9,6 +9,7 @@ import { setupAdminCommand } from './commands/setup/admin';
 import { setupDeployCommand } from './commands/setup/deploy';
 import { setupDiscordCommand } from './commands/setup/discord';
 import { setupHostCommand } from './commands/setup/host';
+import { setupInvitesCommand } from './commands/setup/invites';
 import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
 import { upgradeCommand } from './commands/upgrade';
@@ -28,6 +29,7 @@ export const COMMANDS: readonly Command[] = [
   setupDeployCommand,
   setupAdminCommand,
   setupStatusCommand,
+  setupInvitesCommand,
   doctorCommand,
   upgradeCommand,
 ];
