@@ -8,7 +8,7 @@ import type { ChannelEvent } from './inbox/render';
 import type { ToolListing, ToolResult } from './tools/registry';
 
 export const SERVER_NAME = 'mesh';
-export const VERSION = '0.3.1';
+export const VERSION = '0.3.2';
 
 /** The tools the session offers right now; it changes when an unenrolled plugin joins. */
 export interface ToolHandler {

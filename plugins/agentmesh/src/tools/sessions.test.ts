@@ -22,6 +22,8 @@ describe('session tools', () => {
     expect(text(result)).toContain(
       'restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh',
     );
+    // Claude Desktop can't pass the flag, so the hint must not send its users to a restart alone.
+    expect(text(result)).toContain('Claude Desktop cannot pass that flag');
     // The code reaches Claude only through the hub's push, which is what proves pushes work.
     expect(text(result)).not.toContain('Code:');
   });
