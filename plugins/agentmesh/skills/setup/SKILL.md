@@ -15,6 +15,7 @@ to re-run.
 
 - Never ask the user to paste the Discord bot token, an invite code or any key into this chat. If they paste one anyway, do not repeat it; tell them to reset it in the Discord developer portal and to put the new one in the file.
 - Never open, read, print or search `deploy/.env` or anything in `deploy/secrets/`.
+- Never run `docker compose config`, `docker inspect`, or `env`/`printenv` in a container, here or over ssh: they print `.env` values. Use `doctor` and `docker compose ps`/`logs`.
 - Never add permission allow rules for this CLI, ssh or scp.
 - Agents cannot run `/mesh` admin commands. You print the invite lines; the admin runs them in Discord.
 - Create nothing that costs money until the user says yes to the server size you proposed.

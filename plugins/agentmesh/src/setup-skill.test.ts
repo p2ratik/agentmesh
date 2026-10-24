@@ -13,6 +13,12 @@ describe('the /agentmesh:setup skill', () => {
     expect(frontmatter).not.toContain('allowed-tools');
   });
 
+  it('forbids the Docker commands that print .env values', () => {
+    for (const cmd of ['docker compose config', 'docker inspect', 'printenv']) {
+      expect(SKILL).toContain(cmd);
+    }
+  });
+
   it('runs every CLI step the same way, from the bundled CLI', () => {
     const calls = [...SKILL.matchAll(/node "[^"]*" [^`\n]*/g)].map((m) => m[0]);
     expect(calls.length).toBeGreaterThan(5);
