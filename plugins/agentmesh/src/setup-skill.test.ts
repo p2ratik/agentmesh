@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli } from '@agentmesh/cli';
+import { runCli, SECRET_RULES } from '@agentmesh/cli';
 import { describe, expect, it } from 'vitest';
 
 const SKILL = readFileSync(join(import.meta.dirname, '../skills/setup/SKILL.md'), 'utf8');
@@ -13,10 +13,8 @@ describe('the /agentmesh:setup skill', () => {
     expect(frontmatter).not.toContain('allowed-tools');
   });
 
-  it('forbids the Docker commands that print .env values', () => {
-    for (const cmd of ['docker compose config', 'docker inspect', 'printenv']) {
-      expect(SKILL).toContain(cmd);
-    }
+  it('has the secret rules of the workspace CLAUDE.md, word for word, as rule lines', () => {
+    for (const rule of SECRET_RULES) expect(SKILL).toContain(`\n- ${rule}\n`);
   });
 
   it('runs every CLI step the same way, from the bundled CLI', () => {

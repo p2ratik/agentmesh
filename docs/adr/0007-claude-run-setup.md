@@ -110,8 +110,10 @@ change behaviour:
   follow-up for the next redeploy of a hand-built hub.
 - **A workspace `CLAUDE.md` (R10, R16).** The workspace's `.claude/settings.json` deny rules cover
   only the Read tool (and Grep and Glob), not Bash. So `setup render` also writes a `CLAUDE.md`
-  telling every later Claude session in the workspace never to read `.env` or the seeds, never to
-  run `docker compose config`, and never to ask for a secret in the chat. The workspace's
+  telling every later Claude session in the workspace never to read `.env` or any seed, never to
+  print a container's environment (`docker compose config` and the like), to run the operator
+  commands only when the user at the terminal asks, and never to ask for a secret in the chat. The
+  skill has the same rules from one list in the CLI, which a test checks. The workspace's
   `.gitignore` also ignores `deploy/.env.*`, where a crash can leave the temp file of an atomic
   write.
 - **`.env` is written atomically (R11):** a temp file with mode 600 in the same folder, then a
