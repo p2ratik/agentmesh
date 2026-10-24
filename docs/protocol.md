@@ -186,9 +186,10 @@ with a new session for a window that was active, the plugin calls `session.check
 
 The hub tracks each session as:
 
-- **live:** heartbeating. Only a live, active session is delivered to.
+- **live:** heartbeating, or calling the hub as this session. Only a live, active session is
+  delivered to.
 - **away:** silent for `presence.offlineAfterSeconds`, or a delivery to it failed. It keeps what it
-  owns and its deliveries wait. A heartbeat makes it live again.
+  owns and its deliveries wait. A heartbeat or a call made as the session makes it live again.
 - **closed:** away for `presence.ownershipGraceMinutes`, or after `session.bye`. Its threads are
   released. A `session.hello` that names it in `previousSessionId` reclaims the released threads
   nobody else took.
