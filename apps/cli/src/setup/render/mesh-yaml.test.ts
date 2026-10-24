@@ -23,6 +23,12 @@ function load(raw: AnswersInput) {
 }
 
 describe('renderMeshYaml', () => {
+  it('points edits at setup deploy: validate cannot read deploy/.env', () => {
+    const text = renderMeshYaml(parseAnswers(serverAnswers()));
+    expect(text).not.toContain('agentmesh validate');
+    expect(text).toContain('`agentmesh setup deploy`');
+  });
+
   it('server answers load cleanly', () => {
     const { config, policyText } = load(serverAnswers());
     expect(config.enrollment.natsUrl).toBe('tls://mesh.acme.dev:4222');

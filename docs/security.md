@@ -424,14 +424,37 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   they and the `CLAUDE.md` apply only to sessions opened in the workspace. A session started
   elsewhere gets neither; the setup session relies on the skill's rules. Never add allow rules that
   would let a shell command read those files without a prompt.
-- **Threat: a stolen laptop.** The workspace holds the hub's seeds (`hub`, `discord-bridge` and,
-  on a server, the callout issuer, which can mint any agent's credentials) and the admin's agent
-  seed in `~/.agentmesh`. Whoever takes the laptop has the hub's identity. **Mitigation:** none in
-  code. Use full-disk encryption (FileVault, BitLocker, LUKS), and keep the workspace out of synced
-  or shared folders. On Windows, mode 600 is ignored and only the profile's NTFS permissions
-  protect the files. **Recovery:** rotate the hub's keys and the admin agent's key
-  (`agentmesh keys add <id> --force`), re-render `nats.conf` with the deploy's flags and run
-  `setup deploy` again. Members' keys never leave their own laptops.
+- **Threat: a stolen laptop.** The admin's laptop holds:
+  - the hub's seeds in the workspace (`hub`, `discord-bridge` and, on a server, the callout
+    issuer, which can mint any agent's credentials), so whoever takes it has the hub's identity;
+  - the Discord bot token, and any other secret you added, in the workspace's `deploy/.env`;
+  - the admin's agent seed in `~/.agentmesh`;
+  - the admin's SSH key to the server. It logs in without a prompt and has passwordless `sudo`,
+    so it gives root on the server, and with it every seed deployed there.
+
+  **Mitigation:** none in code. Use full-disk encryption (FileVault, BitLocker, LUKS), and keep the
+  workspace out of synced or shared folders. On Windows, mode 600 is ignored and only the
+  profile's NTFS permissions protect the files.
+  **Recovery**, in this order, from another machine with a backup of the workspace:
+  1. **Lock the laptop out of the server first**, or the thief can read the keys you rotate next.
+     From the cloud console or another machine, remove the laptop's public key from the SSH
+     user's `~/.ssh/authorized_keys` (and root's), and from any cloud key pair or VM metadata that
+     would put it back, then add the new machine's key. If the server's auth log shows logins you
+     don't recognise, treat the server as compromised and set up a new one.
+  2. **Reset the bot token** in the Discord developer portal (Bot → Reset Token) and type the new
+     one into the workspace's `deploy/.env`. Replace any other secret you put in `.env`.
+  3. **Rotate the keys** in the workspace. Members' keys never leave their own laptops, so only
+     the hub's keys and the admin agent's key change:
+     - `agentmesh keys add hub --force --config config --secrets deploy/secrets`, and the same for
+       `discord-bridge`, `hub-issuer`, `hub-xkey` and `hub-sys`;
+     - `agentmesh keys add <you>-agent --force --config config --secrets ~/.agentmesh`, then
+       `agentmesh setup admin --dir .` on the new machine.
+  4. **Re-render `nats.conf`:**
+     `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
+  5. **Run `agentmesh setup deploy --dir .`.** It recreates the containers, so NATS and the hub
+     load the new keys and the stolen ones stop working.
+
+  A trial runs on the laptop itself, so only step 2 applies.
 - **Threat: a man in the middle on the first SSH connection.** `ssh` and `scp` run with
   `BatchMode=yes` and `StrictHostKeyChecking=accept-new`: the CLI never prompts, it trusts a
   server's host key the first time it sees it, and it refuses a key that changes later.

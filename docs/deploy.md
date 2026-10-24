@@ -64,10 +64,15 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
   3. copies `config/`, `deploy/docker-compose.yml`, `deploy/.env`, `deploy/nats/nats.conf` and
      `deploy/secrets/*.nk` with `scp`;
   4. sets `.env` and the seeds to mode 600, gives the seeds to uid 1000 (the containers' user), and
-     runs `docker compose --profile discord pull` and `up -d` in `<remoteDir>/deploy`.
+     runs `docker compose --profile discord pull` and `up -d --force-recreate` in
+     `<remoteDir>/deploy`.
 
-  On a trial it runs the same pull and `up -d` in the workspace's `deploy/`. A failed step is not
-  marked done, and a re-run continues.
+  On a trial it runs the same pull and `up -d --force-recreate` in the workspace's `deploy/`. A
+  failed step is not marked done, and a re-run continues.
+- **Every deploy restarts the stack.** NATS, the hub and the bridge read `config/`, `nats.conf`
+  and the seeds only when they start, and a plain `up -d` keeps a container whose image and
+  compose settings did not change. So `setup deploy` recreates all three containers, even when only
+  `config/` changed. Agents lose their connection for a few seconds and reconnect on their own.
 - **The mode.** A server runs NATS with TLS in auth-callout mode (`nats-config --tls
   --auth-callout`), so members join by invite. The hub's HTTP port stays on 127.0.0.1, and a new
   mesh has no ingest sources. A trial runs NATS on 127.0.0.1 without TLS, in static mode.
@@ -116,11 +121,10 @@ update their plugins first.
   - the admin's agent key connects to NATS.
 - **`agentmesh setup status --dir <workspace>`** shows which steps are done and what to run next.
 - **Config changes.** The workspace is the source of truth. Edit the files in `config/`, then run
-  `agentmesh setup deploy --dir <workspace>`, which checks the config before it copies anything.
-  `docker compose up -d` recreates a container only when its image or compose settings changed,
-  so after a change to `config/` alone, restart the hub and bridge:
-  `ssh <user@host> 'cd /opt/agentmesh/deploy && docker compose --profile discord restart hub discord-bridge'`
-  (on a trial, the same `docker compose` command in the workspace's `deploy/`).
+  `agentmesh setup deploy --dir <workspace>`. It checks the config with the real `.env` values
+  before it copies anything, then recreates the containers, so the hub loads the new config.
+  `agentmesh validate` does not work in a workspace: it reads only the shell's environment, not
+  `deploy/.env`, so it reports the Discord values as missing.
 - **Members** join and leave with `/mesh invite`, `/mesh uninvite` and `/mesh remove`; nothing
   changes on the server.
 

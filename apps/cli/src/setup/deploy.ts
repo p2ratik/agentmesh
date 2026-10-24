@@ -10,6 +10,13 @@ import { runChecked, SSH_OPTIONS } from './remote';
 import { markDone, readState, type StepName, type WorkspacePaths } from './workspace';
 
 /**
+ * Starts the stack with new containers every time. config/, nats.conf and the seeds are
+ * bind mounts that NATS, the hub and the bridge read only at start, and a plain `up -d`
+ * keeps a container whose image and compose settings did not change.
+ */
+const UP = ['up', '-d', '--force-recreate'];
+
+/**
  * What `setup deploy` runs on the server before and after copying. `prepare` takes back
  * the seeds a previous deploy gave to uid 1000, so scp can replace them, and closes
  * `deploy/` to everyone but the ssh user: scp may create `.env` and the seeds readable by
@@ -24,7 +31,8 @@ export function remoteCommands(dir: string): { prepare: string; finish: string }
       `mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats ${dir}/config && chmod 700 ${dir}/deploy`,
     finish:
       `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
-      `cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord up -d`,
+      `cd ${dir}/deploy && docker compose --profile discord pull && ` +
+      `docker compose --profile discord ${UP.join(' ')}`,
   };
 }
 
@@ -91,7 +99,7 @@ export async function deployWorkspace(
         what,
       );
     await pulling(hint, () => compose(['pull'], 'Pulling the images'));
-    await compose(['up', '-d'], 'Starting the stack');
+    await compose(UP, 'Starting the stack');
     markDone(p, 'deploy', new Date());
     ctx.stdout(`Deployed ${image} on this machine.`);
     return;

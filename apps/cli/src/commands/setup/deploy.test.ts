@@ -71,12 +71,14 @@ async function workspace(answers: AnswersInput, done: StepName[], token = TOKEN)
 }
 
 describe('setup deploy', () => {
+  // --force-recreate: config/, nats.conf and the seeds are bind mounts, so a plain `up -d`
+  // keeps the old containers, and the old config and keys, after a change to them alone.
   it('runs these commands on the server', () => {
     expect(prepare).toBe(
       'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config && chmod 700 /opt/agentmesh/deploy',
     );
     expect(finish).toBe(
-      'chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d',
+      'chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
     );
   });
 
@@ -178,7 +180,11 @@ describe('setup deploy', () => {
     expect(await t.deploy()).toBe(0);
     expect(t.calls).toEqual([
       { cmd: 'docker', args: ['compose', '--profile', 'discord', 'pull'], cwd: t.p.deployDir },
-      { cmd: 'docker', args: ['compose', '--profile', 'discord', 'up', '-d'], cwd: t.p.deployDir },
+      {
+        cmd: 'docker',
+        args: ['compose', '--profile', 'discord', 'up', '-d', '--force-recreate'],
+        cwd: t.p.deployDir,
+      },
     ]);
     expect(t.out).toEqual([`Deployed ghcr.io/p2ratik/agentmesh-hub:${VERSION} on this machine.`]);
     expect(readState(t.p).done.deploy).toBeDefined();

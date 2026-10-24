@@ -13,7 +13,10 @@ describe('renderWorkspaceClaudeMd', () => {
     expect(text).toContain('`deploy/secrets/`');
     expect(text).toContain('never run `docker compose config`');
     expect(text).toContain('`setup status --dir .` and `doctor --dir .`');
-    expect(text).toContain('`agentmesh validate --config config`');
+    // validate reads only the process env, never deploy/.env, so it always fails here.
+    expect(text).not.toContain('agentmesh validate --config config');
+    expect(text).toContain("Don't run `agentmesh validate` here");
+    expect(text).toContain('then run `agentmesh setup deploy --dir .`');
     expect(text).toContain('Agents never run `/mesh` admin commands');
   });
 });

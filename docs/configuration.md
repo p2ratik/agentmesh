@@ -149,6 +149,7 @@ references and the compose settings. Never commit it or paste its values into a 
 - A deploy set up by hand starts from `deploy/.env.example`.
 - Changes to the binds or `NATS_PUBLIC_HOST` need recreated containers
   (`docker compose --profile discord up -d --force-recreate`); `restart` does not apply them.
+  `setup deploy` always recreates them.
 
 | Key | Written by setup as | Meaning |
 | --- | --- | --- |

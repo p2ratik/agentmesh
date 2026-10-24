@@ -48773,11 +48773,12 @@ refuses to replace settings for another agent or hub unless --replace.`,
 // ../../apps/cli/src/setup/deploy.ts
 import { existsSync as existsSync10, readdirSync as readdirSync4 } from "node:fs";
 import { join as join13 } from "node:path";
+var UP = ["up", "-d", "--force-recreate"];
 function remoteCommands(dir) {
   const seeds = `${dir}/deploy/secrets/*.nk`;
   return {
     prepare: `sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats ${dir}/config && chmod 700 ${dir}/deploy`,
-    finish: `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord up -d`
+    finish: `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
   };
 }
 function requireDone(p, steps) {
@@ -48822,7 +48823,7 @@ async function deployWorkspace(ctx, p, a) {
       what
     );
     await pulling(hint, () => compose(["pull"], "Pulling the images"));
-    await compose(["up", "-d"], "Starting the stack");
+    await compose(UP, "Starting the stack");
     markDone(p, "deploy", /* @__PURE__ */ new Date());
     ctx.stdout(`Deployed ${image} on this machine.`);
     return;
@@ -48857,8 +48858,9 @@ var setupDeployCommand = {
 Checks the config with the workspace's real settings, then on a server copies config/,
 deploy/docker-compose.yml, deploy/.env, deploy/nats/nats.conf and deploy/secrets/*.nk
 to hosting.remoteDir over scp (with your own SSH key) and runs \`docker compose pull\`
-and \`up -d\` there. On a trial it runs them in deploy/. The hub version is the
-workspace's pin, which only \`agentmesh upgrade\` moves. Safe to re-run.`,
+and \`up -d --force-recreate\` there, so NATS, the hub and the bridge load what changed.
+On a trial it runs them in deploy/. The hub version is the workspace's pin, which only
+\`agentmesh upgrade\` moves. Safe to re-run.`,
   async run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -49248,8 +49250,8 @@ function renderClaudeSettings() {
 
 // ../../apps/cli/src/setup/render/mesh-yaml.ts
 var import_yaml3 = __toESM(require_dist(), 1);
-var HEADER = `# Written by \`agentmesh setup render\` from setup-answers.json. It is yours now: edit it,
-# check it with \`agentmesh validate\`, and push it with \`agentmesh setup deploy\`.
+var HEADER = `# Written by \`agentmesh setup render\` from setup-answers.json. It is yours now: edit it
+# and push it with \`agentmesh setup deploy\`, which checks it first.
 # Every option is described in docs/configuration.md.
 `;
 var fromEnv = (name) => `\${${name}:-}`;
@@ -49393,7 +49395,7 @@ This folder was written by \`agentmesh setup\` and holds the team's hub secrets.
 - Never ask the user to paste the Discord bot token, an invite code or any key into the chat; secrets go into files the user edits.
 - Never open, read, \`cat\`, \`grep\`, print or search \`deploy/.env\` or anything in \`deploy/secrets/\`, and never run \`docker compose config\` (it prints \`.env\` values). If you need a non-secret value from \`.env\`, ask the user.
 - Inspect the setup with the \`agentmesh\` CLI: \`setup status --dir .\` and \`doctor --dir .\`.
-- To change the team's config, edit the files in \`config/\`, run \`agentmesh validate --config config\`, then \`agentmesh setup deploy --dir .\`.
+- To change the team's config, edit the files in \`config/\`, then run \`agentmesh setup deploy --dir .\`. It checks the config with the real \`.env\` values before it copies anything, then restarts the hub with it. Don't run \`agentmesh validate\` here: it cannot read \`.env\`, so it always fails.
 - Agents never run \`/mesh\` admin commands. Print the command and let the user run it in Discord.
 `;
 }

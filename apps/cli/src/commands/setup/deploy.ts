@@ -11,8 +11,9 @@ export const setupDeployCommand: Command = {
 Checks the config with the workspace's real settings, then on a server copies config/,
 deploy/docker-compose.yml, deploy/.env, deploy/nats/nats.conf and deploy/secrets/*.nk
 to hosting.remoteDir over scp (with your own SSH key) and runs \`docker compose pull\`
-and \`up -d\` there. On a trial it runs them in deploy/. The hub version is the
-workspace's pin, which only \`agentmesh upgrade\` moves. Safe to re-run.`,
+and \`up -d --force-recreate\` there, so NATS, the hub and the bridge load what changed.
+On a trial it runs them in deploy/. The hub version is the workspace's pin, which only
+\`agentmesh upgrade\` moves. Safe to re-run.`,
   async run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,

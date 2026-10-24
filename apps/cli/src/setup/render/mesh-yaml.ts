@@ -3,8 +3,8 @@ import { stringify } from 'yaml';
 import { adminRoles, agentIdOf, type SetupAnswers } from '../answers';
 import { NATS_PORT } from '../defaults';
 
-const HEADER = `# Written by \`agentmesh setup render\` from setup-answers.json. It is yours now: edit it,
-# check it with \`agentmesh validate\`, and push it with \`agentmesh setup deploy\`.
+const HEADER = `# Written by \`agentmesh setup render\` from setup-answers.json. It is yours now: edit it
+# and push it with \`agentmesh setup deploy\`, which checks it first.
 # Every option is described in docs/configuration.md.
 `;
 

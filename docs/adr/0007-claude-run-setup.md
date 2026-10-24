@@ -77,9 +77,9 @@ Opzami's own deploy went this way, and the Discord bot token ended up pasted int
 - **The workspace is the source of truth.**
   - The answers file feeds only the first render and the invite lines. Teammates appear only in
     those lines, never in `mesh.yaml`.
-  - After the first render the admin changes the files in `config/`, runs `validate`, then
-    `setup deploy`. Render never replaces a file that differs without `--force`, never replaces
-    `.env` (it holds the token) and never overwrites a seed.
+  - After the first render the admin changes the files in `config/`, then runs `setup deploy`,
+    which checks the config and restarts the stack. Render never replaces a file that differs
+    without `--force`, never replaces `.env` (it holds the token) and never overwrites a seed.
   - The answers and the files can drift apart after a hand edit. That is accepted: the files win.
   - The workspace holds the hub's seeds, so a stolen laptop means a stolen hub identity
     ([security.md](../security.md#setup-and-the-admin-workspace)).
@@ -124,6 +124,15 @@ change behaviour:
   works but the bot has no access there; resetting it would break the running bridge.
 - **`setup deploy` checks the seeds before copying (R15).** A missing `discord-bridge.nk` would
   otherwise make Docker create a root-owned folder in its place on the server.
+- **Every deploy recreates the containers.** The design's deploy ends in `up -d` (§5.5), which
+  keeps a container whose image and compose settings did not change. NATS, the hub and the bridge
+  read `config/`, `nats.conf` and the seeds only at start, so after a change to those alone the
+  old config and keys would keep running. Deploy runs `up -d --force-recreate` instead, on a
+  server and on a trial; agents reconnect within seconds.
+- **No separate `validate` step (§6).** `agentmesh validate` reads only the shell's environment,
+  and the rendered `mesh.yaml` takes the Discord values from `deploy/.env`, so in a workspace it
+  always fails. `setup deploy` already checks the config with the real `.env` before it copies
+  anything, so the workspace `CLAUDE.md` and the `mesh.yaml` header say edit, then deploy.
 - **One version includes `tests/package.json` (R17).**
 - **`doctor`'s TLS probe** connects with `rejectUnauthorized: false` only so it can report Node's
   reason; a certificate that fails verification fails the check, and nothing is sent over that
