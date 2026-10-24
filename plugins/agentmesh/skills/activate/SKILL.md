@@ -14,6 +14,7 @@ Turn this session on for the mesh with the AgentMesh `activate` tool.
    "checkout redesign in opzami/web". Teammates see it when they pick a session.
 3. If the first call fails because the hub could not reach this session, or no message arrives
    within a few seconds, tell the user what the tool said (the NATS permissions or the channel
-   flag).
+   flag). In Claude Desktop the flag cannot be passed, so the message never arrives: the session
+   stays pull-only and reads its messages with `inbox`.
 
 Later, whenever this session's focus changes, call `describe_session` with a new line.
