@@ -83,4 +83,9 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
 }
 
 const isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
-if (isEntry) runCli(process.argv.slice(2), processContext()).then((code) => process.exit(code));
+// Not process.exit: right after a fetch it aborts Node 24 on Windows (exit 127), even on success.
+if (isEntry) {
+  runCli(process.argv.slice(2), processContext()).then((code) => {
+    process.exitCode = code;
+  });
+}
