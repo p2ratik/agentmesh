@@ -138,3 +138,28 @@ Default channels: `council` (mesh-council), `tasks` (mesh-tasks), `reviews` (mes
 `planning` (mesh-planning, **forum**), `escalations` (mesh-escalations), `events` (mesh-events),
 `alerts` (mesh-alerts). `council`, `tasks`, `planning`, `escalations` and `events` are required;
 `reviews` falls back to `tasks`, `alerts` and unknown purposes to `events`.
+
+## `deploy/.env`
+
+Docker Compose reads `deploy/.env` next to the compose file. It holds the secrets `mesh.yaml`
+references and the compose settings. Never commit it or paste its values into a chat.
+- `/agentmesh:setup` writes it once (mode 600) with a comment above every line, and never replaces
+  it: a later `setup render` only names the settings that differ from the answers, for you to edit
+  by hand.
+- A deploy set up by hand starts from `deploy/.env.example`.
+- Changes to the binds or `NATS_PUBLIC_HOST` need recreated containers
+  (`docker compose --profile discord up -d --force-recreate`); `restart` does not apply them.
+
+| Key | Written by setup as | Meaning |
+| --- | --- | --- |
+| `DISCORD_BOT_TOKEN` | empty | The bot token. The admin pastes it after the `=` in their own editor; the CLI reads it, Claude never does. |
+| `DISCORD_APP_ID` | filled by `setup discord` | The bot's application id. |
+| `DISCORD_GUILD_ID` | filled by `setup discord` | The Discord server the mesh uses (digits). |
+| `AGENTMESH_IMAGE_REGISTRY` | `ghcr.io/p2ratik`, or `setup render --registry` | Where the setup compose file pulls `agentmesh-hub` and `agentmesh-discord-bridge` from. The repo's compose file builds instead and ignores it. |
+| `AGENTMESH_VERSION` | the plugin's version | The image tag the hub and bridge run: the workspace's pin. Only `agentmesh upgrade` changes it, so a plugin update never upgrades the hub. Setup compose only. |
+| `AGENTMESH_CONFIG_DIR` | `../config` | The mesh config directory, relative to `deploy/`, mounted read-only at `/config`. |
+| `NATS_BIND` | `0.0.0.0` on a server, `127.0.0.1` on a trial | Where compose publishes NATS's port 4222. |
+| `NATS_PUBLIC_HOST` | the server's DNS name; empty on a trial | The TLS certificate's name. Inside compose the hub and bridge reach NATS by it (a network alias), so hostname verification passes. |
+| `HUB_HTTP_BIND` | `127.0.0.1` | Where compose publishes the hub's ingest endpoint (8787). Keep it private. |
+| `AGENTMESH_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`, for the hub and the bridge. |
+| `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |

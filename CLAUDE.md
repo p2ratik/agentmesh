@@ -115,14 +115,20 @@ file is gitignored and is never committed.
     `notifications/claude/channel` for the messages the hub delivers to its session (coalesced,
     de-duplicated, acked only after the push). A session is inactive until `/agentmesh:activate`.
     It exposes tools such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
-  - Bundled into `dist/server.js`, which is committed so marketplace installs need no build.
+  - Bundled into `dist/server.js` (the MCP server) and `dist/cli.js` (the `agentmesh` CLI), both
+    committed so marketplace installs need no build.
+  - `/agentmesh:setup` (`skills/setup`) has Claude interview the admin and run the bundled CLI's
+    `setup` steps, from "plugin installed" to a live mesh (ADR 0007).
 - **Discord bridge** (`apps/discord-bridge`):
   - Pure renderers turn feed events into `PostIntent`s; an executor performs them with
     discord.js.
   - Webhooks give each agent its own name and avatar. Slash commands `/plan /task /ask /mesh`.
   - Human replies in mirrored threads are relayed to agents as `from_kind="human"`.
-- **CLI** (`apps/cli`, run as `pnpm mesh …`): `init`, `validate`, `keys add|list`, `nats-config
-  [--tls|--dev]`, `agent-setup`.
+- **CLI** (`apps/cli`, run as `pnpm mesh …`, or `node <plugin dir>/dist/cli.js …` from the
+  plugin): `init`, `validate`, `keys add|list`, `nats-config [--tls|--dev]`, `agent-setup`, and
+  for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`.
+  The setup steps work on a workspace folder (`--dir`), the source of truth after the first
+  render; servers pull the hub and bridge images that CI publishes to GHCR.
 
 ### Repository layout
 
@@ -133,8 +139,9 @@ packages/bus        NATS connect/credentials, JetStream topology, consumer, RPC 
 packages/common     errors, ids, clock, logger, retry, paths
 apps/hub            hub service (src/modules/<module>/{repo,service,handlers,index}.ts, db, rpc, runtime)
 apps/discord-bridge render/ (pure), feed/, discord/, commands/, inbound/
-apps/cli            commands/, render/, lib/
-plugins/agentmesh   Claude Code plugin: src/{inbox,tools}/, skills/mesh-collaboration, dist/server.js
+apps/cli            commands/ (incl. setup/), render/, lib/, setup/ (answers, renderers, checks, deploy)
+plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join}/, skills/{mesh-collaboration,setup},
+                    dist/server.js (MCP server), dist/cli.js (the bundled CLI)
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
 deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup}.sh
 docs/               getting-started, deploy, configuration, workflows, planning, discord,
@@ -179,42 +186,51 @@ pnpm install
 pnpm check              # typecheck + lint + file-size + unit tests (what CI runs)
 pnpm test:integration   # needs nats-server on PATH; CI downloads 2.15.1
 pnpm build              # hub, bridge, cli, plugin bundles
-pnpm --filter agentmesh build   # rebuild plugins/agentmesh/dist/server.js (commit it)
+pnpm --filter @agentmesh/plugin build   # rebuild plugins/agentmesh/dist/{server,cli}.js (commit both)
 pnpm mesh validate --config config
 pnpm mesh keys add <id> --config config --secrets deploy/secrets
 pnpm mesh nats-config --config config --tls --out deploy/nats/nats.conf
 pnpm mesh agent-setup <agent-id> --config config [--write]
 node plugins/agentmesh/scripts/smoke.mjs <nats-url>   # AGENTMESH_AGENT_ID / AGENTMESH_NKEY_SEED from env
+node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plugin ships; also doctor, upgrade
 ```
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-10-20)
+## Status (as of 2026-10-24)
 
-**Built (v1):**
+**Built (v1, release 0.4.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
-- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take` and an unenrolled mode.
+- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take|setup`, and an unenrolled
+  mode with `join` and `connect`.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
   commands, buttons, echo guard, `/mesh invite|uninvite|remove`.
-- **CLI.**
+- **CLI**, including the setup steps, `doctor` and `upgrade`, bundled into the plugin.
+- **`/agentmesh:setup`** (ADR 0007): built and tested. Manual acceptance on a live server (and the
+  trial on Windows) is not done yet.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
-  renders the account-mode config.
-- **Docs, ADRs 0001–0006, CI.**
+  renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
+  published images.
+- **Docs, ADRs 0001–0007, CI**, and a release workflow that publishes the hub and bridge images
+  to GHCR and tags each version bump on `main`.
 
 **Tested and passing:**
-- **Unit tests (about 215):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 620):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
-  autocomplete gating.
+  autocomplete gating, every setup step with fakes for ssh, Docker and Discord, and a secret-leak
+  test over the whole setup flow.
 - **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
   - nkey auth rendered by the CLI.
   - Impersonation is refused.
   - Offline queueing and delivery.
   - The auth callout: a forged signature is refused and an invite works once.
   - Onboarding end to end: invite, join, ask, remove, kick, refuse.
+  - Setup end to end: the bundled CLI renders a trial workspace, the hub starts from it, and an
+    unenrolled plugin connects as the admin's agent with `connect`.
 - **Live deployment:**
   - Hub image built on the VM; NATS requires TLS.
   - Laptop → TLS → hub RPC works (~100–300 ms).
@@ -226,6 +242,8 @@ Run `pnpm check` before calling anything done.
     the unread nudge at session start) and hold agent ↔ agent threads, tasks and reviews.
 
 **Not yet verified:**
+- `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9), and pulling the
+  published images (the repo and both GHCR packages must be public first).
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).
@@ -259,11 +277,16 @@ Target users are self-hosted startup teams of 5–15 people who already know age
 - **Config:** `mesh.yaml` keeps policy, workflows, rules and areas, plus any people listed there.
   The hub's registry holds invited members.
 
-**Phase 2, remaining:**
-- **Portable deploy:** generic compose with automatic TLS. Docker Compose is the runtime, and the
-  cloud-specific scripts become optional.
-- **`npx agentmesh up`:** a thin wizard over that compose. It asks for the domain, team name and
-  Discord bot token, writes `.env` and `mesh.yaml`, and starts the stack.
+**Phase 2, setup: built** (ADR 0007).
+- **`/agentmesh:setup`** is the setup wizard; it replaces the planned `npx agentmesh up`. Claude
+  interviews the admin; the bundled CLI renders a workspace (config, keys, `.env`, compose,
+  `nats.conf`), prepares any Ubuntu server over SSH with Let's Encrypt TLS, deploys the published
+  images, enrolls the admin's agent, proves it with `doctor`, and prints the invite lines.
+- **Portable deploy:** the rendered compose pulls versioned images; the cloud-specific scripts are
+  only a reference.
+
+**Remaining:**
+- **Manual acceptance** of setup (design §9), after the repo and the GHCR packages go public.
 - **Distribution:** publish to the official Claude Code plugin directory once open-sourced.
 - **Later, Slack:** a second executor and command adapter behind the bridge's `PostIntent`
   renderers.
@@ -276,9 +299,11 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   bridge command → docs → tests.
 - New config option: schema in `packages/config` with a default → validation → example in
   `config/examples` → `docs/configuration.md`.
-- After changing anything the plugin bundles, rebuild `plugins/agentmesh/dist/server.js` and
-  commit it. Bump the version in `plugin.json`, `package.json` and `src/server.ts` (`VERSION`):
-  Claude Code caches plugins by version, so `claude plugin update` ignores same-version changes.
+- After changing anything the plugin bundles, rebuild `plugins/agentmesh/dist/` and commit it.
+  Bump the version: one VERSION in `packages/common/src/version.ts` plus every package.json and
+  plugin.json; a bump merged to main is a release. Claude Code caches plugins by version, so
+  `claude plugin update` ignores same-version changes, and the release workflow publishes the hub
+  and bridge images for that version.
 - Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with
   the channel flag, and the handshake doesn't reveal it. That is why a session receives nothing
   until `/agentmesh:activate` proves a push arrives, and why the plugin acks only after pushing.

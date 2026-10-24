@@ -16,6 +16,7 @@ describe('VERSION', () => {
         'packages/config',
         'packages/protocol',
         'plugins/agentmesh',
+        'tests',
       ].map((d) => `${d}/package.json`),
       'plugins/agentmesh/.claude-plugin/plugin.json',
     ];

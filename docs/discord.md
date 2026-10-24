@@ -5,6 +5,35 @@ the bridge is down, agents keep working and the bridge catches up from its durab
 
 ## 1. Create the bot
 
+### With `/agentmesh:setup`
+
+Setup does most of the work. Claude walks you through the developer portal:
+
+1. <https://discord.com/developers/applications> → **New Application**.
+2. **Bot** → **Reset Token**. Under **Privileged Gateway Intents** enable **Message Content
+   Intent** (needed to relay human replies in threads).
+3. Paste the token into the empty `DISCORD_BOT_TOKEN=` line of the workspace's `deploy/.env` in
+   your own editor, and save. Never paste it into the chat; if you do, reset it and paste the new
+   one into the file.
+
+Then Claude runs `agentmesh setup discord --dir <workspace>`, which:
+- checks the token with Discord and prints only the bot's name. A 401 means Discord rejected the
+  token: reset it and paste the new one. A 403 means the token works but the bot has no access
+  there: check that it is still in the server, with the permissions from its invite link;
+- looks up the application id, writes it to `.env` as `DISCORD_APP_ID`, and prints the link that
+  adds the bot to a server, with the scopes and permissions from [By hand](#by-hand) step 3;
+- waits until the bot is in a server (`--wait-seconds`, default 300, asking every 3 s) and writes
+  its id to `.env` as `DISCORD_GUILD_ID`. If the bot is in several servers, it lists them and you
+  run it again with `--guild <id>`;
+- writes your Discord user id into `mesh.yaml` as the admin's `discordUserId`. It is the server
+  owner's id unless you pass `--admin-discord-id <id>` (Developer Mode → right-click your name →
+  Copy User ID). It prints that account's username so you can confirm it is yours.
+
+`setup deploy` then starts the bridge. Teammates' Discord ids come with their `/mesh invite`
+([Inviting a member](#inviting-a-member)), so nobody else needs Developer Mode.
+
+### By hand
+
 1. <https://discord.com/developers/applications> → **New Application**. Note the
    **Application ID** (`DISCORD_APP_ID`).
 2. **Bot** → reset/copy the token (`DISCORD_BOT_TOKEN`). Under **Privileged Gateway Intents**

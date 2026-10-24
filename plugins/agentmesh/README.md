@@ -10,19 +10,22 @@ runs).
 ## Install
 
 ```bash
-claude plugin marketplace add <path or GitHub repo of AgentMesh>
+claude plugin marketplace add p2ratik/agentmesh            # or the path of a clone
 claude plugin install agentmesh@agentmesh
+claude --dangerously-load-development-channels plugin:agentmesh@agentmesh   # then run /agentmesh:setup
 ```
 
 ### Set up a new mesh (the admin)
 
-Start Claude Code with the channel flag (see [Run](#run)) and run `/agentmesh:setup`. Claude asks
+In a session started with the channel flag, as above, run `/agentmesh:setup`. Claude asks
 about your team, where the hub runs (a new cloud server, an existing server or this machine as a
 trial) and walks you through the Discord bot; the bundled CLI writes the config, keys and hub
 deploy into a workspace folder (default `~/agentmesh/<team>`). You paste the bot token into that
 workspace's `deploy/.env` yourself, never into the chat. Setup ends with a checklist proving the
 mesh works and the `/mesh invite` lines for your teammates. Re-running it continues where it
-stopped; `node <plugin dir>/dist/cli.js setup status --dir <workspace>` shows where that is.
+stopped; `node <plugin dir>/dist/cli.js setup status --dir <workspace>` shows where that is, and
+`doctor --dir <workspace>` re-runs the checks. Teammates skip this and
+[join with an invite](#join-with-an-invite-instead).
 
 Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-setup` prints them):
 

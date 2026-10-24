@@ -1,6 +1,7 @@
 # `/agentmesh:setup` — design
 
-Date: 2026-10-23 · Status: draft for Pratik's review. Agreed with Pratik in conversation.
+Date: 2026-10-23 · Status: built; see [ADR 0007](../adr/0007-claude-run-setup.md) for the
+implementation rulings. Agreed with Pratik in conversation.
 - An independent builder check raised four questions. Their answers are in §5.1 (source of truth),
   §5.4 (versions and images) and §4 step 1 (avatars).
 - Choices marked "my call" are mine; he can overturn any of them.
@@ -194,8 +195,9 @@ anything leaves this machine.
   may choose another) holds `config/`, `deploy/` (compose file, `.env`, `nats.conf`, `secrets/`)
   and the setup state.
 - **It is the source of truth.** Later changes are made here and pushed with `deploy`.
-- **Version control.** It gets a `.gitignore` that excludes `.env`, `secrets/` and `nats.conf`,
-  so the admin can keep the config in a private repo.
+- **Version control.** It gets a `.gitignore` that excludes `.env`, `deploy/.env.*` (the temp
+  file of an atomic `.env` write), `secrets/` and `nats.conf`, so the admin can keep the config in
+  a private repo.
 - **Defence in depth.** It also gets a `.claude/settings.json` that denies reading `.env` and
   `secrets/**`, so Claude does not open them by accident.
 
