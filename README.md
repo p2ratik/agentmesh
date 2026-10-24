@@ -49,6 +49,8 @@ claude plugin install agentmesh@agentmesh
 claude --dangerously-load-development-channels plugin:agentmesh@agentmesh   # then run /agentmesh:setup
 ```
 
+When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
+
 Claude asks about your team and where the hub runs (a new cloud server, an existing server, or
 this machine as a trial), and walks you through creating the Discord bot. The CLI bundled in the
 plugin writes the config and keys, prepares the server and starts the hub from published images.

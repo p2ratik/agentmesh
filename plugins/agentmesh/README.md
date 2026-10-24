@@ -15,7 +15,15 @@ claude plugin install agentmesh@agentmesh
 claude --dangerously-load-development-channels plugin:agentmesh@agentmesh   # then run /agentmesh:setup
 ```
 
+Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
+
+```json
+{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
+```
+
 ### Set up a new mesh (the admin)
+
+When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
 
 In a session started with the channel flag, as above, run `/agentmesh:setup`. Claude asks
 about your team, where the hub runs (a new cloud server, an existing server or this machine as a
@@ -26,21 +34,6 @@ mesh works and the `/mesh invite` lines for your teammates. Re-running it contin
 stopped; `node <plugin dir>/dist/cli.js setup status --dir <workspace>` shows where that is, and
 `doctor --dir <workspace>` re-runs the checks. Teammates skip this and
 [join with an invite](#join-with-an-invite-instead).
-
-Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-setup` prints them):
-
-| Option | Example |
-| --- | --- |
-| `agent_id` | `alice-agent` |
-| `nats_url` | `nats://hub.your-tailnet.ts.net:4222` |
-| `nkey_seed` | path to your `.nk` file (stored in secure storage) |
-| `prefix` | `mesh` (empty means `mesh`) |
-
-Empty options fall back to `~/.agentmesh/agent.json`, if that file is for this agent: the
-`agent_id` and `nats_url` options must be empty or match it. Otherwise the file is ignored,
-because one file serves every Claude account on the laptop. When the file applies, its prefix
-wins over the `prefix` option, because `join` and `agent-setup --write` copy it from the hub.
-When the two differ, the plugin logs a warning naming both.
 
 ### Join with an invite instead
 
@@ -60,11 +53,22 @@ node <plugin dir>/dist/server.js join --file ~/.agentmesh/invite.txt
 Invites must use a `tls://` hub URL (plaintext only for localhost), and the plugin refuses a hub
 that does not actually offer TLS.
 
-Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
+### Configure by hand
 
-```json
-{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
-```
+Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-setup` prints them):
+
+| Option | Example |
+| --- | --- |
+| `agent_id` | `alice-agent` |
+| `nats_url` | `nats://hub.your-tailnet.ts.net:4222` |
+| `nkey_seed` | path to your `.nk` file (stored in secure storage) |
+| `prefix` | `mesh` (empty means `mesh`) |
+
+Empty options fall back to `~/.agentmesh/agent.json`, if that file is for this agent: the
+`agent_id` and `nats_url` options must be empty or match it. Otherwise the file is ignored,
+because one file serves every Claude account on the laptop. When the file applies, its prefix
+wins over the `prefix` option, because `join` and `agent-setup --write` copy it from the hub.
+When the two differ, the plugin logs a warning naming both.
 
 ## Run
 

@@ -10,8 +10,11 @@ the bridge is down, agents keep working and the bridge catches up from its durab
 Setup does most of the work. Claude walks you through the developer portal:
 
 1. <https://discord.com/developers/applications> → **New Application**.
-2. **Bot** → **Reset Token**. Under **Privileged Gateway Intents** enable **Message Content
-   Intent** (needed to relay human replies in threads).
+2. **Bot** → **Reset Token**. Under **Bot**, turn off **Public Bot**, so that nobody else can add
+   the bot to their own server. If Discord refuses because of the install link, set
+   **Installation** → **Install Link** to **None** first; setup prints its own link. Under
+   **Privileged Gateway Intents** enable **Message Content Intent** (needed to relay human
+   replies in threads).
 3. Paste the token into the empty `DISCORD_BOT_TOKEN=` line of the workspace's `deploy/.env` in
    your own editor, and save. Never paste it into the chat; if you do, reset it and paste the new
    one into the file.
@@ -36,8 +39,9 @@ Then Claude runs `agentmesh setup discord --dir <workspace>`, which:
 
 1. <https://discord.com/developers/applications> → **New Application**. Note the
    **Application ID** (`DISCORD_APP_ID`).
-2. **Bot** → reset/copy the token (`DISCORD_BOT_TOKEN`). Under **Privileged Gateway Intents**
-   enable **Message Content Intent** (needed to relay human replies in threads).
+2. **Bot** → reset/copy the token (`DISCORD_BOT_TOKEN`). Turn off **Public Bot**. Under
+   **Privileged Gateway Intents** enable **Message Content Intent** (needed to relay human
+   replies in threads).
 3. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`. Or use this URL with your
    application id — permission integer `326954470480` = View Channels, Send Messages, Send Messages
    in Threads, Create Public Threads, Manage Threads, Manage Channels, Manage Webhooks, Read

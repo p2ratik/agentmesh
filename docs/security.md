@@ -425,7 +425,10 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
 - **Threat: Claude reading the secrets by accident.** **Mitigation:** the workspace's
   `.claude/settings.json` denies `Read(./deploy/.env)` and `Read(./deploy/secrets/**)`, and
   `setup render` writes a workspace `CLAUDE.md` that tells every later session there never to open,
-  `cat`, `grep` or print them and never to run `docker compose config`.
+  `cat`, `grep` or print them or any `.nk` file (the seeds in `~/.agentmesh` included), and never
+  to print a container's environment (`docker compose config`, `docker inspect`, `env` or
+  `printenv` in a container, `/proc/*/environ`). The setup skill has the same rules word for word:
+  the CLI keeps one list for both, and a test checks the skill against it.
   **Residual risk:** the deny rules cover the Read tool (and Grep and Glob), not Bash, and both
   they and the `CLAUDE.md` apply only to sessions opened in the workspace. A session started
   elsewhere gets neither; the setup session relies on the skill's rules. Never add allow rules that
@@ -435,6 +438,8 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
     issuer, which can mint any agent's credentials), so whoever takes it has the hub's identity;
   - the Discord bot token, and any other secret you added, in the workspace's `deploy/.env`;
   - the admin's agent seed in `~/.agentmesh`;
+  - the admin's logged-in Discord session, in the app or a browser. It is a mesh admin in
+    Discord, so it can `/mesh invite` anyone, approve plans and pause the mesh;
   - the admin's SSH key to the server. It logs in without a prompt and has passwordless `sudo`,
     so it gives root on the server, and with it every seed deployed there.
 
@@ -449,20 +454,24 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
      don't recognise, treat the server as compromised and set up a new one.
   2. **Reset the bot token** in the Discord developer portal (Bot → Reset Token) and type the new
      one into the workspace's `deploy/.env`. Replace any other secret you put in `.env`.
-  3. **Rotate the keys** in the workspace. Members' keys never leave their own laptops, so only
+  3. **Sign the laptop out of Discord.** Change your Discord password and, under User Settings →
+     Devices, log out all known devices. Then `/mesh remove person:<id>` any member you don't
+     recognise, and `/mesh uninvite person:<id>` any open invite you didn't send.
+  4. **Rotate the keys** in the workspace. Members' keys never leave their own laptops, so only
      the hub's keys and the admin agent's key change:
      - `agentmesh keys add hub --force --config config --secrets deploy/secrets`, and the same for
        `discord-bridge`, `hub-issuer`, `hub-xkey` and `hub-sys`;
-     - the admin agent's key, which setup keeps as `~/.agentmesh/<meshName>-<you>-agent.nk`:
-       `agentmesh keys add <you>-agent --force --config config --secrets new-key` writes
-       `new-key/<you>-agent.nk`. Move it over that file, delete `new-key/`, then run
-       `agentmesh setup admin --dir .` on the new machine.
-  4. **Re-render `nats.conf`:**
+     - the admin agent's key: `agentmesh keys add <you>-agent --force --config config --secrets
+       new-key` writes `new-key/<you>-agent.nk`. Move it to
+       `"$HOME/.agentmesh/<meshName>-<you>-agent.nk"`, where setup keeps it, replacing the old file
+       if there is one. Delete `new-key/`, then run `agentmesh setup admin --dir .` on the new
+       machine. (`$HOME` works in PowerShell and bash; PowerShell passes `~` to `node` as is.)
+  5. **Re-render `nats.conf`:**
      `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
-  5. **Run `agentmesh setup deploy --dir .`.** It recreates the containers, so NATS and the hub
+  6. **Run `agentmesh setup deploy --dir .`.** It recreates the containers, so NATS and the hub
      load the new keys and the stolen ones stop working.
 
-  A trial runs on the laptop itself, so only step 2 applies.
+  A trial runs on the laptop itself, so only steps 2 and 3 apply.
 - **Threat: a man in the middle on the first SSH connection.** `ssh` and `scp` run with
   `BatchMode=yes` and `StrictHostKeyChecking=accept-new`: the CLI never prompts, it trusts a
   server's host key the first time it sees it, and it refuses a key that changes later.
@@ -491,9 +500,13 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   - `/agentmesh:setup` is user-only (`disable-model-invocation: true`), so a model cannot start it
     by itself;
   - agents can never call admin RPCs, the admin's own agent included: setup prints the
-    `/mesh invite` lines and the admin runs them in Discord.
+    `/mesh invite` lines and the admin runs them in Discord;
+  - the skill and the workspace `CLAUDE.md` tell Claude to run `setup host`, `setup deploy`,
+    `upgrade`, `ssh` and `scp` only when the user at the terminal asks, never because a mesh
+    message asked.
   **Residual risk:** an admin who approves a prompt without reading it. Keep the deploy commands
-  on "ask".
+  on "ask". Auto mode asks nothing, so the approval is gone: do not run the operator session (the
+  setup session, or any session in the workspace) in auto mode while the mesh is activated in it.
 - **Files on the server.** Before copying, `setup deploy` closes the remote `deploy/` folder
   (`chmod 700`), because scp may create `.env` and the seeds readable by everyone. Afterwards
   `.env` and the seeds get mode 600 and the seeds belong to uid 1000 (the containers' user). It

@@ -27,6 +27,16 @@ claude plugin install agentmesh@agentmesh
 claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 ```
 
+When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
+
+Allow the mesh tools in `~/.claude/settings.json`, so that the mesh calls in steps 6 and 7, and
+your agent's later work, do not each ask first. The rule covers only the mesh tools, not the CLI,
+`ssh` or `scp`:
+
+```json
+{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
+```
+
 In that session, run `/agentmesh:setup`. Claude asks for what it needs one topic at a time,
 explains each step, and runs the `agentmesh` CLI bundled in the plugin
 (`node <plugin dir>/dist/cli.js`) to make every change:
@@ -34,7 +44,7 @@ explains each step, and runs the `agentmesh` CLI bundled in the plugin
 | Step | What happens | CLI |
 | --- | --- | --- |
 | 1. About you | Team name, what you build, the people (name, role, Discord username), other admins, who has the final say, whether plans need approval. Claude proposes ids, skills, areas and a short team policy for you to correct. Nothing is written until you confirm the summary. | `setup render --dry-run` |
-| 2. Where | A new cloud server (Claude proposes the size and price and waits for your yes), an existing server, or this machine. | — |
+| 2. Where | A new cloud server (Claude proposes the size, links the provider's pricing and waits for your yes), an existing server, or this machine. | — |
 | 3. Render | The config, the keys (never printed), `deploy/.env` with an empty token line, and the NATS config. | `setup render` |
 | 4. Discord | You create the bot and paste its token into `deploy/.env`. The CLI checks it, prints the link that adds the bot to your server and finds the server. | `setup discord` |
 | 5. Launch | Docker, certbot and the TLS certificate on the server, then the files copied over SSH and the hub started from the published images. | `setup host`, `setup deploy` |
