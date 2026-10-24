@@ -4,5 +4,12 @@
 deploy/.env*
 deploy/secrets
 deploy/nats/nats.conf
+# The NATS Let's Encrypt private key on a hand-built VM.
+deploy/nats/tls
 config/
 **/*.nk
+**/*.creds
+**/.env
+**/.env.*
+# The hub's state from a local run.
+data/

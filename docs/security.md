@@ -530,5 +530,7 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   image under the same tag. Teams that need more can build the images themselves, push them to
   their own registry and render with `--registry`. The release job checks out with
   `persist-credentials: false` and pins its actions to commit SHAs, and `.dockerignore` keeps
-  `.git`, `.env` files and seeds out of the build, so build-time code never sees the job token.
+  `.git`, `.env` and `.creds` files, seeds, the real config and the NATS TLS key out of the build,
+  so build-time code never sees the job token, and an image built by hand on a VM caches no
+  secret.
   CI fails a PR or a push to main whose committed `plugins/agentmesh/dist` differs from a build.
