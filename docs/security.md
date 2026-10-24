@@ -528,4 +528,7 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
 - **Published images.** A server pulls `<registry>/agentmesh-hub:<version>` and the bridge image
   by tag from GHCR. **Residual risk:** whoever controls the registry namespace can push a different
   image under the same tag. Teams that need more can build the images themselves, push them to
-  their own registry and render with `--registry`.
+  their own registry and render with `--registry`. The release job checks out with
+  `persist-credentials: false` and pins its actions to commit SHAs, and `.dockerignore` keeps
+  `.git`, `.env` files and seeds out of the build, so build-time code never sees the job token.
+  CI fails a PR or a push to main whose committed `plugins/agentmesh/dist` differs from a build.

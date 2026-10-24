@@ -1,0 +1,8 @@
+# The image builds only the hub and the bridge; none of this belongs in the build context.
+.git
+**/node_modules
+deploy/.env*
+deploy/secrets
+deploy/nats/nats.conf
+config/
+**/*.nk

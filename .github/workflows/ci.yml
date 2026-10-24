@@ -37,6 +37,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # The plugin bundles are what marketplace installs run, so a PR (or main) must carry exactly
+      # what its source builds to. agent/* pushes may still be mid-branch with a stale bundle.
+      - name: Check the committed plugin bundles match the source
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        run: git diff --exit-code -- plugins/agentmesh/dist
       - name: Download nats-server for the authenticated test
         run: |
           curl -sSL https://github.com/nats-io/nats-server/releases/download/v2.15.1/nats-server-v2.15.1-linux-amd64.tar.gz | tar xz
