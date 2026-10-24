@@ -15,24 +15,16 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
   const add = (path: string, message: string) => issues.push({ path, message });
 
   const humans = new Set(config.humans.map((h) => h.id));
-  const agents = new Set(config.agents.map((a) => a.id));
-  const services = new Set(config.services.map((s) => s.id));
+  const expectKind = kindCheck(config, add);
 
   checkUniqueIds(config, add);
   config.agents.forEach((a, i) => {
     if (!humans.has(a.owner)) add(`agents[${i}].owner`, `unknown human "${a.owner}"`);
   });
-  // An owner that is no participant at all is pending: an agent that joins by invite.
   config.areas.forEach((area, i) => {
-    for (const owner of area.owners) {
-      if (humans.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a human, not an agent`);
-      if (services.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a service, not an agent`);
-      if (owner === config.hub.serviceId) add(`areas[${i}].owners`, `"${owner}" is the hub`);
-    }
+    for (const owner of area.owners) expectKind(`areas[${i}].owners`, owner, 'agent');
   });
-  config.review.humanReviewers.forEach((id) => {
-    if (!humans.has(id)) add('review.humanReviewers', `unknown human "${id}"`);
-  });
+  for (const id of config.review.humanReviewers) expectKind('review.humanReviewers', id, 'human');
 
   const workflowIds = new Set(config.workflows.map((w) => w.id));
   config.workflows.forEach((w, i) => {
@@ -47,12 +39,10 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
     add('planning.defaultTemplate', `unknown template "${config.planning.defaultTemplate}"`);
   }
   const { facilitator } = config.planning;
-  if (facilitator !== 'initiator' && !agents.has(facilitator)) {
-    add('planning.facilitator', `must be "initiator" or an agent id, got "${facilitator}"`);
-  }
+  if (facilitator !== 'initiator') expectKind('planning.facilitator', facilitator, 'agent');
 
   config.rules.forEach((rule, i) => {
-    checkRule(rule, `rules[${i}]`, config, workflowIds, add);
+    checkRule(rule, `rules[${i}]`, expectKind, workflowIds, add);
   });
   checkDiscord(config, add);
   checkIngest(config, add);
@@ -60,16 +50,50 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
 }
 
 /**
- * Area owners mesh.yaml does not list as agents: agents expected to join by
- * invite. Routing skips them until they do; `agentmesh validate` lists them so
- * a typo stays visible.
+ * People mesh.yaml refers to without listing them (area owners, human reviewers,
+ * the planning facilitator, rule notify targets): people expected to join by
+ * invite. The hub skips them until they do; `agentmesh validate` lists them so a
+ * typo stays visible.
  */
-export function pendingAreaOwners(config: MeshConfig): string[] {
-  const agents = new Set(config.agents.map((a) => a.id));
-  return [...new Set(config.areas.flatMap((a) => a.owners))].filter((id) => !agents.has(id));
+export function pendingInvitees(config: MeshConfig): string[] {
+  const listed = new Set([...config.humans, ...config.agents, ...config.services].map((p) => p.id));
+  listed.add(config.hub.serviceId);
+  const { facilitator } = config.planning;
+  const referenced = [
+    ...config.areas.flatMap((a) => a.owners),
+    ...config.review.humanReviewers,
+    ...(facilitator === 'initiator' ? [] : [facilitator]),
+    ...config.rules.flatMap((r) =>
+      r.actions.flatMap((a) => ('notify' in a && Array.isArray(a.notify.to) ? a.notify.to : [])),
+    ),
+  ];
+  return [...new Set(referenced)].filter((id) => !listed.has(id));
 }
 
 type Add = (path: string, message: string) => void;
+type Kind = 'agent' | 'human' | 'service';
+type ExpectKind = (path: string, id: string, ...wanted: Kind[]) => void;
+
+const named = (kind: Kind): string => (kind === 'agent' ? 'an agent' : `a ${kind}`);
+
+/**
+ * Reports an id that names the wrong kind of participant, or the hub. An id that
+ * is no participant at all is pending, not wrong: someone who joins by invite.
+ */
+function kindCheck(config: MeshConfig, add: Add): ExpectKind {
+  const kinds = new Map<string, Kind>([
+    ...config.humans.map((h) => [h.id, 'human'] as const),
+    ...config.agents.map((a) => [a.id, 'agent'] as const),
+    ...config.services.map((s) => [s.id, 'service'] as const),
+  ]);
+  return (path, id, ...wanted) => {
+    if (id === config.hub.serviceId) return add(path, `"${id}" is the hub`);
+    const kind = kinds.get(id);
+    if (kind && !wanted.includes(kind)) {
+      add(path, `"${id}" is ${named(kind)}, not ${wanted.map(named).join(' or ')}`);
+    }
+  };
+}
 
 function checkUniqueIds(config: MeshConfig, add: Add): void {
   const seen = new Map<string, string>();
@@ -110,7 +134,7 @@ function checkWorkflow(w: WorkflowConfig, path: string, add: Add): void {
 function checkRule(
   rule: RuleConfig,
   path: string,
-  config: MeshConfig,
+  expectKind: ExpectKind,
   workflows: Set<string>,
   add: Add,
 ): void {
@@ -119,13 +143,10 @@ function checkRule(
       add(`${path}.match.where.${field}.matches`, 'invalid regular expression');
     }
   }
-  const participants = new Set([...config.agents, ...config.humans].map((p) => p.id));
   rule.actions.forEach((action, i) => {
     const at = `${path}.actions[${i}]`;
     if ('notify' in action && Array.isArray(action.notify.to)) {
-      for (const id of action.notify.to.filter((id) => !participants.has(id))) {
-        add(`${at}.notify.to`, `unknown participant "${id}"`);
-      }
+      for (const id of action.notify.to) expectKind(`${at}.notify.to`, id, 'agent', 'human');
     }
     const workflow = 'create_task' in action ? action.create_task.workflow : undefined;
     if (workflow && !workflows.has(workflow)) {

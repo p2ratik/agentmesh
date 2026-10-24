@@ -101,6 +101,25 @@ describe('hub end to end (no NATS)', () => {
     expect(aliceInbox.threads[0]?.unread).toBe(1);
   });
 
+  // Heartbeats are not the only sign of life: a call made as the session counts too.
+  it('keeps a calling session live, and brings an away one back', async () => {
+    const { hub, clock, call } = await start();
+    const { sessionId } = await call<{ sessionId: string }>('alice-agent', 'session.hello', {
+      clientVersion: '0.3.0',
+    });
+    const liveness = () => hub.services.sessions.verify('alice-agent', sessionId).liveness;
+    clock.advance(60_000);
+    await call('alice-agent', 'peers.list');
+    clock.advance(30_000); // 90 s after hello, 30 s after the call
+    await hub.tick();
+    expect(liveness()).toBe('live');
+    clock.advance(80_000);
+    await hub.tick();
+    expect(liveness()).toBe('away');
+    await call('alice-agent', 'peers.list');
+    expect(liveness()).toBe('live');
+  });
+
   it('stops agent-to-agent loops at the configured depth', async () => {
     const { call } = await start({ limits: { maxThreadDepth: 1 } });
     const first = await call<{ threadId: string }>('alice-agent', 'message.send', {

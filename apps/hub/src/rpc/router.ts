@@ -19,8 +19,8 @@ export interface RouterDeps {
   handlers: Partial<RpcHandlerMap>;
   idempotency: IdempotencyStore;
   logger: Logger;
-  /** Called for every authenticated call (used to refresh presence). */
-  onCall?: (caller: Actor) => void;
+  /** Called for every authenticated call with its verified session (refreshes presence). */
+  onCall?: (caller: Actor, session: string | null) => void;
   /** Method definitions; defaults to the protocol's (tests override flags). */
   methods?: Record<RpcMethodName, MethodDef>;
   /** Verifies envelope sessions and records ownership claims. */
@@ -48,7 +48,7 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
     const params = parseParams(def, method, rawParams);
     const session = verifiedSession(deps, caller, method, ctx.session);
 
-    deps.onCall?.(caller);
+    deps.onCall?.(caller, session);
     const call: CallContext = { actor, caller, method, session, notes: ctx.notes ?? [] };
     const run = async () =>
       isClaiming(method)

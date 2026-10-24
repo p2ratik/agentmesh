@@ -273,7 +273,9 @@ export class PlanningServiceImpl implements PlanningService {
     participants: readonly string[],
   ): string {
     const { index, loaded } = this.#ctx;
-    const choice = requested ?? loaded.config.planning.facilitator;
+    const configured = loaded.config.planning.facilitator;
+    // A configured facilitator who has not joined by invite yet: the initiator stands in.
+    const choice = requested ?? (index.kindOf(configured) === 'agent' ? configured : 'initiator');
     if (choice !== 'initiator') {
       if (index.kindOf(choice) !== 'agent')
         throw new MeshError('invalid_request', `"${choice}" is not an agent`);
