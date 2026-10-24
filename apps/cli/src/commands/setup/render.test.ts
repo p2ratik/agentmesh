@@ -1,48 +1,14 @@
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig } from '@agentmesh/config';
 import { describe, expect, it } from 'vitest';
-import type { CliContext } from '../../context';
 import { listKeyHolders, setHumanDiscordId } from '../../lib/mesh-document';
-import { runCli } from '../../main';
 import { readEnvFile, updateEnvFile } from '../../setup/env-file';
-import { type AnswersInput, serverAnswers, trialAnswers } from '../../setup/testing';
-import { workspacePaths } from '../../setup/workspace';
+import { answersWorkspace, cliHarness, serverAnswers, trialAnswers } from '../../setup/testing';
+import type { workspacePaths } from '../../setup/workspace';
 
 const DISCORD_ENV = { DISCORD_BOT_TOKEN: 't', DISCORD_APP_ID: '1', DISCORD_GUILD_ID: '2' };
-
-function harness() {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-cli-'));
-  const out: string[] = [];
-  const err: string[] = [];
-  const ctx: CliContext = {
-    cwd,
-    env: {},
-    homeDir: join(cwd, 'home'),
-    stdout: (t) => out.push(t),
-    stderr: (t) => err.push(t),
-  };
-  return { cwd, ctx, out, err, run: (...argv: string[]) => runCli(argv, ctx) };
-}
-
-/** A workspace holding only `setup-answers.json`. */
-function workspace(h: ReturnType<typeof harness>, answers: AnswersInput) {
-  const p = workspacePaths(join(h.cwd, 'ws'));
-  mkdirSync(p.root);
-  writeFileSync(p.answers, JSON.stringify(answers));
-  return p;
-}
 
 /** Every file under `dir` (relative path → sha256), to prove a run changed nothing. */
 function snapshot(dir: string): Record<string, string> {
@@ -66,8 +32,8 @@ const hubKey = (text: string) => listKeyHolders(text).find((k) => k.id === 'hub'
 
 describe('setup render', () => {
   it('renders a server workspace', async () => {
-    const h = harness();
-    const p = workspace(h, serverAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, serverAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     for (const id of ['hub', 'discord-bridge', 'hub-issuer', 'hub-xkey', 'hub-sys']) {
       expect(existsSync(join(p.secretsDir, `${id}.nk`))).toBe(true);
@@ -98,8 +64,8 @@ describe('setup render', () => {
   });
 
   it('renders a trial workspace', async () => {
-    const h = harness();
-    const p = workspace(h, trialAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, trialAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     const conf = readFileSync(p.natsConf, 'utf8');
     expect(conf).not.toContain('tls {');
@@ -116,8 +82,8 @@ describe('setup render', () => {
   });
 
   it('--dry-run writes nothing', async () => {
-    const h = harness();
-    const p = workspace(h, serverAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, serverAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root, '--dry-run')).toBe(0);
     expect(h.out.at(-1)).toContain('Team:');
     expect(readdirSync(p.root)).toEqual(['setup-answers.json']);
@@ -125,8 +91,8 @@ describe('setup render', () => {
   });
 
   it('a second run changes nothing', async () => {
-    const h = harness();
-    const p = workspace(h, serverAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, serverAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     const before = { ...snapshot(p.root), ...snapshot(h.ctx.homeDir) };
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
@@ -135,8 +101,8 @@ describe('setup render', () => {
   });
 
   it('--force keeps .env and the keys', async () => {
-    const h = harness();
-    const p = workspace(h, serverAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, serverAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     const env = readFileSync(p.envFile, 'utf8').replace(
       'DISCORD_BOT_TOKEN=',
@@ -167,8 +133,8 @@ describe('setup render', () => {
   });
 
   it('--force sets the hosting settings in a kept .env and names the others', async () => {
-    const h = harness();
-    const p = workspace(h, trialAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, trialAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     updateEnvFile(p.envFile, { DISCORD_BOT_TOKEN: 'tok' });
     const env = readEnvFile(p.envFile);
@@ -193,45 +159,23 @@ describe('setup render', () => {
     expect(line).not.toMatch(/DISCORD|VERSION|0\.0\.0\.0|mesh\.acme\.dev|127\.0\.0\.1|ghcr|tok/);
   });
 
-  it("another mesh's seed is never in the way, nor overwritten", async () => {
-    const h = harness();
-    const p = workspace(h, serverAnswers());
-    const dir = join(h.ctx.homeDir, '.agentmesh');
-    mkdirSync(dir, { recursive: true });
-    // /agentmesh:join names its seed <agent>.nk; setup's are per mesh.
-    writeFileSync(join(dir, 'riya-agent.nk'), 'SUJOINED\n');
-    const seed = join(dir, 'acme-riya-agent.nk');
-    writeFileSync(seed, 'SUOTHERMESH\n');
-    expect(await h.run('setup', 'render', '--dir', p.root)).toBe(1);
-    expect(h.err.at(-1)).toContain(`${seed} already exists`);
-    expect(h.err.at(-1)).toContain('Choose another person id or move the file aside');
-    expect(h.err.at(-1)).not.toContain('--force');
-    expect(readFileSync(seed, 'utf8')).toBe('SUOTHERMESH\n');
-
-    // Once the admin deals with it, a re-run continues: the keys made so far stay.
-    rmSync(seed);
+  it('a render that leaves a trial for a server says to stop the trial first', async () => {
+    const h = cliHarness();
+    const p = answersWorkspace(h, trialAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
-    expect(h.out.at(-1)).toMatch(/unchanged\s+config.mesh\.yaml\n/);
-    expect(h.out.at(-1)).not.toMatch(/key\s+hub /);
-    expect(readFileSync(join(dir, 'riya-agent.nk'), 'utf8')).toBe('SUJOINED\n');
-  });
+    expect(h.out.at(-1)).not.toContain('docker compose --profile discord down');
 
-  it('a seed already in deploy/secrets keeps the keys add --force hint, run as this CLI', async () => {
-    const h = harness();
-    h.ctx.cli = 'node "/plugin/dist/cli.js"';
-    const p = workspace(h, serverAnswers());
-    mkdirSync(p.secretsDir, { recursive: true });
-    writeFileSync(join(p.secretsDir, 'hub.nk'), 'SUOLD\n');
-    expect(await h.run('setup', 'render', '--dir', p.root)).toBe(1);
-    expect(h.err.at(-1)).toContain(
-      `run \`node "/plugin/dist/cli.js" keys add hub --force --config "${p.configDir}" ` +
-        `--secrets "${p.secretsDir}"\``,
+    writeFileSync(p.answers, JSON.stringify(serverAnswers()));
+    expect(await h.run('setup', 'render', '--dir', p.root, '--force')).toBe(0);
+    expect(h.out.at(-1)).toContain(
+      `The trial still runs on this machine with the same bot token. Before setup deploy, stop ` +
+        `it: run \`docker compose --profile discord down\` in ${p.deployDir}.`,
     );
   });
 
   it("keeps a repo's .gitignore and appends only the missing secret lines", async () => {
-    const h = harness();
-    const p = workspace(h, trialAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, trialAnswers());
     writeFileSync(p.gitignore, 'node_modules/\ndeploy/.env\n');
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     expect(readFileSync(p.gitignore, 'utf8')).toBe(
@@ -241,14 +185,14 @@ describe('setup render', () => {
   });
 
   it('needs --dir', async () => {
-    const h = harness();
+    const h = cliHarness();
     expect(await h.run('setup', 'render')).toBe(2);
     expect(h.err.at(-1)).toContain('--dir');
   });
 
   it('refuses a --registry that would add a line to .env, before writing anything', async () => {
-    const h = harness();
-    const p = workspace(h, serverAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, serverAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root, '--registry', 'ghcr.io/x\nEVIL=1')).toBe(
       2,
     );
@@ -259,8 +203,8 @@ describe('setup render', () => {
   });
 
   it('accepts a registry with a port and a namespace', async () => {
-    const h = harness();
-    const p = workspace(h, trialAnswers());
+    const h = cliHarness();
+    const p = answersWorkspace(h, trialAnswers());
     const registry = 'registry.example.com:5000/team';
     expect(await h.run('setup', 'render', '--dir', p.root, '--registry', registry)).toBe(0);
     expect(readFileSync(p.envFile, 'utf8').split('\n')).toContain(

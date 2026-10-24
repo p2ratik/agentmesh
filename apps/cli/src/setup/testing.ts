@@ -1,7 +1,13 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DiscordConfig } from '@agentmesh/config';
 import type { z } from 'zod';
+import type { CliContext } from '../context';
+import { runCli } from '../main';
 import type { SetupAnswers } from './answers';
 import { DISCORD_API } from './discord-api';
+import { workspacePaths } from './workspace';
 
 export type AnswersInput = z.input<typeof SetupAnswers>;
 
@@ -86,4 +92,27 @@ export function serverAnswers(): AnswersInput {
 /** The same team as a trial on this machine, with a second test agent. */
 export function trialAnswers(): AnswersInput {
   return { ...serverAnswers(), hosting: { mode: 'trial', testAgent: true } };
+}
+
+/** Runs the CLI in a scratch folder whose `home` is the home directory; output is recorded. */
+export function cliHarness() {
+  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-cli-'));
+  const out: string[] = [];
+  const err: string[] = [];
+  const ctx: CliContext = {
+    cwd,
+    env: {},
+    homeDir: join(cwd, 'home'),
+    stdout: (t) => out.push(t),
+    stderr: (t) => err.push(t),
+  };
+  return { cwd, ctx, out, err, run: (...argv: string[]) => runCli(argv, ctx) };
+}
+
+/** A workspace in the harness's folder holding only `setup-answers.json`. */
+export function answersWorkspace(h: ReturnType<typeof cliHarness>, answers: AnswersInput) {
+  const p = workspacePaths(join(h.cwd, 'ws'));
+  mkdirSync(p.root);
+  writeFileSync(p.answers, JSON.stringify(answers));
+  return p;
 }

@@ -104,10 +104,17 @@ machine.
   the agents are listed in `mesh.yaml` instead of joining by invite.
 - You can add a second test agent for another Claude account on this machine (`CLAUDE_CONFIG_DIR`);
   `setup admin` prints its `agent-setup` command.
-- Teammates cannot join. To go real in the same workspace, change `hosting` in
-  `setup-answers.json` to the server, run `setup render --force` (it sets `NATS_BIND` and
-  `NATS_PUBLIC_HOST` in `deploy/.env` and marks host, deploy and admin as to do), then
-  `setup host`, `setup deploy` and `setup admin --replace`. Trial data is not carried over.
+- Teammates cannot join. To go real in the same workspace:
+  1. Change `hosting` in `setup-answers.json` to the server.
+  2. Run `setup render --force`. It sets `NATS_BIND` and `NATS_PUBLIC_HOST` in `deploy/.env` and
+     marks host, deploy and admin as to do. `--force` re-renders `config/mesh.yaml` and the team
+     policy from `setup-answers.json`, so re-apply any edits made to them during the trial.
+  3. Stop the trial: run `docker compose --profile discord down` in `<workspace>/deploy`. Its
+     containers restart with Docker, and two bridges with the same bot token would both answer
+     every Discord interaction.
+  4. Run `setup host`, `setup deploy` and `setup admin --replace`.
+
+  Trial data is not carried over.
 
 ### After setup
 

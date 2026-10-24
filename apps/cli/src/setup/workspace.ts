@@ -72,6 +72,8 @@ export const SetupState = z.object({
   version: z.literal(1),
   /** The hosting mode of the last render. */
   mode: z.enum(['server', 'trial']).optional(),
+  /** The files (relative to the workspace) that a render which has not finished yet created. */
+  created: z.array(z.string()).optional(),
   done: z.partialRecord(z.enum(STEPS), z.string()),
 });
 export type SetupState = z.infer<typeof SetupState>;
@@ -100,9 +102,16 @@ export function markDone(p: WorkspacePaths, step: StepName, now: Date): void {
   writeFileAtomic(p.state, `${JSON.stringify(state, null, 2)}\n`);
 }
 
+/** Remembers the files render created, for a re-run before it finishes (see setup render). */
+export function markCreated(p: WorkspacePaths, created: string[]): void {
+  const state = readState(p);
+  writeFileAtomic(p.state, `${JSON.stringify({ ...state, created }, null, 2)}\n`);
+}
+
 /**
  * Records a render for `mode`. One for another mode than the last (a trial going real, or
- * back) forgets host, deploy and admin: they prepared, started or joined the old hub.
+ * back) forgets host, deploy and admin: they prepared, started or joined the old hub. It
+ * forgets `created` too: the rendered files are now the source of truth.
  */
 export function markRendered(p: WorkspacePaths, mode: Hosting['mode'], now: Date): void {
   const state = readState(p);

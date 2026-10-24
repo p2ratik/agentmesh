@@ -31,8 +31,10 @@ import { renderWorkspaceClaudeMd } from '../../setup/render/workspace-claude-md'
 import {
   agentSeedFile,
   loadAnswers,
+  markCreated,
   markRendered,
   readState,
+  type SetupState,
   type WorkspacePaths,
   workspaceFrom,
   writeRendered,
@@ -133,6 +135,46 @@ function carryOver(fresh: string, previous: string, targets: KeyTarget[], adminI
   return discordId ? setHumanDiscordId(text, adminId, discordId) : text;
 }
 
+/**
+ * Writes the rendered files and reports each. Until a render finishes nothing is confirmed or
+ * deployed, and nobody edits its files by hand, so a re-run (say, with another person id after
+ * a seed collision) replaces the files that render created itself, as --force would. A file
+ * there before setup is kept. They are recorded before the keys, which may stop the render.
+ */
+function writeFiles(
+  p: WorkspacePaths,
+  state: SetupState,
+  force: boolean,
+  files: Array<[path: string, content: string]>,
+): string[] {
+  const own = new Set(state.done.render ? [] : (state.created ?? []));
+  const created: string[] = [];
+  const report = files.map(([path, content]) => {
+    const file = relative(p.root, path);
+    // A .gitignore already there (the workspace may be a repo) only gains the missing lines.
+    const merged = path === p.gitignore;
+    const outcome = writeRendered(path, content, force || merged || own.has(file));
+    if (outcome === 'created' || own.has(file)) created.push(file);
+    const note = outcome === 'differs' ? ' (kept; --force replaces it)' : '';
+    const label = merged && outcome === 'replaced' ? 'appended' : outcome;
+    return `  ${label.padEnd(10)}${file}${note}`;
+  });
+  markCreated(p, created);
+  return report;
+}
+
+/**
+ * From a trial to a server: the trial's containers restart with Docker, and a second bridge
+ * with the same bot token would answer every Discord interaction too.
+ */
+function stopTrial(p: WorkspacePaths, from: SetupState['mode'], to: SetupState['mode']) {
+  if (from !== 'trial' || to !== 'server') return [];
+  return [
+    'The trial still runs on this machine with the same bot token. Before setup deploy, stop ' +
+      `it: run \`docker compose --profile discord down\` in ${p.deployDir}.`,
+  ];
+}
+
 export const setupRenderCommand: Command = {
   name: 'setup render',
   summary: 'Write the workspace config, keys and NATS config from setup-answers.json',
@@ -141,13 +183,14 @@ export const setupRenderCommand: Command = {
 Renders config/mesh.yaml, the team policy, deploy/docker-compose.yml, deploy/.env,
 .gitignore, .claude/settings.json and CLAUDE.md from <workspace>/setup-answers.json,
 generates the keys and writes deploy/nats/nats.conf. --dry-run prints the summary and
-writes nothing. A rendered file that differs is kept unless --force, and an existing
-.gitignore only gains the secret lines it lacks. deploy/.env and existing keys are
-always kept: --force sets only NATS_BIND and NATS_PUBLIC_HOST in deploy/.env, and the
-other settings in which it differs are named. A render for another hosting mode than
-the last one marks host, deploy and admin as to do again. Your agents' seeds go to
-~/.agentmesh/<meshName>-<agent>.nk. --registry sets the image registry (default
-${DEFAULT_IMAGE_REGISTRY}).`,
+writes nothing. A rendered file that differs is kept unless --force (until a render
+finishes, a re-run also replaces the files it created), and an existing .gitignore only
+gains the secret lines it lacks. deploy/.env and existing keys are always kept: --force
+sets only NATS_BIND and NATS_PUBLIC_HOST in deploy/.env, and the other settings in which
+it differs are named. A render for another hosting mode than the last one marks host,
+deploy and admin as to do again, and from a trial to a server it says to stop the
+trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agent>.nk.
+--registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}).`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: '' });
     if (values.registry !== undefined && !IMAGE_REGISTRY.test(values.registry)) {
@@ -163,7 +206,8 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
       return 0;
     }
     const force = values.force ?? false;
-    const renderedAt = readState(p).done.render;
+    const state = readState(p);
+    const renderedAt = state.done.render;
     if (renderedAt && !force) {
       ctx.stdout(
         `Already rendered on ${renderedAt.slice(0, 10)}. The files in ${p.root} are now the ` +
@@ -178,24 +222,15 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
     const policy = renderPolicy(a);
     for (const warning of policy.warnings) ctx.stderr(`warning: ${warning}`);
     const gitignore = existsSync(p.gitignore) ? readFileSync(p.gitignore, 'utf8') : '';
-    const report = (
-      [
-        [p.meshFile, previous ? carryOver(fresh, previous, targets, a.admin.id) : fresh],
-        [p.policyFile, policy.text],
-        [p.compose, renderCompose()],
-        [p.gitignore, withSecretLines(gitignore)],
-        [p.claudeSettings, renderClaudeSettings()],
-        [p.claudeMd, renderWorkspaceClaudeMd(cliOf(ctx))],
-      ] as const
-    ).map(([path, content]) => {
-      // A .gitignore already there (the workspace may be a repo) only gains the missing lines.
-      const merged = path === p.gitignore;
-      const outcome = writeRendered(path, content, force || merged);
-      const note = outcome === 'differs' ? ' (kept; --force replaces it)' : '';
-      const label = merged && outcome === 'replaced' ? 'appended' : outcome;
-      return `  ${label.padEnd(10)}${relative(p.root, path)}${note}`;
-    });
-    report.push(writeEnv(p, a, force, values.registry));
+    const report = writeFiles(p, state, force, [
+      [p.meshFile, previous ? carryOver(fresh, previous, targets, a.admin.id) : fresh],
+      [p.policyFile, policy.text],
+      [p.compose, renderCompose()],
+      [p.gitignore, withSecretLines(gitignore)],
+      [p.claudeSettings, renderClaudeSettings()],
+      [p.claudeMd, renderWorkspaceClaudeMd(cliOf(ctx))],
+    ]);
+    report.push(writeEnv(p, a, force || !renderedAt, values.registry));
 
     for (const { id, seedFile: file, shared } of targets) {
       if (findKeyHolder(readFileSync(p.meshFile, 'utf8'), id).nkey) continue;
@@ -222,6 +257,7 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
         `Rendered ${p.root}:`,
         ...report,
         '',
+        ...stopTrial(p, state.mode, a.hosting.mode),
         `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=, save it, ` +
           'then run setup discord. Never paste the token into the chat.',
       ].join('\n'),

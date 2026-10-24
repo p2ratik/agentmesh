@@ -183,9 +183,11 @@ Run the dry run again and confirm the Hosting line with the admin.
 
 Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup render --dir "<workspace>"`. It writes the
 config, the keys (never printed), `deploy/.env` with an empty `DISCORD_BOT_TOKEN=` line, and the
-NATS config. A re-run keeps existing files and keys. If it stops on a seed already in
-`~/.agentmesh`, that seed belongs to another mesh: never overwrite it. Change the person id in the
-answers, or ask the admin to move that file aside, as the message says.
+NATS config. A re-run keeps the keys and the token. If it stops on a seed already in
+`~/.agentmesh`, that seed belongs to another mesh: never overwrite it. Either agree on another
+person id with the admin and change it everywhere in the answers (such as `decisions.finalSay`),
+or ask the admin to move that file aside, as the message says. Then run `setup render` again:
+until a render finishes, a re-run replaces the files it wrote, so it needs no `--force`.
 
 ## 4. Discord
 
@@ -268,7 +270,11 @@ says the hosting changed:
    Hosting line with the admin.
 2. Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup render --dir "<workspace>" --force`. It
    keeps the keys and the token, sets the two hosting settings in `deploy/.env`, and marks host,
-   deploy and admin as to do.
-3. Continue with step 5 (`setup host`, then `setup deploy`), then step 6 with
+   deploy and admin as to do. `--force` re-renders `config/mesh.yaml` and the team policy from
+   `setup-answers.json`, so re-apply any edits made to them during the trial.
+3. Stop the trial before `setup deploy`, as render says: run
+   `docker compose --profile discord down` in `<workspace>/deploy`. Its containers restart with
+   Docker, and a second bridge with the same bot token would answer every Discord interaction.
+4. Continue with step 5 (`setup host`, then `setup deploy`), then step 6 with
    `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup admin --dir "<workspace>" --replace` (this
    machine's agent moves from the trial to the server; restart as it says), then steps 7 and 8.

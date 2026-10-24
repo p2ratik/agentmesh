@@ -144,9 +144,9 @@ Default channels: `council` (mesh-council), `tasks` (mesh-tasks), `reviews` (mes
 Docker Compose reads `deploy/.env` next to the compose file. It holds the secrets `mesh.yaml`
 references and the compose settings. Never commit it or paste its values into a chat.
 - `/agentmesh:setup` writes it once (mode 600) with a comment above every line, and never replaces
-  it. `setup render --force` sets only `NATS_BIND` and `NATS_PUBLIC_HOST`, which follow the
-  hosting mode (a trial going real); for the other settings that differ from the answers it names
-  them, for you to edit by hand.
+  it. `setup render --force`, like a re-run of a render that has not finished, sets only
+  `NATS_BIND` and `NATS_PUBLIC_HOST`, which follow the hosting mode (a trial going real); for the
+  other settings that differ from the answers it names them, for you to edit by hand.
 - A deploy set up by hand starts from `deploy/.env.example`.
 - Changes to the binds or `NATS_PUBLIC_HOST` need recreated containers
   (`docker compose --profile discord up -d --force-recreate`); `restart` does not apply them.
