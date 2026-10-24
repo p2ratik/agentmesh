@@ -56,6 +56,9 @@ Worth knowing:
 - **If this machine is already on another mesh,** `setup admin` refuses to replace
   `~/.agentmesh/agent.json` until you run it with `--replace`. The old mesh's agent then stops
   working here.
+- **The plugin's `agent_id`, `nats_url` and `nkey_seed` options win over `agent.json`** while they
+  name another agent. If you filled them in at install, or this machine joined another mesh
+  through them, clear them in `/plugin` and restart Claude Code; `setup admin` reminds you.
 
 ### The workspace
 
@@ -66,13 +69,17 @@ setup-answers.json       your answers (no secrets)
 .agentmesh-setup.json    which steps are done (no secrets)
 config/                  mesh.yaml and policy/team-policy.md
 deploy/                  docker-compose.yml, .env (the bot token), nats/nats.conf, secrets/*.nk
-.gitignore               keeps .env, .env.*, secrets/ and nats.conf out of git
+.gitignore               keeps .env, .env.*, secrets/, nats.conf and *.nk out of git
 .claude/settings.json    denies Claude's Read tool on .env and secrets/
-CLAUDE.md                the same rules for any later Claude session opened here
+CLAUDE.md                the same rules for any later Claude session opened here, and how to
+                         run the CLI (the path setup ran it from; never `npx agentmesh`)
 ```
 
-Your own agent's key goes to `~/.agentmesh/<you>-agent.nk`, next to the `agent.json` that
-`setup admin` writes.
+An existing `.gitignore`, such as a repo's, is kept and only gains the lines it lacks.
+
+Your own agent's key goes to `~/.agentmesh/<meshName>-<you>-agent.nk`, next to the `agent.json`
+that `setup admin` writes. The mesh name keeps it apart from the keys of other meshes on this
+machine.
 
 - **After the first render, the files are the truth.** To change areas, the policy or workflows,
   ask Claude in the workspace or edit `config/` yourself, then run `setup deploy`
@@ -87,8 +94,10 @@ Your own agent's key goes to `~/.agentmesh/<you>-agent.nk`, next to the `agent.j
   the agents are listed in `mesh.yaml` instead of joining by invite.
 - You can add a second test agent for another Claude account on this machine (`CLAUDE_CONFIG_DIR`);
   `setup admin` prints its `agent-setup` command.
-- Teammates cannot join. Going real means running setup again with a server; trial data is not
-  carried over.
+- Teammates cannot join. To go real in the same workspace, change `hosting` in
+  `setup-answers.json` to the server, run `setup render --force` (it sets `NATS_BIND` and
+  `NATS_PUBLIC_HOST` in `deploy/.env` and marks host, deploy and admin as to do), then
+  `setup host`, `setup deploy` and `setup admin --replace`. Trial data is not carried over.
 
 ### After setup
 

@@ -17,7 +17,16 @@ import { readState, workspacePaths } from '../setup/workspace';
 
 const TOKEN = 'tok-SECRET-123';
 const GUILD = '200000000000000002';
-const SSH = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new'];
+const SSH = [
+  '-o',
+  'BatchMode=yes',
+  '-o',
+  'StrictHostKeyChecking=accept-new',
+  '-o',
+  'ConnectTimeout=15',
+  '-o',
+  'ControlPath=none',
+];
 
 /** A rendered workspace with the Discord values in .env, and fakes for everything doctor calls. */
 async function workspace(answers: AnswersInput, channels: () => unknown = () => MESH_CHANNELS) {
@@ -82,7 +91,7 @@ describe('doctor', () => {
     expect(t.connects).toEqual([
       {
         servers: ['nats://127.0.0.1:4222'],
-        seedFile: join(t.ctx.homeDir, '.agentmesh', 'riya-agent.nk'),
+        seedFile: join(t.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'),
         name: 'doctor-riya-agent',
       },
     ]);

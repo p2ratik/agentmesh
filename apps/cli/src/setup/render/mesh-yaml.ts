@@ -4,7 +4,8 @@ import { adminRoles, agentIdOf, type SetupAnswers } from '../answers';
 import { NATS_PORT } from '../defaults';
 
 const HEADER = `# Written by \`agentmesh setup render\` from setup-answers.json. It is yours now: edit it
-# and push it with \`agentmesh setup deploy\`, which checks it first.
+# and push it with \`agentmesh setup deploy\`, which checks it first. The workspace's
+# CLAUDE.md says how to run \`agentmesh\`, the CLI in the AgentMesh plugin.
 # Every option is described in docs/configuration.md.
 `;
 
@@ -31,7 +32,9 @@ export function renderMeshYaml(a: SetupAnswers): string {
       id: `${admin.id}-test-agent`,
       owner: admin.id,
       displayName: `${admin.name}'s test Claude`,
-      skills: admin.skills,
+      // Its own copy: a shared array would render as a YAML anchor and alias, so editing
+      // the admin agent's skills would change the test agent's too.
+      skills: [...admin.skills],
     });
   }
   const config: MeshConfigInput = {

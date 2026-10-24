@@ -1,5 +1,3 @@
-import { join } from 'node:path';
-import { agentmeshDir } from '@agentmesh/common';
 import { parseCommandArgs } from '../args';
 import type { CliContext, Command } from '../context';
 import { loadTopology } from '../lib/config-files';
@@ -13,9 +11,9 @@ import { checkNatsTls } from '../setup/checks/nats-tls';
 import type { CheckResult } from '../setup/checks/result';
 import { NATS_PORT } from '../setup/defaults';
 import { readEnvFile } from '../setup/env-file';
-import { runChecked, SSH_OPTIONS } from '../setup/remote';
+import { runChecked, SSH_OPTIONS, sshProgram } from '../setup/remote';
 import { renderChecklist } from '../setup/render/checklist';
-import { loadAnswers, workspaceFrom } from '../setup/workspace';
+import { agentSeedFile, loadAnswers, workspaceFrom } from '../setup/workspace';
 
 const PS = ['compose', '--profile', 'discord', 'ps', '--format', 'json'];
 
@@ -32,7 +30,7 @@ async function checkContainers(
         ? await runChecked(run, 'docker', PS, { cwd: deployDir }, 'docker compose ps')
         : await runChecked(
             run,
-            'ssh',
+            sshProgram('ssh', ctx),
             [
               ...SSH_OPTIONS,
               '--',
@@ -88,7 +86,7 @@ fails. It changes nothing.`,
       ),
     );
     const agentId = agentIdOf(admin.id);
-    const seedFile = join(agentmeshDir(ctx.homeDir), `${agentId}.nk`);
+    const seedFile = agentSeedFile(ctx.homeDir, team.meshName, agentId);
     const natsUrl = config.nats.servers[0] ?? '';
     results.push(await checkAgentConnects(natsUrl, seedFile, agentId, ctx.connectNats));
 

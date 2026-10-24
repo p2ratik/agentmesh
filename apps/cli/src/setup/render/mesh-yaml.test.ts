@@ -62,6 +62,13 @@ describe('renderMeshYaml', () => {
     expect(config.agents[1]?.displayName).toBe("Riya's test Claude");
   });
 
+  it('gives the test agent its own skills, not a YAML alias of the admin agent', () => {
+    const text = renderMeshYaml(parseAnswers(trialAnswers()));
+    expect(text).not.toMatch(/ [&*]a\d+$/m);
+    const { config } = load(trialAnswers());
+    expect(config.agents[1]?.skills).toEqual(['backend', 'api']);
+  });
+
   it('the admin is an admin', () => {
     const raw = serverAnswers();
     raw.admin = { ...raw.admin, roles: ['admin', 'backend lead'] };

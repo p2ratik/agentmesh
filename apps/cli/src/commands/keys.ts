@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseCommandArgs } from '../args';
-import { type CliContext, type Command, configPathFrom, resolveFrom } from '../context';
+import { type CliContext, type Command, cliOf, configPathFrom, resolveFrom } from '../context';
 import { meshFilePath } from '../lib/config-files';
 import { addKey } from '../lib/keys';
 import { listKeyHolders } from '../lib/mesh-document';
@@ -33,8 +33,10 @@ and hub-sys for the keys \`nats-config --auth-callout\` needs. --force rotates a
       names: '<participant-id>',
     });
     const meshFile = meshFilePath(configPathFrom(ctx, values.config));
-    const added = addKey(meshFile, secretsDir(ctx, values.secrets), positionals[0] ?? '', {
+    const id = positionals[0] ?? '';
+    const added = addKey(meshFile, join(secretsDir(ctx, values.secrets), `${id}.nk`), id, {
       force: values.force ?? false,
+      cli: cliOf(ctx),
     });
     ctx.stdout(renderKeyAdded({ ...added, meshFile }));
     return 0;

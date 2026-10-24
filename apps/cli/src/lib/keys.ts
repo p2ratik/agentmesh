@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { MeshError } from '@agentmesh/common';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { writeFileAtomic, writePrivateFile } from './files';
@@ -18,15 +18,27 @@ function createKey(holder: KeyHolder): KeyPair {
   return createUser();
 }
 
+export interface AddKeyOptions {
+  force: boolean;
+  /** How to run this CLI, for the hint that replaces an existing seed file. */
+  cli: string;
+  /**
+   * The seed goes to a folder other meshes share (~/.agentmesh). An existing file there is
+   * never replaced on a hint's say-so: the hint asks for another id instead of --force.
+   */
+  shared?: boolean;
+}
+
 /**
- * Generates an nkey: the seed goes to `<secretsDir>/<id>.nk` (mode 600) and the public
- * key into mesh.yaml. Without `force` it never replaces a key or an existing seed file.
+ * Generates an nkey: the seed goes to `seedFile` (mode 600; `<secrets>/<id>.nk` unless
+ * `shared`) and the public key into mesh.yaml. Without `force` it never replaces a key or an
+ * existing seed file.
  */
 export function addKey(
   meshFile: string,
-  secretsDir: string,
+  seedFile: string,
   id: string,
-  opts: { force: boolean },
+  opts: AddKeyOptions,
 ): AddedKey {
   const text = readFileSync(meshFile, 'utf8');
   const holder = findKeyHolder(text, id);
@@ -38,17 +50,19 @@ export function addKey(
   }
   const key = createKey(holder);
   const publicKey = key.getPublicKey();
-  const seedFile = join(secretsDir, `${id}.nk`);
   try {
     writePrivateFile(seedFile, `${new TextDecoder().decode(key.getSeed())}\n`, opts.force);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     // Perhaps another mesh's key: replacing it must be a deliberate step.
+    const fix = opts.shared
+      ? 'Choose another person id or move the file aside, then run again.'
+      : `To replace it, run \`${opts.cli} keys add ${id} --force --config "${dirname(meshFile)}" ` +
+        `--secrets "${dirname(seedFile)}"\`.`;
     throw new MeshError(
       'conflict',
       `${seedFile} already exists, but mesh.yaml has no key for ${id}. It may belong to ` +
-        `another mesh, so it is never replaced by accident. To replace it, run \`agentmesh keys add ` +
-        `${id} --force --config "${dirname(meshFile)}" --secrets "${secretsDir}"\`.`,
+        `another mesh, so it is never replaced by accident. ${fix}`,
     );
   }
   writeFileAtomic(meshFile, setPublicKey(text, id, publicKey));

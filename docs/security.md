@@ -408,6 +408,11 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   - No CLI step prints a seed, the token or any other `.env` secret, in output or in errors. A test
     runs every step with known secrets and fails if one appears in stdout, stderr or the
     arguments passed to `ssh`, `scp` and `docker` (`apps/cli/src/setup/no-secrets.test.ts`).
+    It includes a failing deploy whose stderr echoes the token, the token pasted on the
+    `AGENTMESH_VERSION` line, and `upgrade`, and it checks that only `deploy/.env` holds the token.
+  - `AGENTMESH_IMAGE_REGISTRY` and `AGENTMESH_VERSION` are printed (a failed pull names the
+    image), so `setup deploy` first checks that each is a registry or an image tag the redactor
+    leaves alone, and names the setting, never its value, when one is not.
   - A failed command's stderr tail is masked with the shared redactor before the CLI prints it,
     because Docker Compose echoes a malformed `.env` line, token included.
   - The Discord client sends the token only in the `Authorization` header and never puts it in an
@@ -415,7 +420,8 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
     become part of an API path; a bad one is refused without being echoed.
   - `.env` is written atomically (a temp file with mode 600 in the same folder, then a rename), so a
     crash never loses the only copy of the token. The workspace's `.gitignore` ignores `.env`,
-    `.env.*` (that temp file), `deploy/secrets/` and `nats.conf`.
+    `.env.*` (that temp file), `deploy/secrets/`, `nats.conf` and `*.nk`. A workspace inside an
+    existing repo keeps its `.gitignore`, and render appends the lines it lacks.
 - **Threat: Claude reading the secrets by accident.** **Mitigation:** the workspace's
   `.claude/settings.json` denies `Read(./deploy/.env)` and `Read(./deploy/secrets/**)`, and
   `setup render` writes a workspace `CLAUDE.md` that tells every later session there never to open,
@@ -447,7 +453,9 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
      the hub's keys and the admin agent's key change:
      - `agentmesh keys add hub --force --config config --secrets deploy/secrets`, and the same for
        `discord-bridge`, `hub-issuer`, `hub-xkey` and `hub-sys`;
-     - `agentmesh keys add <you>-agent --force --config config --secrets ~/.agentmesh`, then
+     - the admin agent's key, which setup keeps as `~/.agentmesh/<meshName>-<you>-agent.nk`:
+       `agentmesh keys add <you>-agent --force --config config --secrets new-key` writes
+       `new-key/<you>-agent.nk`. Move it over that file, delete `new-key/`, then run
        `agentmesh setup admin --dir .` on the new machine.
   4. **Re-render `nats.conf`:**
      `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
@@ -461,6 +469,10 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   **Residual risk:** an attacker on the path at that first connection would receive the copied
   seeds and the token. Admins who can check the fingerprint (from the cloud console) should
   connect once with plain `ssh` before running setup.
+  On Windows the CLI runs `%SystemRoot%\System32\OpenSSH\ssh.exe` and `scp.exe` when they exist
+  (only the system OpenSSH reads keys from the Windows `ssh-agent`), else the `ssh` and `scp` on
+  PATH, with the same options. `ControlPath=none` means no shared connection is ever reused, so
+  each call authenticates on its own.
 - **Threat: a hostile `hosting.ssh` value.** A target starting with `-` would be read as an ssh
   option such as `-oProxyCommand=…`, which runs a local command without the admin's approval.
   **Mitigation:** the answers schema accepts only `user@host` with no leading `-`, and every `ssh`

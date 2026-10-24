@@ -28,6 +28,8 @@ const Channel = z.object({
   parent_id: Snowflake.nullable().default(null),
 });
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
 /** Base64url segments joined by dots. Anything else could echo the token in a header error. */
 const TOKEN_SHAPE = /^[A-Za-z0-9._-]+$/;
 
@@ -67,6 +69,8 @@ export function discordApi(token: string, fetchImpl: typeof fetch): DiscordApi {
         Authorization: `Bot ${token}`,
         'User-Agent': `DiscordBot (https://github.com/${DEFAULT_MARKETPLACE}, ${VERSION})`,
       },
+      // A network that drops packets must not hang doctor before it prints anything.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (response.status === 401) {
       throw new MeshError(

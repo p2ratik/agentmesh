@@ -37,11 +37,16 @@ describe('setup admin', () => {
     const saved = w.saved();
     expect(saved.agentId).toBe('riya-agent');
     expect(saved.natsUrl).toBe('tls://mesh.acme.dev:4222');
-    expect(saved.nkeySeed).toBe(join(w.ctx.homeDir, '.agentmesh', 'riya-agent.nk'));
+    expect(saved.nkeySeed).toBe(join(w.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'));
     expect(saved.prefix).toBe('mesh');
     const output = w.out.join('\n');
     expect(output).toContain(`Saved ${w.agentFile} for riya-agent.`);
     expect(output).toContain('call the AgentMesh connect tool');
+    // Options that name another agent win over agent.json (the plugin's fileApplies).
+    expect(output).toContain(
+      "If the plugin's agent_id, nats_url or nkey_seed options are set, clear them in /plugin " +
+        'and restart Claude Code: while they name another agent, the plugin ignores this file.',
+    );
     expect(output).not.toContain('Restart Claude Code');
     expect(output).not.toContain('agent-setup');
     expect(readState(w.p).done.admin).toBeDefined();
@@ -66,23 +71,27 @@ describe('setup admin', () => {
     expect(await w.run('setup', 'admin', '--dir', w.p.root, '--replace')).toBe(0);
     expect(w.saved().agentId).toBe('riya-agent');
     expect(w.out.join('\n')).toContain(
-      'Restart Claude Code: the running plugin is still connected to the old mesh.',
+      'Restart Claude Code: the running plugin is still connected to the old mesh. Clear ' +
+        'agent_id, nats_url and nkey_seed in /plugin first if they are set.',
     );
   });
 
   it('missing seed points at setup render', async () => {
     const w = await workspace(serverAnswers(), false);
     expect(await w.run('setup', 'admin', '--dir', w.p.root)).toBe(1);
-    expect(w.err.join('\n')).toContain('riya-agent.nk');
+    expect(w.err.join('\n')).toContain(join('.agentmesh', 'acme-riya-agent.nk'));
     expect(w.err.join('\n')).toContain('setup render');
     expect(readState(w.p).done.admin).toBeUndefined();
   });
 
   it('points a trial at this machine and prints the test agent setup', async () => {
     const w = await workspace(trialAnswers());
+    // The plugin's bundled CLI is on no PATH: the hint names how this one was started.
+    const cli = 'node "/plugins/agentmesh/0.4.0/dist/cli.js"';
+    w.ctx.cli = cli;
     expect(await w.run('setup', 'admin', '--dir', w.p.root)).toBe(0);
     expect(w.saved().natsUrl).toBe('nats://127.0.0.1:4222');
-    const seed = join(w.ctx.homeDir, '.agentmesh', 'riya-test-agent.nk');
+    const seed = join(w.ctx.homeDir, '.agentmesh', 'acme-riya-test-agent.nk');
     const hint = [
       'agent-setup',
       'riya-test-agent',
@@ -93,7 +102,7 @@ describe('setup admin', () => {
       '--seed-file',
       seed,
     ];
-    expect(w.out.join('\n')).toContain(`agentmesh ${hint.join(' ')}`);
+    expect(w.out.join('\n')).toContain(`  ${cli} ${hint.join(' ')}`);
     // The hint works without the Discord values in the environment.
     expect(await w.run(...hint)).toBe(0);
     expect(w.out.at(-1)).toContain('Seed file: ');

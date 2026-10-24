@@ -15,8 +15,7 @@ import { describe, expect, it } from 'vitest';
 import type { CliContext } from '../../context';
 import { listKeyHolders, setHumanDiscordId } from '../../lib/mesh-document';
 import { runCli } from '../../main';
-import { parseAnswers } from '../../setup/answers';
-import { renderStatus } from '../../setup/render/status';
+import { readEnvFile, updateEnvFile } from '../../setup/env-file';
 import { type AnswersInput, serverAnswers, trialAnswers } from '../../setup/testing';
 import { workspacePaths } from '../../setup/workspace';
 
@@ -72,7 +71,7 @@ describe('setup render', () => {
     for (const id of ['hub', 'discord-bridge', 'hub-issuer', 'hub-xkey', 'hub-sys']) {
       expect(existsSync(join(p.secretsDir, `${id}.nk`))).toBe(true);
     }
-    expect(existsSync(join(h.ctx.homeDir, '.agentmesh', 'riya-agent.nk'))).toBe(true);
+    expect(existsSync(join(h.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'))).toBe(true);
     const conf = readFileSync(p.natsConf, 'utf8');
     expect(conf).toContain('tls {');
     expect(conf).toContain('auth_callout');
@@ -98,7 +97,7 @@ describe('setup render', () => {
     );
     expect(agents.map((a) => a.id)).toEqual(['riya-agent', 'riya-test-agent']);
     for (const agent of agents) expect(conf).toContain(agent.nkey as string);
-    expect(existsSync(join(h.ctx.homeDir, '.agentmesh', 'riya-test-agent.nk'))).toBe(true);
+    expect(existsSync(join(h.ctx.homeDir, '.agentmesh', 'acme-riya-test-agent.nk'))).toBe(true);
     expect(existsSync(join(p.secretsDir, 'hub.nk'))).toBe(true);
     expect(existsSync(join(p.secretsDir, 'discord-bridge.nk'))).toBe(true);
     expect(existsSync(join(p.secretsDir, 'hub-issuer.nk'))).toBe(false);
@@ -155,36 +154,46 @@ describe('setup render', () => {
     expect(h.out.at(-1)).toMatch(/kept\s+deploy.\.env\n/);
   });
 
-  it('--force names the kept .env settings that no longer match', async () => {
+  it('--force sets the hosting settings in a kept .env and names the others', async () => {
     const h = harness();
     const p = workspace(h, trialAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
-    const env = readFileSync(p.envFile, 'utf8');
+    updateEnvFile(p.envFile, { DISCORD_BOT_TOKEN: 'tok' });
+    const env = readEnvFile(p.envFile);
 
     writeFileSync(p.answers, JSON.stringify(serverAnswers()));
     const argv = ['setup', 'render', '--dir', p.root, '--force', '--registry', 'ghcr.io/other'];
     expect(await h.run(...argv)).toBe(0);
 
-    expect(readFileSync(p.envFile, 'utf8')).toBe(env);
+    const after = readEnvFile(p.envFile);
+    expect(after.get('NATS_BIND')).toBe('0.0.0.0');
+    expect(after.get('NATS_PUBLIC_HOST')).toBe('mesh.acme.dev');
+    for (const key of ['DISCORD_BOT_TOKEN', 'AGENTMESH_IMAGE_REGISTRY', 'AGENTMESH_VERSION']) {
+      expect(after.get(key)).toBe(env.get(key));
+    }
     const line = h.out
       .at(-1)
       ?.split('\n')
       .find((l) => l.includes('.env'));
-    expect(line).toMatch(/^\s+differs\s+deploy.\.env \(kept; edit /);
-    for (const key of ['NATS_BIND', 'NATS_PUBLIC_HOST', 'AGENTMESH_IMAGE_REGISTRY']) {
-      expect(line).toContain(key);
-    }
-    expect(line).not.toMatch(/DISCORD|VERSION|0\.0\.0\.0|mesh\.acme\.dev|127\.0\.0\.1|ghcr/);
+    expect(line).toMatch(
+      /^\s+differs\s+deploy.\.env \(set NATS_BIND, NATS_PUBLIC_HOST; kept; edit AGENTMESH_IMAGE_REGISTRY by hand\)$/,
+    );
+    expect(line).not.toMatch(/DISCORD|VERSION|0\.0\.0\.0|mesh\.acme\.dev|127\.0\.0\.1|ghcr|tok/);
   });
 
-  it('an existing admin seed is not overwritten', async () => {
+  it("another mesh's seed is never in the way, nor overwritten", async () => {
     const h = harness();
     const p = workspace(h, serverAnswers());
-    const seed = join(h.ctx.homeDir, '.agentmesh', 'riya-agent.nk');
-    mkdirSync(join(h.ctx.homeDir, '.agentmesh'), { recursive: true });
+    const dir = join(h.ctx.homeDir, '.agentmesh');
+    mkdirSync(dir, { recursive: true });
+    // /agentmesh:join names its seed <agent>.nk; setup's are per mesh.
+    writeFileSync(join(dir, 'riya-agent.nk'), 'SUJOINED\n');
+    const seed = join(dir, 'acme-riya-agent.nk');
     writeFileSync(seed, 'SUOTHERMESH\n');
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(1);
-    expect(h.err.at(-1)).toContain('keys add riya-agent --force');
+    expect(h.err.at(-1)).toContain(`${seed} already exists`);
+    expect(h.err.at(-1)).toContain('Choose another person id or move the file aside');
+    expect(h.err.at(-1)).not.toContain('--force');
     expect(readFileSync(seed, 'utf8')).toBe('SUOTHERMESH\n');
 
     // Once the admin deals with it, a re-run continues: the keys made so far stay.
@@ -192,6 +201,31 @@ describe('setup render', () => {
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     expect(h.out.at(-1)).toMatch(/unchanged\s+config.mesh\.yaml\n/);
     expect(h.out.at(-1)).not.toMatch(/key\s+hub /);
+    expect(readFileSync(join(dir, 'riya-agent.nk'), 'utf8')).toBe('SUJOINED\n');
+  });
+
+  it('a seed already in deploy/secrets keeps the keys add --force hint, run as this CLI', async () => {
+    const h = harness();
+    h.ctx.cli = 'node "/plugin/dist/cli.js"';
+    const p = workspace(h, serverAnswers());
+    mkdirSync(p.secretsDir, { recursive: true });
+    writeFileSync(join(p.secretsDir, 'hub.nk'), 'SUOLD\n');
+    expect(await h.run('setup', 'render', '--dir', p.root)).toBe(1);
+    expect(h.err.at(-1)).toContain(
+      `run \`node "/plugin/dist/cli.js" keys add hub --force --config "${p.configDir}" ` +
+        `--secrets "${p.secretsDir}"\``,
+    );
+  });
+
+  it("keeps a repo's .gitignore and appends only the missing secret lines", async () => {
+    const h = harness();
+    const p = workspace(h, trialAnswers());
+    writeFileSync(p.gitignore, 'node_modules/\ndeploy/.env\n');
+    expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
+    expect(readFileSync(p.gitignore, 'utf8')).toBe(
+      'node_modules/\ndeploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n*.nk\n',
+    );
+    expect(h.out.at(-1)).toMatch(/appended\s+\.gitignore\n/);
   });
 
   it('needs --dir', async () => {
@@ -219,32 +253,6 @@ describe('setup render', () => {
     expect(await h.run('setup', 'render', '--dir', p.root, '--registry', registry)).toBe(0);
     expect(readFileSync(p.envFile, 'utf8').split('\n')).toContain(
       `AGENTMESH_IMAGE_REGISTRY=${registry}`,
-    );
-  });
-});
-
-describe('setup status', () => {
-  it('prints the next step of a rendered workspace', async () => {
-    const h = harness();
-    const p = workspace(h, trialAnswers());
-    expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
-    expect(await h.run('setup', 'status', '--dir', p.root)).toBe(0);
-    expect(h.out.at(-1)).toMatch(/Next: run setup discord$/);
-  });
-
-  it('follows the steps, skipping host on a trial', () => {
-    const at = '2026-10-23T10:00:00.000Z';
-    const server = parseAnswers(serverAnswers());
-    const trial = parseAnswers(trialAnswers());
-    const done = (...steps: string[]) => ({
-      version: 1 as const,
-      done: Object.fromEntries(steps.map((s) => [s, at])),
-    });
-    expect(renderStatus(done(), server)).toMatch(/Next: run setup render$/);
-    expect(renderStatus(done('render', 'discord'), server)).toMatch(/Next: run setup host$/);
-    expect(renderStatus(done('render', 'discord'), trial)).toMatch(/Next: run setup deploy$/);
-    expect(renderStatus(done('render', 'discord', 'deploy', 'admin'), trial)).toMatch(
-      /Next: run doctor, then \/agentmesh:activate, then setup invites$/,
     );
   });
 });

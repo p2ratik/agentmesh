@@ -1,12 +1,13 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
+import { MeshError, redactSecrets, VERSION } from '@agentmesh/common';
 import { loadConfig } from '@agentmesh/config';
-import type { CliContext } from '../context';
+import { type CliContext, cliOf } from '../context';
 import { runProcess } from '../lib/process';
 import type { SetupAnswers } from './answers';
+import { DEFAULT_IMAGE_REGISTRY, IMAGE_REGISTRY, IMAGE_TAG } from './defaults';
 import { readEnvFile } from './env-file';
-import { runChecked, SSH_OPTIONS } from './remote';
+import { runChecked, SSH_OPTIONS, sshProgram } from './remote';
 import { markDone, readState, type StepName, type WorkspacePaths } from './workspace';
 
 /**
@@ -26,8 +27,10 @@ const UP = ['up', '-d', '--force-recreate'];
 export function remoteCommands(dir: string): { prepare: string; finish: string } {
   const seeds = `${dir}/deploy/secrets/*.nk`;
   return {
+    // A server rebuilt under the same name has none of the folders setup host made.
     prepare:
-      `sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && ` +
+      `[ -d ${dir}/deploy/secrets ] || { echo 'Run setup host again: ${dir}/deploy/secrets is ` +
+      `missing on the server.' >&2; exit 1; }; sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && ` +
       `mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats ${dir}/config && chmod 700 ${dir}/deploy`,
     finish:
       `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
@@ -56,6 +59,34 @@ function requireSeeds(p: WorkspacePaths, mode: SetupAnswers['hosting']['mode']):
   }
 }
 
+/** A version is an image tag the redactor leaves alone: a bot token is tag-shaped too. */
+export const isImageVersion = (value: string): boolean =>
+  IMAGE_TAG.test(value) && redactSecrets(value) === value;
+
+/**
+ * The image settings from .env, checked before they are used or printed. An error names the
+ * setting, never its value: that may be the bot token, pasted on the wrong line.
+ */
+function imageOf(ctx: CliContext, env: Map<string, string>) {
+  const registry = env.get('AGENTMESH_IMAGE_REGISTRY') ?? '';
+  const version = env.get('AGENTMESH_VERSION') ?? '';
+  if (!IMAGE_REGISTRY.test(registry) || redactSecrets(registry) !== registry) {
+    throw new MeshError(
+      'conflict',
+      'AGENTMESH_IMAGE_REGISTRY in deploy/.env is not an image registry such as ' +
+        `${DEFAULT_IMAGE_REGISTRY}. Correct it in the file and run again.`,
+    );
+  }
+  if (!isImageVersion(version)) {
+    throw new MeshError(
+      'conflict',
+      `AGENTMESH_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it ` +
+        `with \`${cliOf(ctx)} upgrade --dir <workspace> --to <version>\`.`,
+    );
+  }
+  return { registry, version, image: `${registry}/agentmesh-hub:${version}` };
+}
+
 /** Runs a step that pulls the images; its failure gains a line naming the image. */
 async function pulling(hint: string, step: () => Promise<unknown>): Promise<void> {
   try {
@@ -82,10 +113,8 @@ export async function deployWorkspace(
   // No stand-ins: an empty token, application id or server id fails here, before any copy.
   loadConfig(p.meshFile, { env: Object.fromEntries(env) });
   requireSeeds(p, hosting.mode);
-  // Not secrets, so a failed pull can print them.
-  const registry = env.get('AGENTMESH_IMAGE_REGISTRY') ?? '';
-  const version = env.get('AGENTMESH_VERSION') ?? '';
-  const image = `${registry}/agentmesh-hub:${version}`;
+  // Checked, so a failed pull can print them.
+  const { registry, version, image } = imageOf(ctx, env);
   const hint = `Check that ${image} exists (AGENTMESH_IMAGE_REGISTRY=${registry}, AGENTMESH_VERSION=${version}).`;
   const run = ctx.run ?? runProcess;
 
@@ -108,11 +137,17 @@ export async function deployWorkspace(
   const { ssh: target, remoteDir: dir } = hosting;
   const { prepare, finish } = remoteCommands(dir);
   const ssh = (command: string, what: string) =>
-    runChecked(run, 'ssh', [...SSH_OPTIONS, '--', target, command], undefined, what);
+    runChecked(
+      run,
+      sshProgram('ssh', ctx),
+      [...SSH_OPTIONS, '--', target, command],
+      undefined,
+      what,
+    );
   const scp = (flags: string[], sources: string[], to: string) =>
     runChecked(
       run,
-      'scp',
+      sshProgram('scp', ctx),
       [...SSH_OPTIONS, ...flags, '--', ...sources, `${target}:${dir}/${to}`],
       { cwd: p.root },
       `Copying to ${dir}/${to}`,

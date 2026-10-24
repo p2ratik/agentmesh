@@ -51,6 +51,9 @@ describe('setup host', () => {
     expect(call?.cmd).toBe('ssh');
     expect(call?.args).toContain('BatchMode=yes');
     expect(call?.args).toContain('StrictHostKeyChecking=accept-new');
+    // A dropped port 22 fails in 15 s; a shared connection would lack the docker group.
+    expect(call?.args).toContain('ConnectTimeout=15');
+    expect(call?.args).toContain('ControlPath=none');
     expect(call?.args.slice(-3)).toEqual(['--', 'deploy@mesh.acme.dev', 'sudo bash -s']);
     expect(call?.input).toBe(
       renderHostScript({
@@ -78,7 +81,8 @@ describe('setup host', () => {
     expect(t.out).toEqual(['Nothing to do on a trial.']);
     expect(t.calls).toEqual([]);
     expect(t.lookups).toEqual([]);
-    expect(readState(t.p).done.host).toBeDefined();
+    // Not done: a trial that goes real must still prepare its server.
+    expect(readState(t.p).done.host).toBeUndefined();
   });
 
   it('a failed ssh is not marked done and shows the end of its stderr', async () => {

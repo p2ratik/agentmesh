@@ -27,6 +27,10 @@ export interface CliContext {
   connectNats?: ConnectNats;
   /** Checks the certificate NATS presents; defaults to `checkNatsTls`. */
   probeNatsTls?: (host: string, port: number, now: Date) => Promise<CheckResult>;
+  /** `process.platform`; left out, ssh and scp run by their plain names (`sshProgram`). */
+  platform?: NodeJS.Platform;
+  /** How this CLI was started, for the commands hints print (`cliOf`). */
+  cli?: string;
 }
 
 /** One `agentmesh` subcommand. `name` may have two words (`keys add`). */
@@ -35,6 +39,15 @@ export interface Command {
   summary: string;
   help: string;
   run(argv: string[], ctx: CliContext): Promise<number> | number;
+}
+
+/**
+ * The command that runs this CLI again: `node "<script>"` for a bundle such as the plugin's
+ * dist/cli.js, which is on no PATH, or `pnpm mesh` for the TypeScript source in the repo.
+ */
+export function cliCommand(script: string | undefined): string {
+  if (!script) return 'agentmesh';
+  return script.endsWith('.js') ? `node "${script}"` : 'pnpm mesh';
 }
 
 /** The real process: its directory, environment, home and output streams. */
@@ -46,8 +59,13 @@ export function processContext(): CliContext {
     homeDir: homedir(),
     stdout: (text) => process.stdout.write(`${text}\n`),
     stderr: (text) => process.stderr.write(`${text}\n`),
+    platform: process.platform,
+    cli: cliCommand(process.argv[1]),
   };
 }
+
+/** How to run this CLI in a printed hint. */
+export const cliOf = (ctx: CliContext): string => ctx.cli ?? 'agentmesh';
 
 export function resolveFrom(ctx: CliContext, path: string): string {
   return isAbsolute(path) ? path : resolve(ctx.cwd, path);

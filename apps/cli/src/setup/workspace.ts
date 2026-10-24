@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
+import { agentmeshDir, MeshError } from '@agentmesh/common';
 import { z } from 'zod';
 import { usageError } from '../args';
 import { type CliContext, resolveFrom } from '../context';
 import { writeFileAtomic, writeFileWithDirs } from '../lib/files';
-import { parseAnswers, type SetupAnswers } from './answers';
+import { type Hosting, parseAnswers, type SetupAnswers } from './answers';
 
 /** Where everything lives in a setup workspace (§5.2 of the setup design). */
 export interface WorkspacePaths {
@@ -52,13 +52,26 @@ export function workspacePaths(root: string): WorkspacePaths {
   };
 }
 
+/**
+ * The seed of one of the admin's agents: `~/.agentmesh/<meshName>-<agent>.nk`. The mesh name
+ * keeps it apart from the seeds `/agentmesh:join` and other meshes keep in that folder.
+ */
+export function agentSeedFile(homeDir: string, meshName: string, agentId: string): string {
+  return join(agentmeshDir(homeDir), `${meshName}-${agentId}.nk`);
+}
+
 /** The setup steps in order; the state file records when each one finished. */
 export const STEPS = ['render', 'discord', 'host', 'deploy', 'admin'] as const;
 export type StepName = (typeof STEPS)[number];
 
+/** The steps done for one hub: another hosting mode needs them again. */
+const HUB_STEPS: readonly StepName[] = ['host', 'deploy', 'admin'];
+
 /** `.agentmesh-setup.json`: finished steps and their ISO times. It holds no secrets. */
 export const SetupState = z.object({
   version: z.literal(1),
+  /** The hosting mode of the last render. */
+  mode: z.enum(['server', 'trial']).optional(),
   done: z.partialRecord(z.enum(STEPS), z.string()),
 });
 export type SetupState = z.infer<typeof SetupState>;
@@ -85,6 +98,22 @@ export function markDone(p: WorkspacePaths, step: StepName, now: Date): void {
   const state = readState(p);
   state.done[step] = now.toISOString();
   writeFileAtomic(p.state, `${JSON.stringify(state, null, 2)}\n`);
+}
+
+/**
+ * Records a render for `mode`. One for another mode than the last (a trial going real, or
+ * back) forgets host, deploy and admin: they prepared, started or joined the old hub.
+ */
+export function markRendered(p: WorkspacePaths, mode: Hosting['mode'], now: Date): void {
+  const state = readState(p);
+  const changed = state.mode !== undefined && state.mode !== mode;
+  const done = Object.fromEntries(
+    Object.entries(state.done).filter(
+      ([step]) => !changed || !HUB_STEPS.includes(step as StepName),
+    ),
+  );
+  const next: SetupState = { version: 1, mode, done: { ...done, render: now.toISOString() } };
+  writeFileAtomic(p.state, `${JSON.stringify(next, null, 2)}\n`);
 }
 
 export function loadAnswers(p: WorkspacePaths): SetupAnswers {

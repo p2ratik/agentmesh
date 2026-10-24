@@ -13,7 +13,9 @@ There are two ways to run it:
   [Deploying by hand](#deploying-by-hand).
 
 In the commands below, `agentmesh` is `node <plugin dir>/dist/cli.js`. The plugin dir is under
-`~/.claude/plugins/cache/agentmesh/agentmesh/<version>/`. Every setup command takes
+`~/.claude/plugins/cache/agentmesh/agentmesh/<version>/`; use the newest version, and never
+`npx agentmesh` (an unrelated npm package). The commands the CLI prints in its hints, and the
+workspace's `CLAUDE.md`, name the exact path it ran from. Every setup command takes
 `--dir <workspace>` (default `~/agentmesh/<team>`).
 
 ## The server
@@ -26,7 +28,10 @@ What setup expects, and what Claude proposes when it creates a new cloud server:
 - **A static public IP and a DNS name** that points at it.
 - **SSH key login.** `ssh` and `scp` run without prompts (`BatchMode=yes`), so the admin's key must
   work without one, for example through an ssh agent (`ssh <user@host> true` tests it). The user
-  needs `sudo` without a password.
+  needs `sudo` without a password. They give up after 15 seconds when port 22 does not answer, and
+  never reuse a shared connection (`ControlPath=none`). On Windows, setup runs the system OpenSSH
+  (`%SystemRoot%\System32\OpenSSH\ssh.exe` and `scp.exe`) when it is installed, because only that
+  one can use keys loaded into the Windows `ssh-agent` service; Git for Windows' `ssh` cannot.
 - **Inbound traffic:** port 22 from the admin's IP only, and ports 4222 (NATS over TLS) and 80
   (Let's Encrypt) from anywhere.
 
@@ -49,7 +54,10 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
 - **`agentmesh setup host`** checks that the DNS name resolves, then pipes a script to
   `sudo bash -s` over SSH. The script is safe to re-run. It:
   - refuses a server without `apt-get`;
-  - installs Docker and certbot, and adds the SSH user to the `docker` group;
+  - waits for cloud-init, and up to 5 minutes for apt's lock (`DPkg::Lock::Timeout` in
+    `/etc/apt/apt.conf.d/90agentmesh-lock-timeout`), which a new server's updates hold;
+  - installs Docker and certbot, and adds the SSH user to the `docker` group. A Docker without
+    Compose v2 (Ubuntu's `docker.io` alone) stops it: install `docker-compose-v2` and re-run;
   - creates `<remoteDir>` (default `/opt/agentmesh`) with `deploy/`, `deploy/nats/`,
     `deploy/secrets/` and `config/`, owned by the SSH user;
   - gets a Let's Encrypt certificate with `certbot certonly --standalone` when there is none yet,
@@ -69,6 +77,9 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
 
   On a trial it runs the same pull and `up -d --force-recreate` in the workspace's `deploy/`. A
   failed step is not marked done, and a re-run continues.
+- **A server rebuilt under the same name.** `ssh` first refuses its new host key. Check the new
+  fingerprint (in the provider's console), remove the old one with `ssh-keygen -R <host>`, then
+  run `setup host` again: `setup deploy` stops while `<remoteDir>/deploy/secrets` is missing.
 - **Every deploy restarts the stack.** NATS, the hub and the bridge read `config/`, `nats.conf`
   and the seeds only when they start, and a plain `up -d` keeps a container whose image and
   compose settings did not change. So `setup deploy` recreates all three containers, even when only
@@ -94,7 +105,9 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
   - `AGENTMESH_VERSION` is the pin: the plugin's version when setup rendered the workspace.
     `setup deploy` always uses it, so updating the plugin never upgrades the hub silently.
 - **A failed pull** names the image it tried and the two settings, so you can check that the
-  version exists in that registry.
+  version exists in that registry. A value in those two lines that is not a registry or a
+  version (the bot token pasted on the wrong line, say) stops `setup deploy` before anything
+  runs, and is never printed.
 
 ## Upgrading a setup deploy
 
@@ -103,7 +116,9 @@ agentmesh upgrade --dir <workspace> [--to <version>]
 ```
 
 It sets `AGENTMESH_VERSION` to `--to`, or to the CLI's own version, prints
-`Hub version <old> → <new>`, then runs `setup deploy`. Nothing else moves the pin. Hub migrations
+`Hub version <old> → <new>`, then runs `setup deploy`. If that deploy fails (a version not yet
+published, say), the old version goes back into `deploy/.env`, so later config-only deploys keep
+working. Nothing else moves the pin. Hub migrations
 run on start. When a release raises the hub's minimum plugin version (as 0.3.0 did), members
 update their plugins first.
 

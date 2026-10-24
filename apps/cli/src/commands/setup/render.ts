@@ -3,7 +3,7 @@ import { join, relative } from 'node:path';
 import { VERSION } from '@agentmesh/common';
 import { loadConfig } from '@agentmesh/config';
 import { parseCommandArgs, usageError } from '../../args';
-import type { Command } from '../../context';
+import { type Command, cliOf } from '../../context';
 import { SECRET_PLACEHOLDER } from '../../lib/config-files';
 import { writePrivateFile } from '../../lib/files';
 import { addKey } from '../../lib/keys';
@@ -16,21 +16,22 @@ import {
 } from '../../lib/mesh-document';
 import { writeNatsConfig } from '../../lib/nats-config-file';
 import type { SetupAnswers } from '../../setup/answers';
-import { DEFAULT_IMAGE_REGISTRY } from '../../setup/defaults';
-import { parseEnv, readEnvFile } from '../../setup/env-file';
+import { DEFAULT_IMAGE_REGISTRY, IMAGE_REGISTRY } from '../../setup/defaults';
+import { parseEnv, readEnvFile, updateEnvFile } from '../../setup/env-file';
 import {
   renderClaudeSettings,
   renderCompose,
   renderEnv,
-  WORKSPACE_GITIGNORE,
+  withSecretLines,
 } from '../../setup/render/deploy-files';
 import { renderMeshYaml } from '../../setup/render/mesh-yaml';
 import { renderPolicy } from '../../setup/render/policy';
 import { renderAnswersSummary } from '../../setup/render/summary';
 import { renderWorkspaceClaudeMd } from '../../setup/render/workspace-claude-md';
 import {
+  agentSeedFile,
   loadAnswers,
-  markDone,
+  markRendered,
   readState,
   type WorkspacePaths,
   workspaceFrom,
@@ -44,21 +45,21 @@ const OPTIONS = {
   force: { type: 'boolean' },
 } as const;
 
-/** `host[:port]/namespace…` in lowercase. It goes into .env, so a newline must never pass. */
-const REGISTRY = /^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
-
 /** Only `setup discord` learns these; until then the config is checked with stand-ins. */
 const DISCORD_ENV = ['DISCORD_BOT_TOKEN', 'DISCORD_APP_ID', 'DISCORD_GUILD_ID'];
 /** Later steps change these on purpose (setup discord, upgrade), so a kept .env may differ. */
 const ENV_SET_LATER = [...DISCORD_ENV, 'AGENTMESH_VERSION'];
+/** Not secret, and they follow the hosting mode, so --force sets them in a kept .env. */
+const ENV_OF_MODE = ['NATS_BIND', 'NATS_PUBLIC_HOST'];
 const CALLOUT_KEYS = ['hub-issuer', 'hub-xkey', 'hub-sys'];
 
 /**
  * .env holds the bot token, so it is written once and never replaced, even with --force.
  * A kept one is compared with the answers instead, because the hub reads NATS_PUBLIC_HOST
- * and NATS_BIND there: the report names the settings that differ, never their values.
+ * and NATS_BIND there: --force sets those two in place, and the report names the other
+ * settings that differ, never their values.
  */
-function writeEnv(p: WorkspacePaths, a: SetupAnswers, registryFlag?: string): string {
+function writeEnv(p: WorkspacePaths, a: SetupAnswers, force: boolean, registryFlag?: string) {
   const kept = existsSync(p.envFile) ? readEnvFile(p.envFile) : null;
   const registry = registryFlag || kept?.get('AGENTMESH_IMAGE_REGISTRY') || DEFAULT_IMAGE_REGISTRY;
   const text = renderEnv({ hosting: a.hosting, version: VERSION, registry });
@@ -67,16 +68,25 @@ function writeEnv(p: WorkspacePaths, a: SetupAnswers, registryFlag?: string): st
     writePrivateFile(p.envFile, text, false);
     return `  ${'created'.padEnd(10)}${file}`;
   }
-  const stale = [...parseEnv(text)]
-    .filter(([key, value]) => !ENV_SET_LATER.includes(key) && kept.get(key) !== value)
-    .map(([key]) => key);
-  if (stale.length === 0) return `  ${'kept'.padEnd(10)}${file}`;
-  return `  ${'differs'.padEnd(10)}${file} (kept; edit ${stale.join(', ')} by hand, --force never replaces it)`;
+  const differ = [...parseEnv(text)].filter(
+    ([key, value]) => !ENV_SET_LATER.includes(key) && kept.get(key) !== value,
+  );
+  const set = force ? differ.filter(([key]) => ENV_OF_MODE.includes(key)) : [];
+  if (set.length > 0) updateEnvFile(p.envFile, Object.fromEntries(set));
+  const stale = differ.filter((entry) => !set.includes(entry)).map(([key]) => key);
+  const notes = [
+    ...(set.length > 0 ? [`set ${set.map(([key]) => key).join(', ')}`] : []),
+    ...(stale.length > 0 ? [`kept; edit ${stale.join(', ')} by hand`] : []),
+  ];
+  const outcome = stale.length > 0 ? 'differs' : set.length > 0 ? 'updated' : 'kept';
+  return `  ${outcome.padEnd(10)}${file}${notes.length > 0 ? ` (${notes.join('; ')})` : ''}`;
 }
 
 interface KeyTarget {
   id: string;
-  seedDir: string;
+  seedFile: string;
+  /** In ~/.agentmesh, which other meshes and `/agentmesh:join` use too. */
+  shared: boolean;
 }
 
 /**
@@ -94,8 +104,16 @@ function keyTargets(
   const agents = holders.filter((h) => h.kind === 'agent').map((h) => h.id);
   const server = a.hosting.mode === 'server' ? CALLOUT_KEYS : [];
   return [
-    ...[...services, ...server].map((id) => ({ id, seedDir: p.secretsDir })),
-    ...agents.map((id) => ({ id, seedDir: join(home, '.agentmesh') })),
+    ...[...services, ...server].map((id) => ({
+      id,
+      seedFile: join(p.secretsDir, `${id}.nk`),
+      shared: false,
+    })),
+    ...agents.map((id) => ({
+      id,
+      seedFile: agentSeedFile(home, a.team.meshName, id),
+      shared: true,
+    })),
   ];
 }
 
@@ -123,12 +141,16 @@ export const setupRenderCommand: Command = {
 Renders config/mesh.yaml, the team policy, deploy/docker-compose.yml, deploy/.env,
 .gitignore, .claude/settings.json and CLAUDE.md from <workspace>/setup-answers.json,
 generates the keys and writes deploy/nats/nats.conf. --dry-run prints the summary and
-writes nothing. A rendered file that differs is kept unless --force; deploy/.env and
-existing keys are always kept, and the settings in which a kept deploy/.env differs
-are named. --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}).`,
+writes nothing. A rendered file that differs is kept unless --force, and an existing
+.gitignore only gains the secret lines it lacks. deploy/.env and existing keys are
+always kept: --force sets only NATS_BIND and NATS_PUBLIC_HOST in deploy/.env, and the
+other settings in which it differs are named. A render for another hosting mode than
+the last one marks host, deploy and admin as to do again. Your agents' seeds go to
+~/.agentmesh/<meshName>-<agent>.nk. --registry sets the image registry (default
+${DEFAULT_IMAGE_REGISTRY}).`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: '' });
-    if (values.registry !== undefined && !REGISTRY.test(values.registry)) {
+    if (values.registry !== undefined && !IMAGE_REGISTRY.test(values.registry)) {
       throw usageError(
         `Invalid --registry: give a lowercase image registry such as ${DEFAULT_IMAGE_REGISTRY} ` +
           'or registry.example.com:5000/team',
@@ -155,25 +177,29 @@ are named. --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}
     const previous = existsSync(p.meshFile) ? readFileSync(p.meshFile, 'utf8') : null;
     const policy = renderPolicy(a);
     for (const warning of policy.warnings) ctx.stderr(`warning: ${warning}`);
+    const gitignore = existsSync(p.gitignore) ? readFileSync(p.gitignore, 'utf8') : '';
     const report = (
       [
         [p.meshFile, previous ? carryOver(fresh, previous, targets, a.admin.id) : fresh],
         [p.policyFile, policy.text],
         [p.compose, renderCompose()],
-        [p.gitignore, WORKSPACE_GITIGNORE],
+        [p.gitignore, withSecretLines(gitignore)],
         [p.claudeSettings, renderClaudeSettings()],
-        [p.claudeMd, renderWorkspaceClaudeMd()],
+        [p.claudeMd, renderWorkspaceClaudeMd(cliOf(ctx))],
       ] as const
     ).map(([path, content]) => {
-      const outcome = writeRendered(path, content, force);
+      // A .gitignore already there (the workspace may be a repo) only gains the missing lines.
+      const merged = path === p.gitignore;
+      const outcome = writeRendered(path, content, force || merged);
       const note = outcome === 'differs' ? ' (kept; --force replaces it)' : '';
-      return `  ${outcome.padEnd(10)}${relative(p.root, path)}${note}`;
+      const label = merged && outcome === 'replaced' ? 'appended' : outcome;
+      return `  ${label.padEnd(10)}${relative(p.root, path)}${note}`;
     });
-    report.push(writeEnv(p, a, values.registry));
+    report.push(writeEnv(p, a, force, values.registry));
 
-    for (const { id, seedDir } of targets) {
+    for (const { id, seedFile: file, shared } of targets) {
       if (findKeyHolder(readFileSync(p.meshFile, 'utf8'), id).nkey) continue;
-      const { seedFile } = addKey(p.meshFile, seedDir, id, { force: false });
+      const { seedFile } = addKey(p.meshFile, file, id, { force: false, cli: cliOf(ctx), shared });
       report.push(`  ${'key'.padEnd(10)}${id} (seed ${seedFile})`);
     }
 
@@ -189,7 +215,7 @@ are named. --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}
     });
     report.push(`  ${'written'.padEnd(10)}${relative(p.root, p.natsConf)}`);
     loadConfig(p.meshFile, { env });
-    markDone(p, 'render', new Date());
+    markRendered(p, a.hosting.mode, new Date());
 
     ctx.stdout(
       [

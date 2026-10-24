@@ -118,6 +118,47 @@ describe('resolveConfig', () => {
     });
   });
 
+  // `setup admin` on a laptop already enrolled through the options: they win, so its message
+  // tells the admin to clear agent_id, nats_url and nkey_seed in /plugin.
+  it('options for another agent keep it, over the agent.json setup admin wrote', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
+    const file = join(dir, 'agent.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        agentId: 'riya-agent',
+        natsUrl: 'tls://mesh.acme.dev:4222',
+        nkeySeed: '/home/riya/.agentmesh/acme-riya-agent.nk',
+        prefix: 'mesh',
+      }),
+    );
+    const result = resolveConfig(
+      {
+        AGENTMESH_AGENT_ID: 'sam-agent',
+        AGENTMESH_NATS_URL: 'tls://other-mesh.example.com:4222',
+        AGENTMESH_NKEY_SEED: '/home/riya/.agentmesh/sam-agent.nk',
+      },
+      file,
+    );
+    expect(result).toEqual({
+      ok: true,
+      config: {
+        agentId: 'sam-agent',
+        servers: ['tls://other-mesh.example.com:4222'],
+        nkeySeed: '/home/riya/.agentmesh/sam-agent.nk',
+        prefix: 'mesh',
+        heartbeatSeconds: 20,
+      },
+    });
+    // With the options cleared, the same file connects the admin's agent.
+    const cleared = resolveConfig({}, file);
+    expect(cleared.ok && cleared.config).toMatchObject({
+      agentId: 'riya-agent',
+      servers: ['tls://mesh.acme.dev:4222'],
+      nkeySeed: '/home/riya/.agentmesh/acme-riya-agent.nk',
+    });
+  });
+
   it('still fills the seed from a hand-written agent.json that holds only the seed', () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentmesh-'));
     const file = join(dir, 'agent.json');

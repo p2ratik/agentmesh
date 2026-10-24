@@ -2,7 +2,7 @@ import { parseCommandArgs } from '../../args';
 import type { Command } from '../../context';
 import { runProcess } from '../../lib/process';
 import { checkDns, lookupAddresses } from '../../setup/checks/dns';
-import { runChecked, SSH_OPTIONS, sshUser } from '../../setup/remote';
+import { runChecked, SSH_OPTIONS, sshProgram, sshUser } from '../../setup/remote';
 import { renderHostScript } from '../../setup/render/host-script';
 import { loadAnswers, markDone, workspaceFrom } from '../../setup/workspace';
 
@@ -24,9 +24,9 @@ tested target. Safe to re-run. On a trial there is nothing to do.`,
     );
     const p = workspaceFrom(ctx, values.dir);
     const { hosting } = loadAnswers(p);
+    // Not marked done: status and deploy skip host on a trial, and a trial going real needs it.
     if (hosting.mode === 'trial') {
       ctx.stdout('Nothing to do on a trial.');
-      markDone(p, 'host', new Date());
       return 0;
     }
 
@@ -46,7 +46,7 @@ tested target. Safe to re-run. On a trial there is nothing to do.`,
     });
     await runChecked(
       ctx.run ?? runProcess,
-      'ssh',
+      sshProgram('ssh', ctx),
       [...SSH_OPTIONS, '--', hosting.ssh, 'sudo bash -s'],
       { input: script },
       'Preparing the server',

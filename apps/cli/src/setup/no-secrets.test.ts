@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { CliContext } from '../context';
 import { runCli } from '../main';
@@ -8,7 +8,8 @@ import { updateEnvFile } from './env-file';
 import { fakeDiscord, HEALTHY_CONTAINERS, MESH_CHANNELS, serverAnswers } from './testing';
 import { workspacePaths } from './workspace';
 
-const TOKEN = 'tok-SECRET-123';
+// Discord-token-shaped and fake; built at runtime so secret scanners skip it.
+const TOKEN = [`MTIz${'A'.repeat(22)}`, 'GaBcDe', 'F'.repeat(34)].join('.');
 const APP = '100000000000000001';
 const GUILD = '200000000000000002';
 const OWNER = '400000000000000004';
@@ -23,21 +24,25 @@ const DISCORD = {
   [`/guilds/${GUILD}/channels`]: MESH_CHANNELS,
 };
 
-/** Every seed file's content under `dirs`, read after the run. */
-function seeds(dirs: string[]): Map<string, string> {
+/** Every file under `dirs` (path → content), read after the run. */
+function files(dirs: string[]): Map<string, string> {
   const found = new Map<string, string>();
   for (const dir of dirs) {
-    for (const file of readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
-      if (file.endsWith('.nk')) found.set(basename(file), readFileSync(join(dir, file), 'utf8'));
+    for (const file of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+      if (!file.isFile()) continue;
+      const path = join(file.parentPath, file.name);
+      found.set(path, readFileSync(path, 'utf8'));
     }
   }
   return found;
 }
 
 describe('setup secrets', () => {
-  it('no step prints a secret', async () => {
+  it('no step prints a secret, and only deploy/.env holds the token', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-no-secrets-'));
     const seen: string[] = [];
+    // A failing command whose stderr echoes the token, as Docker Compose does for a bad .env.
+    let failing = false;
     const ctx: CliContext = {
       cwd,
       env: {},
@@ -51,7 +56,9 @@ describe('setup secrets', () => {
       sleep: async () => {},
       run: async (_cmd, args, opts) => {
         seen.push(...args, opts?.input ?? '');
-        return { code: 0, stdout: HEALTHY_CONTAINERS, stderr: '' };
+        return failing
+          ? { code: 1, stdout: '', stderr: `invalid line: DISCORD_BOT_TOKEN=${TOKEN}\n` }
+          : { code: 0, stdout: HEALTHY_CONTAINERS, stderr: '' };
       },
       lookup: async () => ['20.1.2.3'],
       probeNatsTls: async (host, port) => ({ ok: true, label: `${host}:${port} answers TLS` }),
@@ -66,9 +73,16 @@ describe('setup secrets', () => {
     updateEnvFile(p.envFile, { DISCORD_BOT_TOKEN: TOKEN });
     expect(await step('setup', 'discord')).toBe(1);
     ctx.fetch = fakeDiscord(DISCORD).fetch;
+    expect(await step('setup', 'discord')).toBe(0);
+    expect(await step('setup', 'host')).toBe(0);
+    failing = true;
+    expect(await step('setup', 'deploy')).toBe(1);
+    failing = false;
+    // The token pasted on the version line: deploy refuses it, upgrade replaces it.
+    updateEnvFile(p.envFile, { AGENTMESH_VERSION: TOKEN });
+    expect(await step('setup', 'deploy')).toBe(1);
     for (const argv of [
-      ['setup', 'discord'],
-      ['setup', 'host'],
+      ['upgrade'],
       ['setup', 'deploy'],
       ['setup', 'admin'],
       ['setup', 'invites'],
@@ -78,17 +92,20 @@ describe('setup secrets', () => {
       expect(await step(...argv), argv.join(' ')).toBe(0);
     }
 
-    const keys = seeds([p.root, ctx.homeDir]);
-    expect([...keys.keys()].sort()).toEqual([
+    const all = files([p.root, ctx.homeDir]);
+    const keys = [...all].filter(([path]) => path.endsWith('.nk'));
+    expect(keys.map(([path]) => basename(path)).sort()).toEqual([
+      'acme-riya-agent.nk',
       'discord-bridge.nk',
       'hub-issuer.nk',
       'hub-sys.nk',
       'hub-xkey.nk',
       'hub.nk',
-      'riya-agent.nk',
     ]);
-    for (const secret of [TOKEN, ...[...keys.values()].map((seed) => seed.trim())]) {
+    for (const secret of [TOKEN, ...keys.map(([, seed]) => seed.trim())]) {
       expect(seen.filter((text) => text.includes(secret))).toEqual([]);
     }
+    const holders = [...all].filter(([, text]) => text.includes(TOKEN));
+    expect(holders.map(([path]) => relative(p.root, path))).toEqual([join('deploy', '.env')]);
   });
 });

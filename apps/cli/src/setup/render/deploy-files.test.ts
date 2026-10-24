@@ -7,6 +7,7 @@ import {
   renderCompose,
   renderEnv,
   WORKSPACE_GITIGNORE,
+  withSecretLines,
 } from './deploy-files';
 
 const env = (hosting = parseAnswers(serverAnswers()).hosting) =>
@@ -84,8 +85,16 @@ describe('renderEnv', () => {
 describe('WORKSPACE_GITIGNORE', () => {
   it('ignores the secret files and the temp file an interrupted .env write leaves', () => {
     expect(WORKSPACE_GITIGNORE).toBe(
-      'deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n',
+      'deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n*.nk\n',
     );
+  });
+
+  it("a repo's .gitignore keeps its lines and gains only the missing secret lines", () => {
+    expect(withSecretLines('')).toBe(WORKSPACE_GITIGNORE);
+    expect(withSecretLines('node_modules/\r\ndeploy/.env\r\n*.nk')).toBe(
+      'node_modules/\r\ndeploy/.env\r\n*.nk\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n',
+    );
+    expect(withSecretLines(`dist/\n${WORKSPACE_GITIGNORE}`)).toBe(`dist/\n${WORKSPACE_GITIGNORE}`);
   });
 });
 

@@ -2,13 +2,13 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentmeshDir, existingMesh, MeshError } from '@agentmesh/common';
 import { parseCommandArgs } from '../../args';
-import type { Command } from '../../context';
+import { type Command, cliOf } from '../../context';
 import { loadTopology } from '../../lib/config-files';
 import { writePrivateFile } from '../../lib/files';
 import { agentJson } from '../../render/agent-setup';
 import { agentIdOf } from '../../setup/answers';
 import { NATS_PORT } from '../../setup/defaults';
-import { loadAnswers, markDone, workspaceFrom } from '../../setup/workspace';
+import { agentSeedFile, loadAnswers, markDone, workspaceFrom } from '../../setup/workspace';
 
 export const setupAdminCommand: Command = {
   name: 'setup admin',
@@ -28,7 +28,7 @@ refuses to replace settings for another agent or hub unless --replace.`,
     const a = loadAnswers(p);
     const agentId = agentIdOf(a.admin.id);
     const dir = agentmeshDir(ctx.homeDir);
-    const seedFile = join(dir, `${agentId}.nk`);
+    const seedFile = agentSeedFile(ctx.homeDir, a.team.meshName, agentId);
     if (!existsSync(seedFile)) {
       throw new MeshError('not_found', `No seed at ${seedFile}. Run setup render first.`);
     }
@@ -54,20 +54,29 @@ refuses to replace settings for another agent or hub unless --replace.`,
     const file = join(dir, 'agent.json');
     writePrivateFile(file, agentJson({ agentId, natsUrl, seedFile, prefix }), true);
 
+    // The plugin ignores agent.json while its options name another agent or hub (fileApplies).
+    const options =
+      "If the plugin's agent_id, nats_url or nkey_seed options are set, clear them in /plugin " +
+      'and restart Claude Code: while they name another agent, the plugin ignores this file.';
     const lines = [
       `Saved ${file} for ${agentId}. In Claude Code, call the AgentMesh connect tool, or ` +
         'restart Claude Code with the channel flag. Then run /agentmesh:activate.',
+      options,
     ];
     if (other) {
-      lines.push('Restart Claude Code: the running plugin is still connected to the old mesh.');
+      lines.push(
+        'Restart Claude Code: the running plugin is still connected to the old mesh. Clear ' +
+          'agent_id, nats_url and nkey_seed in /plugin first if they are set.',
+      );
     }
     if (a.hosting.mode === 'trial' && a.hosting.testAgent) {
       const testAgent = `${a.admin.id}-test-agent`;
+      const testSeed = agentSeedFile(ctx.homeDir, a.team.meshName, testAgent);
       lines.push(
         '',
         'For the test agent, under a second Claude account (CLAUDE_CONFIG_DIR), run:',
-        `  agentmesh agent-setup ${testAgent} --config ${p.configDir} --nats-url ${natsUrl} ` +
-          `--seed-file ${join(dir, `${testAgent}.nk`)}`,
+        `  ${cliOf(ctx)} agent-setup ${testAgent} --config ${p.configDir} --nats-url ${natsUrl} ` +
+          `--seed-file ${testSeed}`,
       );
     }
     markDone(p, 'admin', new Date());

@@ -112,7 +112,19 @@ AGENTMESH_LOG_LEVEL=info
 
 /** The workspace's `.gitignore`: the files that hold secrets, and `.env`'s atomic-write temp file. */
 export const WORKSPACE_GITIGNORE =
-  'deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n';
+  'deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n*.nk\n';
+
+/**
+ * A `.gitignore` (empty when there is none) with the lines of WORKSPACE_GITIGNORE it lacks
+ * appended. A workspace in an existing repo keeps its own lines. Pure.
+ */
+export function withSecretLines(existing: string): string {
+  const has = new Set(existing.split(/\r?\n/).map((line) => line.trim()));
+  const missing = WORKSPACE_GITIGNORE.split('\n').filter((line) => line && !has.has(line));
+  if (missing.length === 0) return existing;
+  const body = existing === '' || existing.endsWith('\n') ? existing : `${existing}\n`;
+  return `${body}${missing.join('\n')}\n`;
+}
 
 /** The workspace's `.claude/settings.json`: Claude must not open the token or the seeds. */
 export function renderClaudeSettings(): string {

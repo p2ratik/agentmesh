@@ -11,8 +11,19 @@ import { type AnswersInput, serverAnswers, trialAnswers } from '../../setup/test
 import { markDone, readState, type StepName, workspacePaths } from '../../setup/workspace';
 
 const TOKEN = 'tok-SECRET-123';
+// Discord-token-shaped and fake; built at runtime so secret scanners skip it.
+const DISCORD_TOKEN = [`MTIz${'A'.repeat(22)}`, 'GaBcDe', 'F'.repeat(34)].join('.');
 const TARGET = 'deploy@mesh.acme.dev';
-const SSH = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new'];
+const SSH = [
+  '-o',
+  'BatchMode=yes',
+  '-o',
+  'StrictHostKeyChecking=accept-new',
+  '-o',
+  'ConnectTimeout=15',
+  '-o',
+  'ControlPath=none',
+];
 const { prepare, finish } = remoteCommands('/opt/agentmesh');
 
 interface Call {
@@ -59,6 +70,7 @@ async function workspace(answers: AnswersInput, done: StepName[], token = TOKEN)
   for (const step of done) markDone(p, step, new Date());
   return {
     p,
+    ctx,
     out,
     err,
     calls,
@@ -73,9 +85,11 @@ async function workspace(answers: AnswersInput, done: StepName[], token = TOKEN)
 describe('setup deploy', () => {
   // --force-recreate: config/, nats.conf and the seeds are bind mounts, so a plain `up -d`
   // keeps the old containers, and the old config and keys, after a change to them alone.
+  // The [ -d ] guard: a server rebuilt under the same name has no folders, and chown would fail.
   it('runs these commands on the server', () => {
     expect(prepare).toBe(
-      'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config && chmod 700 /opt/agentmesh/deploy',
+      "[ -d /opt/agentmesh/deploy/secrets ] || { echo 'Run setup host again: /opt/agentmesh/deploy/secrets is missing on the server.' >&2; exit 1; }; " +
+        'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config && chmod 700 /opt/agentmesh/deploy',
     );
     expect(finish).toBe(
       'chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
@@ -150,6 +164,35 @@ describe('setup deploy', () => {
     expect(readState(t.p).done.deploy).toBeDefined();
   });
 
+  it('a token pasted on the image lines is refused before anything runs, never printed', async () => {
+    const t = await workspace(serverAnswers(), ['discord', 'host']);
+    for (const key of ['AGENTMESH_VERSION', 'AGENTMESH_IMAGE_REGISTRY']) {
+      const kept = readEnvFile(t.p.envFile).get(key) ?? '';
+      updateEnvFile(t.p.envFile, { [key]: DISCORD_TOKEN });
+      expect(await t.deploy(), key).toBe(1);
+      expect(t.err.at(-1)).toContain(`error: ${key} in deploy/.env is not an image`);
+      updateEnvFile(t.p.envFile, { [key]: kept });
+    }
+    expect(t.calls).toEqual([]);
+    expect([...t.out, ...t.err].join('\n')).not.toContain(DISCORD_TOKEN);
+  });
+
+  it('on Windows, runs the system OpenSSH, which can use the Windows ssh-agent', async () => {
+    const t = await workspace(serverAnswers(), ['discord', 'host']);
+    const root = mkdtempSync(join(tmpdir(), 'agentmesh-windows-'));
+    const openssh = join(root, 'System32', 'OpenSSH');
+    mkdirSync(openssh, { recursive: true });
+    for (const exe of ['ssh.exe', 'scp.exe']) writeFileSync(join(openssh, exe), '');
+    t.ctx.platform = 'win32';
+    t.ctx.env.SystemRoot = root;
+    expect(await t.deploy()).toBe(0);
+    expect(t.calls.map((c) => c.cmd)).toEqual([
+      join(openssh, 'ssh.exe'),
+      ...Array(4).fill(join(openssh, 'scp.exe')),
+      join(openssh, 'ssh.exe'),
+    ]);
+  });
+
   it('an empty token fails before anything is copied', async () => {
     const t = await workspace(serverAnswers(), ['discord', 'host'], '');
     expect(await t.deploy()).toBe(1);
@@ -214,6 +257,15 @@ describe('upgrade', () => {
     ]);
     expect(t.calls.map((c) => c.cmd)).toEqual(['ssh', 'scp', 'scp', 'scp', 'scp', 'ssh']);
     expect(readState(t.p).done.deploy).toBeDefined();
+  });
+
+  it('a failed deploy puts the old version back', async () => {
+    const t = await workspace(serverAnswers(), ['discord', 'host']);
+    t.failWhen((call) => call.args.includes(finish));
+    expect(await t.run('upgrade', '--dir', t.p.root, '--to', '0.9.1')).toBe(1);
+    expect(readEnvFile(t.p.envFile).get('AGENTMESH_VERSION')).toBe(VERSION);
+    expect(t.err[0]).toBe(`AGENTMESH_VERSION is back at ${VERSION} in deploy/.env.`);
+    expect(readState(t.p).done.deploy).toBeUndefined();
   });
 
   it('refuses a version that is not an image tag', async () => {
