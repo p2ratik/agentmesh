@@ -1,8 +1,9 @@
 import { HOUR_MS } from '@agentmesh/common';
-import type { ReplyStatus } from '@agentmesh/protocol';
+import type { ReplyStatus, RpcParams } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext } from '../../contracts';
-import { leaveTeam } from '../../testing/harness';
+import { internalId } from '../../core/ids';
+import { joinTeam, leaveTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import { postLimitViolation } from './limits';
 import type { MessagingServiceImpl } from './messaging.service';
@@ -205,5 +206,25 @@ describe('delivery classes', () => {
       ['bob-agent', 'status'],
       ['carol-agent', 'action'],
     ]);
+  });
+});
+
+describe('escalate', () => {
+  const agent = (id: string): CallContext => {
+    const actor = { id, kind: 'agent' as const, roles: [] };
+    return { actor, caller: actor, method: 'escalate', session: null, notes: [] };
+  };
+
+  it('reaches people who joined by invite after the handlers were built', async () => {
+    const h = createServiceHarness();
+    const { escalate } = sendHandlers(h.messaging as MessagingServiceImpl);
+    joinTeam(h.ctx, 'dana');
+    const ask = (to?: string) =>
+      ({ question: 'Ship it?', ...(to ? { to } : {}) }) as RpcParams<'escalate'>;
+    const own = await escalate(ask(), agent('dana-agent'));
+    const toDana = await escalate(ask('dana'), agent('alice-agent'));
+    for (const { threadId } of [own, toDana]) {
+      expect(h.messaging.participants(internalId('thread', threadId))).toContain('dana');
+    }
   });
 });

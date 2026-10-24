@@ -20,7 +20,10 @@ export const requestReviews: Effect = (env, run) => {
     task = repos.tasks.require(task.id);
   }
   const agents = chooseAgents(env, task, round).filter((id) => id !== task.assignee);
-  const humans = ctx.index.config.review.humanReviewers.filter((id) => id !== task.assignee);
+  // Configured humans who have not joined by invite yet are skipped until they do.
+  const humans = ctx.index.config.review.humanReviewers.filter(
+    (id) => id !== task.assignee && ctx.index.kindOf(id) === 'human',
+  );
   const everyone = [...new Set([...agents, ...humans])];
   repos.reviews.addReviewers(task.id, round, everyone);
 

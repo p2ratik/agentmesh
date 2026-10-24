@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leaveTeam } from '../../testing/harness';
+import { joinTeam, leaveTeam } from '../../testing/harness';
 import { agent, baseTask as base, human, createTaskHarness as setup } from '../../testing/tasks';
 
 describe('task lifecycle', () => {
@@ -152,6 +152,21 @@ describe('review loop', () => {
     expect(tasks.act(1, 'submit', {}, owner).reviewers).toEqual(['bob-agent']);
     expect(tasks.submitReview(1, 'approve', 'Good now', reviewer).state).toBe('approved');
     expect((await drain()).has('carol-agent')).toBe(false);
+  });
+});
+
+describe('human reviewers who join by invite', () => {
+  it('are added to reviews only once they have joined', () => {
+    const { tasks, ctx } = setup();
+    ctx.index.config.review.humanReviewers = ['dana'];
+    const reviewers = ['bob-agent'];
+    tasks.create({ ...base, area: 'api', assignee: 'alice-agent', reviewers }, human('bob'));
+    const owner = agent('alice-agent');
+    tasks.act(1, 'accept', {}, owner);
+    expect(tasks.act(1, 'submit', { prUrl: 'https://x/pr/1' }, owner).reviewers).toEqual(reviewers);
+    tasks.submitReview(1, 'request_changes', 'Missing tests', agent('bob-agent'));
+    joinTeam(ctx, 'dana');
+    expect(tasks.act(1, 'submit', {}, owner).reviewers).toEqual(['bob-agent', 'dana']);
   });
 });
 

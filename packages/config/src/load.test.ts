@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigError, configFromObject } from './load';
 import { ConfigIndex } from './lookup';
-import { pendingAreaOwners } from './validate';
+import { pendingInvitees } from './validate';
 
 const minimal = {
   version: 1,
@@ -68,7 +68,39 @@ describe('configFromObject', () => {
   it('accepts an area owner who will join by invite, and lists it as pending', () => {
     const tree = { ...minimal, areas: [{ id: 'web', owners: ['alice-agent', 'dana-agent'] }] };
     const { config } = configFromObject(tree);
-    expect(pendingAreaOwners(config)).toEqual(['dana-agent']);
+    expect(pendingInvitees(config)).toEqual(['dana-agent']);
+  });
+
+  it('accepts reviewers, a facilitator and notify targets who will join by invite', () => {
+    const notify = { to: ['alice-agent', 'frank'], text: 'CI failed' };
+    const { config } = configFromObject({
+      ...minimal,
+      review: { humanReviewers: ['dana'] },
+      planning: { facilitator: 'erin-agent' },
+      rules: [{ id: 'ci', match: { type: 'ci.failed' }, actions: [{ notify }] }],
+    });
+    expect(pendingInvitees(config)).toEqual(['dana', 'erin-agent', 'frank']);
+  });
+
+  it('still refuses the wrong kind of participant as reviewer, facilitator or notify target', () => {
+    const tree = {
+      ...minimal,
+      services: [{ id: 'ci', role: 'ingest' }],
+      review: { humanReviewers: ['alice-agent'] },
+      planning: { facilitator: 'alice' },
+      rules: [{ id: 'ci', match: { type: 'x' }, actions: [{ notify: { to: ['ci'], text: 'x' } }] }],
+    };
+    try {
+      configFromObject(tree);
+      expect.unreachable();
+    } catch (error) {
+      const messages = (error as ConfigError).issues.map((i) => `${i.path}: ${i.message}`);
+      expect(messages).toContain('review.humanReviewers: "alice-agent" is an agent, not a human');
+      expect(messages).toContain('planning.facilitator: "alice" is a human, not an agent');
+      expect(messages).toContain(
+        'rules[0].actions[0].notify.to: "ci" is a service, not an agent or a human',
+      );
+    }
   });
 
   it('still refuses a human, a service or the hub as an area owner', () => {

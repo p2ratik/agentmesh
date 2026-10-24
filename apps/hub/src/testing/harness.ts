@@ -39,6 +39,18 @@ export function createTestHarness(
   return { ctx, ports, clock, outbox };
 }
 
+/** The team as the hub sees it after `humanId` joins by invite, with the agent `{humanId}-agent`. */
+export function joinTeam(ctx: HubContext, humanId: string): void {
+  const { config } = ctx.index;
+  ctx.setIndex(
+    new ConfigIndex({
+      ...config,
+      humans: [...config.humans, { id: humanId, displayName: humanId, roles: [] }],
+      agents: [...config.agents, { id: `${humanId}-agent`, owner: humanId, skills: [] }],
+    }),
+  );
+}
+
 /** The team as the hub sees it after `humanId` and their agents leave (removed or edited out). */
 export function leaveTeam(ctx: HubContext, humanId: string): void {
   const { config } = ctx.index;

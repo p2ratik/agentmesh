@@ -211,6 +211,11 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
         (e) => e.meta.thread_id === threadId && e.meta.status === 'answer',
       );
       expect(answer.content).toBe('Yes, it retries.');
+
+      // The hub started before dana joined; her heartbeats must still count.
+      await new Promise<void>((r) => logger.flush(() => r()));
+      const heartbeat = `"subject":"${PREFIX}.presence.dana-agent"`;
+      expect(readFileSync(hubLog, 'utf8')).not.toContain(heartbeat);
     }, 60_000);
 
     it('removing the member kicks the live session and refuses the key', async () => {

@@ -101,7 +101,7 @@ review:
   maxReviewers: 2
 
 planning:
-  facilitator: initiator # the agent of whoever ran /plan — or a fixed agent id
+  facilitator: initiator # the agent of whoever ran /plan — or a fixed agent id (one joining by invite is fine; until it joins, the initiator's agent facilitates)
   requireApproval: false # true: a human must /plan approve before tasks are created
   quorum: 1 # share of online participants whose contributions end a round early
 
