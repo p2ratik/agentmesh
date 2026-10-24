@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "agentmesh CLI: scaffold, validate, manage participant keys, render NATS config.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "bin": {
     "agentmesh": "./dist/main.js"
   },

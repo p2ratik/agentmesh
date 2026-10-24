@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@agentmesh/bus": "workspace:*",
+    "@agentmesh/cli": "workspace:*",
     "@agentmesh/common": "workspace:*",
     "@agentmesh/protocol": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",

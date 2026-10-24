@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join4 } = __require("path");
+    var { join: join5 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join4(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join5(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2552,9 +2552,9 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync3 } = __require("node:fs");
+    var { existsSync: existsSync4 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join4, isAbsolute, sep } = __require("node:path");
+    var { join: join5, isAbsolute, sep } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
     var sleep3 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute(path) && !existsSync3(path);
+      return isAbsolute(path) && !existsSync4(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join4(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join5(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join4(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join5(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join4(__dirname, "..", "file.js");
+          return join5(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join4 = ",";
+            let join5 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join4 = `,
+                join5 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join4;
+                res += join5;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join4}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join5}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join4 = `,
+              join5 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join4;
+                separator = join5;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join4;
+              separator = join5;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join4 = ",";
+            let join5 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join4 = `,
+                join5 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join4;
+                res += join5;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join4}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join5}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join4 = `,
+              join5 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join4;
+                separator = join5;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join5 = `,
+              const join6 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join5;
+                res2 += join6;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join5}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join4 = `,
+            const join5 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join4, maximumBreadth);
+              res += stringifyTypedArray(value, join5, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join4;
+              separator = join5;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join4;
+                separator = join5;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join4;
+              separator = join5;
             }
             if (separator !== "") {
               res = `
@@ -22785,7 +22785,7 @@ var require_core2 = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text3, msg) => text3 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -25359,6 +25359,25 @@ var require_dist = __commonJS({
   }
 });
 
+// ../../packages/common/src/agent-files.ts
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+var agentmeshDir = (home = homedir()) => join(home, ".agentmesh");
+function existingMesh(home = homedir()) {
+  const file2 = join(agentmeshDir(home), "agent.json");
+  if (!existsSync(file2)) return null;
+  try {
+    const value = JSON.parse(readFileSync(file2, "utf8"));
+    const pick2 = (k) => typeof value[k] === "string" ? value[k] : void 0;
+    const agentId = pick2("agentId");
+    const natsUrl = pick2("natsUrl");
+    return agentId || natsUrl ? { ...agentId ? { agentId } : {}, ...natsUrl ? { natsUrl } : {} } : null;
+  } catch {
+    return null;
+  }
+}
+
 // ../../packages/common/src/clock.ts
 var MINUTE_MS = 6e4;
 var HOUR_MS = 60 * MINUTE_MS;
@@ -25411,12 +25430,15 @@ function createLogger(name, options = {}) {
 }
 
 // ../../packages/common/src/paths.ts
-import { homedir } from "node:os";
-import { join } from "node:path";
-function expandHome(path, home = homedir()) {
+import { homedir as homedir2 } from "node:os";
+import { join as join2 } from "node:path";
+function expandHome(path, home = homedir2()) {
   if (path === "~") return home;
-  return /^~[\\/]/.test(path) ? join(home, path.slice(2)) : path;
+  return /^~[\\/]/.test(path) ? join2(home, path.slice(2)) : path;
 }
+
+// ../../packages/common/src/version.ts
+var VERSION = "0.3.1";
 
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process2 from "node:process";
@@ -34771,8 +34793,8 @@ function ko_default() {
 }
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/locales/lt.js
-var capitalizeFirstCharacter = (text2) => {
-  return text2.charAt(0).toUpperCase() + text2.slice(1);
+var capitalizeFirstCharacter = (text3) => {
+  return text3.charAt(0).toUpperCase() + text3.slice(1);
 };
 function getUnitTypeFromNumber(number4) {
   const abs = Math.abs(number4);
@@ -46762,9 +46784,9 @@ var StdioServerTransport = class {
 };
 
 // src/config.ts
-import { existsSync, readFileSync } from "node:fs";
-import { homedir as homedir2 } from "node:os";
-import { join as join2 } from "node:path";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join3 } from "node:path";
 
 // ../../packages/protocol/src/primitives.ts
 var IsoDate = external_exports.string().min(1);
@@ -47713,7 +47735,7 @@ var FileConfig = external_exports.object({
   nkeySeed: external_exports.string().optional(),
   prefix: external_exports.string().optional()
 });
-var DEFAULT_CONFIG_FILE = join2(homedir2(), ".agentmesh", "agent.json");
+var DEFAULT_CONFIG_FILE = join3(homedir3(), ".agentmesh", "agent.json");
 function resolveConfig(env = process.env, file2 = DEFAULT_CONFIG_FILE) {
   const saved = readFileConfig(file2);
   const fromFile = fileApplies(env, saved) ? saved : {};
@@ -47771,9 +47793,9 @@ function usable(value) {
   return trimmed;
 }
 function readFileConfig(file2) {
-  if (!existsSync(file2)) return {};
+  if (!existsSync2(file2)) return {};
   try {
-    const parsed = FileConfig.safeParse(JSON.parse(readFileSync(file2, "utf8")));
+    const parsed = FileConfig.safeParse(JSON.parse(readFileSync2(file2, "utf8")));
     return parsed.success ? parsed.data : {};
   } catch {
     return {};
@@ -47781,8 +47803,9 @@ function readFileConfig(file2) {
 }
 
 // src/instructions.ts
-var UNENROLLED = `AgentMesh is installed, but this laptop has not joined a mesh yet; the only tool is join.
-To join, your human needs the invite code their mesh admin sent by Discord DM:
+var UNENROLLED = `AgentMesh is installed, but this laptop has not joined a mesh yet; the only tools are join and connect.
+If your human just ran \`agentmesh setup admin\` on this machine, call connect: it uses the settings setup saved.
+Otherwise, to join, your human needs the invite code their mesh admin sent by Discord DM:
 1. Ask them to save the code to ~/.agentmesh/invite.txt. Never ask them to paste it into this chat: it is a one-time secret.
 2. Call join. It shows which hub the invite points at; ask your human to confirm that hub, then call join again with confirm_hub.
 After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
@@ -47839,54 +47862,40 @@ ${clip(input2.hello.policy.instructions, MAX_INSTRUCTIONS - used)}`);
   return parts.join("\n\n");
 }
 var TRUNCATED = "\n\u2026 (policy truncated: ask your human for the full team policy)";
-function clip(text2, budget) {
-  if (text2.length <= budget) return text2;
-  return `${text2.slice(0, Math.max(0, budget - TRUNCATED.length))}${TRUNCATED}`;
+function clip(text3, budget) {
+  if (text3.length <= budget) return text3;
+  return `${text3.slice(0, Math.max(0, budget - TRUNCATED.length))}${TRUNCATED}`;
 }
 
 // src/join/cli.ts
-import { homedir as homedir4 } from "node:os";
+import { homedir as homedir5 } from "node:os";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 
 // src/join/files.ts
 import {
   chmodSync,
-  existsSync as existsSync2,
+  existsSync as existsSync3,
   mkdirSync,
-  readFileSync as readFileSync2,
+  readFileSync as readFileSync3,
   renameSync,
   rmSync,
   writeFileSync
 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join3 } from "node:path";
-var agentmeshDir = (home = homedir3()) => join3(home, ".agentmesh");
-var defaultInviteFile = (home = homedir3()) => join3(agentmeshDir(home), "invite.txt");
+import { homedir as homedir4 } from "node:os";
+import { join as join4 } from "node:path";
+var defaultInviteFile = (home = homedir4()) => join4(agentmeshDir(home), "invite.txt");
 function readInviteFile(path) {
-  if (!existsSync2(path)) {
+  if (!existsSync3(path)) {
     throw new MeshError(
       "not_found",
       `No invite file at ${path}. Save the invite code from your Discord DM there first.`
     );
   }
-  return readFileSync2(path, "utf8");
+  return readFileSync3(path, "utf8");
 }
 function deleteInviteFile(path) {
   rmSync(path, { force: true });
-}
-function existingMesh(home = homedir3()) {
-  const file2 = join3(agentmeshDir(home), "agent.json");
-  if (!existsSync2(file2)) return null;
-  try {
-    const value = JSON.parse(readFileSync2(file2, "utf8"));
-    const pick2 = (k) => typeof value[k] === "string" ? value[k] : void 0;
-    const agentId = pick2("agentId");
-    const natsUrl = pick2("natsUrl");
-    return agentId || natsUrl ? { ...agentId ? { agentId } : {}, ...natsUrl ? { natsUrl } : {} } : null;
-  } catch {
-    return null;
-  }
 }
 function assertCanJoin(home, replace) {
   const current = existingMesh(home);
@@ -47907,7 +47916,7 @@ function writePrivate(path, content) {
 function stageSeed(home, agentId, seed) {
   const dir = agentmeshDir(home);
   mkdirSync(dir, { recursive: true, mode: 448 });
-  const seedFile = join3(dir, `${agentId}.nk`);
+  const seedFile = join4(dir, `${agentId}.nk`);
   const staged = `${seedFile}.joining`;
   writePrivate(staged, `${seed}
 `);
@@ -47920,7 +47929,7 @@ function stageSeed(home, agentId, seed) {
   };
 }
 function saveConfig(home, payload, seedFile) {
-  const configFile = join3(agentmeshDir(home), "agent.json");
+  const configFile = join4(agentmeshDir(home), "agent.json");
   const config2 = {
     agentId: payload.agentId,
     natsUrl: payload.natsUrl,
@@ -47936,13 +47945,13 @@ function saveConfig(home, payload, seedFile) {
 var import_jetstream2 = __toESM(require_mod4(), 1);
 
 // ../../packages/bus/src/connect.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 var import_transport_node = __toESM(require_transport_node(), 1);
 var SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 function resolveSeed(seedOrPath) {
   const value = seedOrPath.trim();
   if (SEED_PATTERN.test(value)) return value;
-  const fromFile = readFileSync3(expandHome(value), "utf8").trim();
+  const fromFile = readFileSync4(expandHome(value), "utf8").trim();
   if (!SEED_PATTERN.test(fromFile))
     throw new Error(`File ${value} does not contain an nkey user seed`);
   return fromFile;
@@ -48049,13 +48058,13 @@ var RpcClient = class {
   }
 };
 function translateTransportError(error63) {
-  const text2 = `${error63?.name ?? ""} ${error63?.message ?? ""}`.toLowerCase();
-  if (text2.includes("no responders") || text2.includes("503")) {
+  const text3 = `${error63?.name ?? ""} ${error63?.message ?? ""}`.toLowerCase();
+  if (text3.includes("no responders") || text3.includes("503")) {
     return new MeshError("unavailable", "The mesh hub is not reachable right now.");
   }
-  if (text2.includes("timeout"))
+  if (text3.includes("timeout"))
     return new MeshError("timeout", "The mesh hub did not answer in time.");
-  if (text2.includes("permission"))
+  if (text3.includes("permission"))
     return new MeshError("forbidden", "NATS permissions rejected the request.");
   return new MeshError(
     "unavailable",
@@ -48092,15 +48101,15 @@ async function enroll(summary, code, seed, clientVersion) {
   }
 }
 function refusedOrUnreachable(error63, hub) {
-  const text2 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
-  if (/authori[sz]ation/i.test(text2)) return new MeshError("unauthenticated", REFUSED);
-  if (/tls/i.test(text2)) {
+  const text3 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
+  if (/authori[sz]ation/i.test(text3)) return new MeshError("unauthenticated", REFUSED);
+  if (/tls/i.test(text3)) {
     return new MeshError(
       "unavailable",
       `${hub} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
     );
   }
-  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text2)) {
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text3)) {
     return new MeshError(
       "unavailable",
       `Could not reach the hub at ${hub}. Check your network and try again.`
@@ -48207,7 +48216,7 @@ ${USAGE}
   try {
     const file2 = args.file ? expandHome(args.file) : null;
     const code = file2 ? readInviteFile(file2) : await rl.question("Paste your invite code: ");
-    const request = { code, home: homedir4(), clientVersion, replace: args.replace ?? false };
+    const request = { code, home: homedir5(), clientVersion, replace: args.replace ?? false };
     const first = await runJoin(request);
     process.stdout.write(`${confirmationText(first.summary)}
 `);
@@ -48230,9 +48239,6 @@ ${USAGE}
     rl.close();
   }
 }
-
-// src/join/tool.ts
-import { homedir as homedir5 } from "node:os";
 
 // src/tools/registry.ts
 import { randomUUID } from "node:crypto";
@@ -48296,8 +48302,8 @@ function sanitizeMeta(raw) {
   }
   return meta3;
 }
-function oneLine(text2) {
-  return text2.replace(/\s+/g, " ").trim().slice(0, 300);
+function oneLine(text3) {
+  return text3.replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
 // src/inbox/fyi.ts
@@ -48337,8 +48343,8 @@ function seenIds({ items, dropped }) {
   const lost = new Set(dropped);
   return items.filter((m) => !lost.has(m.threadId)).map((m) => m.id);
 }
-function firstLine(text2, max) {
-  return (text2.trim().split("\n")[0] ?? "").trim().slice(0, max);
+function firstLine(text3, max) {
+  return (text3.trim().split("\n")[0] ?? "").trim().slice(0, max);
 }
 function fyiLine(m) {
   return `\xB7 ${m.threadId} \xAB${oneLine(m.subject).slice(0, 60)}\xBB ${firstLine(m.body, 100)}`;
@@ -48435,8 +48441,8 @@ function formatLeases(leases) {
     (l) => `- ${l.path}${l.repo ? ` (${l.repo})` : ""} \xB7 ${l.holder} \xB7 until ${l.expiresAt}${l.taskId ? ` \xB7 ${l.taskId}` : ""}${l.reason ? ` \xB7 ${l.reason}` : ""}`
   ).join("\n");
 }
-function firstLine2(text2) {
-  return (text2.split("\n")[0] ?? "").slice(0, 160);
+function firstLine2(text3) {
+  return (text3.split("\n")[0] ?? "").slice(0, 160);
 }
 
 // src/tools/types.ts
@@ -49051,8 +49057,8 @@ ${issues.join("\n")}`);
 }
 async function run(tool, args, deps) {
   try {
-    const text2 = await tool.run(args, deps, tool.mutating ? randomUUID() : void 0);
-    return { content: [{ type: "text", text: text2 }] };
+    const text3 = await tool.run(args, deps, tool.mutating ? randomUUID() : void 0);
+    return { content: [{ type: "text", text: text3 }] };
   } catch (err) {
     if (isMeshError(err)) {
       const issues = Array.isArray(err.details?.issues) ? `
@@ -49068,11 +49074,42 @@ function meshToolHandler(deps) {
     call: (name, args, signal) => callTool(name, args, deps, signal)
   };
 }
-function error62(text2) {
-  return { content: [{ type: "text", text: text2 }], isError: true };
+function error62(text3) {
+  return { content: [{ type: "text", text: text3 }], isError: true };
+}
+
+// src/join/connect-tool.ts
+var CONNECT_TOOL = "connect";
+var connectToolListing = listTools([
+  {
+    name: CONNECT_TOOL,
+    description: "Connect this session with the settings that agentmesh setup saved in ~/.agentmesh/agent.json.",
+    input: external_exports.object({}),
+    mutating: true,
+    run: async () => ""
+  }
+])[0];
+async function callConnectTool(deps) {
+  const resolved = deps.resolve();
+  if (!resolved.ok) {
+    return text(
+      `The saved AgentMesh settings do not load: ${resolved.problems.join("; ")}. Run agentmesh setup admin first.`,
+      true
+    );
+  }
+  try {
+    await deps.onConnected(resolved.config.agentId);
+  } catch (error63) {
+    return text(`connect failed: ${error63 instanceof Error ? error63.message : String(error63)}`, true);
+  }
+  return text(`Connected as ${resolved.config.agentId}. Run /agentmesh:activate.`);
+}
+function text(value, isError = false) {
+  return { content: [{ type: "text", text: value }], ...isError ? { isError: true } : {} };
 }
 
 // src/join/tool.ts
+import { homedir as homedir6 } from "node:os";
 var JOIN_TOOL = "join";
 var JoinInput = external_exports.object({
   invite_file: external_exports.string().optional().describe(
@@ -49092,8 +49129,8 @@ var joinToolListing = listTools([
 ])[0];
 async function callJoinTool(rawArgs, deps) {
   const parsed = JoinInput.safeParse(rawArgs ?? {});
-  if (!parsed.success) return text(`Invalid arguments for join: ${parsed.error.message}`, true);
-  const home = deps.home ?? homedir5();
+  if (!parsed.success) return text2(`Invalid arguments for join: ${parsed.error.message}`, true);
+  const home = deps.home ?? homedir6();
   const file2 = parsed.data.invite_file ? expandHome(parsed.data.invite_file) : defaultInviteFile(home);
   try {
     const outcome = await runJoin({
@@ -49104,7 +49141,7 @@ async function callJoinTool(rawArgs, deps) {
       replace: parsed.data.replace
     });
     if (outcome.kind === "confirm") {
-      return text(
+      return text2(
         `${confirmationText(outcome.summary)}
 Ask your human whether ${outcome.summary.hub} is your team's hub. Only if they say yes, call join again with confirm_hub: "${outcome.summary.hub}".`
       );
@@ -49112,14 +49149,14 @@ Ask your human whether ${outcome.summary.hub} is your team's hub. Only if they s
     deleteInviteFile(file2);
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : "";
-    return text(
+    return text2(
       `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already.`
     );
   } catch (error63) {
-    return text(isMeshError(error63) ? error63.message : `join failed: ${String(error63)}`, true);
+    return text2(isMeshError(error63) ? error63.message : `join failed: ${String(error63)}`, true);
   }
 }
-function text(value, isError = false) {
+function text2(value, isError = false) {
   return { content: [{ type: "text", text: value }], ...isError ? { isError: true } : {} };
 }
 
@@ -50881,7 +50918,6 @@ var Server = class extends Protocol {
 
 // src/server.ts
 var SERVER_NAME = "mesh";
-var VERSION = "0.3.1";
 function createMcpServer(instructions, handler) {
   const server = new Server(
     { name: SERVER_NAME, version: VERSION },
@@ -51341,10 +51377,16 @@ async function runConfigured(config2, logger) {
 }
 async function runUnenrolled(logger) {
   const notJoined = {
-    list: () => [joinToolListing],
-    call: async (name, args) => name === JOIN_TOOL ? callJoinTool(args, { clientVersion: VERSION, onJoined }) : {
-      content: [{ type: "text", text: "This laptop has not joined a mesh yet; use join." }],
-      isError: true
+    list: () => [joinToolListing, connectToolListing],
+    call: async (name, args) => {
+      if (name === JOIN_TOOL) return callJoinTool(args, { clientVersion: VERSION, onJoined });
+      if (name === CONNECT_TOOL) {
+        return callConnectTool({ resolve: () => resolveConfig(), onConnected: onJoined });
+      }
+      return {
+        content: [{ type: "text", text: "This laptop has not joined a mesh yet; use join." }],
+        isError: true
+      };
     }
   };
   let handler = notJoined;

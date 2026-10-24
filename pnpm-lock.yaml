@@ -149,6 +149,9 @@ importers:
       '@agentmesh/bus':
         specifier: workspace:*
         version: link:../../packages/bus
+      '@agentmesh/cli':
+        specifier: workspace:*
+        version: link:../../apps/cli
       '@agentmesh/common':
         specifier: workspace:*
         version: link:../../packages/common

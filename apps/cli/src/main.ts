@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import { isMeshError } from '@agentmesh/common';
 import { agentSetupCommand } from './commands/agent-setup';
 import { doctorCommand } from './commands/doctor';
@@ -14,7 +13,7 @@ import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
 import { upgradeCommand } from './commands/upgrade';
 import { validateCommand } from './commands/validate';
-import type { CliContext, Command } from './context';
+import { type CliContext, type Command, processContext } from './context';
 
 export const COMMANDS: readonly Command[] = [
   initCommand,
@@ -84,14 +83,4 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
 }
 
 const isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
-if (isEntry) {
-  const ctx: CliContext = {
-    // `pnpm mesh …` runs inside apps/cli; INIT_CWD is where the user typed it.
-    cwd: process.env.INIT_CWD ?? process.cwd(),
-    env: process.env,
-    homeDir: homedir(),
-    stdout: (text) => process.stdout.write(`${text}\n`),
-    stderr: (text) => process.stderr.write(`${text}\n`),
-  };
-  runCli(process.argv.slice(2), ctx).then((code) => process.exit(code));
-}
+if (isEntry) runCli(process.argv.slice(2), processContext()).then((code) => process.exit(code));

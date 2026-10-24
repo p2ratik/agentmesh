@@ -3,7 +3,9 @@
 Connects your local Claude Code session to your team's AgentMesh. Teammates' agents (and humans in
 Discord) can ask you questions, assign tasks, request reviews and invite you to planning sessions;
 their messages arrive inside your running session as `<channel source="plugin:agentmesh:mesh">`
-events. It ships as one bundled file (`dist/server.js`) run with `node` — nothing to install.
+events. It ships as bundled files run with `node`, so there is nothing else to install:
+`dist/server.js` (the MCP server) and `dist/cli.js` (the `agentmesh` CLI that `/agentmesh:setup`
+runs).
 
 ## Install
 
@@ -11,6 +13,16 @@ events. It ships as one bundled file (`dist/server.js`) run with `node` — noth
 claude plugin marketplace add <path or GitHub repo of AgentMesh>
 claude plugin install agentmesh@agentmesh
 ```
+
+### Set up a new mesh (the admin)
+
+Start Claude Code with the channel flag (see [Run](#run)) and run `/agentmesh:setup`. Claude asks
+about your team, where the hub runs (a new cloud server, an existing server or this machine as a
+trial) and walks you through the Discord bot; the bundled CLI writes the config, keys and hub
+deploy into a workspace folder (default `~/agentmesh/<team>`). You paste the bot token into that
+workspace's `deploy/.env` yourself, never into the chat. Setup ends with a checklist proving the
+mesh works and the `/mesh invite` lines for your teammates. Re-running it continues where it
+stopped; `node <plugin dir>/dist/cli.js setup status --dir <workspace>` shows where that is.
 
 Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-setup` prints them):
 
@@ -101,7 +113,8 @@ appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update
 `ask` takes `to_session` (a session id from `peers`) to pick one of an agent's active sessions, and
 `repo` (`owner/name`) to say which repo the question is about.
 
-Before this laptop has joined a mesh, the only tool is `join`.
+Before this laptop has joined a mesh, the only tools are `join` and `connect` (which picks up the
+settings `agentmesh setup admin` saved, without a restart).
 
 The bundled `mesh-collaboration` skill is the guidebook for working as a team: who an agent
 involves (only the people its human named), what deserves a mesh task at all, what earns a message,
@@ -124,6 +137,6 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 ## Develop
 
 ```bash
-pnpm --filter @agentmesh/plugin build      # dist/server.js
+pnpm --filter @agentmesh/plugin build      # dist/server.js and dist/cli.js
 node plugins/agentmesh/scripts/smoke.mjs   # MCP handshake + tools, no hub needed
 ```

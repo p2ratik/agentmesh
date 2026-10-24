@@ -1,11 +1,12 @@
+import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import type { RunProcess } from './lib/process';
 import type { ConnectNats } from './setup/checks/agent';
 import type { CheckResult } from './setup/checks/result';
 
 /**
- * Everything a command touches outside its arguments. `main.ts` builds it
- * from the real process; tests pass temp directories and capture output.
+ * Everything a command touches outside its arguments. `processContext` builds
+ * it from the real process; tests pass temp directories and capture output.
  */
 export interface CliContext {
   /** Directory relative paths resolve against. */
@@ -34,6 +35,18 @@ export interface Command {
   summary: string;
   help: string;
   run(argv: string[], ctx: CliContext): Promise<number> | number;
+}
+
+/** The real process: its directory, environment, home and output streams. */
+export function processContext(): CliContext {
+  return {
+    // `pnpm mesh …` runs inside apps/cli; INIT_CWD is where the user typed it.
+    cwd: process.env.INIT_CWD ?? process.cwd(),
+    env: process.env,
+    homeDir: homedir(),
+    stdout: (text) => process.stdout.write(`${text}\n`),
+    stderr: (text) => process.stderr.write(`${text}\n`),
+  };
 }
 
 export function resolveFrom(ctx: CliContext, path: string): string {
