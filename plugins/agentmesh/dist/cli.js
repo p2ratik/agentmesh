@@ -48100,6 +48100,8 @@ var SetupState = external_exports.object({
   version: external_exports.literal(1),
   /** The hosting mode of the last render. */
   mode: external_exports.enum(["server", "trial"]).optional(),
+  /** The files (relative to the workspace) that a render which has not finished yet created. */
+  created: external_exports.array(external_exports.string()).optional(),
   done: external_exports.partialRecord(external_exports.enum(STEPS), external_exports.string())
 });
 function readJson(path) {
@@ -48123,6 +48125,11 @@ function markDone(p, step, now) {
   const state = readState(p);
   state.done[step] = now.toISOString();
   writeFileAtomic(p.state, `${JSON.stringify(state, null, 2)}
+`);
+}
+function markCreated(p, created) {
+  const state = readState(p);
+  writeFileAtomic(p.state, `${JSON.stringify({ ...state, created }, null, 2)}
 `);
 }
 function markRendered(p, mode, now) {
@@ -49565,6 +49572,27 @@ function carryOver(fresh, previous, targets, adminId) {
   const discordId = humanDiscordId(previous, adminId);
   return discordId ? setHumanDiscordId(text, adminId, discordId) : text;
 }
+function writeFiles(p, state, force, files) {
+  const own2 = new Set(state.done.render ? [] : state.created ?? []);
+  const created = [];
+  const report = files.map(([path, content]) => {
+    const file2 = relative(p.root, path);
+    const merged = path === p.gitignore;
+    const outcome = writeRendered(path, content, force || merged || own2.has(file2));
+    if (outcome === "created" || own2.has(file2)) created.push(file2);
+    const note = outcome === "differs" ? " (kept; --force replaces it)" : "";
+    const label = merged && outcome === "replaced" ? "appended" : outcome;
+    return `  ${label.padEnd(10)}${file2}${note}`;
+  });
+  markCreated(p, created);
+  return report;
+}
+function stopTrial(p, from, to) {
+  if (from !== "trial" || to !== "server") return [];
+  return [
+    `The trial still runs on this machine with the same bot token. Before setup deploy, stop it: run \`docker compose --profile discord down\` in ${p.deployDir}.`
+  ];
+}
 var setupRenderCommand = {
   name: "setup render",
   summary: "Write the workspace config, keys and NATS config from setup-answers.json",
@@ -49573,13 +49601,14 @@ var setupRenderCommand = {
 Renders config/mesh.yaml, the team policy, deploy/docker-compose.yml, deploy/.env,
 .gitignore, .claude/settings.json and CLAUDE.md from <workspace>/setup-answers.json,
 generates the keys and writes deploy/nats/nats.conf. --dry-run prints the summary and
-writes nothing. A rendered file that differs is kept unless --force, and an existing
-.gitignore only gains the secret lines it lacks. deploy/.env and existing keys are
-always kept: --force sets only NATS_BIND and NATS_PUBLIC_HOST in deploy/.env, and the
-other settings in which it differs are named. A render for another hosting mode than
-the last one marks host, deploy and admin as to do again. Your agents' seeds go to
-~/.agentmesh/<meshName>-<agent>.nk. --registry sets the image registry (default
-${DEFAULT_IMAGE_REGISTRY}).`,
+writes nothing. A rendered file that differs is kept unless --force (until a render
+finishes, a re-run also replaces the files it created), and an existing .gitignore only
+gains the secret lines it lacks. deploy/.env and existing keys are always kept: --force
+sets only NATS_BIND and NATS_PUBLIC_HOST in deploy/.env, and the other settings in which
+it differs are named. A render for another hosting mode than the last one marks host,
+deploy and admin as to do again, and from a trial to a server it says to stop the
+trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agent>.nk.
+--registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}).`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS4, { min: 0, max: 0, names: "" });
     if (values.registry !== void 0 && !IMAGE_REGISTRY.test(values.registry)) {
@@ -49594,7 +49623,8 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
       return 0;
     }
     const force = values.force ?? false;
-    const renderedAt = readState(p).done.render;
+    const state = readState(p);
+    const renderedAt = state.done.render;
     if (renderedAt && !force) {
       ctx.stdout(
         `Already rendered on ${renderedAt.slice(0, 10)}. The files in ${p.root} are now the source of truth; edit them, or re-render with --force.`
@@ -49607,21 +49637,15 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
     const policy = renderPolicy(a);
     for (const warning of policy.warnings) ctx.stderr(`warning: ${warning}`);
     const gitignore = existsSync12(p.gitignore) ? readFileSync10(p.gitignore, "utf8") : "";
-    const report = [
+    const report = writeFiles(p, state, force, [
       [p.meshFile, previous ? carryOver(fresh, previous, targets, a.admin.id) : fresh],
       [p.policyFile, policy.text],
       [p.compose, renderCompose()],
       [p.gitignore, withSecretLines(gitignore)],
       [p.claudeSettings, renderClaudeSettings()],
       [p.claudeMd, renderWorkspaceClaudeMd(cliOf(ctx))]
-    ].map(([path, content]) => {
-      const merged = path === p.gitignore;
-      const outcome = writeRendered(path, content, force || merged);
-      const note = outcome === "differs" ? " (kept; --force replaces it)" : "";
-      const label = merged && outcome === "replaced" ? "appended" : outcome;
-      return `  ${label.padEnd(10)}${relative(p.root, path)}${note}`;
-    });
-    report.push(writeEnv(p, a, force, values.registry));
+    ]);
+    report.push(writeEnv(p, a, force || !renderedAt, values.registry));
     for (const { id, seedFile: file2, shared } of targets) {
       if (findKeyHolder(readFileSync10(p.meshFile, "utf8"), id).nkey) continue;
       const { seedFile } = addKey(p.meshFile, file2, id, { force: false, cli: cliOf(ctx), shared });
@@ -49645,6 +49669,7 @@ ${DEFAULT_IMAGE_REGISTRY}).`,
         `Rendered ${p.root}:`,
         ...report,
         "",
+        ...stopTrial(p, state.mode, a.hosting.mode),
         `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=, save it, then run setup discord. Never paste the token into the chat.`
       ].join("\n")
     );
