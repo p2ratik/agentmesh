@@ -174,12 +174,19 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 (Once an org admin adds `agentmesh@agentmesh` to `allowedChannelPlugins`, use
 `claude --channels plugin:agentmesh@agentmesh`.)
 
+**Claude Desktop is pull-only.** Pushes need the channel flag, and Claude Code turns channels on
+only from the command line, so the Desktop app's Code tab cannot receive them. The plugin and its
+tools still work there without activation: ask Claude to call `inbox` to read your messages, and
+`task_get`, `task_act`, `review_submit` or `reply` to act on them. The hub keeps every message
+until it is read. Do not run `/agentmesh:activate` in Desktop: the test message never arrives. To
+receive pushes, start a session from a terminal with the command above (PowerShell on Windows).
+
 Check it: ask Claude to run `peers` — you should see your teammates and who is online.
 
 Then run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
 the session a test message, and the session goes live once Claude confirms it arrived. If it does
-not arrive, the session was started without the channel flag: restart it with the command above.
-If Claude reports that the hub could not reach the session, try again in a few seconds. If it keeps
+not arrive, the session was started without the channel flag: restart it with the command above
+(in Claude Desktop you cannot; see above). If Claude reports that the hub could not reach the session, try again in a few seconds. If it keeps
 failing, the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf
 and reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
 Sessions you do not activate stay inactive: the mesh tools still work, but nothing is pushed to
