@@ -1,8 +1,30 @@
+import { DiscordConfig } from '@agentmesh/config';
 import type { z } from 'zod';
 import type { SetupAnswers } from './answers';
 import { DISCORD_API } from './discord-api';
 
 export type AnswersInput = z.input<typeof SetupAnswers>;
+
+/** `docker compose ps --format json` for a healthy stack. */
+export const HEALTHY_CONTAINERS = [
+  { Service: 'nats', State: 'running', Health: '' },
+  { Service: 'hub', State: 'running', Health: 'healthy' },
+  { Service: 'discord-bridge', State: 'running', Health: '' },
+]
+  .map((row) => JSON.stringify(row))
+  .join('\n');
+
+const discord = DiscordConfig.parse({});
+/** A Discord server with the default category, channels and planning forum. */
+export const MESH_CHANNELS = [
+  { id: '300000000000000003', name: 'Agent Mesh', type: 4, parent_id: null },
+  ...Object.values(discord.channels).map((c, i) => ({
+    id: `30000000000000001${i}`,
+    name: c.name,
+    type: c.type === 'forum' ? 15 : 0,
+    parent_id: '300000000000000003',
+  })),
+];
 
 /**
  * A fake Discord API for `ctx.fetch`. Each path answers with its JSON body, or calls its

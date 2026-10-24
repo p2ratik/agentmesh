@@ -1,39 +1,26 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DiscordConfig } from '@agentmesh/config';
 import { describe, expect, it } from 'vitest';
 import type { CliContext } from '../context';
 import { runCli } from '../main';
 import { updateEnvFile } from '../setup/env-file';
-import { type AnswersInput, fakeDiscord, serverAnswers, trialAnswers } from '../setup/testing';
+import {
+  type AnswersInput,
+  fakeDiscord,
+  HEALTHY_CONTAINERS,
+  MESH_CHANNELS,
+  serverAnswers,
+  trialAnswers,
+} from '../setup/testing';
 import { readState, workspacePaths } from '../setup/workspace';
 
 const TOKEN = 'tok-SECRET-123';
 const GUILD = '200000000000000002';
 const SSH = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new'];
 
-const PS = [
-  { Service: 'nats', State: 'running', Health: '' },
-  { Service: 'hub', State: 'running', Health: 'healthy' },
-  { Service: 'discord-bridge', State: 'running', Health: '' },
-]
-  .map((row) => JSON.stringify(row))
-  .join('\n');
-
-const discord = DiscordConfig.parse({});
-const CHANNELS = [
-  { id: '300000000000000003', name: 'Agent Mesh', type: 4, parent_id: null },
-  ...Object.values(discord.channels).map((c, i) => ({
-    id: `30000000000000001${i}`,
-    name: c.name,
-    type: c.type === 'forum' ? 15 : 0,
-    parent_id: '300000000000000003',
-  })),
-];
-
 /** A rendered workspace with the Discord values in .env, and fakes for everything doctor calls. */
-async function workspace(answers: AnswersInput, channels: () => unknown = () => CHANNELS) {
+async function workspace(answers: AnswersInput, channels: () => unknown = () => MESH_CHANNELS) {
   const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-doctor-'));
   const out: string[] = [];
   const err: string[] = [];
@@ -47,7 +34,7 @@ async function workspace(answers: AnswersInput, channels: () => unknown = () => 
     stderr: (t) => err.push(t),
     run: async (cmd, args, opts) => {
       calls.push({ cmd, args, cwd: opts?.cwd });
-      return { code: 0, stdout: PS, stderr: '' };
+      return { code: 0, stdout: HEALTHY_CONTAINERS, stderr: '' };
     },
     fetch: fakeDiscord({ [`/guilds/${GUILD}/channels`]: channels }).fetch,
     lookup: async () => ['20.1.2.3'],
