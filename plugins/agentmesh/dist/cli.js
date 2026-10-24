@@ -49451,6 +49451,33 @@ function renderPolicy(a) {
   return { text, warnings };
 }
 
+// ../../apps/cli/src/setup/render/status.ts
+var BEFORE_RENDER = "confirm the answers (setup render --dry-run), then run setup render";
+var BEFORE_RERENDER = `${BEFORE_RENDER} --force (the hosting changed)`;
+var AFTER_ADMIN = "run /agentmesh:activate, then the proof (doctor, peers, hello), then setup invites";
+var skipper = (answers) => (step) => answers?.hosting.mode === "trial" && step === "host";
+function nextStep(state, answers) {
+  const skipped = skipper(answers);
+  const next = STEPS.find((step) => !state.done[step] && !skipped(step));
+  const moved = answers !== null && state.mode !== void 0 && state.mode !== answers.hosting.mode;
+  return moved ? BEFORE_RERENDER : next === "render" ? BEFORE_RENDER : next ? `run setup ${next}` : AFTER_ADMIN;
+}
+function renderStatus(state, answers) {
+  const skipped = skipper(answers);
+  const lines = STEPS.map((step) => {
+    const at = state.done[step];
+    const status = at ? `done ${at.slice(0, 10)}` : skipped(step) ? "not needed (trial)" : "to do";
+    return `  ${step.padEnd(8)} ${status}`;
+  });
+  const todo = nextStep(state, answers);
+  const where = !answers ? "" : answers.hosting.mode === "server" ? ` on ${answers.hosting.publicHost}` : " (trial on this machine)";
+  return [
+    `AgentMesh setup${answers ? ` for ${answers.team.name}` : ""}${where}`,
+    ...lines,
+    `Next: ${todo}`
+  ].join("\n");
+}
+
 // ../../apps/cli/src/setup/render/summary.ts
 var MAX_LINES = 25;
 var FIXED_LINES = 6;
@@ -49593,6 +49620,10 @@ function stopTrial(p, from, to) {
     `The trial still runs on this machine with the same bot token. Before setup deploy, stop it: run \`docker compose --profile discord down\` in ${p.deployDir}.`
   ];
 }
+function nextLine(p, before, a) {
+  if (before.done.discord) return `Next: ${nextStep(readState(p), a)}`;
+  return `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=, save it, then run setup discord. Never paste the token into the chat.`;
+}
 var setupRenderCommand = {
   name: "setup render",
   summary: "Write the workspace config, keys and NATS config from setup-answers.json",
@@ -49670,35 +49701,12 @@ trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agen
         ...report,
         "",
         ...stopTrial(p, state.mode, a.hosting.mode),
-        `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=, save it, then run setup discord. Never paste the token into the chat.`
+        nextLine(p, state, a)
       ].join("\n")
     );
     return 0;
   }
 };
-
-// ../../apps/cli/src/setup/render/status.ts
-var BEFORE_RENDER = "confirm the answers (setup render --dry-run), then run setup render";
-var BEFORE_RERENDER = `${BEFORE_RENDER} --force (the hosting changed)`;
-var AFTER_ADMIN = "run /agentmesh:activate, then the proof (doctor, peers, hello), then setup invites";
-function renderStatus(state, answers) {
-  const trial = answers?.hosting.mode === "trial";
-  const skipped = (step) => trial && step === "host";
-  const lines = STEPS.map((step) => {
-    const at = state.done[step];
-    const status = at ? `done ${at.slice(0, 10)}` : skipped(step) ? "not needed (trial)" : "to do";
-    return `  ${step.padEnd(8)} ${status}`;
-  });
-  const next = STEPS.find((step) => !state.done[step] && !skipped(step));
-  const moved = answers !== null && state.mode !== void 0 && state.mode !== answers.hosting.mode;
-  const todo = moved ? BEFORE_RERENDER : next === "render" ? BEFORE_RENDER : next ? `run setup ${next}` : AFTER_ADMIN;
-  const where = !answers ? "" : answers.hosting.mode === "server" ? ` on ${answers.hosting.publicHost}` : " (trial on this machine)";
-  return [
-    `AgentMesh setup${answers ? ` for ${answers.team.name}` : ""}${where}`,
-    ...lines,
-    `Next: ${todo}`
-  ].join("\n");
-}
 
 // ../../apps/cli/src/commands/setup/status.ts
 var setupStatusCommand = {

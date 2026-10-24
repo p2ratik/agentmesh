@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { listKeyHolders, setHumanDiscordId } from '../../lib/mesh-document';
 import { readEnvFile, updateEnvFile } from '../../setup/env-file';
 import { answersWorkspace, cliHarness, serverAnswers, trialAnswers } from '../../setup/testing';
-import type { workspacePaths } from '../../setup/workspace';
+import { markDone, type workspacePaths } from '../../setup/workspace';
 
 const DISCORD_ENV = { DISCORD_BOT_TOKEN: 't', DISCORD_APP_ID: '1', DISCORD_GUILD_ID: '2' };
 
@@ -164,6 +164,7 @@ describe('setup render', () => {
     const p = answersWorkspace(h, trialAnswers());
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(0);
     expect(h.out.at(-1)).not.toContain('docker compose --profile discord down');
+    markDone(p, 'discord', new Date());
 
     writeFileSync(p.answers, JSON.stringify(serverAnswers()));
     expect(await h.run('setup', 'render', '--dir', p.root, '--force')).toBe(0);
@@ -171,6 +172,8 @@ describe('setup render', () => {
       `The trial still runs on this machine with the same bot token. Before setup deploy, stop ` +
         `it: run \`docker compose --profile discord down\` in ${p.deployDir}.`,
     );
+    // The token is in .env already, so the server comes next.
+    expect(h.out.at(-1)).toMatch(/\nNext: run setup host$/);
   });
 
   it("keeps a repo's .gitignore and appends only the missing secret lines", async () => {

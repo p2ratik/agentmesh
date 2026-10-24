@@ -135,6 +135,11 @@ change behaviour:
   and the rendered `mesh.yaml` takes the Discord values from `deploy/.env`, so in a workspace it
   always fails. `setup deploy` already checks the config with the real `.env` before it copies
   anything, so the workspace `CLAUDE.md` and the `mesh.yaml` header say edit, then deploy.
+- **An unfinished render re-runs over its own files (R26).** Until a render finishes, a re-run
+  replaces the files that render created, as `--force` would, and sets the two hosting keys in
+  `.env`. A seed collision in `~/.agentmesh` can then be fixed with another person id. A file
+  that was there before setup is still kept, and after the first render nothing is replaced
+  without `--force`.
 - **One version includes `tests/package.json` (R17).**
 - **`doctor`'s TLS probe** connects with `rejectUnauthorized: false` only so it can report Node's
   reason; a certificate that fails verification fails the check, and nothing is sent over that

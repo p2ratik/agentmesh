@@ -26,6 +26,7 @@ import {
 } from '../../setup/render/deploy-files';
 import { renderMeshYaml } from '../../setup/render/mesh-yaml';
 import { renderPolicy } from '../../setup/render/policy';
+import { nextStep } from '../../setup/render/status';
 import { renderAnswersSummary } from '../../setup/render/summary';
 import { renderWorkspaceClaudeMd } from '../../setup/render/workspace-claude-md';
 import {
@@ -175,6 +176,15 @@ function stopTrial(p: WorkspacePaths, from: SetupState['mode'], to: SetupState['
   ];
 }
 
+/** A re-render (a trial going real) keeps the token and the discord step. */
+function nextLine(p: WorkspacePaths, before: SetupState, a: SetupAnswers): string {
+  if (before.done.discord) return `Next: ${nextStep(readState(p), a)}`;
+  return (
+    `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=, save it, ` +
+    'then run setup discord. Never paste the token into the chat.'
+  );
+}
+
 export const setupRenderCommand: Command = {
   name: 'setup render',
   summary: 'Write the workspace config, keys and NATS config from setup-answers.json',
@@ -258,8 +268,7 @@ trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agen
         ...report,
         '',
         ...stopTrial(p, state.mode, a.hosting.mode),
-        `Next: paste your Discord bot token into ${p.envFile} after DISCORD_BOT_TOKEN=, save it, ` +
-          'then run setup discord. Never paste the token into the chat.',
+        nextLine(p, state, a),
       ].join('\n'),
     );
     return 0;

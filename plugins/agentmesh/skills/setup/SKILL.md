@@ -212,7 +212,9 @@ until a render finishes, a re-run replaces the files it wrote, so it needs no `-
 Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup host --dir "<workspace>"` (server only). It
 installs Docker and certbot over SSH and gets the TLS certificate. Then run
 `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup deploy --dir "<workspace>"`. It validates the
-config, copies the files and starts the hub (on a trial, on this machine).
+config, copies the files and starts the hub (on a trial, on this machine). If this workspace ran a
+trial before and now deploys to a server, first have the admin stop the trial: run
+`docker compose --profile discord down` in `<workspace>/deploy`.
 
 ## 6. You join
 
