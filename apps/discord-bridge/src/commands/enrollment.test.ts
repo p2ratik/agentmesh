@@ -216,6 +216,22 @@ describe('TeamIndex', () => {
     expect(team.current.agent('dana-agent')).toBeDefined();
   });
 
+  // The hub may start after the bridge (compose orders start, not readiness).
+  it('keeps asking at startup until the hub answers', async () => {
+    const team = new TeamIndex(yaml);
+    let attempts = 0;
+    const rpc = {
+      call: async () => {
+        attempts += 1;
+        if (attempts < 3) throw new Error('no responders');
+        return { members: [member('active')], invites: [] };
+      },
+    } as unknown as MeshRpc;
+    expect(await team.load(rpc, { initialDelayMs: 1 })).toBe(1);
+    expect(attempts).toBe(3);
+    expect(authorize(team.current, '100000000000000009')?.id).toBe('dana');
+  });
+
   it('offers only active invited members to /mesh remove, never mesh.yaml humans', async () => {
     const team = new TeamIndex(yaml);
     const people = () =>

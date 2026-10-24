@@ -1,3 +1,4 @@
+import { type RetryOptions, retry } from '@agentmesh/common';
 import { ConfigIndex, type MeshConfig, withMembers } from '@agentmesh/config';
 import type { MemberRecord, OpenInvite } from '@agentmesh/protocol';
 import type { MeshRpc } from './rpc';
@@ -10,9 +11,9 @@ export interface Enrolled {
 
 /**
  * The bridge's view of the team: mesh.yaml plus members who joined by invite.
- * Rebuilt from the hub's `enrollment.list` at startup, on every member event
- * and after `/mesh invite` or `/mesh uninvite`, so a new member can use slash
- * commands without a bridge restart.
+ * Rebuilt from the hub's `enrollment.list` at startup (until the hub answers),
+ * on every member event and after `/mesh invite` or `/mesh uninvite`, so a new
+ * member can use slash commands without a bridge restart.
  */
 export class TeamIndex {
   readonly #yaml: MeshConfig;
@@ -49,5 +50,13 @@ export class TeamIndex {
     this.#active = members.filter((m) => m.status === 'active');
     this.#invites = invites;
     return this.#active.length;
+  }
+
+  /**
+   * The startup load: refreshes with backoff until the hub answers, since the hub may
+   * start after the bridge. Until then only mesh.yaml members can use the bridge.
+   */
+  load(rpc: MeshRpc, options: RetryOptions = {}): Promise<number> {
+    return retry(() => this.refresh(rpc), { attempts: Number.POSITIVE_INFINITY, ...options });
   }
 }

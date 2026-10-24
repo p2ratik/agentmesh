@@ -52,14 +52,20 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
     logger,
   });
   const rpc = new RpcClient(nc, config.mesh.prefix, discord.serviceId);
+  const abort = new AbortController();
   const refreshTeam = async () => {
     const active = await team.refresh(rpc);
     logger.info({ members: active }, 'team index refreshed');
   };
-  // Not fatal: until the hub answers, only mesh.yaml members can use the bridge.
-  await refreshTeam().catch((err: unknown) =>
-    logger.warn({ err }, 'could not load enrolled members; using mesh.yaml only'),
-  );
+  // Not fatal, and not waited for: until the hub answers, only mesh.yaml members can use the bridge.
+  void team
+    .load(rpc, {
+      signal: abort.signal,
+      onRetry: (err, attempt, delayMs) =>
+        logger.warn({ err, attempt, delayMs }, 'could not load enrolled members yet; retrying'),
+    })
+    .then((active) => logger.info({ members: active }, 'team index refreshed'))
+    .catch(() => undefined); // only when the bridge stops
 
   await new REST()
     .setToken(discord.token)
@@ -101,7 +107,6 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
   );
   client.on(Events.MessageCreate, createReplyRelay({ rpc, index, threads, echo, logger }));
 
-  const abort = new AbortController();
   void runFeed({
     js: jetstream(nc),
     prefix: config.mesh.prefix,
