@@ -27,7 +27,11 @@ What setup expects, and what Claude proposes when it creates a new cloud server:
   keeps only the activity feed and ingest backlog.
 - **A static public IP and a DNS name** that points at it.
 - **SSH key login.** `ssh` and `scp` run without prompts (`BatchMode=yes`), so the admin's key must
-  work without one, for example through an ssh agent (`ssh <user@host> true` tests it). The user
+  work without one, for example through an ssh agent. If you can read the server's host key
+  fingerprint (in the cloud console), connect once with plain `ssh` and compare it. Then test the
+  key the way setup connects:
+  `ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -- <user@host> true`. On Windows, run
+  that test with `%SystemRoot%\System32\OpenSSH\ssh.exe`, the binary the CLI uses. The user
   needs `sudo` without a password. They give up after 15 seconds when port 22 does not answer, and
   never reuse a shared connection (`ControlPath=none`). On Windows, setup runs the system OpenSSH
   (`%SystemRoot%\System32\OpenSSH\ssh.exe` and `scp.exe`) when it is installed, because only that
