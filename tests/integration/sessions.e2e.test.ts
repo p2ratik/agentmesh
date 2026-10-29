@@ -68,7 +68,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('per-session delivery end to end',
       await alice.call('ask', { to: 'bob-agent', text: 'Does the client handle 409?' }),
     );
     const asked = await b2.waitFor((e) => e.meta.thread_id === threadId);
-    expect(asked.content).toBe('Does the client handle 409?');
+    expect(asked.content).toBe('│ Does the client handle 409?');
     await quiet();
     expect(b1.events).toEqual([]);
   }, 60_000);
@@ -87,7 +87,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('per-session delivery end to end',
     await bob.waitFor((e) => e.meta.thread_id === threadId);
     await bob.call('reply', { thread_id: threadId, text: 'Yes.', status: 'answer' });
     const answer = await a2.waitFor((e) => e.meta.thread_id === threadId);
-    expect(answer.content).toBe('Yes.');
+    expect(answer.content).toBe('│ Yes.');
     await quiet();
     expect(onThread(a1, threadId)).toEqual([]);
   }, 60_000);

@@ -45,14 +45,14 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('mesh end to end over NATS', () =>
     const sent = await alice.call('ask', { to: 'bob-agent', text: 'Is the render API ready?' });
     const threadId = /thr-\d+/.exec(sent)?.[0] ?? '';
     const asked = await bob.waitFor((e) => e.meta.thread_id === threadId);
-    expect(asked.content).toBe('Is the render API ready?');
+    expect(asked.content).toBe('│ Is the render API ready?');
     expect(asked.meta).toMatchObject({ from: 'alice-agent', from_kind: 'agent', kind: 'ask' });
 
     await bob.call('reply', { thread_id: threadId, text: 'Yes, ship it.', status: 'answer' });
     const answer = await alice.waitFor(
       (e) => e.meta.thread_id === threadId && e.meta.status === 'answer',
     );
-    expect(answer.content).toBe('Yes, ship it.');
+    expect(answer.content).toBe('│ Yes, ship it.');
   }, 60_000);
 
   it('queues messages for an offline teammate until one of its sessions activates', async () => {

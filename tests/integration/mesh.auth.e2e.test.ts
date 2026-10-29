@@ -100,9 +100,9 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       await Promise.all([activate(alice, 'auth'), activate(bob, 'auth')]);
       const sent = await alice.call('ask', { to: 'bob-agent', text: 'auth ping' });
       const threadId = /thr-\d+/.exec(sent)?.[0] ?? '';
-      expect((await bob.waitFor((e) => e.meta.thread_id === threadId)).content).toBe('auth ping');
+      expect((await bob.waitFor((e) => e.meta.thread_id === threadId)).content).toBe('│ auth ping');
       await bob.call('reply', { thread_id: threadId, text: 'auth pong' });
-      expect((await alice.waitFor((e) => e.content === 'auth pong')).meta.from).toBe('bob-agent');
+      expect((await alice.waitFor((e) => e.content === '│ auth pong')).meta.from).toBe('bob-agent');
     }, 60_000);
 
     it('refuses to let one agent call the hub as another', async () => {
