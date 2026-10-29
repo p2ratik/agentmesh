@@ -48790,7 +48790,7 @@ var planningTools = [
 // src/tools/sessions.ts
 var Description = external_exports.string().min(1).max(200);
 var LISTEN_WAIT_MS = 3e3;
-var CHECK_SENT = "Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh.";
+var CHECK_SENT = "Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh. Claude Desktop cannot pass that flag, so a Desktop session cannot be activated: tell your human it stays pull-only, and call inbox when they ask; every other tool works without activation.";
 var sessionTools = [
   defineTool({
     name: "activate",
@@ -49150,7 +49150,7 @@ Ask your human whether ${outcome.summary.hub} is your team's hub. Only if they s
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : "";
     return text2(
-      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already.`
+      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.`
     );
   } catch (error63) {
     return text2(isMeshError(error63) ? error63.message : `join failed: ${String(error63)}`, true);

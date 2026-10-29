@@ -7,7 +7,7 @@ const Description = z.string().min(1).max(200);
 const LISTEN_WAIT_MS = 3000;
 
 const CHECK_SENT =
-  'Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh.';
+  'Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh. Claude Desktop cannot pass that flag, so a Desktop session cannot be activated: tell your human it stays pull-only, and call inbox when they ask; every other tool works without activation.';
 
 /** Opting this session in and out of the mesh, and moving work to it. */
 export const sessionTools = [

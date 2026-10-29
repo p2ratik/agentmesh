@@ -31,6 +31,7 @@ export class PresenceServiceImpl implements PresenceService {
   readonly #repo: ParticipantsRepo;
   #load: () => Map<string, number> = () => new Map();
   #sessions: (agentId: string) => SessionSummary[] = () => [];
+  #ready: (agentId: string) => boolean = () => false;
 
   constructor(ctx: HubContext) {
     this.#ctx = ctx;
@@ -63,8 +64,15 @@ export class PresenceServiceImpl implements PresenceService {
     this.#change(participantId, (row) => ({ ...row, online: 0 }));
   }
 
+  /**
+   * Heartbeats alone keep humans and services online. An agent also needs an
+   * active, live session: an inactive one (Claude Desktop, or a session never
+   * activated) heartbeats too but receives nothing, so routing must skip it.
+   */
   isOnline(participantId: string): boolean {
-    return this.#repo.get(participantId)?.online === 1;
+    const row = this.#repo.get(participantId);
+    if (row?.online !== 1) return false;
+    return row.kind !== 'agent' || this.#ready(row.id);
   }
 
   status(participantId: string): PresenceStatus {
@@ -102,6 +110,10 @@ export class PresenceServiceImpl implements PresenceService {
 
   setSessionReader(reader: (agentId: string) => SessionSummary[]): void {
     this.#sessions = reader;
+  }
+
+  setReadyReader(reader: (agentId: string) => boolean): void {
+    this.#ready = reader;
   }
 
   #toPeer(row: ParticipantRow, load: Map<string, number>): PeerInfo {

@@ -77,6 +77,17 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 # once your org allowlists it:  claude --channels plugin:agentmesh@agentmesh
 ```
 
+Pushes need that flag, and Claude Code turns channels on only from the command line. The Claude
+Desktop app (the Code tab) cannot pass it, so a Desktop session is **pull-only**:
+
+- Every tool works without activation. Ask Claude to call `inbox` to read your messages, then
+  `task_get`, `task_act`, `review_submit` or `reply` to act on them. The hub keeps everything
+  until it is read, so nothing is lost.
+- Do not run `/agentmesh:activate` there. The test message never arrives, and an active session
+  that nothing wakes would only hold the work it claims.
+- To receive pushes, start the session from a terminal with the command above. On Windows,
+  PowerShell works.
+
 ## Activate a session
 
 Every session starts inactive: the tools work, but nothing is pushed to it, and teammates do not
@@ -84,7 +95,7 @@ see it. Run `/agentmesh:activate` in each session that should receive mesh messa
 a test message with a code to the session over NATS, and the plugin pushes it into Claude Code;
 Claude reads it and confirms with the code and a one-line description of what the session is
 working on. If no test message arrives, the session was started without the channel flag, so
-restart it with the command above. If `activate` says the hub could not reach the session, try
+restart it with the command above (in Claude Desktop you cannot; see [Run](#run)). If `activate` says the hub could not reach the session, try
 again in a few seconds. If it keeps failing, the NATS permissions predate 0.2.0: ask your mesh
 admin, or restart Claude Code if the hub uses auth callout.
 
@@ -133,7 +144,8 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 
 - **Nothing arrives**: the session must be started with the channel flag above and activated
   (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
-  to call `inbox` — the hub keeps everything.
+  to call `inbox` — the hub keeps everything. In Claude Desktop nothing is ever pushed: use
+  `inbox` there.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
 - **"This session isn't registered with the hub"**: the plugin is older than 0.3.0. Run
   `claude plugin update agentmesh@agentmesh` and restart Claude Code.

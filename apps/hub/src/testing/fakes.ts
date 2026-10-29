@@ -213,6 +213,7 @@ export class FakePresence implements PresenceService {
     this.#load = reader;
   }
   setSessionReader(): void {}
+  setReadyReader(): void {}
 }
 
 /** Records every send and check. A session acks all it gets unless `respond` says otherwise. */

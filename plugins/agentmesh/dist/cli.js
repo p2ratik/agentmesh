@@ -46890,22 +46890,15 @@ function validateReferences(config2) {
   const issues = [];
   const add = (path, message) => issues.push({ path, message });
   const humans = new Set(config2.humans.map((h) => h.id));
-  const agents = new Set(config2.agents.map((a) => a.id));
-  const services = new Set(config2.services.map((s) => s.id));
+  const expectKind = kindCheck(config2, add);
   checkUniqueIds(config2, add);
   config2.agents.forEach((a, i) => {
     if (!humans.has(a.owner)) add(`agents[${i}].owner`, `unknown human "${a.owner}"`);
   });
   config2.areas.forEach((area, i) => {
-    for (const owner of area.owners) {
-      if (humans.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a human, not an agent`);
-      if (services.has(owner)) add(`areas[${i}].owners`, `"${owner}" is a service, not an agent`);
-      if (owner === config2.hub.serviceId) add(`areas[${i}].owners`, `"${owner}" is the hub`);
-    }
+    for (const owner of area.owners) expectKind(`areas[${i}].owners`, owner, "agent");
   });
-  config2.review.humanReviewers.forEach((id) => {
-    if (!humans.has(id)) add("review.humanReviewers", `unknown human "${id}"`);
-  });
+  for (const id of config2.review.humanReviewers) expectKind("review.humanReviewers", id, "human");
   const workflowIds = new Set(config2.workflows.map((w) => w.id));
   config2.workflows.forEach((w, i) => {
     checkWorkflow(w, `workflows[${i}]`, add);
@@ -46918,19 +46911,42 @@ function validateReferences(config2) {
     add("planning.defaultTemplate", `unknown template "${config2.planning.defaultTemplate}"`);
   }
   const { facilitator } = config2.planning;
-  if (facilitator !== "initiator" && !agents.has(facilitator)) {
-    add("planning.facilitator", `must be "initiator" or an agent id, got "${facilitator}"`);
-  }
+  if (facilitator !== "initiator") expectKind("planning.facilitator", facilitator, "agent");
   config2.rules.forEach((rule, i) => {
-    checkRule(rule, `rules[${i}]`, config2, workflowIds, add);
+    checkRule(rule, `rules[${i}]`, expectKind, workflowIds, add);
   });
   checkDiscord(config2, add);
   checkIngest(config2, add);
   return issues;
 }
-function pendingAreaOwners(config2) {
-  const agents = new Set(config2.agents.map((a) => a.id));
-  return [...new Set(config2.areas.flatMap((a) => a.owners))].filter((id) => !agents.has(id));
+function pendingInvitees(config2) {
+  const listed = new Set([...config2.humans, ...config2.agents, ...config2.services].map((p) => p.id));
+  listed.add(config2.hub.serviceId);
+  const { facilitator } = config2.planning;
+  const referenced = [
+    ...config2.areas.flatMap((a) => a.owners),
+    ...config2.review.humanReviewers,
+    ...facilitator === "initiator" ? [] : [facilitator],
+    ...config2.rules.flatMap(
+      (r) => r.actions.flatMap((a) => "notify" in a && Array.isArray(a.notify.to) ? a.notify.to : [])
+    )
+  ];
+  return [...new Set(referenced)].filter((id) => !listed.has(id));
+}
+var named = (kind) => kind === "agent" ? "an agent" : `a ${kind}`;
+function kindCheck(config2, add) {
+  const kinds = new Map([
+    ...config2.humans.map((h) => [h.id, "human"]),
+    ...config2.agents.map((a) => [a.id, "agent"]),
+    ...config2.services.map((s) => [s.id, "service"])
+  ]);
+  return (path, id, ...wanted) => {
+    if (id === config2.hub.serviceId) return add(path, `"${id}" is the hub`);
+    const kind = kinds.get(id);
+    if (kind && !wanted.includes(kind)) {
+      add(path, `"${id}" is ${named(kind)}, not ${wanted.map(named).join(" or ")}`);
+    }
+  };
 }
 function checkUniqueIds(config2, add) {
   const seen = /* @__PURE__ */ new Map();
@@ -46966,19 +46982,16 @@ function checkWorkflow(w, path, add) {
     }
   });
 }
-function checkRule(rule, path, config2, workflows, add) {
+function checkRule(rule, path, expectKind, workflows, add) {
   for (const [field, cond] of Object.entries(rule.match.where)) {
     if (cond.matches !== void 0 && !isValidRegex(cond.matches)) {
       add(`${path}.match.where.${field}.matches`, "invalid regular expression");
     }
   }
-  const participants = new Set([...config2.agents, ...config2.humans].map((p) => p.id));
   rule.actions.forEach((action, i) => {
     const at = `${path}.actions[${i}]`;
     if ("notify" in action && Array.isArray(action.notify.to)) {
-      for (const id of action.notify.to.filter((id2) => !participants.has(id2))) {
-        add(`${at}.notify.to`, `unknown participant "${id}"`);
-      }
+      for (const id of action.notify.to) expectKind(`${at}.notify.to`, id, "agent", "human");
     }
     const workflow = "create_task" in action ? action.create_task.workflow : void 0;
     if (workflow && !workflows.has(workflow)) {
@@ -49775,7 +49788,7 @@ function renderSummary(loaded) {
   const { config: config2 } = loaded;
   const enabledRules = config2.rules.filter((r) => r.enabled).length;
   const { planning, discord } = config2;
-  const pending = pendingAreaOwners(config2);
+  const pending = pendingInvitees(config2);
   return [
     `OK ${loaded.file}`,
     row2("Mesh", `${config2.mesh.name} (prefix "${config2.mesh.prefix}")`),
@@ -49786,7 +49799,7 @@ function renderSummary(loaded) {
     ...pending.length > 0 ? [
       row2(
         "Pending",
-        `${pending.join(", ")} (area owners not in mesh.yaml: they join by invite)`
+        `${pending.join(", ")} (referenced but not in mesh.yaml: they join by invite)`
       )
     ] : [],
     row2("Workflows", ids(config2.workflows)),

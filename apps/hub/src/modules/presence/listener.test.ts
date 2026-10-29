@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { parseHeartbeat } from './listener';
+import type { NatsConnection } from '@agentmesh/bus';
+import { describe, expect, it, vi } from 'vitest';
+import { createTestHarness, joinTeam, leaveTeam } from '../../testing/harness';
+import { createPresenceModule } from './index';
+import { parseHeartbeat, startPresenceListener } from './listener';
 
 describe('parseHeartbeat', () => {
   it('keeps the session id', () => {
@@ -21,5 +24,48 @@ describe('parseHeartbeat', () => {
       const body = JSON.stringify({ session });
       expect(parseHeartbeat('mesh', 'mesh.presence.alice-agent', body)).toBeNull();
     }
+  });
+});
+
+describe('startPresenceListener', () => {
+  /** A real presence service and a fake connection whose heartbeats the test publishes. */
+  function listen() {
+    const h = createTestHarness();
+    const presence = createPresenceModule(h.ctx).service;
+    type Callback = (err: Error | null, msg: { subject: string; string(): string }) => void;
+    let deliver: Callback = () => undefined;
+    const nc = {
+      subscribe: (_subject: string, opts: { callback: Callback }) => {
+        deliver = opts.callback;
+        return { unsubscribe: () => undefined };
+      },
+    } as unknown as NatsConnection;
+    const onSession = vi.fn(() => 'ok' as const);
+    startPresenceListener(nc, 'mesh', presence, () => h.ctx.index, h.ctx.logger, onSession);
+    const beat = (id: string) => {
+      const body = JSON.stringify({ session: 's-abc123def456' });
+      deliver(null, { subject: `mesh.presence.${id}`, string: () => body });
+    };
+    return { h, presence, onSession, beat };
+  }
+
+  it('accepts heartbeats from an agent who joined by invite after the hub started', () => {
+    const { h, presence, onSession, beat } = listen();
+    joinTeam(h.ctx, 'dana');
+    presence.syncFromConfig(); // what the enrollment module does after a join
+    beat('dana-agent');
+    expect(presence.status('dana-agent')).toBe('online');
+    expect(onSession).toHaveBeenCalledWith('dana-agent', 's-abc123def456', {});
+  });
+
+  it('refuses humans, services, strangers and members who left after the hub started', () => {
+    const { h, presence, onSession, beat } = listen();
+    leaveTeam(h.ctx, 'bob');
+    presence.syncFromConfig();
+    for (const id of ['bob-agent', 'alice', 'hermes', 'mallory-agent']) beat(id);
+    expect(onSession).not.toHaveBeenCalled();
+    expect(presence.status('bob-agent')).toBe('offline');
+    beat('alice-agent');
+    expect(onSession).toHaveBeenCalledOnce();
   });
 });

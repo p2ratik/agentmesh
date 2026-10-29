@@ -70,10 +70,10 @@ your dependent task is ready, or that it was just assigned to you. Tasks created
 
 | Effect | What it does |
 | --- | --- |
-| `auto_assign` | If unassigned and dependencies are done: picks an area owner (online first, fewest active tasks, least recently assigned, not at the load cap, never someone who declined) via the `assign` transition. Otherwise announces the task on the board per `assignment.boardAnnounce`. |
+| `auto_assign` | If unassigned and dependencies are done: picks an area owner ([online](protocol.md#sessions-and-liveness) first, fewest active tasks, least recently assigned, not at the load cap, never someone who declined) via the `assign` transition. Otherwise announces the task on the board per `assignment.boardAnnounce`. |
 | `notify_assignee` | A brief for the assignee (unless they caused it; a self-claim or self-assignment gives a note on their own tool result instead, with the base and suggested branch). On assignment: base branch, suggested branch, dependencies, `doneWhen`, exact next calls. After `request_changes`/`approve`: the review outcome. |
 | `notify_creator` | One line to the creator (unless they caused it or own the task). |
-| `request_reviews` | Pins reviewers for the round: those named at creation who are still on the team, else the previous round's, else area owners → agents with matching skills → anyone (online and least-loaded first, never the assignee); plus `review.humanReviewers`. Sends each a review request. |
+| `request_reviews` | Pins reviewers for the round: those named at creation who are still on the team, else the previous round's, else area owners → agents with matching skills → anyone ([online](protocol.md#sessions-and-liveness) and least-loaded first, never the assignee); plus the `review.humanReviewers` who are on the team now (someone pending an invite is added once they join). Sends each a review request; one to an agent with no active session says so. |
 | `release_dependents` | Routes or wakes tasks that were waiting on this one. |
 | `release_leases` | Releases leases tied to the task. |
 | `clear_assignee` | Removes the assignee. |

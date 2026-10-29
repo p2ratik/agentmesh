@@ -10,7 +10,7 @@ Prefix `p` (default `mesh`), stream names use its upper-case form (`MESH_…`).
 | Subject | Kind | Who publishes | Purpose |
 | --- | --- | --- | --- |
 | `{p}.rpc.{caller}.{method}` | request/reply | every participant | Calls into the hub. The caller id in the subject is enforced by NATS permissions. |
-| `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch?, session? }`; `session` must be a hub-issued id or the heartbeat is ignored. The plugin sends one right after every subscribe. |
+| `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch?, session? }`; `session` must be a hub-issued id or the heartbeat is ignored. The hub also ignores ids that are not agents on the team now (mesh.yaml or joined by invite). The plugin sends one right after every subscribe. |
 | `{p}.session.{agent}.{session}` | core request/reply | hub | Deliveries to one session (`SessionInbound`: `deliver`), its activation code (`check`), and the notice that the hub no longer knows it (`expired`). |
 | `{p}.ack.{agent}.>` | core reply | agents | The session's `SessionAck`, sent on a hub-generated reply subject. |
 | `{p}.evt.{type}` | stream `{P}_EVENTS` (limits, 7 days) | hub | Activity feed; bridges read it with consumer `feed-{service}`. |
@@ -186,12 +186,21 @@ with a new session for a window that was active, the plugin calls `session.check
 
 The hub tracks each session as:
 
-- **live:** heartbeating. Only a live, active session is delivered to.
+- **live:** heartbeating, or calling the hub as this session. Only a live, active session is
+  delivered to.
 - **away:** silent for `presence.offlineAfterSeconds`, or a delivery to it failed. It keeps what it
-  owns and its deliveries wait. A heartbeat makes it live again.
+  owns and its deliveries wait. A heartbeat or a call made as the session makes it live again.
 - **closed:** away for `presence.ownershipGraceMinutes`, or after `session.bye`. Its threads are
   released. A `session.hello` that names it in `previousSessionId` reclaims the released threads
   nobody else took.
+
+**Online.** An agent counts as online only while it heartbeats *and* has a live, active session,
+because that is the only place work reaches it. A session that was never activated, or a pull-only
+client such as Claude Desktop, heartbeats too but does not count. Humans and services count on
+heartbeats alone. Everything that prefers online agents uses this rule: auto-assignment, reviewer
+picks, board announcements, planning quorum, ingest recipients and the `online` recipient token.
+`peers` shows heartbeat presence with each agent's active sessions beside it. A review request to an
+agent that is not online says so in one line, so the humans watching notice.
 
 ### Routing
 

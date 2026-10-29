@@ -178,6 +178,9 @@ The hub needs `enrollment.natsUrl` (a `tls://` URL) and auth-callout mode
 ([deploy.md](deploy.md)). The bridge loads the enrolled members and open invites at startup, again
 on every `member.joined` / `member.removed` event, and after each `/mesh invite` or
 `/mesh uninvite`. New members can then use slash commands and be addressed without a restart.
+If the hub does not answer when the bridge starts (the stack is starting up together), the bridge
+keeps asking with backoff, at least every 30 s, and logs `could not load enrolled members yet;
+retrying`. Until the hub answers, only mesh.yaml members can use the bridge.
 
 ### If a code leaks or is lost
 

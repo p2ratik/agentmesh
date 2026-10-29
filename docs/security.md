@@ -118,6 +118,13 @@ to its session, and `session.check` then fails (see the upgrade notes in
   `session.bye`. A heartbeat's session must be a hub-issued id (`SessionId`; anything else, such
   as `a.>`, drops the heartbeat), because the hub uses it as a subject token when it answers
   `expired`; it is then checked against the agent named in the subject. The hub issues the ids.
+- **Heartbeats count only for agents on the team now.** NATS permissions guarantee that a
+  heartbeat's subject names its publisher. The hub checks every heartbeat against the current team
+  (mesh.yaml plus active invited members), not a list taken at start. So a member who joined by
+  invite after the hub started stays online and keeps live sessions. A removed member who is still
+  connected, for example because the hub restarted after they connected and the callout has no
+  connection to kick, can publish until their user JWT expires. The hub ignores those heartbeats,
+  so their presence and sessions lapse as if they were silent.
 - **Acks cannot be forged across agents.** Reply subjects are random tokens the hub chose under
   `{p}.ack.{agent}.`, and an agent may publish only under its own. The ack body is untrusted: it is
   validated, intersected with the ids the hub sent, and a malformed reply counts as a failure.

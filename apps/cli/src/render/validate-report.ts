@@ -1,4 +1,4 @@
-import { type ConfigIssue, type LoadedConfig, pendingAreaOwners } from '@agentmesh/config';
+import { type ConfigIssue, type LoadedConfig, pendingInvitees } from '@agentmesh/config';
 
 const ids = (items: ReadonlyArray<{ id: string }>): string =>
   items.length === 0 ? '0' : `${items.length} (${items.map((i) => i.id).join(', ')})`;
@@ -24,7 +24,7 @@ export function renderSummary(loaded: LoadedConfig): string {
   const { config } = loaded;
   const enabledRules = config.rules.filter((r) => r.enabled).length;
   const { planning, discord } = config;
-  const pending = pendingAreaOwners(config);
+  const pending = pendingInvitees(config);
   return [
     `OK ${loaded.file}`,
     row('Mesh', `${config.mesh.name} (prefix "${config.mesh.prefix}")`),
@@ -36,7 +36,7 @@ export function renderSummary(loaded: LoadedConfig): string {
       ? [
           row(
             'Pending',
-            `${pending.join(', ')} (area owners not in mesh.yaml: they join by invite)`,
+            `${pending.join(', ')} (referenced but not in mesh.yaml: they join by invite)`,
           ),
         ]
       : []),
