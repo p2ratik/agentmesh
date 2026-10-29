@@ -101,6 +101,7 @@ export function buildModules(
     return { sessionId, liveness: away ? 'away' : 'live' };
   });
   presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
+  presence.service.setReadyReader((agentId) => sessionsModule.service.hasReadySession(agentId));
   const leases = createLeaseModule(ctx);
   const taskModule = createTaskModule(ctx, {
     messaging: messaging.service,

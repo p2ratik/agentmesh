@@ -98,6 +98,7 @@ export interface PresenceService {
   touch(participantId: string, info?: { repo?: string; branch?: string }): void;
   setDeclared(participantId: string, status: 'online' | 'busy' | 'away', note: string | null): void;
   markOffline(participantId: string): void;
+  /** Heartbeating; an agent also needs an active, live session (work reaches it only there). */
   isOnline(participantId: string): boolean;
   status(participantId: string): PresenceStatus;
   peer(participantId: string): PeerInfo;
@@ -108,6 +109,8 @@ export interface PresenceService {
   setLoadReader(reader: () => Map<string, number>): void;
   /** Wired once the sessions module exists: an agent's active sessions for `PeerInfo`. */
   setSessionReader(reader: (agentId: string) => SessionSummary[]): void;
+  /** Wired once the sessions module exists: whether an agent has an active, live session. */
+  setReadyReader(reader: (agentId: string) => boolean): void;
 }
 
 // ---------------------------------------------------------------- messaging

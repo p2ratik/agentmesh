@@ -176,9 +176,9 @@ describe('sessions service', () => {
     presence.touch('alice-agent');
     const [s1, s2] = [open(), open()];
     await rpc('session.bye', {}, call(s1));
-    expect(presence.isOnline('alice-agent')).toBe(true);
+    expect(presence.status('alice-agent')).toBe('online');
     await rpc('session.bye', {}, call(s2));
-    expect(presence.isOnline('alice-agent')).toBe(false);
+    expect(presence.status('alice-agent')).toBe('offline');
   });
 
   it('hello refuses plugins older than 0.3.0', async () => {

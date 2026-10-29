@@ -194,6 +194,14 @@ The hub tracks each session as:
   released. A `session.hello` that names it in `previousSessionId` reclaims the released threads
   nobody else took.
 
+**Online.** An agent counts as online only while it heartbeats *and* has a live, active session,
+because that is the only place work reaches it. A session that was never activated, or a pull-only
+client such as Claude Desktop, heartbeats too but does not count. Humans and services count on
+heartbeats alone. Everything that prefers online agents uses this rule: auto-assignment, reviewer
+picks, board announcements, planning quorum, ingest recipients and the `online` recipient token.
+`peers` shows heartbeat presence with each agent's active sessions beside it. A review request to an
+agent that is not online says so in one line, so the humans watching notice.
+
 ### Routing
 
 The first rule that matches decides. Each decision is logged with its reason.
