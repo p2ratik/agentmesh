@@ -79,9 +79,10 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
       title: heading(spec.title).slice(0, MAX_TITLE),
       description:
         `${render(spec.description) || event.summary || ''}${externalFooter(event)}`.trim(),
-      area: render(spec.area) || undefined,
+      // Configured ids, never rendered: the event must not choose who gets the task.
+      area: spec.area || undefined,
       repo: render(spec.repo) || undefined,
-      assignee: render(spec.assignee) || undefined,
+      assignee: spec.assignee || undefined,
       priority: spec.priority ?? (serious ? 'high' : 'normal'),
       labels: spec.labels ?? [],
       workflow: spec.workflow,
