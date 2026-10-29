@@ -13,16 +13,6 @@ the irreversible decisions.
   under its own id, read only its own session subjects and receive only its own replies. The hub therefore
   trusts the caller named in the subject — one agent cannot act as another (covered by the
   authenticated end-to-end test).
-- **The hub answers an RPC only into the caller's own inbox** (`_INBOX_{caller}.…`); a request
-  with any other reply subject is logged and dropped unanswered. Every client sets that inbox
-  prefix (the plugin, `/agentmesh:join`, the bridge).
-  - **Threat:** NATS checks a publisher's subject, never its reply subject, and the hub may
-    publish anywhere. A member could call its own `peers.list` with the reply set to
-    `{p}.presence.<victim>` and the hub would publish there, marking the victim online (confirmed
-    on nats-server 2.15.1). A reply aimed at `{p}.evt.*` was stored in the events stream, and one
-    aimed at `$JS.API.STREAM.PURGE.*` was stopped only by JetStream's strict mode. The
-    authenticated end-to-end test aims a reply at another agent's presence subject and checks
-    that nothing arrives.
 - `agentmesh nats-config --auth-callout` renders account mode for invite-only onboarding (see
   `docs/specs/auth-callout-spike.md`). Agents are no longer listed: the hub's callout admits each
   connect and fails closed when the hub is down. The hub, the bridge and every other service stay
@@ -61,9 +51,37 @@ the irreversible decisions.
       person.
 - Only the bridge service with `canActAsHumans` may act for humans, and only for humans listed in
   config, mapped from their Discord user ids.
+- **The hub answers an RPC only into the caller's own inbox** (`_INBOX_{caller}.…`); a request
+  with any other reply subject is logged and dropped unanswered. Every client sets that inbox
+  prefix (the plugin, `/agentmesh:join`, the bridge).
+  - **Threat:** NATS checks a publisher's subject, never its reply subject, and the hub may
+    publish anywhere. A member could call its own `peers.list` with the reply set to
+    `{p}.presence.<victim>` and the hub would publish there, marking the victim online (confirmed
+    on nats-server 2.15.1). A reply aimed at `{p}.evt.*` was stored in the events stream, and one
+    aimed at `$JS.API.STREAM.PURGE.*` was stopped only by JetStream's strict mode. The
+    authenticated end-to-end test aims a reply at another agent's presence subject and checks
+    that nothing arrives.
 - Keep the ingest endpoint private. NATS is either on a private network (Tailscale) or public
   only over TLS, as `/agentmesh:setup` deploys it (4222 with TLS, plus 80 for Let's Encrypt; see
   [Setup and the admin workspace](#setup-and-the-admin-workspace)).
+  - **If you proxy it publicly** (GitHub webhooks need a public URL), the endpoint limits what an
+    outsider can cost: a bearer token is checked before any of the body is read (an HMAC source
+    needs the body). A `Content-Length` over 1 MiB is refused at once, and a body that grows
+    past it while being read is refused there. Every refusal closes the connection instead of
+    draining the body. Headers must arrive within 10 s and the whole request within 30 s, and
+    at most 100 connections are open at once. Failed auth is logged once a minute per source,
+    with the number of failures. Stored events are deleted after `ingest.retentionDays` (30).
+  - **Threat:** the endpoint read up to 1 MB before checking a bearer token, kept draining
+    oversized bodies, used Node's default timeouts (60 s headers, 300 s request) with no
+    connection cap, logged every 401, and kept every payload (up to 1 MB) forever.
+  - **GitHub replays.** An HMAC signs only the body, and `x-github-delivery` is not signed. So
+    for an HMAC source the hub ignores `idHeader` for dedup: the event's id is a hash of the
+    signed body (the header is only logged), and a captured delivery replayed under a new
+    delivery id or event type is a duplicate.
+  - **Residual:** `x-github-event` is not signed either. A captured body replayed before its
+    original arrives, or after `ingest.retentionDays`, is taken with the event type its sender
+    names. The 100-connection cap is per hub, so a flood of idle connections can still crowd
+    out GitHub for up to 10 s each; put a rate-limiting proxy in front if that matters.
 
 ## Trust labels
 

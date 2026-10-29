@@ -130,9 +130,10 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `ingest.sources` | `[]` | `{ id, auth, format: mesh|raw, typeHeader?, typeField?, idHeader? }`. |
+| `ingest.sources` | `[]` | `{ id, auth, format: mesh|raw, typeHeader?, typeField?, idHeader? }`. `idHeader` sets the event id (the dedup key) only for bearer and `none` sources; an HMAC signs only the body, so an HMAC source's id is a hash of the body and the header is just logged. |
 | `ingest.sources[].auth` | — | `{ type: bearer, token }` (≥16 chars), `{ type: hmac-sha256, secret, header: x-hub-signature-256, prefix: "sha256=" }`, or `{ type: none }`. |
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
+| `ingest.retentionDays` | `30` | How long the hub keeps received events (payloads up to 1 MB each), and so how long it recognises a repeated id as a duplicate. |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
 | `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
 

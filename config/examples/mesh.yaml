@@ -141,8 +141,9 @@ ingest:
       format: raw
       typeHeader: x-github-event
       typeField: action
-      idHeader: x-github-delivery
+      idHeader: x-github-delivery # logged only: the HMAC signs the body, so the id is the body's hash
       auth: { type: hmac-sha256, secret: "${GITHUB_WEBHOOK_SECRET}" }
+  retentionDays: 30 # received events (and their dedup ids) are kept this long
 
 discord:
   enabled: false # set to true once the bot exists (docs/discord.md)

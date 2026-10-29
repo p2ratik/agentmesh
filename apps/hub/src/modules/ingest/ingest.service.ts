@@ -1,4 +1,4 @@
-import { addMs, MINUTE_MS } from '@agentmesh/common';
+import { addMs, DAY_MS, MINUTE_MS } from '@agentmesh/common';
 import type { RuleConfig } from '@agentmesh/config';
 import type { IngestEvent, StoredIngestEvent } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
@@ -43,6 +43,13 @@ export class IngestServiceImpl implements IngestService {
     });
     outbox.kick();
     return { id, duplicate };
+  }
+
+  /** Forgets events older than `ingest.retentionDays` (payloads up to 1 MB each). */
+  prune(now: Date): void {
+    const days = this.#ctx.loaded.config.ingest.retentionDays;
+    const pruned = this.#repo.prune(new Date(now.getTime() - days * DAY_MS).toISOString());
+    if (pruned) this.#ctx.logger.info({ pruned }, 'old ingest events deleted');
   }
 
   #evaluate(event: RuleContext): string[] {
