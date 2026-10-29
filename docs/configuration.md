@@ -155,7 +155,7 @@ references and the compose settings. Never commit it or paste its values into a 
   `NATS_BIND` and `NATS_PUBLIC_HOST`, which follow the hosting mode (a trial going real); for the
   other settings that differ from the answers it names them, for you to edit by hand.
 - A deploy set up by hand starts from `deploy/.env.example`.
-- Changes to the binds or `NATS_PUBLIC_HOST` need recreated containers
+- Changes to the binds, `NATS_PUBLIC_HOST` or the caps need recreated containers
   (`docker compose --profile discord up -d --force-recreate`); `restart` does not apply them.
   `setup deploy` always recreates them.
 
@@ -171,4 +171,6 @@ references and the compose settings. Never commit it or paste its values into a 
 | `NATS_PUBLIC_HOST` | the server's DNS name; empty on a trial | The TLS certificate's name. Inside compose the hub and bridge reach NATS by it (a network alias), so hostname verification passes. |
 | `HUB_HTTP_BIND` | `127.0.0.1` | Where compose publishes the hub's ingest endpoint (8787). Keep it private. |
 | `AGENTMESH_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`, for the hub and the bridge. |
+| `NATS_MEM_LIMIT`, `HUB_MEM_LIMIT`, `BRIDGE_MEM_LIMIT` | `256m`, `512m`, `384m` | Memory caps of the three containers, in Docker units (`256m`, `1g`), sized for a 1–2 GB server. A container that reaches its cap is restarted. Both compose files use the same defaults when a key is missing ([deploy.md](deploy.md#containers)). |
+| `PIDS_LIMIT` | `256` | The most processes and threads each container may run. |
 | `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |

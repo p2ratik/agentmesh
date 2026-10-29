@@ -62,11 +62,15 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
     `/etc/apt/apt.conf.d/90agentmesh-lock-timeout`), which a new server's updates hold;
   - installs Docker and certbot, and adds the SSH user to the `docker` group. A Docker without
     Compose v2 (Ubuntu's `docker.io` alone) stops it: install `docker-compose-v2` and re-run;
+  - turns on automatic security updates and installs the per-IP limits on new NATS connections
+    ([Hardening the server](#hardening-the-server));
   - creates `<remoteDir>` (default `/opt/agentmesh`) with `deploy/`, `deploy/nats/`,
     `deploy/secrets/` and `config/`, owned by the SSH user;
   - gets a Let's Encrypt certificate with `certbot certonly --standalone` when there is none yet,
     and installs the renewal hook (`/etc/letsencrypt/renewal-hooks/deploy/agentmesh-nats.sh`) that
-    copies it to `deploy/nats/tls/` and reloads NATS.
+    copies it to `deploy/nats/tls/` and reloads NATS;
+  - warns, and changes nothing, when `sshd` accepts password logins or root password logins.
+    `setup host` prints these warnings after it succeeds.
 - **`agentmesh setup deploy`**:
   1. checks the config with the workspace's real `deploy/.env` values, so an empty token,
      application id or server id fails before anything is copied, and checks that every seed the
@@ -94,6 +98,139 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
 - **The mode.** A server runs NATS with TLS in auth-callout mode (`nats-config --tls
   --auth-callout`), so members join by invite. The hub's HTTP port stays on 127.0.0.1, and a new
   mesh has no ingest sources. A trial runs NATS on 127.0.0.1 without TLS, in static mode.
+
+## Hardening the server
+
+Both kinds of deploy get the same hardening. The repo's `deploy/docker-compose.yml` and the one
+setup renders differ only in building versus pulling the images (a test keeps them in step);
+`agentmesh nats-config` renders the NATS limits in every mode; `setup host` and
+`deploy/azure/vm-setup.sh` run the same host steps. The threats are in
+[security.md](security.md#the-servers-network-surface-and-limits).
+
+### Containers
+
+- **No privileges.** Every service has `cap_drop: [ALL]`, `security_opt: ["no-new-privileges:true"]`
+  and `read_only: true`. Writes go to the service's volume (`/data`) and a small `/tmp` tmpfs:
+  64 MB for the hub, where SQLite may spill temporary tables, 16 MB for the others.
+- **NATS runs as root** (the image's default), but without capabilities it reads only files root
+  owns and world-readable ones. Keep `nats.conf` readable by everyone (it holds only public keys;
+  `setup deploy` sets it to 644) and the TLS files owned by root, as the renewal hook installs
+  them. A key you copied in yourself, owned by another user with mode 600, stops NATS from
+  starting. Running NATS as uid 1000 instead would need the `nats-data` volume and the key
+  handed to that user first; it is not done yet.
+- **Memory and process caps**, from `deploy/.env` (the compose file has the same defaults). A
+  container that reaches its cap is killed and restarted instead of starving sshd and Docker. They
+  are ceilings, not reservations, so together they may exceed a 1 GB server's memory. Raise them on
+  a bigger server or for a much bigger team.
+
+  | Variable | Default | Why |
+  | --- | --- | --- |
+  | `NATS_MEM_LIMIT` | `256m` | NATS uses tens of MB for a team; the rest absorbs 1 MB messages and reconnect bursts. |
+  | `HUB_MEM_LIMIT` | `512m` | The hub runs at 100–200 MB. |
+  | `BRIDGE_MEM_LIMIT` | `384m` | The bridge runs at 100–200 MB. |
+  | `PIDS_LIMIT` | `256` | Processes and threads per container; Node uses about 20, NATS a few dozen. |
+- **Rotated logs.** Docker's default log never rotates, so a log flood would fill the disk. Each
+  service logs with `json-file`, `max-size: 10m`, `max-file: 3`: at most 30 MB.
+  `docker compose logs` works as before and shows what is left.
+
+### NATS
+
+`agentmesh nats-config` writes these lines in static, auth-callout and dev mode:
+
+```
+max_connections: 1024
+max_subscriptions: 1000
+max_payload: 1MB
+
+jetstream {
+  ...
+  strict: true
+}
+```
+
+- **`max_connections: 1024`.** Each Claude Code session is one connection and the hub and each
+  service one or two, so a team of 15 uses under 100. `--max-connections <n>` changes it.
+- **`max_subscriptions: 1000`**, per connection. Agents and services hold a handful.
+- **`max_payload: 1MB`** is NATS's default, which the hub sizes its deliveries to. It is written out
+  so that it is never raised by accident.
+- **`strict: true`** pins JetStream's strict mode, which NATS 2.15 already defaults to: the
+  JetStream API refuses malformed requests instead of guessing.
+- Pings and the write deadline keep NATS's defaults (every 2 minutes; 10 seconds).
+
+### Host firewall
+
+Docker publishes port 4222 through its own iptables rules, which ufw and the INPUT chain never see.
+So `setup host` and `vm-setup.sh` put per-source-IP limits in Docker's `DOCKER-USER` chain:
+
+```
+iptables -N AGENTMESH-NATS
+iptables -A AGENTMESH-NATS -p tcp -m connlimit --connlimit-above 128 --connlimit-mask 32 \
+  -j REJECT --reject-with tcp-reset
+iptables -A AGENTMESH-NATS -m hashlimit --hashlimit-above 10/sec --hashlimit-burst 100 \
+  --hashlimit-mode srcip --hashlimit-name agentmesh-nats -j DROP
+iptables -A AGENTMESH-NATS -j RETURN
+iptables -I DOCKER-USER 1 -i <default-route interface> -p tcp -m conntrack --ctstate NEW \
+  --ctorigdstport 4222 --ctdir ORIGINAL -j AGENTMESH-NATS
+```
+
+- **What is checked:** only new TCP connections to port 4222 that arrive on the interface with the
+  default route. The hub and the bridge reach NATS over the compose network and never match, and
+  neither does a tailnet (`tailscale0`).
+- **The limits, per source IP:** at most 128 open connections (more get a TCP reset), and at most 10
+  new connections a second, in bursts of up to 100 (more are dropped, and the client's TCP retries).
+- **Why these numbers:** a whole office behind one NAT, 15 people with 3 sessions each, holds 45
+  connections and reconnects inside one burst after a restart. While the hub is down in
+  auth-callout mode, those clients retry every 2–3 seconds, about 20 a second: the limit slows the
+  retries but never locks them out, and they are all back within seconds of the hub. A single host
+  flooding the port gets 10 TLS handshakes a second.
+- **Persistence:** `/usr/local/sbin/agentmesh-firewall` rebuilds the rules from scratch, so it is
+  safe to re-run, and `agentmesh-firewall.service` runs it after Docker starts: at boot and after
+  every Docker restart. Check with `sudo iptables -S AGENTMESH-NATS`, `sudo iptables -S DOCKER-USER`
+  and `systemctl status agentmesh-firewall`.
+- **Changing a value:** set it in `/etc/default/agentmesh-firewall`, which setup never writes
+  (`NATS_MAX_CONN_PER_IP=256`, `NATS_NEW_CONN_RATE=20/sec`, `NATS_NEW_CONN_BURST=200`, or
+  `EXT_IF=eth1` when the default route is not the public interface), then
+  `sudo systemctl restart agentmesh-firewall`.
+- **Limits of the rules:** IPv4 only; `NATS_BIND=0.0.0.0` publishes NATS on IPv4 alone, so if you
+  publish it on IPv6, add the same rules with `ip6tables`. Docker's nftables firewall backend has
+  no `DOCKER-USER` chain; the script then stops and says so.
+
+### Updates and SSH
+
+- **Security updates:** `unattended-upgrades` is installed and turned on
+  (`/etc/apt/apt.conf.d/90agentmesh-auto-upgrades` and the apt-daily timers). Ubuntu's defaults
+  install security updates only and never reboot, and Docker's own repository is not among them, so
+  Docker is never upgraded or restarted under the hub. Reboot for kernel updates yourself when
+  `/var/run/reboot-required` exists. A later file in `/etc/apt/apt.conf.d` that turns it off wins,
+  with a warning.
+- **SSH:** the script warns when `sshd -T` shows `passwordauthentication yes` or
+  `permitrootlogin yes`, and never changes sshd: on an existing server that could lock you out.
+  Once key login works, add a file in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no`
+  and `PermitRootLogin prohibit-password`, then `sudo systemctl reload ssh`.
+
+### Applying it to an existing deploy
+
+- **A setup deploy:**
+  1. Update the plugin, so the CLI has the new files.
+  2. Run `agentmesh setup host --dir <workspace>` (safe to re-run) for the updates and the firewall.
+  3. Get the new compose file: a workspace keeps the one it was first rendered with. If you never
+     edited the rendered files by hand, `agentmesh setup render --dir <workspace> --force` rewrites
+     them and `nats.conf`; it keeps `.env` and the keys, and in `mesh.yaml` only the public keys and
+     your Discord id (it renders the rest from `setup-answers.json` again). It names the four caps as
+     missing from `.env`; adding them is optional. Otherwise copy the `x-logging` block and each
+     service's `cap_drop` … `logging` lines from the repo's `deploy/docker-compose.yml`, and run
+     `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
+  4. Run `agentmesh setup deploy --dir <workspace>`.
+- **A deploy by hand:**
+  1. `git pull`.
+  2. `sudo PUBLIC_HOST=<the DNS name> ./deploy/azure/vm-setup.sh` (safe to re-run; on another
+     provider, run its update, firewall and ssh steps).
+  3. Re-render `nats.conf` with the deploy's flags, for example
+     `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
+  4. With the Discord bridge, check that `deploy/secrets/discord-bridge.nk` exists: the bridge now
+     mounts only that file, and Docker would put an empty directory in place of a missing one.
+  5. Optionally add the caps to `deploy/.env` (see `.env.example`).
+  6. `docker compose --profile discord up -d --build --force-recreate`, then `docker compose ps`.
 
 ## Published images and versions
 
@@ -154,10 +291,11 @@ The rest of this page is the manual path with the repo's own `deploy/docker-comp
 builds the images from source on the VM. Contributors use it, and so do deploys set up before
 `/agentmesh:setup` existed.
 
-**Follow-up for these deploys:** the repo's compose file still mounts the whole `deploy/secrets/`
-folder into the Discord bridge. The compose file setup renders mounts only `discord-bridge.nk`
-there ([security.md](security.md#setup-and-the-admin-workspace)); apply the same mount at your next
-redeploy.
+Like the compose file setup renders, it mounts only `deploy/secrets/discord-bridge.nk` into the
+Discord bridge, never the whole folder ([security.md](security.md#setup-and-the-admin-workspace)),
+and hardens every container ([Hardening the server](#hardening-the-server)). A deploy set up before
+that applies both at its next redeploy
+([Applying it to an existing deploy](#applying-it-to-an-existing-deploy)).
 
 ### 1. Prepare the VM
 
@@ -219,7 +357,8 @@ be reachable there with a certificate for that name:
    - Keep `HUB_HTTP_BIND=127.0.0.1`. The ingest endpoint stays private.
 3. **`nats.conf`:** render it with `--tls` (and `--auth-callout` for invites):
    `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
-4. **Firewall:** open only 4222/tcp and SSH from the internet.
+4. **Firewall:** open only 4222/tcp and SSH from the internet. `vm-setup.sh` also limits new
+   connections to 4222 per source IP ([Host firewall](#host-firewall)).
 5. **Apply:** `.env` changes (ports, the alias, environment) need recreated containers;
    `docker compose restart` does not apply them. Run
    `docker compose --profile discord up -d --force-recreate` (drop `--profile discord` without
@@ -237,7 +376,8 @@ These apply to both kinds of deploy. Run the `docker compose` commands in the de
 server (`/opt/agentmesh/deploy` for a setup deploy). A setup deploy changes its config and
 version through its workspace instead ([above](#checking-and-changing-a-setup-deploy)).
 
-- **Logs**: `docker compose logs -f hub` (JSON lines; `AGENTMESH_LOG_LEVEL=debug` for more).
+- **Logs**: `docker compose logs -f hub` (JSON lines; `AGENTMESH_LOG_LEVEL=debug` for more). Docker
+  keeps the last 30 MB per service.
 - **Config changes**: edit `config/`, run `agentmesh validate`, then `docker compose restart hub
   discord-bridge`. New agents are picked up on restart.
 - **Re-rendering `nats.conf`**: always use the flags the deploy was set up with. On an invite
