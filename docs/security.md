@@ -224,9 +224,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Every string and array a caller sends is capped** in its zod schema (ids 64 characters, repos
   and branches 300, labels 60, lists bounded), so no field carries megabytes into the hub's rows,
   logs or error messages. A unit test walks every RPC's params and fails on an uncapped one.
-- **The JetStream streams have size caps** (`hub.streams.eventsMaxMB`, 1 GB, and `ingestMaxMB`,
-  256 MB) and drop their oldest messages when full. The hub applies them at every start, to
-  streams an older hub created too.
+- **The JetStream streams have size caps** (`hub.streams.eventsMaxMB`, 128 MB, and
+  `ingestMaxMB`, 64 MB) and drop their oldest messages when full. The hub applies them at every
+  start, to streams an older hub created too. Their sum must fit in `nats.conf`'s
+  `max_file_store`, or NATS refuses the streams and the hub stops with a hint saying so.
   - **Threat:** the streams had only an age limit. A burst of events or external posts could fill
     NATS's `max_file_store` (5 GB), after which every publish failed: the event outbox stops at
     its first failure, so the Discord feed froze.

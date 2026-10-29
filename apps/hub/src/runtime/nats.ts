@@ -49,12 +49,21 @@ export async function provisionTopology(
   logger: Logger,
 ): Promise<void> {
   const prefix = config.mesh.prefix;
+  const { eventsMaxMB, ingestMaxMB } = config.hub.streams;
   await ensureStreams(nats.jsm, {
     prefix,
     eventRetentionDays: 7,
     ingestDedupMinutes: config.ingest.dedupWindowMinutes,
-    eventsMaxBytes: config.hub.streams.eventsMaxMB * MB,
-    ingestMaxBytes: config.hub.streams.ingestMaxMB * MB,
+    eventsMaxBytes: eventsMaxMB * MB,
+    ingestMaxBytes: ingestMaxMB * MB,
+  }).catch((err: unknown) => {
+    if (!/insufficient storage/i.test(String(err))) throw err;
+    throw new Error(
+      `NATS has no room for the mesh streams: hub.streams.eventsMaxMB + ingestMaxMB ` +
+        `(${eventsMaxMB + ingestMaxMB} MB) must fit in nats.conf's max_file_store, ` +
+        'next to any other streams. Lower them or raise max_file_store.',
+      { cause: err },
+    );
   });
   // Best-effort: a leftover stream only takes disk space.
   await removeLegacyDelivery(nats.jsm, prefix).then(

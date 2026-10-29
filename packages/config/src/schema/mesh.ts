@@ -70,8 +70,8 @@ export const MeshConfigSchema = z.object({
        */
       streams: z
         .object({
-          eventsMaxMB: z.number().int().positive().default(1024),
-          ingestMaxMB: z.number().int().positive().default(256),
+          eventsMaxMB: z.number().int().positive().default(128),
+          ingestMaxMB: z.number().int().positive().default(64),
         })
         .prefault({}),
     })

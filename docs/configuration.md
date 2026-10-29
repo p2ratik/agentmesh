@@ -28,7 +28,7 @@ numbers are not coerced from strings — write them literally.
 | `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz`, `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |
 | `tickSeconds` | `10` | Scheduler interval (outbox retries, presence expiry, deadlines, leases). |
-| `streams.eventsMaxMB` / `ingestMaxMB` | `1024` / `256` | Size caps of the activity feed and ingest JetStream streams. When one is full its oldest messages go, so publishing never stops. The hub applies them at every start, to existing streams too. Their sum must fit in `nats.conf`'s `max_file_store` (5 GB unless `nats-config --max-file-store` says otherwise), or NATS refuses the streams and the hub does not start. |
+| `streams.eventsMaxMB` / `ingestMaxMB` | `128` / `64` | Size caps of the activity feed and ingest JetStream streams. When one is full its oldest messages go, so publishing never stops. 128 MB holds weeks of a busy team's feed, past its 7-day age limit. The hub applies them at every start, to existing streams too. Their sum must fit in `nats.conf`'s `max_file_store` (5 GB unless `nats-config --max-file-store` says otherwise), or NATS refuses the streams and the hub does not start. |
 
 ## Participants
 

@@ -19,8 +19,8 @@ hub:
     host: 0.0.0.0
     port: 8787
   streams: # JetStream size caps in MB; the oldest messages go when full. Keep the sum under nats.conf's max_file_store.
-    eventsMaxMB: 1024 # activity feed (also kept 7 days at most)
-    ingestMaxMB: 256 # external events waiting for the hub
+    eventsMaxMB: 128 # activity feed (also kept 7 days at most)
+    ingestMaxMB: 64 # external events waiting for the hub
   # nkey: U…   # written by `agentmesh keys add hub`
   # Only for `agentmesh nats-config --auth-callout` (the hub admits agents itself).
   # Public keys; each is written by `agentmesh keys add hub-issuer|hub-xkey|hub-sys`
