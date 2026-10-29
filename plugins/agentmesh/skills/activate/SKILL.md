@@ -11,7 +11,7 @@ Turn this session on for the mesh with the AgentMesh `activate` tool.
 2. Wait for that message (`AgentMesh activation check. Code: …`). Then call `activate` again with
    `code` set to that code and `description` set to one line on what this session is working on:
    "$ARGUMENTS" if the user typed one, otherwise a line you write from this conversation, e.g.
-   "checkout redesign in opzami/web". Teammates see it when they pick a session.
+   "checkout redesign in acme/web". Teammates see it when they pick a session.
 3. If the first call fails because the hub could not reach this session, or no message arrives
    within a few seconds, tell the user what the tool said (the NATS permissions or the channel
    flag). In Claude Desktop the flag cannot be passed, so the message never arrives: the session

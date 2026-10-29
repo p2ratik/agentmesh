@@ -9,10 +9,8 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
+import { agentmeshDir, existingMesh, MeshError } from '@agentmesh/common';
 import type { InvitePayload } from '@agentmesh/protocol';
-
-export const agentmeshDir = (home = homedir()): string => join(home, '.agentmesh');
 
 /** Where the human saves the invite from the Discord DM, so the code never enters the chat. */
 export const defaultInviteFile = (home = homedir()): string =>
@@ -31,23 +29,6 @@ export function readInviteFile(path: string): string {
 /** The invite is single use; once redeemed, nothing should keep a copy around. */
 export function deleteInviteFile(path: string): void {
   rmSync(path, { force: true });
-}
-
-/** The mesh this laptop is already set up for, if any (`~/.agentmesh/agent.json`). */
-export function existingMesh(home = homedir()): { agentId?: string; natsUrl?: string } | null {
-  const file = join(agentmeshDir(home), 'agent.json');
-  if (!existsSync(file)) return null;
-  try {
-    const value = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-    const pick = (k: string) => (typeof value[k] === 'string' ? (value[k] as string) : undefined);
-    const agentId = pick('agentId');
-    const natsUrl = pick('natsUrl');
-    return agentId || natsUrl
-      ? { ...(agentId ? { agentId } : {}), ...(natsUrl ? { natsUrl } : {}) }
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Refuses to replace another mesh's setup unless asked to. */

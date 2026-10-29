@@ -1,9 +1,12 @@
 {
   "name": "@agentmesh/cli",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "agentmesh CLI: scaffold, validate, manage participant keys, render NATS config.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "bin": {
     "agentmesh": "./dist/main.js"
   },
@@ -17,7 +20,8 @@
     "@agentmesh/config": "workspace:*",
     "@agentmesh/protocol": "workspace:*",
     "@nats-io/nkeys": "2.0.3",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
   },
   "files": [
     "dist"

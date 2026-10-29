@@ -1,11 +1,19 @@
-import { homedir } from 'node:os';
 import { isMeshError } from '@agentmesh/common';
 import { agentSetupCommand } from './commands/agent-setup';
+import { doctorCommand } from './commands/doctor';
 import { initCommand } from './commands/init';
 import { keysAddCommand, keysListCommand } from './commands/keys';
 import { natsConfigCommand } from './commands/nats-config';
+import { setupAdminCommand } from './commands/setup/admin';
+import { setupDeployCommand } from './commands/setup/deploy';
+import { setupDiscordCommand } from './commands/setup/discord';
+import { setupHostCommand } from './commands/setup/host';
+import { setupInvitesCommand } from './commands/setup/invites';
+import { setupRenderCommand } from './commands/setup/render';
+import { setupStatusCommand } from './commands/setup/status';
+import { upgradeCommand } from './commands/upgrade';
 import { validateCommand } from './commands/validate';
-import type { CliContext, Command } from './context';
+import { type CliContext, type Command, processContext } from './context';
 
 export const COMMANDS: readonly Command[] = [
   initCommand,
@@ -14,6 +22,15 @@ export const COMMANDS: readonly Command[] = [
   keysListCommand,
   natsConfigCommand,
   agentSetupCommand,
+  setupRenderCommand,
+  setupDiscordCommand,
+  setupHostCommand,
+  setupDeployCommand,
+  setupAdminCommand,
+  setupStatusCommand,
+  setupInvitesCommand,
+  doctorCommand,
+  upgradeCommand,
 ];
 
 function usage(): string {
@@ -66,14 +83,9 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
 }
 
 const isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
+// Not process.exit: right after a fetch it aborts Node 24 on Windows (exit 127), even on success.
 if (isEntry) {
-  const ctx: CliContext = {
-    // `pnpm mesh …` runs inside apps/cli; INIT_CWD is where the user typed it.
-    cwd: process.env.INIT_CWD ?? process.cwd(),
-    env: process.env,
-    homeDir: homedir(),
-    stdout: (text) => process.stdout.write(`${text}\n`),
-    stderr: (text) => process.stderr.write(`${text}\n`),
-  };
-  runCli(process.argv.slice(2), ctx).then((code) => process.exit(code));
+  runCli(process.argv.slice(2), processContext()).then((code) => {
+    process.exitCode = code;
+  });
 }

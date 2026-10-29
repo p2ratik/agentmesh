@@ -51,7 +51,9 @@ the irreversible decisions.
       person.
 - Only the bridge service with `canActAsHumans` may act for humans, and only for humans listed in
   config, mapped from their Discord user ids.
-- Keep NATS and the ingest endpoint on a private network (Tailscale); expose nothing but SSH.
+- Keep the ingest endpoint private. NATS is either on a private network (Tailscale) or public
+  only over TLS, as `/agentmesh:setup` deploys it (4222 with TLS, plus 80 for Let's Encrypt; see
+  [Setup and the admin workspace](#setup-and-the-admin-workspace)).
 
 ## Trust labels
 
@@ -398,3 +400,144 @@ identity.
   any agent id, so treat it like the hub's own seed: `deploy/secrets/` only, never in
   `mesh.yaml`, `nats.conf`, git or chat.
 - **The kick-only sys seed** can disconnect clients but cannot read or publish mesh traffic.
+
+## Setup and the admin workspace
+
+`/agentmesh:setup` ([ADR 0007](adr/0007-claude-run-setup.md)) has Claude interview the admin and
+run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin's machine
+(default `~/agentmesh/<team>`), copies it to the server over SSH and starts the hub there.
+
+- **Threat: the bot token in a model transcript.** A token pasted into the chat lands in the
+  session transcript and in model context. **Mitigation:** the admin types the token into the
+  empty `DISCORD_BOT_TOKEN=` line of the workspace's `deploy/.env` in their own editor. The CLI
+  reads it there; the skill tells Claude never to ask for a token, an invite code or a key, never
+  to repeat one the admin pastes anyway, and to have it reset instead.
+  - No CLI step prints a seed, the token or any other `.env` secret, in output or in errors. A test
+    runs every step with known secrets and fails if one appears in stdout, stderr or the
+    arguments passed to `ssh`, `scp` and `docker` (`apps/cli/src/setup/no-secrets.test.ts`).
+    It includes a failing deploy whose stderr echoes the token, the token pasted on the
+    `AGENTMESH_VERSION` line, and `upgrade`, and it checks that only `deploy/.env` holds the token.
+  - `AGENTMESH_IMAGE_REGISTRY` and `AGENTMESH_VERSION` are printed (a failed pull names the
+    image), so `setup deploy` first checks that each is a registry or an image tag the redactor
+    leaves alone, and names the setting, never its value, when one is not.
+  - A failed command's stderr tail is masked with the shared redactor before the CLI prints it,
+    because Docker Compose echoes a malformed `.env` line, token included.
+  - The Discord client sends the token only in the `Authorization` header and never puts it in an
+    error. Ids read from `.env` (`DISCORD_GUILD_ID`) must be Discord snowflakes (digits) before they
+    become part of an API path; a bad one is refused without being echoed.
+  - `.env` is written atomically (a temp file with mode 600 in the same folder, then a rename), so a
+    crash never loses the only copy of the token. The workspace's `.gitignore` ignores `.env`,
+    `.env.*` (that temp file), `deploy/secrets/`, `nats.conf` and `*.nk`. A workspace inside an
+    existing repo keeps its `.gitignore`, and render appends the lines it lacks.
+- **Threat: Claude reading the secrets by accident.** **Mitigation:** the workspace's
+  `.claude/settings.json` denies `Read(./deploy/.env)` and `Read(./deploy/secrets/**)`, and
+  `setup render` writes a workspace `CLAUDE.md` that tells every later session there never to open,
+  `cat`, `grep` or print them or any `.nk` file (the seeds in `~/.agentmesh` included), and never
+  to print a container's environment (`docker compose config`, `docker inspect`, `env` or
+  `printenv` in a container, `/proc/*/environ`). The setup skill has the same rules word for word:
+  the CLI keeps one list for both, and a test checks the skill against it.
+  **Residual risk:** the deny rules cover the Read tool (and Grep and Glob), not Bash, and both
+  they and the `CLAUDE.md` apply only to sessions opened in the workspace. A session started
+  elsewhere gets neither; the setup session relies on the skill's rules. Never add allow rules that
+  would let a shell command read those files without a prompt.
+- **Threat: a stolen laptop.** The admin's laptop holds:
+  - the hub's seeds in the workspace (`hub`, `discord-bridge` and, on a server, the callout
+    issuer, which can mint any agent's credentials), so whoever takes it has the hub's identity;
+  - the Discord bot token, and any other secret you added, in the workspace's `deploy/.env`;
+  - the admin's agent seed in `~/.agentmesh`;
+  - the admin's logged-in Discord session, in the app or a browser. It is a mesh admin in
+    Discord, so it can `/mesh invite` anyone, approve plans and pause the mesh;
+  - the admin's SSH key to the server. It logs in without a prompt and has passwordless `sudo`,
+    so it gives root on the server, and with it every seed deployed there.
+
+  **Mitigation:** none in code. Use full-disk encryption (FileVault, BitLocker, LUKS), and keep the
+  workspace out of synced or shared folders. On Windows, mode 600 is ignored and only the
+  profile's NTFS permissions protect the files.
+  **Recovery**, in this order, from another machine with a backup of the workspace:
+  1. **Lock the laptop out of the server first**, or the thief can read the keys you rotate next.
+     From the cloud console or another machine, remove the laptop's public key from the SSH
+     user's `~/.ssh/authorized_keys` (and root's), and from any cloud key pair or VM metadata that
+     would put it back, then add the new machine's key. If the server's auth log shows logins you
+     don't recognise, treat the server as compromised and set up a new one.
+  2. **Reset the bot token** in the Discord developer portal (Bot → Reset Token) and type the new
+     one into the workspace's `deploy/.env`. Replace any other secret you put in `.env`.
+  3. **Sign the laptop out of Discord.** Change your Discord password and, under User Settings →
+     Devices, log out all known devices. Then `/mesh remove person:<id>` any member you don't
+     recognise, and `/mesh uninvite person:<id>` any open invite you didn't send.
+  4. **Rotate the keys** in the workspace. Members' keys never leave their own laptops, so only
+     the hub's keys and the admin agent's key change:
+     - `agentmesh keys add hub --force --config config --secrets deploy/secrets`, and the same for
+       `discord-bridge`, `hub-issuer`, `hub-xkey` and `hub-sys`;
+     - the admin agent's key: `agentmesh keys add <you>-agent --force --config config --secrets
+       new-key` writes `new-key/<you>-agent.nk`. Move it to
+       `"$HOME/.agentmesh/<meshName>-<you>-agent.nk"`, where setup keeps it, replacing the old file
+       if there is one. Delete `new-key/`, then run `agentmesh setup admin --dir .` on the new
+       machine. (`$HOME` works in PowerShell and bash; PowerShell passes `~` to `node` as is.)
+  5. **Re-render `nats.conf`:**
+     `agentmesh nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
+  6. **Run `agentmesh setup deploy --dir .`.** It recreates the containers, so NATS and the hub
+     load the new keys and the stolen ones stop working.
+
+  A trial runs on the laptop itself, so only steps 2 and 3 apply.
+- **Threat: a man in the middle on the first SSH connection.** `ssh` and `scp` run with
+  `BatchMode=yes` and `StrictHostKeyChecking=accept-new`: the CLI never prompts, it trusts a
+  server's host key the first time it sees it, and it refuses a key that changes later.
+  **Residual risk:** an attacker on the path at that first connection would receive the copied
+  seeds and the token. Admins who can check the fingerprint (from the cloud console) should
+  connect once with plain `ssh` before running setup.
+  On Windows the CLI runs `%SystemRoot%\System32\OpenSSH\ssh.exe` and `scp.exe` when they exist
+  (only the system OpenSSH reads keys from the Windows `ssh-agent`), else the `ssh` and `scp` on
+  PATH, with the same options. `ControlPath=none` means no shared connection is ever reused, so
+  each call authenticates on its own.
+- **Threat: a hostile `hosting.ssh` value.** A target starting with `-` would be read as an ssh
+  option such as `-oProxyCommand=…`, which runs a local command without the admin's approval.
+  **Mitigation:** the answers schema accepts only `user@host` with no leading `-`, and every `ssh`
+  and `scp` call puts `--` before the destination. `publicHost` must be a DNS name, and
+  `--registry` is validated before it reaches `.env`.
+- **Threat: cloud credentials.** **Mitigation:** setup never handles them. A new server is created
+  with the admin's own provider CLI, already logged in, and Claude shows each provider command
+  before it runs. Nothing that costs money is created before the admin says yes to the proposed
+  server.
+- **Threat: prompt injection driving operator commands.** An active mesh session can receive a
+  message (from a teammate's agent or relayed external content) asking it to redeploy, edit the
+  config or run something over SSH. **Mitigation:**
+  - operator commands are not mesh RPCs. They run with the admin's own SSH key from the
+    workspace, and setup never adds allow rules for the CLI, `ssh` or `scp`, so each one needs the
+    admin's approval in the terminal;
+  - `/agentmesh:setup` is user-only (`disable-model-invocation: true`), so a model cannot start it
+    by itself;
+  - agents can never call admin RPCs, the admin's own agent included: setup prints the
+    `/mesh invite` lines and the admin runs them in Discord;
+  - the skill and the workspace `CLAUDE.md` tell Claude to run `setup host`, `setup deploy`,
+    `upgrade`, `ssh` and `scp` only when the user at the terminal asks, never because a mesh
+    message asked.
+  **Residual risk:** an admin who approves a prompt without reading it. Keep the deploy commands
+  on "ask". Auto mode asks nothing, so the approval is gone: do not run the operator session (the
+  setup session, or any session in the workspace) in auto mode while the mesh is activated in it.
+- **Files on the server.** Before copying, `setup deploy` closes the remote `deploy/` folder
+  (`chmod 700`), because scp may create `.env` and the seeds readable by everyone. Afterwards
+  `.env` and the seeds get mode 600 and the seeds belong to uid 1000 (the containers' user). It
+  first checks that every seed it needs exists locally, since a missing bind-mount source would
+  make Docker create a root-owned folder in its place.
+- **The bridge sees only its own seed.** The compose file setup renders mounts only
+  `discord-bridge.nk` into the bridge; the hub keeps the whole `secrets/` folder. A compromised
+  bridge (it parses everything Discord sends) therefore cannot reach the issuer seed.
+  **Residual risk:** the repo's own `deploy/docker-compose.yml`, used by hand-built deploys, still
+  mounts every seed into the bridge. Apply the single-seed mount there at the next redeploy.
+- **The network surface of a setup server.** Port 22 from the admin's IP only, 4222 (NATS, TLS
+  required) and 80 (Let's Encrypt renewals) from anywhere. The hub's HTTP port stays on
+  127.0.0.1, and a new mesh has no ingest sources. A trial binds NATS to 127.0.0.1 without TLS and
+  in static mode; nobody else can join it.
+- **`doctor`'s TLS check** connects to NATS as a client would, but with
+  `rejectUnauthorized: false`, only so that it can report Node's reason when the certificate is
+  refused. A certificate that fails verification fails the check, and nothing is ever sent over
+  that connection.
+- **Published images.** A server pulls `<registry>/agentmesh-hub:<version>` and the bridge image
+  by tag from GHCR. **Residual risk:** whoever controls the registry namespace can push a different
+  image under the same tag. Teams that need more can build the images themselves, push them to
+  their own registry and render with `--registry`. The release job checks out with
+  `persist-credentials: false` and pins its actions to commit SHAs, and `.dockerignore` keeps
+  `.git`, `.env` and `.creds` files, seeds, the real config and the NATS TLS key out of the build,
+  so build-time code never sees the job token, and an image built by hand on a VM caches no
+  secret.
+  CI fails a PR or a push to main whose committed `plugins/agentmesh/dist` differs from a build.

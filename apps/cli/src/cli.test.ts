@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '@agentmesh/config';
 import { describe, expect, it } from 'vitest';
-import type { CliContext } from './context';
+import { type CliContext, cliCommand } from './context';
 import { findExamplesDir } from './lib/repo-paths';
 import { runCli } from './main';
 
@@ -158,5 +158,15 @@ describe('agentmesh CLI', () => {
     expect(await h.run('validate', '--bogus')).toBe(2);
     expect(await h.run('frobnicate')).toBe(2);
     expect(await h.run('--help')).toBe(0);
+  });
+});
+
+describe('cliCommand', () => {
+  it('names how to run this CLI again, since it is on no PATH', () => {
+    const bundle =
+      'C:\\Users\\riya\\.claude\\plugins\\cache\\agentmesh\\agentmesh\\0.4.0\\dist\\cli.js';
+    expect(cliCommand(bundle)).toBe(`node "${bundle}"`);
+    expect(cliCommand('/repo/apps/cli/src/main.ts')).toBe('pnpm mesh');
+    expect(cliCommand(undefined)).toBe('agentmesh');
   });
 });

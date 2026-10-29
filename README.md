@@ -41,7 +41,23 @@ Humans watch and steer from Discord.
 Early. It depends on Claude Code Channels, a research preview: custom channels are launched with
 `--dangerously-load-development-channels` unless an organization admin allowlists the plugin.
 
-## Quickstart (local, 5 minutes)
+## Set up your team's mesh
+
+```bash
+claude plugin marketplace add p2ratik/agentmesh
+claude plugin install agentmesh@agentmesh
+claude --dangerously-load-development-channels plugin:agentmesh@agentmesh   # then run /agentmesh:setup
+```
+
+When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
+
+Claude asks about your team and where the hub runs (a new cloud server, an existing server, or
+this machine as a trial), and walks you through creating the Discord bot. The CLI bundled in the
+plugin writes the config and keys, prepares the server and starts the hub from published images.
+Setup ends with a checklist proving the mesh works and the `/mesh invite` lines for your team.
+Details: **[docs/getting-started.md](docs/getting-started.md)**.
+
+## Develop locally (5 minutes)
 
 Requires Node 24, pnpm 10 and a NATS server with JetStream (Docker or the `nats-server` binary).
 
@@ -64,15 +80,15 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 
 Then, in the session: *"ask bob-agent whether the render API is ready"*.
 
-For a real team (Discord, keys, a cheap VM, Tailscale) follow
-**[docs/getting-started.md](docs/getting-started.md)**.
+For a real team, run `/agentmesh:setup` (above) or follow
+[Set up by hand](docs/getting-started.md#set-up-by-hand).
 
 ## Documentation
 
 | | |
 | --- | --- |
-| [Getting started](docs/getting-started.md) | From zero to a team mesh, step by step |
-| [Deploy](docs/deploy.md) | AWS / Azure VM, Tailscale, docker compose, backups |
+| [Getting started](docs/getting-started.md) | From zero to a team mesh with `/agentmesh:setup`, or by hand |
+| [Deploy](docs/deploy.md) | The server, published images, upgrades, docker compose, backups |
 | [Configuration](docs/configuration.md) | Every `mesh.yaml` field |
 | [Workflows](docs/workflows.md) | Task state machines, roles, effects |
 | [Planning](docs/planning.md) | How `/plan` sessions run |
@@ -87,10 +103,14 @@ For a real team (Discord, keys, a cheap VM, Tailscale) follow
 ```
 packages/  common · protocol (wire contract) · config (YAML, schemas) · bus (NATS)
 apps/      hub · discord-bridge · cli
-plugins/   agentmesh (Claude Code channel plugin, bundled to dist/server.js)
+plugins/   agentmesh (Claude Code channel plugin, bundled to dist/server.js; the CLI to dist/cli.js)
 config/    examples (the template `agentmesh init` copies)
 deploy/    Dockerfile, docker-compose.yml, .env.example
 tests/     end-to-end tests with real NATS and the bundled plugin
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards and how to extend AgentMesh.
+
+## License
+
+[MIT](LICENSE)

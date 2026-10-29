@@ -156,7 +156,8 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       joiner = await spawnAgent(joinerEnv);
       agents.push(joiner);
       const before = await joiner.client.listTools();
-      expect(before.tools.map((t) => t.name)).toEqual(['join']);
+      // `connect` is for an admin whose agent.json `agentmesh setup admin` saved.
+      expect(before.tools.map((t) => t.name)).toEqual(['join', 'connect']);
 
       const first = await joiner.call('join', {});
       expect(first).toContain(`${HUB} as dana-agent`);

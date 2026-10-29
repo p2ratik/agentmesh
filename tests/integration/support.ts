@@ -6,6 +6,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 /** The bundled plugin, spawned exactly like Claude Code spawns it. */
 export const PLUGIN = join(import.meta.dirname, '../../plugins/agentmesh/dist/server.js');
+/** The `agentmesh` CLI bundled in the plugin, which `/agentmesh:setup` runs. */
+export const PLUGIN_CLI = join(import.meta.dirname, '../../plugins/agentmesh/dist/cli.js');
 
 export interface Channel {
   content: string;

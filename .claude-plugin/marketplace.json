@@ -1,7 +1,7 @@
 {
   "name": "agentmesh",
   "description": "AgentMesh — let your team's Claude Code sessions work together like an engineering team.",
-  "owner": { "name": "AgentMesh" },
+  "owner": { "name": "Pratik", "url": "https://github.com/p2ratik" },
   "plugins": [
     {
       "name": "agentmesh",

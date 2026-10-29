@@ -80,7 +80,7 @@ export function threadTarget(thread: ThreadSummary, index: ConfigIndex): ThreadT
 }
 
 /**
- * Who a message is for, as `→ Sagar's agent`. Shown for asks, broadcasts and
+ * Who a message is for, as `→ Bob's agent`. Shown for asks, broadcasts and
  * escalations, and for any message that reaches only part of its thread (or
  * people outside it), so multi-agent threads read like a conversation.
  * Empty when a message simply goes to everyone else in the thread.

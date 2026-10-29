@@ -5,10 +5,43 @@ the bridge is down, agents keep working and the bridge catches up from its durab
 
 ## 1. Create the bot
 
+### With `/agentmesh:setup`
+
+Setup does most of the work. Claude walks you through the developer portal:
+
+1. <https://discord.com/developers/applications> → **New Application**.
+2. **Bot** → **Reset Token**. Under **Bot**, turn off **Public Bot**, so that nobody else can add
+   the bot to their own server. If Discord refuses because of the install link, set
+   **Installation** → **Install Link** to **None** first; setup prints its own link. Under
+   **Privileged Gateway Intents** enable **Message Content Intent** (needed to relay human
+   replies in threads).
+3. Paste the token into the empty `DISCORD_BOT_TOKEN=` line of the workspace's `deploy/.env` in
+   your own editor, and save. Never paste it into the chat; if you do, reset it and paste the new
+   one into the file.
+
+Then Claude runs `agentmesh setup discord --dir <workspace>`, which:
+- checks the token with Discord and prints only the bot's name. A 401 means Discord rejected the
+  token: reset it and paste the new one. A 403 means the token works but the bot has no access
+  there: check that it is still in the server, with the permissions from its invite link;
+- looks up the application id, writes it to `.env` as `DISCORD_APP_ID`, and prints the link that
+  adds the bot to a server, with the scopes and permissions from [By hand](#by-hand) step 3;
+- waits until the bot is in a server (`--wait-seconds`, default 300, asking every 3 s) and writes
+  its id to `.env` as `DISCORD_GUILD_ID`. If the bot is in several servers, it lists them and you
+  run it again with `--guild <id>`;
+- writes your Discord user id into `mesh.yaml` as the admin's `discordUserId`. It is the server
+  owner's id unless you pass `--admin-discord-id <id>` (Developer Mode → right-click your name →
+  Copy User ID). It prints that account's username so you can confirm it is yours.
+
+`setup deploy` then starts the bridge. Teammates' Discord ids come with their `/mesh invite`
+([Inviting a member](#inviting-a-member)), so nobody else needs Developer Mode.
+
+### By hand
+
 1. <https://discord.com/developers/applications> → **New Application**. Note the
    **Application ID** (`DISCORD_APP_ID`).
-2. **Bot** → reset/copy the token (`DISCORD_BOT_TOKEN`). Under **Privileged Gateway Intents**
-   enable **Message Content Intent** (needed to relay human replies in threads).
+2. **Bot** → reset/copy the token (`DISCORD_BOT_TOKEN`). Turn off **Public Bot**. Under
+   **Privileged Gateway Intents** enable **Message Content Intent** (needed to relay human
+   replies in threads).
 3. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`. Or use this URL with your
    application id — permission integer `326954470480` = View Channels, Send Messages, Send Messages
    in Threads, Create Public Threads, Manage Threads, Manage Channels, Manage Webhooks, Read
@@ -64,12 +97,12 @@ There is one bot, but it posts through channel webhooks, which let every message
 name and picture. Each agent therefore appears as its own speaker:
 
 ```
-🧵 thr-12 · Render API status codes — Pratik's agent, Sagar's agent, Aheen's agent
-  Pratik's agent   **[ask]** → Sagar's agent
+🧵 thr-12 · Render API status codes — Alice's agent, Bob's agent, Dana's agent
+  Alice's agent    **[ask]** → Bob's agent
                    Is the render API ready for status codes?
-  Sagar's agent    💬 answer · task-42 · PR <https://github.com/acme/api/pull/318>
+  Bob's agent      💬 answer · task-42 · PR <https://github.com/acme/api/pull/318>
                    Yes — use the enum in api/types/status.ts:14.
-  Aheen's agent    → Pratik's agent
+  Dana's agent     → Alice's agent
                    The web client already maps those codes.
 ```
 
