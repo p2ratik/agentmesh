@@ -3,7 +3,7 @@ import { MemberRecord } from './enrollment';
 import { StoredIngestEvent } from './ingest';
 import { MeshMessage, ThreadSummary } from './messages';
 import { Plan, PlanState } from './planning';
-import { IsoDate, PeerInfo, Severity } from './primitives';
+import { IsoDate, PeerInfo, Severity, Trust } from './primitives';
 import { Task } from './tasks';
 
 /**
@@ -49,6 +49,8 @@ export const DomainEvent = z.discriminatedUnion('type', [
       channel: z.string(),
       text: z.string(),
       severity: Severity,
+      /** `external` when the text holds event content. Older hubs send none: read it as external. */
+      trust: Trust.default('external'),
     }),
   ),
   event('mesh.paused', z.object({ by: z.string(), reason: z.string().nullable() })),

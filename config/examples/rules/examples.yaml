@@ -10,13 +10,18 @@ rules:
       type: workflow_run.completed
       where:
         payload.workflow_run.conclusion: { equals: failure }
+        # Pushes only. A fork's pull request reports its own branch name here (a fork branch
+        # can be called main) and runs the fork's workflow file, so outsiders control both.
+        payload.workflow_run.event: { equals: push }
         payload.workflow_run.head_branch: { in: [main, agents] }
     throttle:
       key: "{{payload.repository.full_name}}:{{payload.workflow_run.head_branch}}"
       windowMinutes: 30
     actions:
       - create_task:
-          title: "Fix CI on {{payload.workflow_run.head_branch}}: {{payload.workflow_run.name}}"
+          # No {{payload.workflow_run.name}}: whoever writes the workflow file names the run.
+          # assignee and area take configured ids only: validation refuses a {{template}} there.
+          title: "Fix CI on {{payload.workflow_run.head_branch}}"
           description: "Failed run: {{payload.workflow_run.html_url}}"
           repo: "{{payload.repository.full_name}}"
           priority: high

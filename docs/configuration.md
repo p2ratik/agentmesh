@@ -131,6 +131,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
 | `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
+| `rules[].actions[].create_task.assignee` / `.area` | — | A configured agent id / area id. A `{{template}}` is refused, so an event cannot choose who gets the task. |
 
 ## `discord`
 
