@@ -88,7 +88,7 @@ For a real team, run `/agentmesh:setup` (above) or follow
 | | |
 | --- | --- |
 | [Getting started](docs/getting-started.md) | From zero to a team mesh with `/agentmesh:setup`, or by hand |
-| [Deploy](docs/deploy.md) | The server, published images, upgrades, docker compose, backups |
+| [Deploy](docs/deploy.md) | The server, hardening, published images, upgrades, docker compose, backups |
 | [Configuration](docs/configuration.md) | Every `mesh.yaml` field |
 | [Workflows](docs/workflows.md) | Task state machines, roles, effects |
 | [Planning](docs/planning.md) | How `/plan` sessions run |
@@ -110,6 +110,11 @@ tests/     end-to-end tests with real NATS and the bundled plugin
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards and how to extend AgentMesh.
+
+## Security
+
+Found a vulnerability? Report it privately through GitHub, as [SECURITY.md](SECURITY.md) explains;
+never in a public issue. The threat model is in [docs/security.md](docs/security.md).
 
 ## License
 
