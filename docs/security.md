@@ -13,6 +13,16 @@ the irreversible decisions.
   under its own id, read only its own session subjects and receive only its own replies. The hub therefore
   trusts the caller named in the subject — one agent cannot act as another (covered by the
   authenticated end-to-end test).
+- **The hub answers an RPC only into the caller's own inbox** (`_INBOX_{caller}.…`); a request
+  with any other reply subject is logged and dropped unanswered. Every client sets that inbox
+  prefix (the plugin, `/agentmesh:join`, the bridge).
+  - **Threat:** NATS checks a publisher's subject, never its reply subject, and the hub may
+    publish anywhere. A member could call its own `peers.list` with the reply set to
+    `{p}.presence.<victim>` and the hub would publish there, marking the victim online (confirmed
+    on nats-server 2.15.1). A reply aimed at `{p}.evt.*` was stored in the events stream, and one
+    aimed at `$JS.API.STREAM.PURGE.*` was stopped only by JetStream's strict mode. The
+    authenticated end-to-end test aims a reply at another agent's presence subject and checks
+    that nothing arrives.
 - `agentmesh nats-config --auth-callout` renders account mode for invite-only onboarding (see
   `docs/specs/auth-callout-spike.md`). Agents are no longer listed: the hub's callout admits each
   connect and fails closed when the hub is down. The hub, the bridge and every other service stay

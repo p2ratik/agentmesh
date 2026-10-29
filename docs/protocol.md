@@ -17,6 +17,8 @@ Prefix `p` (default `mesh`), stream names use its upper-case form (`MESH_…`).
 | `{p}.ingest.{source}` | stream `{P}_INGEST` (work queue) | hub, ingest services | External events; consumer `hub-ingest`. |
 
 Replies use per-participant inboxes `_INBOX_{id}.…` so a client can only receive its own replies.
+The hub answers only into the caller's inbox: a client must connect with `inboxPrefix(id)` (from
+`@agentmesh/protocol`), or its requests go unanswered and time out.
 JetStream dedup ids: the event id for feed and ingest. Agent deliveries no longer use JetStream; see
 [Per-session delivery](#per-session-delivery) and [ADR 0006](adr/0006-per-session-delivery.md).
 
