@@ -73,9 +73,12 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
      server needs exists;
   2. closes `<remoteDir>/deploy` to other users (`chmod 700`) and takes back the seeds a previous
      deploy gave to uid 1000;
-  3. copies `config/`, `deploy/docker-compose.yml`, `deploy/.env`, `deploy/nats/nats.conf` and
-     `deploy/secrets/*.nk` with `scp`;
-  4. sets `.env` and the seeds to mode 600, gives the seeds to uid 1000 (the containers' user), and
+  3. copies `config/` to a fresh `<remoteDir>/config.new`, and `deploy/docker-compose.yml`,
+     `deploy/.env`, `deploy/nats/nats.conf` and `deploy/secrets/*.nk` with `scp`;
+  4. replaces the server's `config/` with `config.new`, so a file deleted from the workspace is
+     gone there too (the hub loads every YAML file in the include folders), and a copy that fails
+     halfway leaves the old `config/` in place;
+  5. sets `.env` and the seeds to mode 600, gives the seeds to uid 1000 (the containers' user), and
      runs `docker compose --profile discord pull` and `up -d --force-recreate` in
      `<remoteDir>/deploy`.
 
@@ -91,8 +94,6 @@ admin's own cloud CLI, shows each one and runs nothing that costs money before t
 - **The mode.** A server runs NATS with TLS in auth-callout mode (`nats-config --tls
   --auth-callout`), so members join by invite. The hub's HTTP port stays on 127.0.0.1, and a new
   mesh has no ingest sources. A trial runs NATS on 127.0.0.1 without TLS, in static mode.
-- **Copies only add.** `scp -r config` merges into the server's `config/`, so a file you delete
-  from the workspace stays on the server until you delete it there too.
 
 ## Published images and versions
 

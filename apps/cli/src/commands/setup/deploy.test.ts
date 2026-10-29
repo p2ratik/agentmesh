@@ -86,13 +86,15 @@ describe('setup deploy', () => {
   // --force-recreate: config/, nats.conf and the seeds are bind mounts, so a plain `up -d`
   // keeps the old containers, and the old config and keys, after a change to them alone.
   // The [ -d ] guard: a server rebuilt under the same name has no folders, and chown would fail.
+  // config.new, then a swap: scp -r merges into an existing folder, and the hub loads every
+  // YAML file in the include folders, so a file deleted here would keep running there.
   it('runs these commands on the server', () => {
     expect(prepare).toBe(
       "[ -d /opt/agentmesh/deploy/secrets ] || { echo 'Run setup host again: /opt/agentmesh/deploy/secrets is missing on the server.' >&2; exit 1; }; " +
-        'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config && chmod 700 /opt/agentmesh/deploy',
+        'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats && rm -rf /opt/agentmesh/config.new && chmod 700 /opt/agentmesh/deploy',
     );
     expect(finish).toBe(
-      'chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
+      'rm -rf /opt/agentmesh/config && mv /opt/agentmesh/config.new /opt/agentmesh/config && chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
     );
   });
 
@@ -101,7 +103,7 @@ describe('setup deploy', () => {
     expect(await t.deploy()).toBe(0);
     expect(t.calls.map((c) => [c.cmd, ...c.args])).toEqual([
       ['ssh', ...SSH, '--', TARGET, prepare],
-      ['scp', ...SSH, '-q', '-r', '--', 'config', `${TARGET}:/opt/agentmesh/`],
+      ['scp', ...SSH, '-q', '-r', '--', 'config', `${TARGET}:/opt/agentmesh/config.new`],
       [
         'scp',
         ...SSH,
