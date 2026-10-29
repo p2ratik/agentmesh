@@ -9,7 +9,8 @@ import { FailureLimiter } from './limiter';
 
 const NOW = new Date('2026-10-16T09:00:00.000Z');
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64url');
-const sign = (kp: KeyPair, nonce: string) => b64(kp.sign(new TextEncoder().encode(nonce)));
+const utf8 = (text: string) => new TextEncoder().encode(text);
+const sign = (kp: KeyPair, nonce: string) => b64(kp.sign(utf8(nonce)));
 const SECRET = 'A'.repeat(43);
 // Client-side hints the callout never reads; included so the code decodes with or without them.
 const HINTS = { agentId: 'dana-agent', prefix: 'mesh' };
@@ -71,6 +72,26 @@ describe('callout JWTs', () => {
     expect(verifiedClaims(`${head}.${forged}.${sig}`)).toBeNull();
     expect(verifiedClaims('not.a.jwt')).toBeNull();
     expect(verifiedClaims(`${jwt}.extra`)).toBeNull();
+  });
+
+  it('signs byte for byte like nkeys and accepts what nkeys signs', () => {
+    const issuer = createAccount();
+    const [head, payload, sig] = signJwt(issuer, { sub: 'UX' }, NOW).split('.');
+    expect(sig).toBe(b64(issuer.sign(utf8(`${head}.${payload}`))));
+    const server = createServer();
+    const body = `${head}.${b64(utf8(JSON.stringify({ iss: server.getPublicKey() })))}`;
+    const byNkeys = `${body}.${b64(server.sign(utf8(body)))}`;
+    expect(verifiedClaims(byNkeys)).toEqual({ iss: server.getPublicKey() });
+    expect(verifiedClaims(`${body}.${b64(createServer().sign(utf8(body)))}`)).toBeNull();
+  });
+
+  it('verifies without pure-JS ed25519, so a bogus connect stays cheap', () => {
+    // nkeys (tweetnacl) needs ~8 ms per verify: 100 of them take most of a second.
+    const user = createUser();
+    const [nkey, sig] = [user.getPublicKey(), sign(user, 'nonce')];
+    const started = performance.now();
+    for (let i = 0; i < 100; i++) expect(signedNonce(nkey, 'nonce', sig)).toBe(true);
+    expect(performance.now() - started).toBeLessThan(300);
   });
 
   it('accepts only the server-signed request whose issuer is the server', () => {
