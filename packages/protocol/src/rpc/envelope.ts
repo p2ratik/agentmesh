@@ -7,7 +7,7 @@ export const RpcRequestEnvelope = z.object({
   v: z.literal(PROTOCOL_VERSION),
   params: z.unknown(),
   /** Honored only for services allowed to act on behalf of humans. */
-  actAs: z.string().optional(),
+  actAs: z.string().max(64).optional(),
   /** Retrying a request with the same key returns the original result. */
   idempotencyKey: z.string().min(1).max(120).optional(),
   /** Calling session id; the hub validates it against the caller's live sessions. */

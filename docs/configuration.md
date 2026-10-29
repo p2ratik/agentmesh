@@ -96,6 +96,7 @@ error.
 | `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
 | `presence.ownershipGraceMinutes` | `120` | A session silent past `offlineAfterSeconds` goes away but keeps its threads; after this many minutes it closes and releases them (a reconnect with its previous session id reclaims what nobody took). |
+| `limits.maxSessionsPerAgent` | `20` | Open (live or away) sessions per agent. A new one beyond it first closes the stalest (away before live, then least recently seen), which releases its threads. A reconnect reuses its session and closes nothing. |
 | `limits.maxThreadDepth` | `3` | How deep chains of agent-created threads may go (loop guard). |
 | `limits.perThreadPerHour` | `40` | Messages per thread per hour. |
 | `limits.perSenderPerDay` | `500` | Messages per participant per day. |

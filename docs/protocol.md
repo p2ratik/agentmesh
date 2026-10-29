@@ -27,6 +27,9 @@ Request: `{ v: 1, params, actAs?, idempotencyKey?, session? }`. Response: `{ ok:
 `unauthenticated`, `forbidden`, `not_found`, `conflict`, `invalid_transition`, `rate_limited`,
 `loop_detected`, `duplicate`, `paused`, `unavailable`, `timeout`, `internal`.
 
+Every string and array in `params` has a maximum (ids 64 characters, repos and branches 300,
+labels 60, bodies as listed in the schemas); a longer value is refused with `invalid_request`.
+
 `actAs` is honoured only for services with `canActAsHumans` (the Discord bridge); the hub then
 authorises as that human. A retried request with the same `idempotencyKey` returns the original
 result.
@@ -52,7 +55,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
-| `session.hello` | agent, service | Register a session. Params carry `clientVersion` and `previousSessionId`; the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
+| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300) and `previousSessionId` (a hub-issued id); the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
 | `session.activate` | agent | Turn this session on: `{ code, description }`, the code from its latest check and a one-line description. A wrong or stale code is refused with `invalid_request`. |
 | `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
@@ -190,9 +193,11 @@ The hub tracks each session as:
   delivered to.
 - **away:** silent for `presence.offlineAfterSeconds`, or a delivery to it failed. It keeps what it
   owns and its deliveries wait. A heartbeat or a call made as the session makes it live again.
-- **closed:** away for `presence.ownershipGraceMinutes`, or after `session.bye`. Its threads are
+- **closed:** away for `presence.ownershipGraceMinutes`, after `session.bye`, or to make room: an
+  agent keeps at most `limits.maxSessionsPerAgent` open sessions, and a hello that opens one more
+  first closes the stalest (away before live, then least recently seen). Its threads are
   released. A `session.hello` that names it in `previousSessionId` reclaims the released threads
-  nobody else took.
+  nobody else took. Closed sessions are deleted after 30 days.
 
 **Online.** An agent counts as online only while it heartbeats *and* has a live, active session,
 because that is the only place work reaches it. A session that was never activated, or a pull-only

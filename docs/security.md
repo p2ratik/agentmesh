@@ -144,6 +144,19 @@ to its session, and `session.check` then fails (see the upgrade notes in
   would pull from the removed inbox and could not take per-session delivery, and 0.2.x cannot
   report the FYIs it showed (`messages.seen`). Their later calls carry no session and are refused
   with the same update instruction, so the refusal shows in tool errors.
+- **Sessions are bounded.** `session.hello` caps its fields like a heartbeat: `clientVersion` 32
+  characters, `repo` and `branch` 300, and `previousSessionId` must be a hub-issued id. An agent
+  keeps at most `limits.maxSessionsPerAgent` (default 20) open sessions. A hello that would open
+  one more first closes the stalest: an away session before a live one, then the least recently
+  seen. That is what expiry would do later, so its threads are released. A reconnect that names
+  its open session in `previousSessionId` reuses it and closes nothing. Sessions closed for 30
+  days are deleted.
+  - **Threat:** a member looping `session.hello` filled the disk. Each hello without a previous
+    id added a row that was never deleted, and its megabyte fields went into the hub log and into
+    every `peers` and `mesh.status`.
+  - **Residual:** a member can close their own agent's sessions by opening new ones, and more
+    live processes of one agent than the cap keep closing each other (each says hello again).
+    Neither reaches another agent.
 - **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
   cannot aim at a session it was not shown.
 - **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then
@@ -164,6 +177,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
 - Per-thread and per-sender rate limits, and duplicate suppression.
+- **Every string and array a caller sends is capped** in its zod schema (ids 64 characters, repos
+  and branches 300, labels 60, lists bounded), so no field carries megabytes into the hub's rows,
+  logs or error messages. A unit test walks every RPC's params and fails on an uncapped one.
 - Planning contributions are delivered as one digest per round, not one message per agent.
 - **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
   also holds deliveries queued before it, in the same transaction, so nothing is pushed while

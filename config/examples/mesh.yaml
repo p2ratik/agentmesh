@@ -109,6 +109,7 @@ limits:
   maxThreadDepth: 3 # A→B→C→D: deeper chains of agent-created threads are refused
   perThreadPerHour: 40
   perSenderPerDay: 500
+  maxSessionsPerAgent: 20 # open sessions per agent; one more first closes the stalest
 
 presence:
   heartbeatSeconds: 20 # documented plugin cadence

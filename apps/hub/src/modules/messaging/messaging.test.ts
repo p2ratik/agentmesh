@@ -16,6 +16,7 @@ describe('postLimitViolation', () => {
     perSenderPerDay: 5,
     dedupWindowSeconds: 60,
     maxBodyChars: 10,
+    maxSessionsPerAgent: 20,
   };
   const ok = { bodyChars: 5, threadLastHour: 0, senderLastDay: 0, duplicate: false };
 

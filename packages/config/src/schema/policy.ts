@@ -25,6 +25,8 @@ export const LimitsConfig = z.object({
   perSenderPerDay: z.number().int().positive().default(500),
   dedupWindowSeconds: z.number().int().nonnegative().default(120),
   maxBodyChars: z.number().int().positive().default(32_000),
+  /** Open (live or away) sessions per agent; a new one closes the stalest beyond this. */
+  maxSessionsPerAgent: z.number().int().positive().default(20),
 });
 export type LimitsConfig = z.infer<typeof LimitsConfig>;
 

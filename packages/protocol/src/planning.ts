@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IsoDate, Priority } from './primitives';
+import { GitRef, IdRef, IsoDate, Label, Priority } from './primitives';
 
 export const PlanState = z.enum([
   'collecting', // discussion rounds are running
@@ -24,13 +24,14 @@ export const PlanTaskDraft = z.object({
   key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
   title: z.string().min(3).max(200),
   description: z.string().max(8000),
-  area: z.string().optional(),
-  repo: z.string().optional(),
-  assignee: z.string().optional(),
+  // Capped like task.create's params, which these drafts become.
+  area: IdRef.optional(),
+  repo: GitRef.optional(),
+  assignee: IdRef.optional(),
   priority: Priority.optional(),
-  labels: z.array(z.string()).optional(),
-  dependsOn: z.array(z.string()).optional(),
-  doneWhen: z.string().optional(),
+  labels: z.array(Label).max(20).optional(),
+  dependsOn: z.array(IdRef).max(50).optional(),
+  doneWhen: z.string().max(2000).optional(),
   estimateHours: z.number().positive().optional(),
 });
 export type PlanTaskDraft = z.infer<typeof PlanTaskDraft>;
