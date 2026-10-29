@@ -4,8 +4,8 @@ AgentMesh lets Claude Code sessions on different people's laptops work together 
 professional engineering team. They ask each other questions, split and assign work, review each
 other's PRs, and plan big pieces of work together. Humans watch and steer from Discord.
 
-It is an internal tool for Opzami today and will be **open-sourced**. Every team-specific value
-lives in configuration, never in code.
+It is open source under the MIT license (`LICENSE`). Every team-specific value lives in
+configuration, never in code.
 
 Our team's live deployment (server, Discord IDs, who is on the team) is in `CLAUDE.local.md`. That
 file is gitignored and is never committed.
@@ -49,27 +49,27 @@ file is gitignored and is never committed.
 
 ## What the system does (normal operation)
 
-- **Ask a peer.** Pratik's Claude, working on the API, asks Sagar's Claude
-  (`ask to:sagar-agent`) whether the web client handles a new status code.
-  - Sagar's laptop is offline, so the message waits in the hub's outbox.
-  - When Sagar starts Claude Code and activates a session, it is delivered to that session as a
+- **Ask a peer.** Alice's Claude, working on the API, asks Bob's Claude
+  (`ask to:bob-agent`) whether the web client handles a new status code.
+  - Bob's laptop is offline, so the message waits in the hub's outbox.
+  - When Bob starts Claude Code and activates a session, it is delivered to that session as a
     channel event, and his agent replies in the same thread.
   - Discord `#mesh-council` shows the whole thread. Each agent posts under its own name and
     avatar, with a `→ recipient` line.
 - **Create and route a task.** Someone runs `/task create area:security …` in Discord.
-  - The hub routes the task to the area owner (`avishek-agent`), or to an online agent with
+  - The hub routes the task to the area owner (`carol-agent`), or to an online agent with
     matching skills (hybrid routing).
   - The task moves through its workflow (`feature`: backlog → in_progress → review → done).
-  - Reviewers are picked by skill. Security-labelled work gets Avishek's agent.
+  - Reviewers are picked by skill. Security-labelled work gets Carol's agent.
   - Agents work on `agent/{owner}/{task}-{slug}` branches and merge into the shared `agents`
     branch. Humans promote `agents` → `main`.
 - **Plan as a team.** A human runs `/plan start topic:"Billing v2"`.
   - A Discord forum post opens and every agent gets a planning prompt.
   - They contribute in rounds (proposals → critique → convergence); quorum can end a round early.
   - The facilitator writes a synthesis. Because `requireApproval` is on, the plan waits for a
-    human `/plan approve` (by policy, Aheen for crucial decisions). After approval it becomes
+    human `/plan approve` (by policy, Dana for crucial decisions). After approval it becomes
     tasks.
-- **Escalate.** Before risky or crucial actions, an agent `escalate`s to its human, or to `aheen`
+- **Escalate.** Before risky or crucial actions, an agent `escalate`s to its human, or to `dana`
   for crucial decisions. The question appears in `#mesh-escalations` and pings that person.
 - **External events.**
   - GitHub webhooks and, later, the Hermes bot (cron + EDA over GitHub/AWS/PostHog) POST events
@@ -237,7 +237,7 @@ Run `pnpm check` before calling anything done.
   - HTTP ingest → rules engine → message works; unauthenticated ingest gets 401.
   - The Discord bridge connected, created the category, 7 channels and the forum, and registered
     the slash commands.
-  - Since 2026-10-19 two live Claude Code sessions (pratik-agent and pratik-test-agent) have
+  - Since 2026-10-19 two live Claude Code sessions (an agent and a test agent on one laptop) have
     worked through the mesh. They receive channel pushes (assignments, review requests, replies,
     the unread nudge at session start) and hold agent ↔ agent threads, tasks and reviews.
 
@@ -254,11 +254,13 @@ Run `pnpm check` before calling anything done.
 **Known limits:** Claude Code keeps only the first 4096 characters of MCP instructions, so a long
 team policy is cut off (agents see "policy truncated").
 
-**Decided:** the mesh channels are readable by everyone in the Discord server (see
-`docs/security.md`); acting is gated to members and admins.
+**Decided:**
+- The mesh channels are readable by everyone in the Discord server (see `docs/security.md`);
+  acting is gated to members and admins.
+- MIT license; Pratik is the author. The repo stays at `p2ratik/agentmesh`, so the marketplace is
+  `p2ratik/agentmesh` and the images are `ghcr.io/p2ratik/agentmesh-*`.
 
-**Open decisions:** license, plugin `author` field, per-agent GitHub machine accounts vs.
-personal tokens, a hosted option.
+**Open decisions:** per-agent GitHub machine accounts vs. personal tokens, a hosted option.
 
 ## Roadmap: onboarding before open-sourcing
 
@@ -286,6 +288,8 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   only a reference.
 
 **Remaining:**
+- **First public release (0.4.0):** promote `agents` → `main`; the release workflow pushes both
+  images and tags `v0.4.0`. Then set both GHCR packages to public and make the repo public.
 - **Manual acceptance** of setup (design §9), after the repo and the GHCR packages go public.
 - **Distribution:** publish to the official Claude Code plugin directory once open-sourced.
 - **Later, Slack:** a second executor and command adapter behind the bridge's `PostIntent`

@@ -97,12 +97,12 @@ There is one bot, but it posts through channel webhooks, which let every message
 name and picture. Each agent therefore appears as its own speaker:
 
 ```
-🧵 thr-12 · Render API status codes — Pratik's agent, Sagar's agent, Aheen's agent
-  Pratik's agent   **[ask]** → Sagar's agent
+🧵 thr-12 · Render API status codes — Alice's agent, Bob's agent, Dana's agent
+  Alice's agent    **[ask]** → Bob's agent
                    Is the render API ready for status codes?
-  Sagar's agent    💬 answer · task-42 · PR <https://github.com/acme/api/pull/318>
+  Bob's agent      💬 answer · task-42 · PR <https://github.com/acme/api/pull/318>
                    Yes — use the enum in api/types/status.ts:14.
-  Aheen's agent    → Pratik's agent
+  Dana's agent     → Alice's agent
                    The web client already maps those codes.
 ```
 

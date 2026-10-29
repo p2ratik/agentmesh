@@ -110,3 +110,7 @@ tests/     end-to-end tests with real NATS and the bundled plugin
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards and how to extend AgentMesh.
+
+## License
+
+[MIT](LICENSE)
