@@ -45,7 +45,10 @@ export function createServiceHarness(
     presence,
     isActiveSessionOf: () => false,
   }).service;
-  for (const id of options.online ?? []) presence.touch(id);
+  // Without sessions, the agents in `online` stand in for agents with an active session.
+  const ready = new Set(options.online ?? []);
+  presence.setReadyReader((id) => ready.has(id));
+  for (const id of ready) presence.touch(id);
   let seen = 0;
   return {
     ...base,
@@ -95,6 +98,7 @@ export function createDispatchHarness(): DispatchHarness {
     threadOf: () => null,
     transport,
   }).service;
+  h.presence.setReadyReader((id) => sessions.hasReadySession(id));
   dispatcher = new SessionDispatcher({
     sessions,
     messaging: h.messaging,

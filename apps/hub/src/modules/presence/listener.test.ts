@@ -54,7 +54,7 @@ describe('startPresenceListener', () => {
     joinTeam(h.ctx, 'dana');
     presence.syncFromConfig(); // what the enrollment module does after a join
     beat('dana-agent');
-    expect(presence.isOnline('dana-agent')).toBe(true);
+    expect(presence.status('dana-agent')).toBe('online');
     expect(onSession).toHaveBeenCalledWith('dana-agent', 's-abc123def456', {});
   });
 
@@ -64,7 +64,7 @@ describe('startPresenceListener', () => {
     presence.syncFromConfig();
     for (const id of ['bob-agent', 'alice', 'hermes', 'mallory-agent']) beat(id);
     expect(onSession).not.toHaveBeenCalled();
-    expect(presence.isOnline('bob-agent')).toBe(false);
+    expect(presence.status('bob-agent')).toBe('offline');
     beat('alice-agent');
     expect(onSession).toHaveBeenCalledOnce();
   });
