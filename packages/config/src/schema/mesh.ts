@@ -64,6 +64,16 @@ export const MeshConfigSchema = z.object({
         .prefault({}),
       allowInsecureIngest: z.boolean().default(false),
       tickSeconds: z.number().int().min(1).default(10),
+      /**
+       * JetStream size caps in MB; when full, the oldest entries go. Their sum must fit in
+       * nats.conf's `max_file_store`, or NATS refuses the streams.
+       */
+      streams: z
+        .object({
+          eventsMaxMB: z.number().int().positive().default(128),
+          ingestMaxMB: z.number().int().positive().default(64),
+        })
+        .prefault({}),
     })
     .prefault({}),
   humans: z.array(HumanConfig).min(1),

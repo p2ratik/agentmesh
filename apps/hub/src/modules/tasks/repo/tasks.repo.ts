@@ -161,6 +161,14 @@ export class TasksRepo {
     return new Map(rows.map((r) => [r.assignee, r.n]));
   }
 
+  /** True when the thread belongs to a task an external event created. */
+  isExternalThread(threadId: number): boolean {
+    return !!this.#db.get(
+      "SELECT 1 FROM tasks WHERE thread_id = $threadId AND trust = 'external' LIMIT 1",
+      { threadId },
+    );
+  }
+
   count(excludeStates: string[]): number {
     return (
       this.#db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM tasks WHERE ${NOT_EXCLUDED}`, {

@@ -2,8 +2,15 @@ import { createLogger } from '@agentmesh/common';
 import { describe, expect, it } from 'vitest';
 import { type RpcDispatcher, serveRpc } from './rpc-server';
 
-/** Runs one request through serveRpc with a fake connection; returns the parsed response. */
-async function roundTrip(dispatch: RpcDispatcher, envelope: unknown): Promise<unknown> {
+/**
+ * Runs one request through serveRpc with a fake connection; resolves to the parsed response,
+ * or to `null` if nothing was sent within 50 ms.
+ */
+async function roundTrip(
+  dispatch: RpcDispatcher,
+  envelope: unknown,
+  reply = '_INBOX_alice-agent.r1',
+): Promise<unknown> {
   let callback: (err: Error | null, msg: unknown) => void = () => {};
   const nc = {
     subscribe: (_subject: string, opts: { callback: typeof callback }) => {
@@ -16,9 +23,10 @@ async function roundTrip(dispatch: RpcDispatcher, envelope: unknown): Promise<un
     logger: createLogger('test', { level: 'silent' }),
   });
   return new Promise((resolve) => {
+    setTimeout(() => resolve(null), 50);
     callback(null, {
       subject: 'mesh.rpc.alice-agent.ping',
-      reply: 'r',
+      reply,
       json: () => envelope,
       respond: (data: string) => resolve(JSON.parse(data)),
     });
@@ -52,5 +60,27 @@ describe('rpc envelope', () => {
     const res = await roundTrip(async () => 1, env());
     expect(res).toEqual({ ok: true, result: 1 });
     expect(res).not.toHaveProperty('notes');
+  });
+});
+
+describe('rpc reply subject', () => {
+  it("answers only into the caller's own inbox", async () => {
+    let ran = 0;
+    const dispatch: RpcDispatcher = async () => {
+      ran += 1;
+      return 1;
+    };
+    for (const reply of [
+      'mesh.presence.bob-agent',
+      'mesh.evt.task.created',
+      '$JS.API.STREAM.PURGE.MESH_EVENTS',
+      '_INBOX_bob-agent.r1',
+      '_INBOX_alice-agent-x.r1',
+      '_INBOX_alice-agent',
+    ]) {
+      expect(await roundTrip(dispatch, env(), reply)).toBeNull();
+    }
+    expect(ran).toBe(0);
+    expect(await roundTrip(dispatch, env())).toEqual({ ok: true, result: 1 });
   });
 });

@@ -1,5 +1,5 @@
 import type { DomainEventData, Task } from '@agentmesh/protocol';
-import { link, list, oneLine } from './format';
+import { link, list, oneLine, taskTitle } from './format';
 import type { PostIntent } from './intents';
 
 /** Review-related workflow states, recognised by name since workflows are config. */
@@ -18,7 +18,7 @@ export function renderTaskCreated(data: DomainEventData<'task.created'>): PostIn
     task.priority === 'normal' ? '' : `${task.priority} priority`,
     task.planId ? `from ${task.planId}` : '',
   ].filter(Boolean);
-  const content = `📋 ${task.id} created by ${task.createdBy}: ${oneLine(task.title)} · ${details.join(' · ')}`;
+  const content = `📋 ${task.id} created by ${task.createdBy}: ${taskTitle(task)} ·${details.join(' · ')}`;
   return [{ purpose: 'events', content }];
 }
 
@@ -34,7 +34,7 @@ export function renderTaskChanged(data: DomainEventData<'task.changed'>): PostIn
       isReviewState(to) && task.reviewers.length > 0 ? ` · reviewers ${list(task.reviewers)}` : '';
     intents.push({
       purpose: 'reviews',
-      content: `${reviewEmoji(to)} ${task.id} · ${oneLine(task.title, 120)} · ${transition(from, to)} by ${actor}${reviewers}${tail}`,
+      content: `${reviewEmoji(to)} ${task.id} · ${taskTitle(task, 120)} ·${transition(from, to)} by ${actor}${reviewers}${tail}`,
     });
   }
   return intents;

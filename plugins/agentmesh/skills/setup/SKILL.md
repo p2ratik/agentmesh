@@ -210,7 +210,9 @@ until a render finishes, a re-run replaces the files it wrote, so it needs no `-
 ## 5. Launch
 
 Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup host --dir "<workspace>"` (server only). It
-installs Docker and certbot over SSH and gets the TLS certificate. Then run
+installs Docker and certbot over SSH, gets the TLS certificate, adds a per-IP connection limit for
+NATS and turns on security updates. Show the admin every `warning (agentmesh):` line it prints
+(such as SSH accepting passwords) and what to change; never change SSH settings yourself. Then run
 `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup deploy --dir "<workspace>"`. It validates the
 config, copies the files and starts the hub (on a trial, on this machine). If this workspace ran a
 trial before and now deploys to a server, first have the admin stop the trial: run

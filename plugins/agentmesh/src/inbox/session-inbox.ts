@@ -7,7 +7,7 @@ import {
   subjects,
 } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
-import { type FyiBuffer, formatFyi, seenIds } from './fyi';
+import { anyExternal, type FyiBuffer, formatFyi, seenIds, type TakenFyi } from './fyi';
 import { RecentIds } from './recent-ids';
 import { type ChannelEvent, renderEvent } from './render';
 
@@ -86,7 +86,7 @@ export function runSessionInbox(options: SessionInboxOptions): {
       // The buffer rides along with the first push that works. A failed push puts it back,
       // since RecentIds would not let a redelivery buffer those items again.
       const fyi = options.fyi.take();
-      if (await pushThread(fresh, formatFyi(fyi), delivered)) shown.push(...seenIds(fyi));
+      if (await pushThread(fresh, fyi, delivered)) shown.push(...seenIds(fyi));
       else options.fyi.putBack(fyi);
     }
     return shown;
@@ -95,11 +95,13 @@ export function runSessionInbox(options: SessionInboxOptions): {
   /** Pushes one thread's new action items; true (and acked) when Claude Code took them. */
   const pushThread = async (
     fresh: SessionDelivery[],
-    footer: string,
+    fyi: TakenFyi,
     delivered: string[],
   ): Promise<boolean> => {
     try {
-      await options.push(renderEvent(fresh, footer));
+      await options.push(
+        renderEvent(fresh, { footer: formatFyi(fyi), footerExternal: anyExternal(fyi) }),
+      );
     } catch (err) {
       logger.warn(
         { err, thread: fresh[0]?.threadId },

@@ -1,5 +1,5 @@
 import type { PeerInfo, Plan, RpcResult, Task, TaskDetail } from '@agentmesh/protocol';
-import { link, list, relativeTime } from '../render/format';
+import { EXTERNAL, link, list, relativeTime, taskTitle } from '../render/format';
 
 /** Reply texts for slash commands. Pure. */
 
@@ -36,19 +36,21 @@ export function taskLines(tasks: readonly Task[]): string {
   return tasks
     .map(
       (t) =>
-        `• **${t.id}** [${t.state}] ${t.title} → ${t.assignee ?? 'unassigned'}${t.prUrl ? ` · ${link(t.prUrl)}` : ''}`,
+        `• **${t.id}** [${t.state}] ${taskTitle(t)} → ${t.assignee ?? 'unassigned'}${t.prUrl ? ` · ${link(t.prUrl)}` : ''}`,
     )
     .join('\n');
 }
 
 export function taskDetail(t: TaskDetail): string {
   return [
-    `**${t.id}** — ${t.title}`,
+    `**${t.id}** — ${taskTitle(t)}`,
     `State: ${t.state} · priority ${t.priority} · workflow ${t.workflow}`,
     `Assignee: ${t.assignee ?? 'none'} · reviewers: ${list(t.reviewers)} · created by ${t.createdBy}`,
     t.prUrl ? `PR: ${link(t.prUrl)}` : '',
     t.dependsOn.length > 0 ? `Depends on: ${t.dependsOn.join(', ')}` : '',
-    t.description ? `\n${t.description.slice(0, 1200)}` : '',
+    t.description
+      ? `\n${t.trust === 'external' ? `${EXTERNAL}:\n` : ''}${t.description.slice(0, 1200)}`
+      : '',
   ]
     .filter(Boolean)
     .join('\n');

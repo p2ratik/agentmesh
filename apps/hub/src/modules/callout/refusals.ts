@@ -15,7 +15,7 @@ export class RefusalLog {
   /** In window-start order, so the first entries are the oldest. */
   readonly #windows = new Map<string, { start: number; repeats: number }>();
 
-  /** `max` bounds memory when clients spray new keys at the public port. */
+  /** `max` bounds memory when connects arrive from many addresses. */
   constructor(windowMs: number, clock: Clock, max = 10_000) {
     this.#windowMs = windowMs;
     this.#clock = clock;

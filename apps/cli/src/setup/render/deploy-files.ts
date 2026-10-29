@@ -15,7 +15,16 @@ export function renderCompose(): string {
 #   nats/tls/         fullchain.pem + privkey.pem when NATS requires TLS (a server)
 #   secrets/*.nk      from \`agentmesh keys add\`
 #   the mesh config   at $AGENTMESH_CONFIG_DIR (../config)
+#
+# Every service runs without Linux capabilities, cannot gain privileges, has a read-only root
+# filesystem (writes go to its volume and a small /tmp), and has memory, process and log caps.
+# The caps come from .env.
 name: agentmesh
+
+# Docker's default log never rotates, so a log flood would fill the disk: 3 files of 10 MB.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
 
 services:
   nats:
@@ -34,6 +43,15 @@ services:
         # With TLS the hub must connect by the certificate's name; this alias resolves it
         # to this container from inside the compose network.
         aliases: ["\${NATS_PUBLIC_HOST:-nats}"]
+    # The image runs NATS as root: without capabilities it can still read root's own files
+    # (the TLS key) and anything world-readable (nats.conf), but no one else's.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: \${NATS_MEM_LIMIT:-256m}
+    pids_limit: \${PIDS_LIMIT:-256}
+    logging: *logging
     restart: unless-stopped
 
   hub:
@@ -53,6 +71,14 @@ services:
     ports:
       # Ingest endpoint for Hermes/GitHub. Keep it private, or put a TLS proxy in front.
       - "\${HUB_HTTP_BIND:-127.0.0.1}:8787:8787"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    # SQLite may spill temporary tables here; the database itself is in /data.
+    tmpfs: ["/tmp:size=64m"]
+    mem_limit: \${HUB_MEM_LIMIT:-512m}
+    pids_limit: \${PIDS_LIMIT:-256}
+    logging: *logging
     depends_on: [nats]
     restart: unless-stopped
 
@@ -67,8 +93,15 @@ services:
     volumes:
       - \${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
       # Only the bridge's own seed, never the whole secrets/ directory: the hub's seeds live
-      # there (on a server hub-issuer.nk signs any NATS identity), out of a bridge's reach.
+      # there (in auth-callout mode hub-issuer.nk signs any NATS identity), out of a bridge's reach.
       - ./secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: \${BRIDGE_MEM_LIMIT:-384m}
+    pids_limit: \${PIDS_LIMIT:-256}
+    logging: *logging
     depends_on: [hub]
     restart: unless-stopped
 
@@ -107,6 +140,14 @@ NATS_PUBLIC_HOST=${server?.publicHost ?? ''}
 HUB_HTTP_BIND=127.0.0.1
 # Log level of the hub and the Discord bridge: debug, info, warn or error.
 AGENTMESH_LOG_LEVEL=info
+# Memory cap of the NATS container, in Docker units such as 256m or 1g (sized for 1-2 GB).
+NATS_MEM_LIMIT=256m
+# Memory cap of the hub container.
+HUB_MEM_LIMIT=512m
+# Memory cap of the Discord bridge container.
+BRIDGE_MEM_LIMIT=384m
+# The most processes and threads each container may run.
+PIDS_LIMIT=256
 `;
 }
 

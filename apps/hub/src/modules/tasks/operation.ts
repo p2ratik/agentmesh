@@ -30,12 +30,18 @@ export class Operation {
   /** One-line notes for the caller's RPC result. */
   readonly notes: string[] = [];
   readonly #messaging: MessagingService;
+  readonly #isExternalThread: (threadId: number) => boolean;
   readonly #posts: QueuedPost[] = [];
   readonly #closes: Array<{ threadId: number; by: string }> = [];
 
-  constructor(messaging: MessagingService, rootActorId: string | null) {
+  constructor(
+    messaging: MessagingService,
+    rootActorId: string | null,
+    isExternalThread: (threadId: number) => boolean,
+  ) {
     this.#messaging = messaging;
     this.rootActorId = rootActorId;
+    this.#isExternalThread = isExternalThread;
   }
 
   /**
@@ -50,9 +56,15 @@ export class Operation {
     if (!this.#closes.some((c) => c.threadId === threadId)) this.#closes.push({ threadId, by });
   }
 
+  /**
+   * Posts in order. Every post in an external task's thread is `external`: they
+   * quote its title (and more), whichever effect or summary wrote them.
+   */
   flush(): void {
     for (const { build, noteForCaller } of this.#posts.splice(0)) {
-      this.#messaging.post(this.#withoutEcho(build(), noteForCaller));
+      const input = this.#withoutEcho(build(), noteForCaller);
+      const external = this.#isExternalThread(input.threadId);
+      this.#messaging.post(external ? { ...input, trust: 'external' } : input);
     }
     for (const { threadId, by } of this.#closes.splice(0))
       this.#messaging.closeThread(threadId, by);

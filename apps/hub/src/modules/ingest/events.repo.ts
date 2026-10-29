@@ -31,6 +31,12 @@ export class IngestRepo {
     );
   }
 
+  /** Deletes events received before `before` (ISO); returns how many. */
+  prune(before: string): number {
+    return this.#db.run('DELETE FROM ingest_events WHERE received_at < $before', { before })
+      .changes;
+  }
+
   setMatchedRules(id: string, rules: readonly string[]): void {
     this.#db.run('UPDATE ingest_events SET matched_rules = $rules WHERE id = $id', {
       id,

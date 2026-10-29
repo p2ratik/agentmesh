@@ -171,4 +171,13 @@ export class SessionsRepo {
       { before },
     );
   }
+
+  /** Deletes sessions closed before `before` (ISO) that own nothing; returns how many. */
+  pruneClosed(before: string): number {
+    return this.#db.run(
+      `DELETE FROM sessions WHERE liveness = 'closed' AND closed_at < $before
+         AND NOT EXISTS (SELECT 1 FROM thread_owners WHERE session_id = sessions.id)`,
+      { before },
+    ).changes;
+  }
 }

@@ -194,7 +194,7 @@ describe('rules engine', () => {
     await s.ingest.accept('github', ci('r3'));
     await s.outbox.flush();
     const notices = s.ports.events.filter((e) => e.type === 'notice.posted');
-    expect(notices).toHaveLength(2);
+    expect(notices.map((n) => n.data.trust)).toEqual(['external', 'external']);
   });
 });
 
@@ -275,7 +275,11 @@ describe('ingest HTTP endpoint', () => {
       'x-hub-signature-256': signature,
     });
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ id: 'github:d-1', duplicate: false });
+    // Signed by body only: the id is the body's hash, not the unsigned delivery header.
+    expect(await res.json()).toEqual({
+      id: expect.stringMatching(/^github:[0-9a-f]{32}$/),
+      duplicate: false,
+    });
     const tasks = s.tasks.list({
       assignee: null,
       unassigned: false,

@@ -64,5 +64,7 @@ export const postNotice: Effect = (env, run) => {
   const text = template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key: string) =>
     Object.hasOwn(values, key) ? (values[key] ?? '') : '',
   );
-  env.ctx.outbox.enqueueEvent('notice.posted', { channel, text, severity: 'info' });
+  // An external task's title (`{{task.title}}`) is event text.
+  const { trust } = run.task;
+  env.ctx.outbox.enqueueEvent('notice.posted', { channel, text, severity: 'info', trust });
 };

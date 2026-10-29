@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { findRepoRoot } from '../../lib/repo-paths';
 import { parseAnswers } from '../answers';
 import { serverAnswers, trialAnswers } from '../testing';
 import {
@@ -52,6 +55,45 @@ describe('renderCompose', () => {
     const bridge = compose.slice(compose.indexOf('  discord-bridge:'));
     expect(bridge).not.toContain('./secrets:/secrets');
   });
+
+  it('hardens every service: no capabilities, read-only, memory, process and log caps', () => {
+    const { services } = parse(renderCompose());
+    const memory = { nats: 'NATS', hub: 'HUB', 'discord-bridge': 'BRIDGE' } as const;
+    for (const [name, prefix] of Object.entries(memory)) {
+      const s = services[name];
+      expect(s.cap_drop, name).toEqual(['ALL']);
+      expect(s.security_opt, name).toEqual(['no-new-privileges:true']);
+      expect(s.read_only, name).toBe(true);
+      expect(s.tmpfs, name).toEqual([expect.stringMatching(/^\/tmp:size=\d+m$/)]);
+      expect(s.mem_limit, name).toMatch(new RegExp(`^\\$\\{${prefix}_MEM_LIMIT:-\\d+m\\}$`));
+      expect(s.pids_limit, name).toBe(`\${PIDS_LIMIT:-256}`);
+      expect(s.logging, name).toEqual({
+        driver: 'json-file',
+        options: { 'max-size': '10m', 'max-file': '3' },
+      });
+    }
+  });
+
+  it("the rendered .env sets each cap to the compose file's own default", () => {
+    const compose = renderCompose();
+    const settings = new Map(settingLines(env()).map((l) => l.split('=') as [string, string]));
+    for (const name of ['NATS_MEM_LIMIT', 'HUB_MEM_LIMIT', 'BRIDGE_MEM_LIMIT', 'PIDS_LIMIT']) {
+      expect(compose).toContain(`\${${name}:-${settings.get(name)}}`);
+    }
+  });
+
+  it("matches the repo's deploy/docker-compose.yml except that it pulls instead of building", () => {
+    const root = findRepoRoot();
+    if (!root) throw new Error('no repo root');
+    const repo = parse(readFileSync(join(root, 'deploy', 'docker-compose.yml'), 'utf8'));
+    const rendered = parse(renderCompose());
+    for (const name of ['hub', 'discord-bridge']) {
+      expect(repo.services[name].build.target).toBe(name);
+      delete repo.services[name].build;
+      delete rendered.services[name].image;
+    }
+    expect(repo).toEqual(rendered);
+  });
 });
 
 describe('renderEnv', () => {
@@ -73,7 +115,7 @@ describe('renderEnv', () => {
   it('every setting has its comment on the line above and nothing after the value', () => {
     const text = env();
     const lines = text.split('\n');
-    expect(settingLines(text)).toHaveLength(10);
+    expect(settingLines(text)).toHaveLength(14);
     lines.forEach((line, i) => {
       if (!line || line.startsWith('#')) return;
       expect(line).toMatch(/^[A-Z_]+=[^\s#]*$/);

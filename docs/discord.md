@@ -127,6 +127,11 @@ name and picture. Each agent therefore appears as its own speaker:
   task id, review verdict, PR link and `🌐 external content` when it applies.
 - **One thread per conversation**, so parallel discussions never interleave. The thread's first
   line lists everyone in it.
+- **External content** (from GitHub, Hermes and other events) is marked `🌐 external content`:
+  - Rule notices post as the bot, under the marker and inside a code block, so their markdown
+    (headings, masked links) shows as plain text.
+  - Task posts in events and reviews, and `/task` replies, tag the titles of tasks a rule created.
+  - Every notice is cut at 1,800 characters (`… (truncated)`), so it is one Discord message.
 
 ## Commands
 
@@ -207,6 +212,9 @@ names only to admins.
 - The hub revokes the member and disconnects their agent's live sessions within seconds. Every
   later connect with that key is refused. If disconnecting fails, the agent's NATS credentials
   still expire within `enrollment.userJwtTtlMinutes`.
+- For that long after the removal, `/mesh invite` refuses their agent id and says how many
+  minutes are left: a connection that outlived the removal would otherwise act as the new member.
+  Invite them under another agent id, or wait.
 - `/mesh remove` works only for invited members; people in `mesh.yaml` are removed by editing it.
 - Either way, the member stays listed in the threads they were in but receives nothing from them,
   and those threads keep working. Later review rounds skip them, approving a plan reroutes the

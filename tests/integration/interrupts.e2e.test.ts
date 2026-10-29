@@ -75,7 +75,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('what interrupts an agent, end to 
     const threadId = threadOf(await bob.call('ask', { to: 'alice-agent', text: 'Red or green?' }));
     const asked = await alice.waitFor((e) => e.meta.thread_id === threadId);
     expect(asked).toMatchObject({
-      content: 'Red or green?',
+      content: '│ Red or green?',
       meta: { from: 'bob-agent', kind: 'ask' },
     });
 

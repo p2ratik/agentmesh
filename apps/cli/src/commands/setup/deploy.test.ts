@@ -94,7 +94,7 @@ describe('setup deploy', () => {
         'sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats && rm -rf /opt/agentmesh/config.new && chmod 700 /opt/agentmesh/deploy',
     );
     expect(finish).toBe(
-      'rm -rf /opt/agentmesh/config && mv /opt/agentmesh/config.new /opt/agentmesh/config && chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
+      'rm -rf /opt/agentmesh/config && mv /opt/agentmesh/config.new /opt/agentmesh/config && chmod 600 /opt/agentmesh/deploy/.env && chmod 644 /opt/agentmesh/deploy/nats/nats.conf && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
     );
   });
 

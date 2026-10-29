@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DeclaredStatus, GitPolicy, PeerInfo, SessionId } from '../primitives';
+import { DeclaredStatus, GitPolicy, GitRef, IdRef, PeerInfo, SessionId } from '../primitives';
 import { SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
@@ -8,11 +8,11 @@ export const sessionMethods = {
     description: 'Register a connected agent session and fetch team policy.',
     callers: ['agent', 'service'],
     params: z.object({
-      clientVersion: z.string(),
-      repo: z.string().optional(),
-      branch: z.string().optional(),
+      clientVersion: z.string().max(32),
+      repo: GitRef.optional(),
+      branch: GitRef.optional(),
       /** This process's session before a reconnect: reused if still open, else reclaimed from. */
-      previousSessionId: z.string().optional(),
+      previousSessionId: SessionId.optional(),
     }),
     result: z.object({
       self: PeerInfo,
@@ -65,7 +65,7 @@ export const sessionMethods = {
     description: 'Take over a thread or task from the session that owns it.',
     callers: ['agent'],
     params: z
-      .object({ threadId: z.string().optional(), taskId: z.string().optional() })
+      .object({ threadId: IdRef.optional(), taskId: IdRef.optional() })
       .refine((p) => (p.threadId === undefined) !== (p.taskId === undefined), {
         message: 'Pass exactly one of `threadId` and `taskId`.',
       }),
@@ -77,8 +77,8 @@ export const sessionMethods = {
     params: z.object({
       status: DeclaredStatus,
       note: z.string().max(200).optional(),
-      repo: z.string().optional(),
-      branch: z.string().optional(),
+      repo: GitRef.optional(),
+      branch: GitRef.optional(),
     }),
     result: PeerInfo,
   }),

@@ -69,6 +69,7 @@ describe('agentmesh CLI', () => {
 
     expect(await h.run('nats-config', '--config', 'mesh', '--out', 'nats.conf')).toBe(0);
     const conf = readFileSync(join(h.cwd, 'nats.conf'), 'utf8');
+    expect(conf).toContain('max_subscriptions: 100');
     expect(conf).toContain('"mesh.rpc.alice-agent.>"');
     expect(conf).toContain('"mesh.ack.alice-agent.>"');
     expect(conf).toContain('"mesh.session.alice-agent.*"');

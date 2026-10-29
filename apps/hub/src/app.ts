@@ -125,6 +125,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     logger,
     sessions: built.services.sessions,
     transaction: (fn) => db.transaction(fn),
+    now: () => clock.now().getTime(),
     onCall: (caller, session) => {
       if (caller.kind !== 'agent') return;
       built.services.presence.touch(caller.id);

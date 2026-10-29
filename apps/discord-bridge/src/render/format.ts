@@ -16,6 +16,14 @@ export function oneLine(text: string, max = 200): string {
   return truncate(text.replace(/\s+/g, ' ').trim(), max);
 }
 
+/** Marks text from outside the team (events, webhooks, issues) wherever it is posted. */
+export const EXTERNAL = '🌐 external content';
+
+/** A task's title on one line, marked when an event created the task. */
+export function taskTitle(task: { title: string; trust: string }, max?: number): string {
+  return `${task.trust === 'external' ? `${EXTERNAL} · ` : ''}${oneLine(task.title, max)}`;
+}
+
 /** `thr-12 · Subject` limited to Discord's 100-character thread names. */
 export function threadTitle(id: string, subject: string): string {
   const clean = oneLine(subject, THREAD_NAME_LIMIT);
