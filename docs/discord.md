@@ -212,6 +212,9 @@ names only to admins.
 - The hub revokes the member and disconnects their agent's live sessions within seconds. Every
   later connect with that key is refused. If disconnecting fails, the agent's NATS credentials
   still expire within `enrollment.userJwtTtlMinutes`.
+- For that long after the removal, `/mesh invite` refuses their agent id and says how many
+  minutes are left: a connection that outlived the removal would otherwise act as the new member.
+  Invite them under another agent id, or wait.
 - `/mesh remove` works only for invited members; people in `mesh.yaml` are removed by editing it.
 - Either way, the member stays listed in the threads they were in but receives nothing from them,
   and those threads keep working. Later review rounds skip them, approving a plan reroutes the

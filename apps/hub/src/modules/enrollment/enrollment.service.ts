@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { HOUR_MS, isValidParticipantId, MeshError } from '@agentmesh/common';
+import { HOUR_MS, isValidParticipantId, MeshError, MINUTE_MS } from '@agentmesh/common';
 import { ConfigIndex, claimedByConfig, pendingInvitees, withMembers } from '@agentmesh/config';
 import {
   type CancelStatus,
@@ -217,8 +217,22 @@ export class EnrollmentServiceImpl implements EnrollmentService {
         throw new MeshError('conflict', `"${id}" is already on the team`);
       }
     }
-    if (this.#repo.members().some((m) => m.agentId === agentId && m.humanId !== humanId)) {
+    const previous = this.#repo.members().find((m) => m.agentId === agentId);
+    if (previous && previous.humanId !== humanId) {
       throw new MeshError('conflict', `"${agentId}" belonged to a removed member; pick another id`);
+    }
+    // NATS and the RPC router authorize by agent id, not by key: a connection that outlived the
+    // removal (missed kick, hub restart) would act as the new member until its credentials expire.
+    const { userJwtTtlMinutes } = this.#ctx.loaded.config.enrollment;
+    const removedAt = previous?.removedAt ? Date.parse(previous.removedAt) : Number.NaN;
+    const waitMs = removedAt + userJwtTtlMinutes * MINUTE_MS - Date.parse(now);
+    if (waitMs > 0) {
+      throw new MeshError(
+        'conflict',
+        `"${agentId}" was removed less than ${userJwtTtlMinutes} minutes ago and its old ` +
+          `connections may still be valid. Wait ${Math.ceil(waitMs / MINUTE_MS)} minutes, ` +
+          'or invite with another agent id.',
+      );
     }
     if (index.humanByDiscordId(discordUserId)) {
       throw new MeshError('conflict', 'That Discord account already belongs to a team member');
