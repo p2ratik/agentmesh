@@ -31,6 +31,11 @@ export type RuleMatch = z.output<typeof RuleMatch>;
 /** Text fields support `{{path}}` placeholders, e.g. `{{payload.repo}}`. */
 const Template = z.string();
 
+/** A configured id, never a template: an outside event must not pick who gets the work. */
+const FixedId = z
+  .string()
+  .refine((v) => !v.includes('{{'), 'must be a configured id, not a {{template}}');
+
 export const NotifyAction = z.object({
   notify: z.object({
     to: z.union([z.enum(['area-owners', 'online', 'all-agents']), z.array(z.string()).min(1)]),
@@ -47,9 +52,9 @@ export const CreateTaskAction = z.object({
   create_task: z.object({
     title: Template,
     description: Template.optional(),
-    area: Template.optional(),
+    area: FixedId.optional(),
     repo: Template.optional(),
-    assignee: Template.optional(),
+    assignee: FixedId.optional(),
     priority: Priority.optional(),
     labels: z.array(z.string()).optional(),
     workflow: z.string().optional(),

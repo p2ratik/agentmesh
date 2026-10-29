@@ -5,15 +5,21 @@ on:
     branches: [main, agents]
   pull_request:
 
+# Read-only token: CI only checks out and tests.
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 10.33.0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -27,11 +33,13 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 10.33.0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -43,9 +51,16 @@ jobs:
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         run: git diff --exit-code -- plugins/agentmesh/dist
       - name: Download nats-server for the authenticated test
+        env:
+          NATS_NAME: nats-server-v2.15.1-linux-amd64
+          # From the release's SHA256SUMS; change it together with the version above.
+          NATS_SHA256: bf5edc7b1ce98e885c368cb43a886eb148dc5d0551d99f3cf6141fb5e1954c70
         run: |
-          curl -sSL https://github.com/nats-io/nats-server/releases/download/v2.15.1/nats-server-v2.15.1-linux-amd64.tar.gz | tar xz
-          echo "AGENTMESH_TEST_NATS_BIN=$PWD/nats-server-v2.15.1-linux-amd64/nats-server" >> "$GITHUB_ENV"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://github.com/nats-io/nats-server/releases/download/v2.15.1/$NATS_NAME.tar.gz"
+          echo "$NATS_SHA256  $NATS_NAME.tar.gz" | sha256sum -c -
+          tar xzf "$NATS_NAME.tar.gz"
+          echo "AGENTMESH_TEST_NATS_BIN=$RUNNER_TEMP/$NATS_NAME/nats-server" >> "$GITHUB_ENV"
       - name: Start JetStream for the open test
         run: |
           "$AGENTMESH_TEST_NATS_BIN" -js -p 4333 -sd "$RUNNER_TEMP/js" &

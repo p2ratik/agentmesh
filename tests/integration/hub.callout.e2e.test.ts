@@ -8,6 +8,7 @@ import { inboxPrefix } from '@agentmesh/protocol';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { connect, type NatsConnection, nkeyAuthenticator } from '@nats-io/transport-node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { MAX_SUBSCRIPTIONS } from '../../apps/cli/src/render/nats-config';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
 import { startCalloutNats } from './callout-server';
@@ -167,6 +168,23 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
     ]);
     expect(kicked).toBe(true);
     expect(typeof (await asAgent(erin, 'erin-agent'))).toBe('string');
+  }, 30_000);
+
+  // nats-server ignores subs limits in callout-issued JWTs; nats.conf's max_subscriptions holds.
+  it('caps an admitted agent at the subscriptions nats.conf allows per connection', async () => {
+    const nc = connected(await asAgent(k.alice, 'alice-agent'));
+    const errors: string[] = [];
+    void (async () => {
+      for await (const s of nc.status()) if (s.type === 'error') errors.push(String(s.error));
+    })();
+    const subject = (i: number) => `${PREFIX}.session.alice-agent.s${i}`;
+    for (let i = 0; i < MAX_SUBSCRIPTIONS; i++) nc.subscribe(subject(i));
+    await nc.flush();
+    expect(errors).toEqual([]);
+    nc.subscribe(subject(MAX_SUBSCRIPTIONS));
+    await nc.flush().catch(() => undefined);
+    await new Promise((r) => setTimeout(r, 300)); // the status iterator delivers asynchronously
+    expect(errors.join(' ')).toMatch(/maximum subscriptions/i);
   }, 30_000);
 
   it('keeps static users connecting while the callout is down, and refuses agents', async () => {

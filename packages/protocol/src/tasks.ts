@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IsoDate, Priority } from './primitives';
+import { IsoDate, Priority, Trust } from './primitives';
 
 export const ReviewVerdict = z.enum(['approve', 'request_changes', 'comment']);
 export type ReviewVerdict = z.infer<typeof ReviewVerdict>;
@@ -39,6 +39,11 @@ export const Task = z.object({
   planId: z.string().nullable(),
   threadId: z.string(),
   dependsOn: z.array(z.string()),
+  /**
+   * `external` for a task an event rule created: its title and description come from outside
+   * the team. Older hubs send none; `team` reads their tasks as before.
+   */
+  trust: Trust.default('team'),
   createdAt: IsoDate,
   updatedAt: IsoDate,
 });

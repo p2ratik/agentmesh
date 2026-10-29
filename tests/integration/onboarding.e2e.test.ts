@@ -211,7 +211,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       const answer = await joiner.waitFor(
         (e) => e.meta.thread_id === threadId && e.meta.status === 'answer',
       );
-      expect(answer.content).toBe('Yes, it retries.');
+      expect(answer.content).toBe('│ Yes, it retries.');
 
       // The hub started before dana joined; her heartbeats must still count.
       await new Promise<void>((r) => logger.flush(() => r()));

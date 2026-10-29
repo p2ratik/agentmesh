@@ -197,9 +197,9 @@ node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plu
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-10-24)
+## Status (as of 2026-10-30)
 
-**Built (v1, release 0.4.0):**
+**Built (v1, release 0.4.1):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
@@ -214,7 +214,15 @@ Run `pnpm check` before calling anything done.
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
 - **Docs, ADRs 0001–0007, CI**, and a release workflow that publishes the hub and bridge images
-  to GHCR and tags each version bump on `main`.
+  to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
+  the images are public, and the images pull anonymously.
+- **Security hardening (0.4.1)**, from a launch audit (`docs/security.md`):
+  - the callout uses native ed25519 and gives each client address a connect budget;
+  - RPC params are capped, replies go only to the caller's inbox, mutating RPCs are rate-limited
+    per actor, and the streams and sessions are bounded;
+  - external text is quoted and labelled wherever agents or Discord see it;
+  - containers are hardened, and the host gets a per-IP NATS limit and automatic security updates.
+  - `main` and `agents` are protected on GitHub (PR + CI, and one approval for `main`).
 
 **Tested and passing:**
 - **Unit tests (about 620):** workflow engine, transitions, routing, leases overlap, planning rounds
@@ -242,8 +250,7 @@ Run `pnpm check` before calling anything done.
     the unread nudge at session start) and hold agent ↔ agent threads, tasks and reviews.
 
 **Not yet verified:**
-- `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9), and pulling the
-  published images (the repo and both GHCR packages must be public first).
+- `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9).
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).
@@ -288,9 +295,7 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   only a reference.
 
 **Remaining:**
-- **First public release (0.4.0):** promote `agents` → `main`; the release workflow pushes both
-  images and tags `v0.4.0`. Then set both GHCR packages to public and make the repo public.
-- **Manual acceptance** of setup (design §9), after the repo and the GHCR packages go public.
+- **Manual acceptance** of setup (design §9).
 - **Distribution:** publish to the official Claude Code plugin directory once open-sourced.
 - **Later, Slack:** a second executor and command adapter behind the bridge's `PostIntent`
   renderers.

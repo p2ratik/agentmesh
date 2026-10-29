@@ -9,7 +9,7 @@ import type {
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
 import { claimTargets } from './claims';
-import { expireSessions, releaseAndClose } from './liveness';
+import { evictStalest, expireSessions, releaseAndClose } from './liveness';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
 import { chainOwner, type Route, type RouteInput, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
@@ -67,14 +67,18 @@ export class SessionsServiceImpl implements SessionsService {
         return { session: this.verify(agentId, mine.id), reclaimed: [] };
       }
       const id = newSessionId();
+      const evicted = evictStalest(this.#ctx, this.repo, agentId, at);
       this.repo.insert({ id, agentId, clientVersion: input.clientVersion, ...git, at });
       const reclaimed = mine ? reclaimReleased(this.repo, mine, id, at) : [];
-      return { session: this.verify(agentId, id), reclaimed };
+      return { session: this.verify(agentId, id), reclaimed, evicted };
     });
+    const { session, reclaimed, evicted = 0 } = result;
     this.#ctx.logger.info(
-      { agent: agentId, session: result.session.id, reclaimed: result.reclaimed.length },
+      { agent: agentId, session: session.id, reclaimed: reclaimed.length, evicted },
       'session opened',
     );
+    // What the closed sessions owned goes elsewhere now.
+    if (evicted) this.#ctx.outbox.kick();
     return result;
   }
 

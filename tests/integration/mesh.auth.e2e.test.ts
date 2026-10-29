@@ -100,9 +100,9 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       await Promise.all([activate(alice, 'auth'), activate(bob, 'auth')]);
       const sent = await alice.call('ask', { to: 'bob-agent', text: 'auth ping' });
       const threadId = /thr-\d+/.exec(sent)?.[0] ?? '';
-      expect((await bob.waitFor((e) => e.meta.thread_id === threadId)).content).toBe('auth ping');
+      expect((await bob.waitFor((e) => e.meta.thread_id === threadId)).content).toBe('│ auth ping');
       await bob.call('reply', { thread_id: threadId, text: 'auth pong' });
-      expect((await alice.waitFor((e) => e.content === 'auth pong')).meta.from).toBe('bob-agent');
+      expect((await alice.waitFor((e) => e.content === '│ auth pong')).meta.from).toBe('bob-agent');
     }, 60_000);
 
     it('refuses to let one agent call the hub as another', async () => {
@@ -121,6 +121,41 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
         expect((await callAsSession(asAlice, 'peers.list', {})).peers.length).toBeGreaterThan(0);
       } finally {
         await nc.close();
+      }
+    }, 30_000);
+
+    // NATS never checks a reply subject against the publisher's permissions, and the hub may
+    // publish anywhere: answering into carol's presence subject would mark her online.
+    it("never answers into a subject outside the caller's inbox", async () => {
+      const logger = createLogger('mallory', { level: 'silent', destination: 'stderr' });
+      const as = (id: 'hub' | 'alice-agent') =>
+        connectBus({
+          servers: [URL],
+          name: `reply-${id}`,
+          inboxPrefix: inboxPrefix(id),
+          credentials: { nkeySeed: k[id].seed },
+          logger,
+        });
+      const [watcher, nc] = await Promise.all([as('hub'), as('alice-agent')]);
+      try {
+        const seen: string[] = [];
+        const victim = `${PREFIX}.presence.carol-agent`;
+        watcher.subscribe(victim, {
+          callback: (_err, msg) => {
+            seen.push(msg.string());
+          },
+        });
+        await watcher.flush();
+        nc.publish(`${PREFIX}.rpc.alice-agent.peers.list`, JSON.stringify({ v: 1, params: {} }), {
+          reply: victim,
+        });
+        const asAlice = new RpcClient(nc, PREFIX, 'alice-agent', 3000);
+        expect((await callAsSession(asAlice, 'peers.list', {})).peers.length).toBeGreaterThan(0);
+        await new Promise((r) => setTimeout(r, 500));
+        expect(seen).toEqual([]);
+        expect(hub.services.presence.peer('carol-agent').status).toBe('offline');
+      } finally {
+        await Promise.all([nc.close(), watcher.close()]);
       }
     }, 30_000);
   },

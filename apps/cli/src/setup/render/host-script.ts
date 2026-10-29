@@ -1,3 +1,14 @@
+import {
+  AUTO_UPDATES,
+  FIREWALL_SCRIPT,
+  FIREWALL_SCRIPT_PATH,
+  FIREWALL_UNIT,
+  FIREWALL_UNIT_PATH,
+  SSH_CHECK,
+} from './host-hardening';
+
+export { WARNING } from './host-hardening';
+
 /** Quotes a value for bash and sh: single quotes, each embedded `'` written as `'\''`. */
 const quote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 
@@ -22,9 +33,10 @@ function renewalHook(publicHost: string, remoteDir: string): string {
 
 /**
  * The script `setup host` pipes to `sudo bash -s` on the server, generalised from
- * `deploy/azure/vm-setup.sh`: Docker, certbot, the workspace folders owned by the ssh user,
- * the certificate for NATS TLS and its renewal hook. Every value is baked in single-quoted.
- * Safe to re-run.
+ * `deploy/azure/vm-setup.sh`: Docker, certbot, automatic security updates, the per-IP limits on
+ * new NATS connections, the workspace folders owned by the ssh user, the certificate for NATS
+ * TLS and its renewal hook, and warnings about password logins. Every value is baked in
+ * single-quoted. Safe to re-run.
  */
 export function renderHostScript(i: {
   publicHost: string;
@@ -57,6 +69,15 @@ docker compose version >/dev/null 2>&1 || {
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null
 usermod -aG docker "$MESH_USER"
 
+${AUTO_UPDATES}
+echo "== NATS connection limits"
+printf '%s' ${quote(FIREWALL_SCRIPT)} >${FIREWALL_SCRIPT_PATH}
+chmod 755 ${FIREWALL_SCRIPT_PATH}
+printf '%s' ${quote(FIREWALL_UNIT)} >${FIREWALL_UNIT_PATH}
+systemctl daemon-reload
+systemctl enable -q agentmesh-firewall.service
+systemctl restart agentmesh-firewall.service
+
 echo "== $AGENTMESH_DIR"
 mkdir -p "$AGENTMESH_DIR/deploy/nats" "$AGENTMESH_DIR/deploy/secrets" "$AGENTMESH_DIR/config"
 chown "$MESH_USER:" "$AGENTMESH_DIR" "$AGENTMESH_DIR/deploy" "$AGENTMESH_DIR/deploy/nats" \\
@@ -75,6 +96,7 @@ if [ ! -d "/etc/letsencrypt/live/$PUBLIC_HOST" ]; then
 fi
 "$HOOK"
 
+${SSH_CHECK}
 echo "== done"
 `;
 }

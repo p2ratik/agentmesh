@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { HOUR_MS, MeshError } from '@agentmesh/common';
+import { HOUR_MS, MeshError, MINUTE_MS } from '@agentmesh/common';
 import { decodeInvite } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '../../contracts';
@@ -211,10 +211,23 @@ describe('enrollment removal', () => {
     expect(await s.service.remove('dana', ALICE)).toEqual({ removed: false, agentIds: [] });
   });
 
+  it('refuses their agent id until connections from before the removal have expired', async () => {
+    const s = setup({ natsUrl: NATS_URL, userJwtTtlMinutes: 30 });
+    await s.redeemCode(s.invite().code);
+    await s.service.remove('dana', ALICE);
+    s.clock.advance(20 * MINUTE_MS);
+    expect(() => s.invite()).toThrowError(/removed less than 30 minutes ago.*Wait 10 minutes/);
+    const other = s.invite({ agentId: 'dana-2' });
+    s.service.cancelInvite({ inviteId: other.inviteId }, ALICE);
+    s.clock.advance(10 * MINUTE_MS);
+    expect(s.invite().agentId).toBe('dana-agent');
+  });
+
   it('lets a removed member rejoin with a new invite and key', async () => {
     const s = setup();
     await s.redeemCode(s.invite().code);
     await s.service.remove('dana', ALICE);
+    s.clock.advance(HOUR_MS);
     const again = await s.redeemCode(s.invite().code);
     expect(again.status).toBe('active');
     expect(s.service.list()).toHaveLength(1);

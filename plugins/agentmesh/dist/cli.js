@@ -25695,7 +25695,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.0";
+var VERSION = "0.4.1";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -45614,6 +45614,9 @@ function date4(params) {
 
 // ../../packages/protocol/src/primitives.ts
 var IsoDate = external_exports.string().min(1);
+var IdRef = external_exports.string().max(64);
+var GitRef = external_exports.string().max(300);
+var Label = external_exports.string().max(60);
 var ParticipantId = external_exports.string().regex(
   PARTICIPANT_ID_PATTERN,
   "lowercase letters, digits and dashes; starts with a letter/digit"
@@ -45872,13 +45875,14 @@ var PlanTaskDraft = external_exports.object({
   key: external_exports.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
   title: external_exports.string().min(3).max(200),
   description: external_exports.string().max(8e3),
-  area: external_exports.string().optional(),
-  repo: external_exports.string().optional(),
-  assignee: external_exports.string().optional(),
+  // Capped like task.create's params, which these drafts become.
+  area: IdRef.optional(),
+  repo: GitRef.optional(),
+  assignee: IdRef.optional(),
   priority: Priority.optional(),
-  labels: external_exports.array(external_exports.string()).optional(),
-  dependsOn: external_exports.array(external_exports.string()).optional(),
-  doneWhen: external_exports.string().optional(),
+  labels: external_exports.array(Label).max(20).optional(),
+  dependsOn: external_exports.array(IdRef).max(50).optional(),
+  doneWhen: external_exports.string().max(2e3).optional(),
   estimateHours: external_exports.number().positive().optional()
 });
 var Plan = external_exports.object({
@@ -45939,6 +45943,11 @@ var Task = external_exports.object({
   planId: external_exports.string().nullable(),
   threadId: external_exports.string(),
   dependsOn: external_exports.array(external_exports.string()),
+  /**
+   * `external` for a task an event rule created: its title and description come from outside
+   * the team. Older hubs send none; `team` reads their tasks as before.
+   */
+  trust: Trust.default("team"),
   createdAt: IsoDate,
   updatedAt: IsoDate
 });
@@ -45994,7 +46003,9 @@ var DomainEvent = external_exports.discriminatedUnion("type", [
       /** Channel purpose from config (e.g. `alerts`), not a platform channel id. */
       channel: external_exports.string(),
       text: external_exports.string(),
-      severity: Severity
+      severity: Severity,
+      /** `external` when the text holds event content. Older hubs send none: read it as external. */
+      trust: Trust.default("external")
     })
   ),
   event("mesh.paused", external_exports.object({ by: external_exports.string(), reason: external_exports.string().nullable() })),
@@ -46031,7 +46042,7 @@ var PARTICIPANTS = ["agent", "human"];
 var RefKey = external_exports.object({
   system: external_exports.string().min(1).max(40),
   entityType: external_exports.enum(["thread", "task", "plan", "participant"]),
-  entityId: external_exports.string().min(1)
+  entityId: external_exports.string().min(1).max(120)
 });
 var adminMethods = {
   "mesh.status": defineMethod({
@@ -46080,7 +46091,7 @@ var adminMethods = {
   "refs.find": defineMethod({
     description: "Bridges only: find the mesh entity behind an external id.",
     callers: ["service"],
-    params: external_exports.object({ system: external_exports.string(), ref: external_exports.string() }),
+    params: external_exports.object({ system: external_exports.string().max(40), ref: external_exports.string().max(200) }),
     result: external_exports.object({
       entity: external_exports.object({ entityType: external_exports.string(), entityId: external_exports.string() }).nullable()
     })
@@ -46151,10 +46162,10 @@ var leaseMethods = {
     callers: ["agent"],
     params: external_exports.object({
       paths: external_exports.array(external_exports.string().min(1).max(300)).min(1).max(50),
-      repo: external_exports.string().optional(),
+      repo: GitRef.optional(),
       ttlMinutes: external_exports.number().positive().max(7 * 24 * 60).optional(),
       reason: external_exports.string().max(500).optional(),
-      taskId: external_exports.string().optional()
+      taskId: IdRef.optional()
     }),
     result: external_exports.object({ granted: external_exports.array(Lease), conflicts: external_exports.array(LeaseConflict) })
   }),
@@ -46162,7 +46173,7 @@ var leaseMethods = {
     description: "Release some of your leases, or all of them.",
     callers: ["agent"],
     params: external_exports.object({
-      paths: external_exports.array(external_exports.string()).optional(),
+      paths: external_exports.array(external_exports.string().max(300)).max(200).optional(),
       all: external_exports.boolean().default(false)
     }),
     result: external_exports.object({ released: external_exports.number().int().nonnegative() })
@@ -46170,13 +46181,13 @@ var leaseMethods = {
   "lease.list": defineMethod({
     description: "List active leases, optionally for one holder or repo.",
     callers: ANY_CALLER,
-    params: external_exports.object({ holder: external_exports.string().optional(), repo: external_exports.string().optional() }),
+    params: external_exports.object({ holder: IdRef.optional(), repo: GitRef.optional() }),
     result: external_exports.object({ leases: external_exports.array(Lease) })
   })
 };
 
 // ../../packages/protocol/src/rpc/messaging.ts
-var Recipients = external_exports.array(external_exports.string().min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
+var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
 var messagingMethods = {
   "message.send": defineMethod({
     description: "Start a thread (pass `to`) or post into one (pass `threadId`). Posting into a thread delivers to every participant except the sender; `to` also adds participants.",
@@ -46185,14 +46196,14 @@ var messagingMethods = {
       kind: SendableKind,
       body: external_exports.string().min(1).max(32e3),
       to: Recipients.optional(),
-      threadId: external_exports.string().optional(),
+      threadId: IdRef.optional(),
       /** Thread that caused this one; drives loop protection. */
-      parentThreadId: external_exports.string().optional(),
+      parentThreadId: IdRef.optional(),
       subject: external_exports.string().max(200).optional(),
       status: ReplyStatus.optional(),
       prUrl: external_exports.string().max(500).optional(),
-      taskId: external_exports.string().optional(),
-      toSession: external_exports.string().optional(),
+      taskId: IdRef.optional(),
+      toSession: IdRef.optional(),
       repo: external_exports.string().max(200).optional()
     }).refine((p) => p.to !== void 0 || p.threadId !== void 0, {
       message: "Pass `to` to start a thread or `threadId` to reply in one."
@@ -46208,9 +46219,9 @@ var messagingMethods = {
     description: "Fetch a thread and its most recent messages (oldest first).",
     callers: ANY_CALLER,
     params: external_exports.object({
-      threadId: external_exports.string(),
+      threadId: IdRef,
       limit: external_exports.number().int().min(1).max(200).default(50),
-      beforeId: external_exports.string().optional()
+      beforeId: IdRef.optional()
     }),
     result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(MeshMessage) })
   }),
@@ -46218,7 +46229,7 @@ var messagingMethods = {
     description: "List threads, newest activity first.",
     callers: ANY_CALLER,
     params: external_exports.object({
-      participant: external_exports.string().optional(),
+      participant: IdRef.optional(),
       kind: ThreadKind.optional(),
       openOnly: external_exports.boolean().default(true),
       limit: external_exports.number().int().min(1).max(100).default(20)
@@ -46256,13 +46267,13 @@ var messagingMethods = {
   "messages.seen": defineMethod({
     description: "Mark messages you have read (e.g. FYI items shown in a session) as seen.",
     callers: ["agent"],
-    params: external_exports.object({ messageIds: external_exports.array(external_exports.string()).min(1).max(500) }),
+    params: external_exports.object({ messageIds: external_exports.array(IdRef).min(1).max(500) }),
     result: external_exports.object({ ok: external_exports.literal(true) })
   }),
   "thread.close": defineMethod({
     description: "Close a conversation thread you participate in.",
     callers: PARTICIPANTS,
-    params: external_exports.object({ threadId: external_exports.string() }),
+    params: external_exports.object({ threadId: IdRef }),
     result: ThreadSummary
   }),
   escalate: defineMethod({
@@ -46270,9 +46281,9 @@ var messagingMethods = {
     callers: ["agent"],
     params: external_exports.object({
       question: external_exports.string().min(1).max(8e3),
-      to: external_exports.string().optional(),
-      threadId: external_exports.string().optional(),
-      taskId: external_exports.string().optional(),
+      to: IdRef.optional(),
+      threadId: IdRef.optional(),
+      taskId: IdRef.optional(),
       urgent: external_exports.boolean().default(false)
     }),
     result: external_exports.object({ threadId: external_exports.string(), messageId: external_exports.string() })
@@ -46286,24 +46297,24 @@ var planningMethods = {
     callers: PARTICIPANTS,
     params: external_exports.object({
       topic: external_exports.string().min(3).max(4e3),
-      participants: external_exports.array(external_exports.string()).max(50).optional(),
-      facilitator: external_exports.string().optional(),
+      participants: external_exports.array(IdRef).max(50).optional(),
+      facilitator: IdRef.optional(),
       roundMinutes: external_exports.number().positive().max(24 * 60).optional(),
-      template: external_exports.string().optional()
+      template: IdRef.optional()
     }),
     result: Plan
   }),
   "plan.get": defineMethod({
     description: "Fetch a plan with every contribution so far.",
     callers: ANY_CALLER,
-    params: external_exports.object({ planId: external_exports.string() }),
+    params: external_exports.object({ planId: IdRef }),
     result: external_exports.object({ plan: Plan, contributions: external_exports.array(PlanContribution) })
   }),
   "plan.list": defineMethod({
     description: "List planning sessions, newest first.",
     callers: ANY_CALLER,
     params: external_exports.object({
-      state: external_exports.array(PlanState).optional(),
+      state: external_exports.array(PlanState).max(10).optional(),
       limit: external_exports.number().int().min(1).max(100).default(20)
     }),
     result: external_exports.object({ plans: external_exports.array(Plan) })
@@ -46311,14 +46322,14 @@ var planningMethods = {
   "plan.contribute": defineMethod({
     description: "Add your contribution to the current round of a planning session.",
     callers: PARTICIPANTS,
-    params: external_exports.object({ planId: external_exports.string(), body: external_exports.string().min(1).max(32e3) }),
+    params: external_exports.object({ planId: IdRef, body: external_exports.string().min(1).max(32e3) }),
     result: external_exports.object({ round: external_exports.string(), roundComplete: external_exports.boolean() })
   }),
   "plan.submit": defineMethod({
     description: "Facilitator only: submit the final plan as a summary plus task drafts.",
     callers: PARTICIPANTS,
     params: external_exports.object({
-      planId: external_exports.string(),
+      planId: IdRef,
       summary: external_exports.string().min(1).max(32e3),
       tasks: external_exports.array(PlanTaskDraft).min(1).max(100)
     }),
@@ -46327,13 +46338,13 @@ var planningMethods = {
   "plan.approve": defineMethod({
     description: "Approve a plan that is awaiting approval; its tasks are created and assigned.",
     callers: ["human"],
-    params: external_exports.object({ planId: external_exports.string() }),
+    params: external_exports.object({ planId: IdRef }),
     result: Plan
   }),
   "plan.cancel": defineMethod({
     description: "Cancel a planning session.",
     callers: PARTICIPANTS,
-    params: external_exports.object({ planId: external_exports.string(), reason: external_exports.string().max(2e3).optional() }),
+    params: external_exports.object({ planId: IdRef, reason: external_exports.string().max(2e3).optional() }),
     result: Plan
   })
 };
@@ -46365,11 +46376,11 @@ var sessionMethods = {
     description: "Register a connected agent session and fetch team policy.",
     callers: ["agent", "service"],
     params: external_exports.object({
-      clientVersion: external_exports.string(),
-      repo: external_exports.string().optional(),
-      branch: external_exports.string().optional(),
+      clientVersion: external_exports.string().max(32),
+      repo: GitRef.optional(),
+      branch: GitRef.optional(),
       /** This process's session before a reconnect: reused if still open, else reclaimed from. */
-      previousSessionId: external_exports.string().optional()
+      previousSessionId: SessionId.optional()
     }),
     result: external_exports.object({
       self: PeerInfo,
@@ -46419,7 +46430,7 @@ var sessionMethods = {
   "session.take": defineMethod({
     description: "Take over a thread or task from the session that owns it.",
     callers: ["agent"],
-    params: external_exports.object({ threadId: external_exports.string().optional(), taskId: external_exports.string().optional() }).refine((p) => p.threadId === void 0 !== (p.taskId === void 0), {
+    params: external_exports.object({ threadId: IdRef.optional(), taskId: IdRef.optional() }).refine((p) => p.threadId === void 0 !== (p.taskId === void 0), {
       message: "Pass exactly one of `threadId` and `taskId`."
     }),
     result: external_exports.object({ threadId: external_exports.string(), previousSession: external_exports.string().nullable() })
@@ -46430,8 +46441,8 @@ var sessionMethods = {
     params: external_exports.object({
       status: DeclaredStatus,
       note: external_exports.string().max(200).optional(),
-      repo: external_exports.string().optional(),
-      branch: external_exports.string().optional()
+      repo: GitRef.optional(),
+      branch: GitRef.optional()
     }),
     result: PeerInfo
   }),
@@ -46447,16 +46458,16 @@ var sessionMethods = {
 var TaskCreateParams = external_exports.object({
   title: external_exports.string().min(3).max(200),
   description: external_exports.string().max(16e3).default(""),
-  repo: external_exports.string().optional(),
-  area: external_exports.string().optional(),
-  assignee: external_exports.string().optional(),
+  repo: GitRef.optional(),
+  area: IdRef.optional(),
+  assignee: IdRef.optional(),
   priority: Priority.default("normal"),
-  labels: external_exports.array(external_exports.string()).max(20).default([]),
+  labels: external_exports.array(Label).max(20).default([]),
   doneWhen: external_exports.string().max(2e3).optional(),
-  dependsOn: external_exports.array(external_exports.string()).max(50).default([]),
-  baseBranch: external_exports.string().optional(),
-  workflow: external_exports.string().optional(),
-  parentThreadId: external_exports.string().optional()
+  dependsOn: external_exports.array(IdRef).max(50).default([]),
+  baseBranch: GitRef.optional(),
+  workflow: IdRef.optional(),
+  parentThreadId: IdRef.optional()
 });
 var taskMethods = {
   "task.create": defineMethod({
@@ -46468,17 +46479,17 @@ var taskMethods = {
   "task.get": defineMethod({
     description: "Fetch a task with its history, reviews and the actions you can take.",
     callers: ANY_CALLER,
-    params: external_exports.object({ taskId: external_exports.string() }),
+    params: external_exports.object({ taskId: IdRef }),
     result: TaskDetail
   }),
   "task.list": defineMethod({
     description: 'List tasks. `assignee: "me"` means the caller; `unassigned` lists the board.',
     callers: ANY_CALLER,
     params: external_exports.object({
-      assignee: external_exports.string().optional(),
-      state: external_exports.array(external_exports.string()).optional(),
-      area: external_exports.string().optional(),
-      planId: external_exports.string().optional(),
+      assignee: IdRef.optional(),
+      state: external_exports.array(IdRef).max(20).optional(),
+      area: IdRef.optional(),
+      planId: IdRef.optional(),
       includeTerminal: external_exports.boolean().default(false),
       limit: external_exports.number().int().min(1).max(200).default(50)
     }),
@@ -46488,13 +46499,13 @@ var taskMethods = {
     description: "Apply a workflow action (accept, decline, start, block, unblock, submit, complete, handoff, claim, cancel\u2026). Valid actions depend on the workflow and current state.",
     callers: PARTICIPANTS,
     params: external_exports.object({
-      taskId: external_exports.string(),
+      taskId: IdRef,
       action: external_exports.string().min(1).max(60),
       note: external_exports.string().max(8e3).optional(),
       prUrl: external_exports.string().max(500).optional(),
       branch: external_exports.string().max(200).optional(),
       /** Target participant for `handoff` / `assign`. */
-      to: external_exports.string().optional()
+      to: IdRef.optional()
     }),
     result: TaskDetail
   }),
@@ -46505,9 +46516,9 @@ var taskMethods = {
       prUrl: external_exports.string().min(1).max(500),
       title: external_exports.string().max(200).optional(),
       focus: external_exports.string().max(4e3).optional(),
-      reviewers: external_exports.array(external_exports.string()).max(5).optional(),
-      repo: external_exports.string().optional(),
-      area: external_exports.string().optional()
+      reviewers: external_exports.array(IdRef).max(5).optional(),
+      repo: GitRef.optional(),
+      area: IdRef.optional()
     }),
     result: TaskDetail
   }),
@@ -46515,7 +46526,7 @@ var taskMethods = {
     description: "Submit your review verdict for a task you were asked to review.",
     callers: PARTICIPANTS,
     params: external_exports.object({
-      taskId: external_exports.string(),
+      taskId: IdRef,
       verdict: ReviewVerdict,
       body: external_exports.string().min(1).max(16e3)
     }),
@@ -46529,7 +46540,7 @@ var RpcRequestEnvelope = external_exports.object({
   v: external_exports.literal(PROTOCOL_VERSION),
   params: external_exports.unknown(),
   /** Honored only for services allowed to act on behalf of humans. */
-  actAs: external_exports.string().optional(),
+  actAs: external_exports.string().max(64).optional(),
   /** Retrying a request with the same key returns the original result. */
   idempotencyKey: external_exports.string().min(1).max(120).optional(),
   /** Calling session id; the hub validates it against the caller's live sessions. */
@@ -46573,7 +46584,9 @@ var IngestSource = external_exports.object({
 });
 var IngestConfig = external_exports.object({
   sources: external_exports.array(IngestSource).default([]),
-  dedupWindowMinutes: external_exports.number().int().positive().default(60)
+  dedupWindowMinutes: external_exports.number().int().positive().default(60),
+  /** Days the hub keeps received events (audit and dedup); older ones are deleted. */
+  retentionDays: external_exports.number().int().positive().default(30)
 });
 var REQUIRED_CHANNEL_PURPOSES = [
   "council",
@@ -46648,7 +46661,15 @@ var LimitsConfig = external_exports.object({
   perThreadPerHour: external_exports.number().int().positive().default(40),
   perSenderPerDay: external_exports.number().int().positive().default(500),
   dedupWindowSeconds: external_exports.number().int().nonnegative().default(120),
-  maxBodyChars: external_exports.number().int().positive().default(32e3)
+  maxBodyChars: external_exports.number().int().positive().default(32e3),
+  /**
+   * Calls that change state (task, plan, review, lease, session and message RPCs; reads are
+   * free), per agent or human: `rpcBurst` at once, refilled at `rpcPerMinute`.
+   */
+  rpcBurst: external_exports.number().int().positive().default(60),
+  rpcPerMinute: external_exports.number().int().positive().default(20),
+  /** Open (live or away) sessions per agent; a new one closes the stalest beyond this. */
+  maxSessionsPerAgent: external_exports.number().int().positive().default(20)
 });
 var AssignmentConfig = external_exports.object({
   maxActiveTasksPerAgent: external_exports.number().int().positive().default(3),
@@ -46676,7 +46697,12 @@ var EnrollmentConfig = external_exports.object({
   /** Lifetime of the NATS user JWT the hub issues on connect; a backstop if a kick is lost. */
   userJwtTtlMinutes: external_exports.number().int().min(5).max(1440).default(60),
   /** Failed invite redemptions allowed per minute, per invite and per client IP. */
-  redeemAttemptsPerMinute: external_exports.number().int().min(1).default(5)
+  redeemAttemptsPerMinute: external_exports.number().int().min(1).default(5),
+  /**
+   * Connects the auth callout checks per minute from one client IP; the rest are left unanswered
+   * (refused) before any signature work. Sized for a whole office behind one NAT.
+   */
+  connectAttemptsPerMinute: external_exports.number().int().min(1).default(300)
 });
 var PresenceConfig = external_exports.object({
   heartbeatSeconds: external_exports.number().int().min(5).default(20),
@@ -46704,6 +46730,7 @@ var RuleMatch = external_exports.object({
   where: external_exports.record(external_exports.string(), Condition).default({})
 });
 var Template = external_exports.string();
+var FixedId = external_exports.string().refine((v) => !v.includes("{{"), "must be a configured id, not a {{template}}");
 var NotifyAction = external_exports.object({
   notify: external_exports.object({
     to: external_exports.union([external_exports.enum(["area-owners", "online", "all-agents"]), external_exports.array(external_exports.string()).min(1)]),
@@ -46719,9 +46746,9 @@ var CreateTaskAction = external_exports.object({
   create_task: external_exports.object({
     title: Template,
     description: Template.optional(),
-    area: Template.optional(),
+    area: FixedId.optional(),
     repo: Template.optional(),
-    assignee: Template.optional(),
+    assignee: FixedId.optional(),
     priority: Priority.optional(),
     labels: external_exports.array(external_exports.string()).optional(),
     workflow: external_exports.string().optional()
@@ -46858,7 +46885,15 @@ var MeshConfigSchema = external_exports.object({
       port: external_exports.number().int().min(1).max(65535).default(8787)
     }).prefault({}),
     allowInsecureIngest: external_exports.boolean().default(false),
-    tickSeconds: external_exports.number().int().min(1).default(10)
+    tickSeconds: external_exports.number().int().min(1).default(10),
+    /**
+     * JetStream size caps in MB; when full, the oldest entries go. Their sum must fit in
+     * nats.conf's `max_file_store`, or NATS refuses the streams.
+     */
+    streams: external_exports.object({
+      eventsMaxMB: external_exports.number().int().positive().default(128),
+      ingestMaxMB: external_exports.number().int().positive().default(64)
+    }).prefault({})
   }).prefault({}),
   humans: external_exports.array(HumanConfig).min(1),
   agents: external_exports.array(AgentConfig).default([]),
@@ -46993,10 +47028,11 @@ function checkRule(rule, path, expectKind, workflows, add) {
     if ("notify" in action && Array.isArray(action.notify.to)) {
       for (const id of action.notify.to) expectKind(`${at}.notify.to`, id, "agent", "human");
     }
-    const workflow = "create_task" in action ? action.create_task.workflow : void 0;
-    if (workflow && !workflows.has(workflow)) {
-      add(`${at}.create_task.workflow`, `unknown workflow "${workflow}"`);
+    const task = "create_task" in action ? action.create_task : void 0;
+    if (task?.workflow && !workflows.has(task.workflow)) {
+      add(`${at}.create_task.workflow`, `unknown workflow "${task.workflow}"`);
     }
+    if (task?.assignee) expectKind(`${at}.create_task.assignee`, task.assignee, "agent");
   });
 }
 function isValidRegex(source) {
@@ -48625,7 +48661,23 @@ function renderCalloutAuth(staticUsers, prefix, keys) {
 
 // ../../apps/cli/src/render/nats-config.ts
 var DEFAULT_MAX_FILE_STORE = "5GB";
+var MAX_SUBSCRIPTIONS = 100;
+var DEFAULT_MAX_CONNECTIONS = 1024;
 var SIZE_PATTERN = /^\d+(?:[KMGT]B?)?$/i;
+function limitLines(maxConnections) {
+  if (!Number.isInteger(maxConnections) || maxConnections < 1) {
+    throw new MeshError(
+      "invalid_request",
+      "--max-connections must be a whole number of at least 1 (default 1024)"
+    );
+  }
+  return [
+    "# Limits: what one client, or a flood of clients, can take from this server.",
+    `max_connections: ${maxConnections}`,
+    `max_subscriptions: ${MAX_SUBSCRIPTIONS}`,
+    "max_payload: 1MB"
+  ];
+}
 function withKeys(input2) {
   const candidates = input2.authCallout ? input2.users.filter((u) => u.kind !== "agent") : input2.users;
   const users = candidates.flatMap((u) => u.nkey ? [{ ...u, nkey: u.nkey }] : []);
@@ -48656,9 +48708,13 @@ function renderNatsConfig(input2) {
     "port: 4222",
     'http: "127.0.0.1:8222"',
     "",
+    ...limitLines(input2.maxConnections ?? DEFAULT_MAX_CONNECTIONS),
+    "",
     "jetstream {",
     '  store_dir: "/data/jetstream"',
     `  max_file_store: ${input2.maxFileStore.toUpperCase()}`,
+    "  # Pinned rather than left to the default: the JetStream API refuses malformed requests.",
+    "  strict: true",
     "}",
     ...input2.tls ? [
       "",
@@ -48704,6 +48760,7 @@ function writeNatsConfig(i) {
     users: natsUsersFromConfig(config2),
     dev: i.dev ?? false,
     maxFileStore: i.maxFileStore ?? DEFAULT_MAX_FILE_STORE,
+    ...i.maxConnections !== void 0 ? { maxConnections: i.maxConnections } : {},
     allowMissing: i.allowMissing ?? false,
     ...i.callout ? { authCallout: config2.hub.authCallout ?? {} } : {},
     ...tls ? { tls } : {}
@@ -48721,6 +48778,7 @@ var OPTIONS2 = {
   "tls-cert": { type: "string" },
   "tls-key": { type: "string" },
   "max-file-store": { type: "string" },
+  "max-connections": { type: "string" },
   "allow-missing": { type: "boolean" },
   "auth-callout": { type: "boolean" }
 };
@@ -48738,8 +48796,8 @@ var natsConfigCommand = {
   summary: "Render nats-server.conf with least-privilege users for every participant",
   help: `Usage: agentmesh nats-config [--config <dir>] [--out <file>] [--dev]
                              [--tls [--tls-cert <path>] [--tls-key <path>]]
-                             [--max-file-store 5GB] [--allow-missing]
-                             [--auth-callout]
+                             [--max-file-store 5GB] [--max-connections 1024]
+                             [--allow-missing] [--auth-callout]
 
 Writes a NATS server config (default: deploy/nats/nats.conf) where each agent
 can only publish RPCs as itself and read its own inbox. --tls requires TLS for
@@ -48747,7 +48805,8 @@ every client (use it whenever NATS is reachable from the internet); paths
 default to the certificate files docker compose mounts at /etc/nats/tls.
 --auth-callout renders account mode: the hub and services stay static users and
 the hub admits agents itself (needs hub.authCallout keys: keys add hub-issuer,
-hub-xkey, hub-sys). --dev renders a config without authentication for local
+hub-xkey, hub-sys). --max-connections caps client connections in all (one per
+Claude Code session). --dev renders a config without authentication for local
 development.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS2, { min: 0, max: 0, names: "" });
@@ -48768,6 +48827,7 @@ development.`,
       callout,
       dev: values.dev ?? false,
       ...values["max-file-store"] !== void 0 ? { maxFileStore: values["max-file-store"] } : {},
+      ...values["max-connections"] !== void 0 ? { maxConnections: Number(values["max-connections"]) } : {},
       allowMissing: values["allow-missing"] ?? false
     });
     const notes = [
@@ -48855,7 +48915,7 @@ function remoteCommands(dir) {
   return {
     // A server rebuilt under the same name has none of the folders setup host made.
     prepare: `[ -d ${dir}/deploy/secrets ] || { echo 'Run setup host again: ${dir}/deploy/secrets is missing on the server.' >&2; exit 1; }; sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats && rm -rf ${dir}/config.new && chmod 700 ${dir}/deploy`,
-    finish: `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
+    finish: `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && chmod 600 ${dir}/deploy/.env && chmod 644 ${dir}/deploy/nats/nats.conf && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
   };
 }
 function requireDone(p, steps) {
@@ -49063,6 +49123,85 @@ bot is in several servers, pick one with --guild. The token is never printed.`,
   }
 };
 
+// ../../apps/cli/src/setup/render/host-hardening.ts
+var WARNING = "warning (agentmesh):";
+var AUTO_UPDATES = `echo "== automatic security updates"
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unattended-upgrades >/dev/null
+printf '%s\\n' 'APT::Periodic::Update-Package-Lists "1";' 'APT::Periodic::Unattended-Upgrade "1";' \\
+  >/etc/apt/apt.conf.d/90agentmesh-auto-upgrades
+systemctl enable -q --now apt-daily.timer apt-daily-upgrade.timer ||
+  echo "${WARNING} the apt-daily timers could not be enabled; security updates may not run." >&2
+UU=
+eval "$(apt-config shell UU APT::Periodic::Unattended-Upgrade)"
+[ "$UU" = 1 ] ||
+  echo "${WARNING} a file in /etc/apt/apt.conf.d turns unattended-upgrades off." >&2
+`;
+var SSH_CHECK = `echo "== ssh"
+if SSHD=$(sshd -T 2>/dev/null); then
+  if grep -qx 'passwordauthentication yes' <<<"$SSHD"; then
+    echo "${WARNING} sshd accepts password logins. Once your key works, set PasswordAuthentication no in /etc/ssh/sshd_config.d/ and reload ssh." >&2
+  fi
+  if grep -qx 'permitrootlogin yes' <<<"$SSHD"; then
+    echo "${WARNING} sshd lets root log in with a password. Set PermitRootLogin prohibit-password in /etc/ssh/sshd_config.d/ and reload ssh." >&2
+  fi
+else
+  echo "${WARNING} could not read sshd's settings (sshd -T); check PasswordAuthentication and PermitRootLogin by hand." >&2
+fi
+`;
+var FIREWALL_SCRIPT_PATH = "/usr/local/sbin/agentmesh-firewall";
+var FIREWALL_UNIT_PATH = "/etc/systemd/system/agentmesh-firewall.service";
+var FIREWALL_SCRIPT = `#!/bin/sh
+# Installed by AgentMesh: per-source-IP limits on new connections to NATS from the internet.
+# Run by agentmesh-firewall.service at boot and whenever Docker starts. To change a value, set
+# it in /etc/default/agentmesh-firewall, then: systemctl restart agentmesh-firewall
+set -eu
+NATS_PORT=4222
+NATS_MAX_CONN_PER_IP=128
+NATS_NEW_CONN_RATE=10/sec
+NATS_NEW_CONN_BURST=100
+EXT_IF=
+if [ -r /etc/default/agentmesh-firewall ]; then . /etc/default/agentmesh-firewall; fi
+[ -n "$EXT_IF" ] || EXT_IF=$(ip -4 route show default | awk '{ print $5; exit }')
+if [ -z "$EXT_IF" ]; then
+  echo "agentmesh-firewall: no default route; set EXT_IF in /etc/default/agentmesh-firewall" >&2
+  exit 1
+fi
+if ! iptables -n -L DOCKER-USER >/dev/null 2>&1; then
+  echo "agentmesh-firewall: Docker's DOCKER-USER chain is missing; is Docker running?" >&2
+  exit 1
+fi
+
+CHAIN=AGENTMESH-NATS
+iptables -N "$CHAIN" 2>/dev/null || iptables -F "$CHAIN"
+iptables -A "$CHAIN" -p tcp -m connlimit --connlimit-above "$NATS_MAX_CONN_PER_IP" \\
+  --connlimit-mask 32 -j REJECT --reject-with tcp-reset
+iptables -A "$CHAIN" -m hashlimit --hashlimit-above "$NATS_NEW_CONN_RATE" \\
+  --hashlimit-burst "$NATS_NEW_CONN_BURST" --hashlimit-mode srcip \\
+  --hashlimit-name agentmesh-nats -j DROP
+iptables -A "$CHAIN" -j RETURN
+
+# Replace the jump, in case an earlier run used another interface or port.
+iptables -S DOCKER-USER | grep -e "-j $CHAIN\\$" | sed 's/^-A /-D /' | while read -r rule; do
+  eval "iptables $rule"
+done
+iptables -I DOCKER-USER 1 -i "$EXT_IF" -p tcp -m conntrack --ctstate NEW \\
+  --ctorigdstport "$NATS_PORT" --ctdir ORIGINAL -j "$CHAIN"
+echo "agentmesh-firewall: limits on new connections to port $NATS_PORT via $EXT_IF"
+`;
+var FIREWALL_UNIT = `[Unit]
+Description=AgentMesh: per-IP limits on new connections to NATS (DOCKER-USER)
+After=docker.service
+BindsTo=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=${FIREWALL_SCRIPT_PATH}
+
+[Install]
+WantedBy=docker.service
+`;
+
 // ../../apps/cli/src/setup/render/host-script.ts
 var quote2 = (value) => `'${value.replaceAll("'", `'\\''`)}'`;
 function renewalHook(publicHost, remoteDir) {
@@ -49106,6 +49245,15 @@ docker compose version >/dev/null 2>&1 || {
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null
 usermod -aG docker "$MESH_USER"
 
+${AUTO_UPDATES}
+echo "== NATS connection limits"
+printf '%s' ${quote2(FIREWALL_SCRIPT)} >${FIREWALL_SCRIPT_PATH}
+chmod 755 ${FIREWALL_SCRIPT_PATH}
+printf '%s' ${quote2(FIREWALL_UNIT)} >${FIREWALL_UNIT_PATH}
+systemctl daemon-reload
+systemctl enable -q agentmesh-firewall.service
+systemctl restart agentmesh-firewall.service
+
 echo "== $AGENTMESH_DIR"
 mkdir -p "$AGENTMESH_DIR/deploy/nats" "$AGENTMESH_DIR/deploy/secrets" "$AGENTMESH_DIR/config"
 chown "$MESH_USER:" "$AGENTMESH_DIR" "$AGENTMESH_DIR/deploy" "$AGENTMESH_DIR/deploy/nats" \\
@@ -49124,6 +49272,7 @@ if [ ! -d "/etc/letsencrypt/live/$PUBLIC_HOST" ]; then
 fi
 "$HOOK"
 
+${SSH_CHECK}
 echo "== done"
 `;
 }
@@ -49136,9 +49285,11 @@ var setupHostCommand = {
 
 Checks that hosting.publicHost resolves, then pipes a script to \`sudo bash -s\` on the
 server over ssh (hosting.ssh, with your own SSH key). The script installs Docker and
-certbot, creates hosting.remoteDir owned by the ssh user, gets a Let's Encrypt
-certificate for NATS TLS and installs the hook that renews it. Ubuntu 24.04 is the
-tested target. Safe to re-run. On a trial there is nothing to do.`,
+certbot, turns on automatic security updates, limits new NATS connections per source
+IP (DOCKER-USER), creates hosting.remoteDir owned by the ssh user, gets a Let's Encrypt
+certificate for NATS TLS and installs the hook that renews it. It warns, without
+changing anything, when sshd accepts password or root password logins. Ubuntu 24.04
+is the tested target. Safe to re-run. On a trial there is nothing to do.`,
   async run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -49164,13 +49315,16 @@ tested target. Safe to re-run. On a trial there is nothing to do.`,
       remoteDir: hosting.remoteDir,
       user: sshUser(hosting.ssh)
     });
-    await runChecked(
+    const result = await runChecked(
       ctx.run ?? runProcess,
       sshProgram("ssh", ctx),
       [...SSH_OPTIONS, "--", hosting.ssh, "sudo bash -s"],
       { input: script },
       "Preparing the server"
     );
+    for (const line of result.stderr.split(/\r?\n/)) {
+      if (line.startsWith(WARNING)) ctx.stderr(line);
+    }
     markDone(p, "host", /* @__PURE__ */ new Date());
     ctx.stdout(`Server ready: Docker and a TLS certificate for ${hosting.publicHost}.`);
     return 0;
@@ -49257,7 +49411,16 @@ function renderCompose() {
 #   nats/tls/         fullchain.pem + privkey.pem when NATS requires TLS (a server)
 #   secrets/*.nk      from \`agentmesh keys add\`
 #   the mesh config   at $AGENTMESH_CONFIG_DIR (../config)
+#
+# Every service runs without Linux capabilities, cannot gain privileges, has a read-only root
+# filesystem (writes go to its volume and a small /tmp), and has memory, process and log caps.
+# The caps come from .env.
 name: agentmesh
+
+# Docker's default log never rotates, so a log flood would fill the disk: 3 files of 10 MB.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
 
 services:
   nats:
@@ -49276,6 +49439,15 @@ services:
         # With TLS the hub must connect by the certificate's name; this alias resolves it
         # to this container from inside the compose network.
         aliases: ["\${NATS_PUBLIC_HOST:-nats}"]
+    # The image runs NATS as root: without capabilities it can still read root's own files
+    # (the TLS key) and anything world-readable (nats.conf), but no one else's.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: \${NATS_MEM_LIMIT:-256m}
+    pids_limit: \${PIDS_LIMIT:-256}
+    logging: *logging
     restart: unless-stopped
 
   hub:
@@ -49295,6 +49467,14 @@ services:
     ports:
       # Ingest endpoint for Hermes/GitHub. Keep it private, or put a TLS proxy in front.
       - "\${HUB_HTTP_BIND:-127.0.0.1}:8787:8787"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    # SQLite may spill temporary tables here; the database itself is in /data.
+    tmpfs: ["/tmp:size=64m"]
+    mem_limit: \${HUB_MEM_LIMIT:-512m}
+    pids_limit: \${PIDS_LIMIT:-256}
+    logging: *logging
     depends_on: [nats]
     restart: unless-stopped
 
@@ -49309,8 +49489,15 @@ services:
     volumes:
       - \${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
       # Only the bridge's own seed, never the whole secrets/ directory: the hub's seeds live
-      # there (on a server hub-issuer.nk signs any NATS identity), out of a bridge's reach.
+      # there (in auth-callout mode hub-issuer.nk signs any NATS identity), out of a bridge's reach.
       - ./secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: \${BRIDGE_MEM_LIMIT:-384m}
+    pids_limit: \${PIDS_LIMIT:-256}
+    logging: *logging
     depends_on: [hub]
     restart: unless-stopped
 
@@ -49344,6 +49531,14 @@ NATS_PUBLIC_HOST=${server?.publicHost ?? ""}
 HUB_HTTP_BIND=127.0.0.1
 # Log level of the hub and the Discord bridge: debug, info, warn or error.
 AGENTMESH_LOG_LEVEL=info
+# Memory cap of the NATS container, in Docker units such as 256m or 1g (sized for 1-2 GB).
+NATS_MEM_LIMIT=256m
+# Memory cap of the hub container.
+HUB_MEM_LIMIT=512m
+# Memory cap of the Discord bridge container.
+BRIDGE_MEM_LIMIT=384m
+# The most processes and threads each container may run.
+PIDS_LIMIT=256
 `;
 }
 var WORKSPACE_GITIGNORE = "deploy/.env\ndeploy/.env.*\ndeploy/secrets/\ndeploy/nats/nats.conf\n*.nk\n";

@@ -82,13 +82,22 @@ describe('configFromObject', () => {
     expect(pendingInvitees(config)).toEqual(['dana', 'erin-agent', 'frank']);
   });
 
-  it('still refuses the wrong kind of participant as reviewer, facilitator or notify target', () => {
+  it('still refuses the wrong kind of participant as reviewer, facilitator, notify target or rule assignee', () => {
     const tree = {
       ...minimal,
       services: [{ id: 'ci', role: 'ingest' }],
       review: { humanReviewers: ['alice-agent'] },
       planning: { facilitator: 'alice' },
-      rules: [{ id: 'ci', match: { type: 'x' }, actions: [{ notify: { to: ['ci'], text: 'x' } }] }],
+      rules: [
+        {
+          id: 'ci',
+          match: { type: 'x' },
+          actions: [
+            { notify: { to: ['ci'], text: 'x' } },
+            { create_task: { title: 'x', assignee: 'alice' } },
+          ],
+        },
+      ],
     };
     try {
       configFromObject(tree);
@@ -99,6 +108,9 @@ describe('configFromObject', () => {
       expect(messages).toContain('planning.facilitator: "alice" is a human, not an agent');
       expect(messages).toContain(
         'rules[0].actions[0].notify.to: "ci" is a service, not an agent or a human',
+      );
+      expect(messages).toContain(
+        'rules[0].actions[1].create_task.assignee: "alice" is a human, not an agent',
       );
     }
   });

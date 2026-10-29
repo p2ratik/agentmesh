@@ -3,6 +3,7 @@ import {
   AckPolicy,
   type ConsumerConfig,
   DeliverPolicy,
+  DiscardPolicy,
   type JetStreamManager,
   RetentionPolicy,
   StorageType,
@@ -17,9 +18,15 @@ export interface TopologyOptions {
   prefix: string;
   eventRetentionDays: number;
   ingestDedupMinutes: number;
+  /** Size caps: when full, the oldest messages go, so publishing never stops. */
+  eventsMaxBytes: number;
+  ingestMaxBytes: number;
 }
 
-/** Creates or updates the mesh streams. Safe to run on every hub start. */
+/**
+ * Creates or updates the mesh streams. Safe to run on every hub start, and an update
+ * applies changed limits to streams an older hub created.
+ */
 export async function ensureStreams(
   jsm: JetStreamManager,
   options: TopologyOptions,
@@ -32,6 +39,8 @@ export async function ensureStreams(
     retention: RetentionPolicy.Limits,
     storage: StorageType.File,
     max_age: nanos(options.eventRetentionDays * DAY_MS),
+    max_bytes: options.eventsMaxBytes,
+    discard: DiscardPolicy.Old,
     duplicate_window: nanos(2 * MINUTE_MS),
   });
   await upsertStream(jsm, {
@@ -40,6 +49,8 @@ export async function ensureStreams(
     retention: RetentionPolicy.Workqueue,
     storage: StorageType.File,
     max_age: nanos(7 * DAY_MS),
+    max_bytes: options.ingestMaxBytes,
+    discard: DiscardPolicy.Old,
     duplicate_window: nanos(options.ingestDedupMinutes * MINUTE_MS),
   });
 }

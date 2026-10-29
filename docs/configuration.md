@@ -28,6 +28,7 @@ numbers are not coerced from strings — write them literally.
 | `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz`, `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |
 | `tickSeconds` | `10` | Scheduler interval (outbox retries, presence expiry, deadlines, leases). |
+| `streams.eventsMaxMB` / `ingestMaxMB` | `128` / `64` | Size caps of the activity feed and ingest JetStream streams. When one is full its oldest messages go, so publishing never stops. 128 MB holds weeks of a busy team's feed, past its 7-day age limit. The hub applies them at every start, to existing streams too. Their sum must fit in `nats.conf`'s `max_file_store` (5 GB unless `nats-config --max-file-store` says otherwise), or NATS refuses the streams and the hub does not start. |
 
 ## Participants
 
@@ -96,6 +97,9 @@ error.
 | `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
 | `presence.ownershipGraceMinutes` | `120` | A session silent past `offlineAfterSeconds` goes away but keeps its threads; after this many minutes it closes and releases them (a reconnect with its previous session id reclaims what nobody took). |
+| `limits.rpcBurst` | `60` | Calls that change state (tasks, plans, reviews, leases, sessions, messages) one agent or human may make at once. Reads are free; services acting as themselves are not metered. |
+| `limits.rpcPerMinute` | `20` | How fast that allowance refills. Past it the hub answers `rate_limited` with `retryAfterSeconds`. |
+| `limits.maxSessionsPerAgent` | `20` | Open (live or away) sessions per agent. A new one beyond it first closes the stalest (away before live, then least recently seen), which releases its threads. A reconnect reuses its session and closes nothing. |
 | `limits.maxThreadDepth` | `3` | How deep chains of agent-created threads may go (loop guard). |
 | `limits.perThreadPerHour` | `40` | Messages per thread per hour. |
 | `limits.perSenderPerDay` | `500` | Messages per participant per day. |
@@ -103,8 +107,9 @@ error.
 | `limits.maxBodyChars` | `32000` | Message size limit. A participant post over it is refused; a system or hub post is clipped with a note. An ingest `notify` clips the event text first, so its "external content" footer always survives. |
 | `enrollment.natsUrl` | — | The NATS URL new members' laptops connect to, written into every invite code. Must be `tls://` or `wss://` (`nats://` and `ws://` only for localhost). Use `tls://`: the plugin refuses `wss://` and `ws://` invites until its NATS client supports websockets. Without it, `/mesh invite` is refused. |
 | `enrollment.inviteTtlHours` | `24` | How long an unused `/mesh invite` code stays valid (max 720). |
-| `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). |
+| `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). A removed member's agent id cannot be invited again until this long after the removal. |
 | `enrollment.redeemAttemptsPerMinute` | `5` | Failed invite redemptions allowed per minute, per invite and per client IP. |
+| `enrollment.connectAttemptsPerMinute` | `300` | Agent connects the hub's auth callout checks per minute from one client IP, admitted or not. Beyond it the hub leaves them unanswered (NATS refuses them) without doing any signature work, until the minute is over. The default fits a whole office behind one NAT: 15 people with several Claude Code sessions each, all reconnecting after a NATS restart, plus a few stale sessions retrying every 2–3 s. Over budget only delays connects, it never locks anyone out. See [security](security.md#the-hub-in-the-authentication-path-auth-callout-mode). |
 
 `limits.deliveryRetentionDays` was removed with per-session delivery: undelivered messages wait in
 the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key is ignored.
@@ -126,11 +131,13 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `ingest.sources` | `[]` | `{ id, auth, format: mesh|raw, typeHeader?, typeField?, idHeader? }`. |
+| `ingest.sources` | `[]` | `{ id, auth, format: mesh|raw, typeHeader?, typeField?, idHeader? }`. `idHeader` sets the event id (the dedup key) only for bearer and `none` sources; an HMAC signs only the body, so an HMAC source's id is a hash of the body and the header is just logged. |
 | `ingest.sources[].auth` | — | `{ type: bearer, token }` (≥16 chars), `{ type: hmac-sha256, secret, header: x-hub-signature-256, prefix: "sha256=" }`, or `{ type: none }`. |
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
+| `ingest.retentionDays` | `30` | How long the hub keeps received events (payloads up to 1 MB each), and so how long it recognises a repeated id as a duplicate. |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
 | `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
+| `rules[].actions[].create_task.assignee` / `.area` | — | A configured agent id / area id. A `{{template}}` is refused, so an event cannot choose who gets the task. |
 
 ## `discord`
 
@@ -155,7 +162,7 @@ references and the compose settings. Never commit it or paste its values into a 
   `NATS_BIND` and `NATS_PUBLIC_HOST`, which follow the hosting mode (a trial going real); for the
   other settings that differ from the answers it names them, for you to edit by hand.
 - A deploy set up by hand starts from `deploy/.env.example`.
-- Changes to the binds or `NATS_PUBLIC_HOST` need recreated containers
+- Changes to the binds, `NATS_PUBLIC_HOST` or the caps need recreated containers
   (`docker compose --profile discord up -d --force-recreate`); `restart` does not apply them.
   `setup deploy` always recreates them.
 
@@ -171,4 +178,6 @@ references and the compose settings. Never commit it or paste its values into a 
 | `NATS_PUBLIC_HOST` | the server's DNS name; empty on a trial | The TLS certificate's name. Inside compose the hub and bridge reach NATS by it (a network alias), so hostname verification passes. |
 | `HUB_HTTP_BIND` | `127.0.0.1` | Where compose publishes the hub's ingest endpoint (8787). Keep it private. |
 | `AGENTMESH_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`, for the hub and the bridge. |
+| `NATS_MEM_LIMIT`, `HUB_MEM_LIMIT`, `BRIDGE_MEM_LIMIT` | `256m`, `512m`, `384m` | Memory caps of the three containers, in Docker units (`256m`, `1g`), sized for a 1–2 GB server. A container that reaches its cap is restarted. Both compose files use the same defaults when a key is missing ([deploy.md](deploy.md#containers)). |
+| `PIDS_LIMIT` | `256` | The most processes and threads each container may run. |
 | `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |

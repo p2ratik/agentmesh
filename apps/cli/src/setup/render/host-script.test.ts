@@ -68,7 +68,8 @@ describe('renderHostScript', () => {
       ]);
 
       // The hook is written with `printf '%s' <quoted hook> >"$HOOK"`; print it instead.
-      const write = odd.slice(odd.indexOf("printf '%s' "), odd.indexOf(' >"$HOOK"'));
+      const hookAt = odd.indexOf('== certificate renewal hook');
+      const write = odd.slice(odd.indexOf("printf '%s' ", hookAt), odd.indexOf(' >"$HOOK"'));
       const hook = (await runProcess('bash', ['-s'], { input: write })).stdout;
       expect(hook).toMatch(/^#!\/bin\/sh\n/);
       expect((await runProcess('bash', ['-n'], { input: hook })).code).toBe(0);

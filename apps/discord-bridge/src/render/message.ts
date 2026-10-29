@@ -8,7 +8,7 @@ import type {
   ThreadSummary,
 } from '@agentmesh/protocol';
 import { avatarFor } from './avatars';
-import { link, oneLine, threadTitle, truncate, webhookUsername } from './format';
+import { EXTERNAL, link, oneLine, threadTitle, truncate, webhookUsername } from './format';
 import type { PostIntent, ThreadTarget } from './intents';
 import { names } from './people';
 
@@ -98,7 +98,7 @@ export function addressee(message: MeshMessage, thread: ThreadSummary, index: Co
 export function messageHeader(message: MeshMessage, to = ''): string {
   const kind = message.kind === 'reply' ? '' : `**[${message.kind}]**`;
   return [
-    message.trust === 'external' ? '🌐 external content' : '',
+    message.trust === 'external' ? EXTERNAL : '',
     [kind, to].filter(Boolean).join(' '),
     message.status ? STATUS_BADGE[message.status] : '',
     ...refBadges(message.refs),

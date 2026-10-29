@@ -35,6 +35,7 @@ export function toTask(record: TaskRecord, extras: TaskExtras): Task {
     planId: optionalKey('plan', record.planId),
     threadId: threadKey(record.threadId),
     dependsOn: extras.dependsOn.map(taskKey),
+    trust: record.trust,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };

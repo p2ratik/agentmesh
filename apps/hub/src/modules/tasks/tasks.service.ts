@@ -246,7 +246,9 @@ export class TaskServiceImpl implements TaskService {
   /** One transaction; queued messages are posted in order before it commits. */
   #operation<T>(actor: Actor, notes: string[] | undefined, fn: (op: Operation) => T): T {
     const caller = notes && actor.kind === 'agent' ? actor.id : null;
-    const op = new Operation(this.#deps.messaging, caller);
+    const op = new Operation(this.#deps.messaging, caller, (threadId) =>
+      this.repos.tasks.isExternalThread(threadId),
+    );
     const result = this.#ctx.db.transaction(() => {
       const value = fn(op);
       op.flush();

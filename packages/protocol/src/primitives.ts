@@ -3,6 +3,17 @@ import { z } from 'zod';
 
 export const IsoDate = z.string().min(1);
 
+/**
+ * Caps for what callers send, so no field carries megabytes into the hub's
+ * rows, logs or error messages. `IdRef`: any id a caller names (`thr-12`,
+ * `task-42`, `msg-01J…`, a session or participant id, `@all`). `GitRef`: a
+ * repo (`owner/name`) or branch name; heartbeats use the same cap. `Label`:
+ * a task label.
+ */
+export const IdRef = z.string().max(64);
+export const GitRef = z.string().max(300);
+export const Label = z.string().max(60);
+
 export const ParticipantId = z
   .string()
   .regex(

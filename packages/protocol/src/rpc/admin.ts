@@ -6,7 +6,7 @@ import { ANY_CALLER, defineMethod } from './define';
 const RefKey = z.object({
   system: z.string().min(1).max(40),
   entityType: z.enum(['thread', 'task', 'plan', 'participant']),
-  entityId: z.string().min(1),
+  entityId: z.string().min(1).max(120),
 });
 
 export const adminMethods = {
@@ -56,7 +56,7 @@ export const adminMethods = {
   'refs.find': defineMethod({
     description: 'Bridges only: find the mesh entity behind an external id.',
     callers: ['service'],
-    params: z.object({ system: z.string(), ref: z.string() }),
+    params: z.object({ system: z.string().max(40), ref: z.string().max(200) }),
     result: z.object({
       entity: z.object({ entityType: z.string(), entityId: z.string() }).nullable(),
     }),

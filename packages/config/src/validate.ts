@@ -148,10 +148,11 @@ function checkRule(
     if ('notify' in action && Array.isArray(action.notify.to)) {
       for (const id of action.notify.to) expectKind(`${at}.notify.to`, id, 'agent', 'human');
     }
-    const workflow = 'create_task' in action ? action.create_task.workflow : undefined;
-    if (workflow && !workflows.has(workflow)) {
-      add(`${at}.create_task.workflow`, `unknown workflow "${workflow}"`);
+    const task = 'create_task' in action ? action.create_task : undefined;
+    if (task?.workflow && !workflows.has(task.workflow)) {
+      add(`${at}.create_task.workflow`, `unknown workflow "${task.workflow}"`);
     }
+    if (task?.assignee) expectKind(`${at}.create_task.assignee`, task.assignee, 'agent');
     // `notice` channels are not checked: bridges fall back (alerts→events, unknown→events).
   });
 }

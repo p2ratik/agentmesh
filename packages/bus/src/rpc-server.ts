@@ -1,5 +1,6 @@
 import { type Logger, toErrorPayload } from '@agentmesh/common';
 import {
+  inboxPrefix,
   parseRpcSubject,
   RpcRequestEnvelope,
   type RpcResponseEnvelope,
@@ -47,9 +48,39 @@ export function serveRpc(
   });
 }
 
+/**
+ * NATS does not check a request's reply subject against the publisher's permissions, and the
+ * hub may publish anywhere, so it answers only into the caller's own inbox. Otherwise a member
+ * could aim the hub's response at another agent's presence subject or at the event stream. Pure.
+ */
+export function isOwnInbox(caller: string, reply: string): boolean {
+  return reply.startsWith(`${inboxPrefix(caller)}.`);
+}
+
 async function handle(msg: Msg, dispatch: RpcDispatcher, options: ServeRpcOptions): Promise<void> {
   const route = parseRpcSubject(options.prefix, msg.subject);
   if (!route || !msg.reply) return;
+  if (!isOwnInbox(route.caller, msg.reply)) {
+    options.logger.warn(
+      { caller: route.caller, method: route.method },
+      'rpc reply subject is not the caller inbox; not answered',
+    );
+    return;
+  }
+  const response = await answer(msg, route, dispatch, options);
+  try {
+    msg.respond(JSON.stringify(response));
+  } catch (error) {
+    options.logger.warn({ err: error, method: route.method }, 'failed to send rpc response');
+  }
+}
+
+async function answer(
+  msg: Msg,
+  route: { caller: string; method: string },
+  dispatch: RpcDispatcher,
+  options: ServeRpcOptions,
+): Promise<RpcResponseEnvelope> {
   let response: RpcResponseEnvelope;
   try {
     const envelope = RpcRequestEnvelope.safeParse(msg.json());
@@ -82,9 +113,5 @@ async function handle(msg: Msg, dispatch: RpcDispatcher, options: ServeRpcOption
     }
     response = { ok: false, error: payload };
   }
-  try {
-    msg.respond(JSON.stringify(response));
-  } catch (error) {
-    options.logger.warn({ err: error, method: route.method }, 'failed to send rpc response');
-  }
+  return response;
 }
