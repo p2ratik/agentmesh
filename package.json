@@ -2,6 +2,7 @@
   "name": "agentmesh",
   "private": true,
   "description": "Local-first mesh that lets Claude Code sessions on different machines work together like an engineering team.",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "engines": {

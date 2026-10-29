@@ -18,7 +18,9 @@ export const MESH_TOOLS_ALLOW_RULE = 'mcp__plugin_agentmesh_mesh__*';
 export const PLUGIN_REF = 'agentmesh@agentmesh';
 
 /** The `~/.agentmesh/agent.json` fallback config the plugin reads. */
-export function agentJson(input: AgentSetupInput): string {
+export function agentJson(
+  input: Pick<AgentSetupInput, 'agentId' | 'natsUrl' | 'seedFile' | 'prefix'>,
+): string {
   const value = {
     agentId: input.agentId,
     natsUrl: input.natsUrl,

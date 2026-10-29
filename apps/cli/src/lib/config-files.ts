@@ -21,7 +21,10 @@ export function meshFilePath(path: string): string {
   return path;
 }
 
-/** `${NAME}` references without a `:-fallback` in any YAML file under the config directory. */
+/**
+ * `${NAME}` and `${NAME:-}` references in any YAML file under the config directory: those
+ * with no real fallback (setup writes the Discord values as `${NAME:-}`).
+ */
 export function requiredEnvNames(configDir: string): string[] {
   const names = new Set<string>();
   const files = readdirSync(configDir, { recursive: true, encoding: 'utf8' }).filter(
@@ -29,7 +32,7 @@ export function requiredEnvNames(configDir: string): string[] {
   );
   for (const file of files) {
     const text = readFileSync(join(configDir, file), 'utf8');
-    for (const match of text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
+    for (const match of text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-)?\}/g)) {
       if (match[1]) names.add(match[1]);
     }
   }

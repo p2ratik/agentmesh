@@ -1,8 +1,12 @@
+import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
+import type { RunProcess } from './lib/process';
+import type { ConnectNats } from './setup/checks/agent';
+import type { CheckResult } from './setup/checks/result';
 
 /**
- * Everything a command touches outside its arguments. `main.ts` builds it
- * from the real process; tests pass temp directories and capture output.
+ * Everything a command touches outside its arguments. `processContext` builds
+ * it from the real process; tests pass temp directories and capture output.
  */
 export interface CliContext {
   /** Directory relative paths resolve against. */
@@ -11,6 +15,22 @@ export interface CliContext {
   homeDir: string;
   stdout(text: string): void;
   stderr(text: string): void;
+  /** HTTP for commands that call out (Discord); defaults to the global `fetch`. */
+  fetch?: typeof fetch;
+  /** Waits between polls; tests resolve at once. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Runs ssh, scp and docker; defaults to `runProcess`. */
+  run?: RunProcess;
+  /** Resolves a host name to its addresses; defaults to the system resolver. */
+  lookup?: (host: string) => Promise<string[]>;
+  /** Opens one NATS connection with a seed file; defaults to `connectOnce`. */
+  connectNats?: ConnectNats;
+  /** Checks the certificate NATS presents; defaults to `checkNatsTls`. */
+  probeNatsTls?: (host: string, port: number, now: Date) => Promise<CheckResult>;
+  /** `process.platform`; left out, ssh and scp run by their plain names (`sshProgram`). */
+  platform?: NodeJS.Platform;
+  /** How this CLI was started, for the commands hints print (`cliOf`). */
+  cli?: string;
 }
 
 /** One `agentmesh` subcommand. `name` may have two words (`keys add`). */
@@ -20,6 +40,32 @@ export interface Command {
   help: string;
   run(argv: string[], ctx: CliContext): Promise<number> | number;
 }
+
+/**
+ * The command that runs this CLI again: `node "<script>"` for a bundle such as the plugin's
+ * dist/cli.js, which is on no PATH, or `pnpm mesh` for the TypeScript source in the repo.
+ */
+export function cliCommand(script: string | undefined): string {
+  if (!script) return 'agentmesh';
+  return script.endsWith('.js') ? `node "${script}"` : 'pnpm mesh';
+}
+
+/** The real process: its directory, environment, home and output streams. */
+export function processContext(): CliContext {
+  return {
+    // `pnpm mesh …` runs inside apps/cli; INIT_CWD is where the user typed it.
+    cwd: process.env.INIT_CWD ?? process.cwd(),
+    env: process.env,
+    homeDir: homedir(),
+    stdout: (text) => process.stdout.write(`${text}\n`),
+    stderr: (text) => process.stderr.write(`${text}\n`),
+    platform: process.platform,
+    cli: cliCommand(process.argv[1]),
+  };
+}
+
+/** How to run this CLI in a printed hint. */
+export const cliOf = (ctx: CliContext): string => ctx.cli ?? 'agentmesh';
 
 export function resolveFrom(ctx: CliContext, path: string): string {
   return isAbsolute(path) ? path : resolve(ctx.cwd, path);

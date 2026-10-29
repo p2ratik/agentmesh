@@ -3,29 +3,37 @@
 Connects your local Claude Code session to your team's AgentMesh. Teammates' agents (and humans in
 Discord) can ask you questions, assign tasks, request reviews and invite you to planning sessions;
 their messages arrive inside your running session as `<channel source="plugin:agentmesh:mesh">`
-events. It ships as one bundled file (`dist/server.js`) run with `node` — nothing to install.
+events. It ships as bundled files run with `node`, so there is nothing else to install:
+`dist/server.js` (the MCP server) and `dist/cli.js` (the `agentmesh` CLI that `/agentmesh:setup`
+runs).
 
 ## Install
 
 ```bash
-claude plugin marketplace add <path or GitHub repo of AgentMesh>
+claude plugin marketplace add p2ratik/agentmesh            # or the path of a clone
 claude plugin install agentmesh@agentmesh
+claude --dangerously-load-development-channels plugin:agentmesh@agentmesh   # then run /agentmesh:setup
 ```
 
-Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-setup` prints them):
+Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
 
-| Option | Example |
-| --- | --- |
-| `agent_id` | `alice-agent` |
-| `nats_url` | `nats://hub.your-tailnet.ts.net:4222` |
-| `nkey_seed` | path to your `.nk` file (stored in secure storage) |
-| `prefix` | `mesh` (empty means `mesh`) |
+```json
+{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
+```
 
-Empty options fall back to `~/.agentmesh/agent.json`, if that file is for this agent: the
-`agent_id` and `nats_url` options must be empty or match it. Otherwise the file is ignored,
-because one file serves every Claude account on the laptop. When the file applies, its prefix
-wins over the `prefix` option, because `join` and `agent-setup --write` copy it from the hub.
-When the two differ, the plugin logs a warning naming both.
+### Set up a new mesh (the admin)
+
+When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
+
+In a session started with the channel flag, as above, run `/agentmesh:setup`. Claude asks
+about your team, where the hub runs (a new cloud server, an existing server or this machine as a
+trial) and walks you through the Discord bot; the bundled CLI writes the config, keys and hub
+deploy into a workspace folder (default `~/agentmesh/<team>`). You paste the bot token into that
+workspace's `deploy/.env` yourself, never into the chat. Setup ends with a checklist proving the
+mesh works and the `/mesh invite` lines for your teammates. Re-running it continues where it
+stopped; `node <plugin dir>/dist/cli.js setup status --dir <workspace>` shows where that is, and
+`doctor --dir <workspace>` re-runs the checks. Teammates skip this and
+[join with an invite](#join-with-an-invite-instead).
 
 ### Join with an invite instead
 
@@ -45,11 +53,22 @@ node <plugin dir>/dist/server.js join --file ~/.agentmesh/invite.txt
 Invites must use a `tls://` hub URL (plaintext only for localhost), and the plugin refuses a hub
 that does not actually offer TLS.
 
-Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
+### Configure by hand
 
-```json
-{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
-```
+Options (asked when you enable the plugin; your mesh admin's `agentmesh agent-setup` prints them):
+
+| Option | Example |
+| --- | --- |
+| `agent_id` | `alice-agent` |
+| `nats_url` | `nats://hub.your-tailnet.ts.net:4222` |
+| `nkey_seed` | path to your `.nk` file (stored in secure storage) |
+| `prefix` | `mesh` (empty means `mesh`) |
+
+Empty options fall back to `~/.agentmesh/agent.json`, if that file is for this agent: the
+`agent_id` and `nats_url` options must be empty or match it. Otherwise the file is ignored,
+because one file serves every Claude account on the laptop. When the file applies, its prefix
+wins over the `prefix` option, because `join` and `agent-setup --write` copy it from the hub.
+When the two differ, the plugin logs a warning naming both.
 
 ## Run
 
@@ -112,7 +131,8 @@ appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update
 `ask` takes `to_session` (a session id from `peers`) to pick one of an agent's active sessions, and
 `repo` (`owner/name`) to say which repo the question is about.
 
-Before this laptop has joined a mesh, the only tool is `join`.
+Before this laptop has joined a mesh, the only tools are `join` and `connect` (which picks up the
+settings `agentmesh setup admin` saved, without a restart).
 
 The bundled `mesh-collaboration` skill is the guidebook for working as a team: who an agent
 involves (only the people its human named), what deserves a mesh task at all, what earns a message,
@@ -136,6 +156,6 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 ## Develop
 
 ```bash
-pnpm --filter @agentmesh/plugin build      # dist/server.js
+pnpm --filter @agentmesh/plugin build      # dist/server.js and dist/cli.js
 node plugins/agentmesh/scripts/smoke.mjs   # MCP handshake + tools, no hub needed
 ```
