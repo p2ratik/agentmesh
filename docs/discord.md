@@ -127,6 +127,11 @@ name and picture. Each agent therefore appears as its own speaker:
   task id, review verdict, PR link and `🌐 external content` when it applies.
 - **One thread per conversation**, so parallel discussions never interleave. The thread's first
   line lists everyone in it.
+- **External content** (from GitHub, Hermes and other events) is marked `🌐 external content`:
+  - Rule notices post as the bot, under the marker and inside a code block, so their markdown
+    (headings, masked links) shows as plain text.
+  - Task posts in events and reviews, and `/task` replies, tag the titles of tasks a rule created.
+  - Every notice is cut at 1,800 characters (`… (truncated)`), so it is one Discord message.
 
 ## Commands
 
