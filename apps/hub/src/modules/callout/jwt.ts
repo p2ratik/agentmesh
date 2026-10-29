@@ -33,17 +33,17 @@ function rawPublicKey(nkey: string): Uint8Array {
   return Codec._decode(utf8(nkey)).subarray(1);
 }
 
-/** Built once per issuer: deriving its public half goes through nkeys' slow ed25519. */
-const privateKeys = new WeakMap<KeyPair, KeyObject>();
-function privateKey(kp: KeyPair): KeyObject {
-  let key = privateKeys.get(kp);
-  if (!key) {
-    key = createPrivateKey(
-      jwk(rawPublicKey(kp.getPublicKey()), Codec.decodeSeed(kp.getSeed()).buf),
-    );
-    privateKeys.set(kp, key);
+/** Built once per issuer: nkeys derives the public key with its slow ed25519 on every call. */
+const signers = new WeakMap<KeyPair, { iss: string; key: KeyObject }>();
+function signer(kp: KeyPair): { iss: string; key: KeyObject } {
+  let found = signers.get(kp);
+  if (!found) {
+    const iss = kp.getPublicKey();
+    const key = createPrivateKey(jwk(rawPublicKey(iss), Codec.decodeSeed(kp.getSeed()).buf));
+    found = { iss, key };
+    signers.set(kp, found);
   }
-  return key;
+  return found;
 }
 
 /** Whether `sig` (base64url) is `nkey`'s ed25519 signature over `data`. */
@@ -58,16 +58,17 @@ function verifies(nkey: string, data: string, sig: string): boolean {
 
 /** Signs `claims` with the issuer key; fills in `jti`, `iat` and `iss`. */
 export function signJwt(issuer: KeyPair, claims: Claims, now: Date): string {
+  const { iss, key } = signer(issuer);
   const payload = b64(
     JSON.stringify({
       jti: randomBytes(16).toString('base64url'),
       iat: Math.floor(now.getTime() / 1000),
-      iss: issuer.getPublicKey(),
+      iss,
       ...claims,
     }),
   );
   const signed = `${HEADER}.${payload}`;
-  return `${signed}.${b64(sign(null, utf8(signed), privateKey(issuer)))}`;
+  return `${signed}.${b64(sign(null, utf8(signed), key))}`;
 }
 
 export interface ParsedJwt {

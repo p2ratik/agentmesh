@@ -85,13 +85,19 @@ describe('callout JWTs', () => {
     expect(verifiedClaims(`${body}.${b64(createServer().sign(utf8(body)))}`)).toBeNull();
   });
 
-  it('verifies without pure-JS ed25519, so a bogus connect stays cheap', () => {
-    // nkeys (tweetnacl) needs ~8 ms per verify: 100 of them take most of a second.
+  it('signs and verifies without pure-JS ed25519, so a bogus connect stays cheap', () => {
+    // nkeys (tweetnacl) needs ~8 ms per signature or public key: 100 take most of a second.
     const user = createUser();
+    const issuer = createAccount();
     const [nkey, sig] = [user.getPublicKey(), sign(user, 'nonce')];
-    const started = performance.now();
-    for (let i = 0; i < 100; i++) expect(signedNonce(nkey, 'nonce', sig)).toBe(true);
-    expect(performance.now() - started).toBeLessThan(300);
+    signJwt(issuer, {}, NOW); // the issuer's keys are built once, on first use
+    const timed = (run: () => void) => {
+      const started = performance.now();
+      for (let i = 0; i < 100; i++) run();
+      return performance.now() - started;
+    };
+    expect(timed(() => expect(signedNonce(nkey, 'nonce', sig)).toBe(true))).toBeLessThan(250);
+    expect(timed(() => signJwt(issuer, { sub: 'UX' }, NOW))).toBeLessThan(150);
   });
 
   it('accepts only the server-signed request whose issuer is the server', () => {
