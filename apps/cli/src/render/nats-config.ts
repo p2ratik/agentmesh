@@ -34,6 +34,13 @@ export interface NatsConfigResult {
 }
 
 export const DEFAULT_MAX_FILE_STORE = '5GB';
+/**
+ * Subscriptions per client connection. An agent holds two (its reply inbox and its session
+ * subject), the hub and the bridge a handful. The cap keeps one member's connection from growing
+ * nats-server's memory without bound. It lives here because nats-server ignores the limits in
+ * user JWTs that an auth callout issues.
+ */
+export const MAX_SUBSCRIPTIONS = 100;
 const SIZE_PATTERN = /^\d+(?:[KMGT]B?)?$/i;
 
 function withKeys(input: NatsConfigInput): {
@@ -74,6 +81,8 @@ export function renderNatsConfig(input: NatsConfigInput): NatsConfigResult {
     '',
     'port: 4222',
     'http: "127.0.0.1:8222"',
+    '# Per connection: an agent needs two, so one client cannot grow the server without bound.',
+    `max_subscriptions: ${MAX_SUBSCRIPTIONS}`,
     '',
     'jetstream {',
     '  store_dir: "/data/jetstream"',

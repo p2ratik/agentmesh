@@ -188,6 +188,8 @@ export class CalloutService {
           type: 'user',
           version: 2,
           pub: { allow: perms.publish },
+          // No subs/payload limits: nats-server 2.15 ignores them in callout-issued JWTs, so
+          // nats.conf caps subscriptions per connection instead (`max_subscriptions`).
           sub: { allow: perms.subscribe },
         },
       },

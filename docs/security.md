@@ -41,6 +41,15 @@ the irreversible decisions.
     `enrollment.userJwtTtlMinutes`. Failed redemptions are rate-limited per invite and per client
     address (`enrollment.redeemAttemptsPerMinute`, in memory). The refusal reason goes only to the
     hub log; the response says `not authorized`, and tokens are never logged.
+  - **Threat: one member growing nats-server's memory**, say with millions of subscriptions on
+    one connection. **Mitigation:** the rendered `nats.conf` sets `max_subscriptions: 100` per
+    connection; the plugin needs two (its reply inbox and its session subject), the hub and the
+    bridge a handful. It is a server option because nats-server 2.15 ignores the `subs` and
+    `payload` limits in user JWTs that an auth callout issues. A single message stays capped by the
+    server's `max_payload` (1 MB by default), as before. Deployments rendered before
+    this change get the cap only after regenerating `nats.conf` (`agentmesh nats-config`) and
+    restarting NATS. **Residual risk:** a member can open more connections, each admitted by the
+    callout and counted against their address's connect budget.
   - Removing a member revokes them first, then kicks every connection the callout admitted them
     on. Connections admitted before a hub restart are not tracked; the JWT's `exp` ends them.
   - A member who leaves (`/mesh remove` or an edit to mesh.yaml) stays listed in their threads,
