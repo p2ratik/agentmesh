@@ -14,6 +14,8 @@ import {
 import type { Logger } from '@agentmesh/common';
 import type { MeshConfig } from '@agentmesh/config';
 
+const MB = 1024 * 1024;
+
 export interface HubNats {
   nc: NatsConnection;
   js: JetStreamClient;
@@ -51,6 +53,8 @@ export async function provisionTopology(
     prefix,
     eventRetentionDays: 7,
     ingestDedupMinutes: config.ingest.dedupWindowMinutes,
+    eventsMaxBytes: config.hub.streams.eventsMaxMB * MB,
+    ingestMaxBytes: config.hub.streams.ingestMaxMB * MB,
   });
   // Best-effort: a leftover stream only takes disk space.
   await removeLegacyDelivery(nats.jsm, prefix).then(

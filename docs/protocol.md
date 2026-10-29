@@ -13,8 +13,8 @@ Prefix `p` (default `mesh`), stream names use its upper-case form (`MESH_…`).
 | `{p}.presence.{agent}` | core publish | agents | Heartbeats `{ repo?, branch?, session? }`; `session` must be a hub-issued id or the heartbeat is ignored. The hub also ignores ids that are not agents on the team now (mesh.yaml or joined by invite). The plugin sends one right after every subscribe. |
 | `{p}.session.{agent}.{session}` | core request/reply | hub | Deliveries to one session (`SessionInbound`: `deliver`), its activation code (`check`), and the notice that the hub no longer knows it (`expired`). |
 | `{p}.ack.{agent}.>` | core reply | agents | The session's `SessionAck`, sent on a hub-generated reply subject. |
-| `{p}.evt.{type}` | stream `{P}_EVENTS` (limits, 7 days) | hub | Activity feed; bridges read it with consumer `feed-{service}`. |
-| `{p}.ingest.{source}` | stream `{P}_INGEST` (work queue) | hub, ingest services | External events; consumer `hub-ingest`. |
+| `{p}.evt.{type}` | stream `{P}_EVENTS` (limits: 7 days, `hub.streams.eventsMaxMB`, oldest dropped) | hub | Activity feed; bridges read it with consumer `feed-{service}`. |
+| `{p}.ingest.{source}` | stream `{P}_INGEST` (work queue: 7 days, `hub.streams.ingestMaxMB`, oldest dropped) | hub, ingest services | External events; consumer `hub-ingest`. |
 
 Replies use per-participant inboxes `_INBOX_{id}.…` so a client can only receive its own replies.
 The hub answers only into the caller's inbox: a client must connect with `inboxPrefix(id)` (from
