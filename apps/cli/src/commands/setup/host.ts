@@ -3,7 +3,7 @@ import type { Command } from '../../context';
 import { runProcess } from '../../lib/process';
 import { checkDns, lookupAddresses } from '../../setup/checks/dns';
 import { runChecked, SSH_OPTIONS, sshProgram, sshUser } from '../../setup/remote';
-import { renderHostScript } from '../../setup/render/host-script';
+import { renderHostScript, WARNING } from '../../setup/render/host-script';
 import { loadAnswers, markDone, workspaceFrom } from '../../setup/workspace';
 
 export const setupHostCommand: Command = {
@@ -13,9 +13,11 @@ export const setupHostCommand: Command = {
 
 Checks that hosting.publicHost resolves, then pipes a script to \`sudo bash -s\` on the
 server over ssh (hosting.ssh, with your own SSH key). The script installs Docker and
-certbot, creates hosting.remoteDir owned by the ssh user, gets a Let's Encrypt
-certificate for NATS TLS and installs the hook that renews it. Ubuntu 24.04 is the
-tested target. Safe to re-run. On a trial there is nothing to do.`,
+certbot, turns on automatic security updates, limits new NATS connections per source
+IP (DOCKER-USER), creates hosting.remoteDir owned by the ssh user, gets a Let's Encrypt
+certificate for NATS TLS and installs the hook that renews it. It warns, without
+changing anything, when sshd accepts password or root password logins. Ubuntu 24.04
+is the tested target. Safe to re-run. On a trial there is nothing to do.`,
   async run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -44,13 +46,17 @@ tested target. Safe to re-run. On a trial there is nothing to do.`,
       remoteDir: hosting.remoteDir,
       user: sshUser(hosting.ssh),
     });
-    await runChecked(
+    const result = await runChecked(
       ctx.run ?? runProcess,
       sshProgram('ssh', ctx),
       [...SSH_OPTIONS, '--', hosting.ssh, 'sudo bash -s'],
       { input: script },
       'Preparing the server',
     );
+    // The script's warnings (password logins, updates turned off) are for the admin's eyes.
+    for (const line of result.stderr.split(/\r?\n/)) {
+      if (line.startsWith(WARNING)) ctx.stderr(line);
+    }
     markDone(p, 'host', new Date());
     ctx.stdout(`Server ready: Docker and a TLS certificate for ${hosting.publicHost}.`);
     return 0;
