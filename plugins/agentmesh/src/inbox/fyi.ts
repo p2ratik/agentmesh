@@ -1,5 +1,5 @@
 import type { SessionDelivery } from '@agentmesh/protocol';
-import { oneLine } from './render';
+import { EXTERNAL_TAG, LINE_BREAK, oneLine } from './render';
 
 /** Most status items held for the next ride-along; older ones are dropped (and counted). */
 const MAX_ITEMS = 50;
@@ -65,9 +65,15 @@ export function seenIds({ items, dropped }: TakenFyi): string[] {
 
 /** The first non-blank line of `text`, at most `max` characters. */
 export function firstLine(text: string, max: number): string {
-  return (text.trim().split('\n')[0] ?? '').trim().slice(0, max);
+  return (text.trim().split(LINE_BREAK)[0] ?? '').trim().slice(0, max);
 }
 
+/** True when an item the footer shows is external: the push carrying it is then external too. */
+export const anyExternal = ({ items }: TakenFyi): boolean =>
+  items.some((m) => m.trust === 'external');
+
+/** An external item is tagged before its subject, which its text cannot reach past. */
 function fyiLine(m: SessionDelivery): string {
-  return `· ${m.threadId} «${oneLine(m.subject).slice(0, 60)}» ${firstLine(m.body, 100)}`;
+  const tag = m.trust === 'external' ? `${EXTERNAL_TAG} ` : '';
+  return `· ${m.threadId} ${tag}«${oneLine(m.subject).slice(0, 60)}» ${firstLine(m.body, 100)}`;
 }

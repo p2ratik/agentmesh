@@ -9,6 +9,7 @@ import type {
   TaskDetail,
   ThreadSummary,
 } from '@agentmesh/protocol';
+import { EXTERNAL_TAG, oneLine, quoteBody } from '../inbox/render';
 
 /** Compact text renderings of hub results, written for Claude to read. */
 
@@ -38,17 +39,22 @@ function formatSession(s: SessionSummary): string {
   return `    · ${s.id} — ${s.description}${where}${owns}`;
 }
 
+/** A header line, then the body quoted (`│ `), so no body line can pass for another entry. */
 export function formatMessage(m: MeshMessage): string {
   const tags = [m.kind, m.status, m.trust === 'external' ? 'EXTERNAL' : null]
     .filter(Boolean)
     .join(', ');
-  return `--- ${m.from.displayName} [${m.from.id}] (${tags}) ${m.createdAt.slice(0, 16).replace('T', ' ')} UTC · ${m.id}\n${m.body}`;
+  return `--- ${m.from.displayName} [${m.from.id}] (${tags}) ${m.createdAt.slice(0, 16).replace('T', ' ')} UTC · ${m.id}\n${quoteBody(m)}`;
 }
 
 export function formatThreadHeader(t: ThreadSummary): string {
   const links = [t.taskId, t.planId].filter(Boolean).join(', ');
-  return `${t.id} «${t.subject}» · ${t.kind} · ${t.status} · participants: ${t.participants.join(', ')}${links ? ` · ${links}` : ''}`;
+  return `${t.id} «${oneLine(t.subject)}» · ${t.kind} · ${t.status} · participants: ${t.participants.join(', ')}${links ? ` · ${links}` : ''}`;
 }
+
+/** An external task's title comes from outside the team: tagged, and kept on one line. */
+const titleOf = (t: Task): string =>
+  `${t.trust === 'external' ? `${EXTERNAL_TAG} · ` : ''}${oneLine(t.title)}`;
 
 export function formatThread(thread: ThreadSummary, messages: readonly MeshMessage[]): string {
   const body = messages.length > 0 ? messages.map(formatMessage).join('\n\n') : '(no messages)';
@@ -57,12 +63,12 @@ export function formatThread(thread: ThreadSummary, messages: readonly MeshMessa
 
 export function formatTaskLine(t: Task): string {
   const who = t.assignee ? `→ ${t.assignee}` : '→ unassigned';
-  return `- ${t.id} [${t.state}] ${t.title} ${who} · ${t.priority}${t.area ? ` · ${t.area}` : ''}${t.prUrl ? ` · ${t.prUrl}` : ''}`;
+  return `- ${t.id} [${t.state}] ${titleOf(t)} ${who} · ${t.priority}${t.area ? ` · ${t.area}` : ''}${t.prUrl ? ` · ${t.prUrl}` : ''}`;
 }
 
 export function formatTask(t: TaskDetail): string {
   const lines = [
-    `${t.id} · ${t.title}`,
+    `${t.id} · ${titleOf(t)}`,
     `state: ${t.state}${t.terminal ? ' (final)' : ''} · workflow: ${t.workflow} · priority: ${t.priority}`,
     `assignee: ${t.assignee ?? 'none'} · creator: ${t.createdBy} · reviewers: ${t.reviewers.join(', ') || 'none'} (round ${t.reviewRound})`,
     [
@@ -77,7 +83,7 @@ export function formatTask(t: TaskDetail): string {
     t.doneWhen ? `done when: ${t.doneWhen}` : '',
     t.dependsOn.length > 0 ? `depends on: ${t.dependsOn.join(', ')}` : '',
     `thread: ${t.threadId}${t.planId ? ` · plan: ${t.planId}` : ''}`,
-    t.description ? `\n${t.description}\n` : '',
+    t.description ? `\n${quoteBody({ body: t.description, trust: t.trust })}\n` : '',
     `Your available actions: ${t.availableActions.join(', ') || 'none'}`,
     t.reviews.length > 0
       ? `Reviews:\n${t.reviews.map((r) => `- round ${r.round} ${r.reviewer}: ${r.verdict} — ${firstLine(r.body)}`).join('\n')}`
@@ -98,7 +104,9 @@ export function formatPlan(plan: Plan, contributions: readonly PlanContribution[
   if (contributions.length > 0) {
     lines.push(
       '\nContributions:',
-      ...contributions.map((c) => `--- ${c.participant} · ${c.round}\n${c.body}`),
+      ...contributions.map(
+        (c) => `--- ${c.participant} · ${c.round}\n${quoteBody({ body: c.body, trust: 'team' })}`,
+      ),
     );
   }
   return lines.filter(Boolean).join('\n');

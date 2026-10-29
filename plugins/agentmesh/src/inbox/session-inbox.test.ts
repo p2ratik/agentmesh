@@ -132,7 +132,7 @@ describe('runSessionInbox', () => {
       messages: [message('m1', 'thr-1'), message('m2', 'thr-1')],
     }).acked;
     expect(h.pushed.map((e) => e.meta.message_id)).toEqual(['m1', 'm2']);
-    expect(h.pushed[1]?.content).toBe('body m2');
+    expect(h.pushed[1]?.content).toBe('│ body m2');
     expect(ack.delivered).toEqual(['m1', 'm2']);
   });
 
@@ -156,8 +156,8 @@ describe('runSessionInbox', () => {
       messages: [status('s2', 'thr-2'), message('a1', 'thr-2'), message('a2', 'thr-3')],
     }).acked;
     expect(h.pushed.map((e) => e.content)).toEqual([
-      'body a1\n\nFYI (2):\n· thr-1 «Render queue» body s1\n· thr-2 «Render queue» body s2',
-      'body a2',
+      '│ body a1\n\nFYI (2):\n· thr-1 «Render queue» body s1\n· thr-2 «Render queue» body s2',
+      '│ body a2',
     ]);
     expect(ack.delivered).toEqual(['s2', 'a1', 'a2']);
     expect(h.reported.flat()).toEqual(['s1', 's2']);
@@ -175,8 +175,8 @@ describe('runSessionInbox', () => {
       messages: [status('s1', 'thr-1'), message('a2', 'thr-1')],
     }).acked;
     expect(h.pushed.map((e) => e.content)).toEqual([
-      'body a1\n\nFYI (1):\n· thr-1 «Render queue» body s1',
-      'body a2',
+      '│ body a1\n\nFYI (1):\n· thr-1 «Render queue» body s1',
+      '│ body a2',
     ]);
     expect(ack.delivered).toEqual(['s1', 'a2']);
     expect(h.reported.flat()).toEqual(['s1']);
@@ -202,9 +202,17 @@ describe('runSessionInbox', () => {
     expect(h.reported.flat()).toEqual([]);
     await h.send({ type: 'deliver', messages: [message('a2', 'thr-2')] }).acked;
     expect(h.pushed.map((e) => e.content)).toEqual([
-      'body a2\n\nFYI (1):\n· thr-1 «Render queue» body s1',
+      '│ body a2\n\nFYI (1):\n· thr-1 «Render queue» body s1',
     ]);
     expect(h.reported.flat()).toEqual(['s1']);
+  });
+
+  it('a team push carrying an external FYI is external', async () => {
+    const h = harness();
+    const alarm = { ...status('s1', 'thr-1'), subject: 'AWS alarm', trust: 'external' as const };
+    await h.send({ type: 'deliver', messages: [alarm, message('a1', 'thr-2')] }).acked;
+    expect(h.pushed[0]?.meta.trust).toBe('external');
+    expect(h.pushed[0]?.content).toContain('· thr-1 🌐 external content «AWS alarm» body s1');
   });
 
   it('calls onExpired for an expiry notice', async () => {
