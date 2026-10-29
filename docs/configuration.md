@@ -105,6 +105,7 @@ error.
 | `enrollment.inviteTtlHours` | `24` | How long an unused `/mesh invite` code stays valid (max 720). |
 | `enrollment.userJwtTtlMinutes` | `60` | Lifetime of the NATS user JWT the hub issues on connect: a backstop if disconnecting a removed member fails (5–1440). |
 | `enrollment.redeemAttemptsPerMinute` | `5` | Failed invite redemptions allowed per minute, per invite and per client IP. |
+| `enrollment.connectAttemptsPerMinute` | `300` | Agent connects the hub's auth callout checks per minute from one client IP, admitted or not. Beyond it the hub leaves them unanswered (NATS refuses them) without doing any signature work, until the minute is over. The default fits a whole office behind one NAT: 15 people with several Claude Code sessions each, all reconnecting after a NATS restart, plus a few stale sessions retrying every 2–3 s. Over budget only delays connects, it never locks anyone out. See [security](security.md#the-hub-in-the-authentication-path-auth-callout-mode). |
 
 `limits.deliveryRetentionDays` was removed with per-session delivery: undelivered messages wait in
 the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key is ignored.

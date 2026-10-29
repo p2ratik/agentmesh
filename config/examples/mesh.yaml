@@ -120,6 +120,7 @@ enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join o
   inviteTtlHours: 24 # an unused invite code expires after this
   userJwtTtlMinutes: 60 # NATS credentials the hub issues expire after this (backstop for removals)
   redeemAttemptsPerMinute: 5 # failed redemptions allowed per invite and per client IP
+  connectAttemptsPerMinute: 300 # agent connects checked per client IP per minute; more wait for the next minute (fits an office behind one NAT)
 
 tasks:
   defaultWorkflow: feature # built-ins: feature, review — add your own in workflows/

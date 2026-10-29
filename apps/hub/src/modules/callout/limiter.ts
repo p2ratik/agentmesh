@@ -2,7 +2,8 @@ import { type Clock, MINUTE_MS } from '@agentmesh/common';
 
 /**
  * Counts failures per key (an invite id, a client IP) in fixed one-minute
- * windows; a key is blocked once it reaches the limit.
+ * windows; a key is blocked once it reaches the limit. The callout's connect
+ * budget counts every attempt with it, admitted or not.
  * ponytail: in memory, so a hub restart resets it and one hub only. Move it to
  * SQLite if the hub ever runs replicated.
  */

@@ -1,10 +1,11 @@
 import { APP_ACCOUNT, type NatsConnection, permissionsFor } from '@agentmesh/bus';
 import { MINUTE_MS } from '@agentmesh/common';
+import { PublicNkey } from '@agentmesh/protocol';
 import type { KeyPair } from '@nats-io/nkeys';
 import type { HubContext } from '../../context';
 import type { EnrollmentService } from '../../contracts';
 import { type AuthRequest, type Decision, decide, serverRequest } from './decide';
-import { signJwt, verifiedClaims } from './jwt';
+import { parseJwt, signedByIssuer, signJwt } from './jwt';
 import { FailureLimiter } from './limiter';
 import { RefusalLog } from './refusals';
 
@@ -15,7 +16,7 @@ const XKEY_HEADER = 'Nats-Server-Xkey';
 const REFUSAL = 'not authorized';
 /** Connections remembered per agent for kicks; a reconnect loop must not grow it forever. */
 const MAX_TRACKED = 16;
-/** Repeated refusals of one key within this window are logged at debug (see RefusalLog). */
+/** Repeated refusals per address and reason within this window are logged at debug. */
 const REFUSAL_LOG_WINDOW_MS = 10 * MINUTE_MS;
 
 export interface CalloutKeys {
@@ -41,7 +42,10 @@ export class CalloutService {
   readonly #keys: CalloutKeys;
   readonly #enrollment: EnrollmentService;
   readonly #sys: NatsConnection;
+  /** Failed invite redemptions, per invite and per address. */
   readonly #limiter: FailureLimiter;
+  /** Every connect per address, admitted or not: each costs signature work. */
+  readonly #budget: FailureLimiter;
   readonly #refusals: RefusalLog;
   // ponytail: in memory, so connections from before a hub restart cannot be kicked; the user
   // JWT's exp (enrollment.userJwtTtlMinutes) ends them. Query CONNZ if that is ever too slow.
@@ -55,10 +59,9 @@ export class CalloutService {
     this.#keys = deps.keys;
     this.#enrollment = deps.enrollment;
     this.#sys = deps.sys;
-    this.#limiter = new FailureLimiter(
-      ctx.loaded.config.enrollment.redeemAttemptsPerMinute,
-      ctx.clock,
-    );
+    const { enrollment } = ctx.loaded.config;
+    this.#limiter = new FailureLimiter(enrollment.redeemAttemptsPerMinute, ctx.clock);
+    this.#budget = new FailureLimiter(enrollment.connectAttemptsPerMinute, ctx.clock);
     this.#refusals = new RefusalLog(REFUSAL_LOG_WINDOW_MS, ctx.clock);
   }
 
@@ -84,7 +87,16 @@ export class CalloutService {
       this.#ctx.logger.warn('unsealed or unreadable auth request: is xkey set in nats.conf?');
       return;
     }
-    const request = serverRequest(verifiedClaims(new TextDecoder().decode(opened)));
+    const parsed = parseJwt(new TextDecoder().decode(opened));
+    // Not verified yet, but only nats-server may publish auth requests (see serverRequest).
+    const host = (parsed?.claims.nats as AuthRequest | undefined)?.client_info?.host ?? 'unknown';
+    if (this.#budget.blocked(host)) {
+      this.#logRefusal(host, 'connect budget spent; left unanswered');
+      return;
+    }
+    // Counted before the work, so a burst handled in one socket read cannot slip past the check.
+    this.#budget.fail(host);
+    const request = parsed && signedByIssuer(parsed) ? serverRequest(parsed.claims) : null;
     if (!request) {
       this.#ctx.logger.warn('auth request not signed by the server; ignored');
       return;
@@ -102,19 +114,7 @@ export class CalloutService {
         'agent admitted',
       );
     } else {
-      // Keyed by the client's own nkey: plugins retry a refused connect every few seconds.
-      const key = `${request.connect_opts?.nkey ?? request.client_info?.host}|${decision.refused}`;
-      const { level, repeated } = this.#refusals.note(key);
-      this.#ctx.logger[level](
-        {
-          reason: decision.refused,
-          nkey: request.connect_opts?.nkey,
-          host: request.client_info?.host,
-          cid: request.client_info?.id,
-          ...(repeated ? { repeatedSinceLastWarning: repeated } : {}),
-        },
-        'agent refused',
-      );
+      this.#logRefusal(host, decision.refused, request);
     }
     const response = signJwt(
       this.#keys.issuer,
@@ -144,6 +144,25 @@ export class CalloutService {
     );
     if (connections.length > 0)
       this.#ctx.logger.info({ agentId, connections: connections.length }, 'agent kicked');
+  }
+
+  /**
+   * Keyed by address, not by the client's nkey: plugins retry a refused connect every few
+   * seconds, and a flood can bring a fresh key each time. Only a well-formed nkey is logged.
+   */
+  #logRefusal(host: string, reason: string, request?: AuthRequest): void {
+    const { level, repeated } = this.#refusals.note(`${host}|${reason}`);
+    const nkey = request?.connect_opts?.nkey;
+    this.#ctx.logger[level](
+      {
+        reason,
+        host,
+        cid: request?.client_info?.id,
+        ...(PublicNkey.safeParse(nkey).success ? { nkey } : {}),
+        ...(repeated ? { repeatedSinceLastWarning: repeated } : {}),
+      },
+      'agent refused',
+    );
   }
 
   #decide(request: AuthRequest): Promise<Decision> {
