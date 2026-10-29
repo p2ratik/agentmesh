@@ -503,6 +503,55 @@ identity.
   `mesh.yaml`, `nats.conf`, git or chat.
 - **The kick-only sys seed** can disconnect clients but cannot read or publish mesh traffic.
 
+## The server's network surface and limits
+
+The server publishes NATS on 4222 (TLS required) to the internet; SSH (22) should be open to the
+admin's IP only, and 80 only for Let's Encrypt. The hub's HTTP port stays on 127.0.0.1. What
+follows is set by the compose files, `agentmesh nats-config`, `setup host` and
+`deploy/azure/vm-setup.sh`; the numbers and how to change them are in
+[deploy.md](deploy.md#hardening-the-server).
+
+- **Threat: a connection flood against NATS.** Anyone on the internet can open TCP and TLS
+  connections to 4222 before authenticating, using connection slots, CPU for handshakes and
+  memory. **Mitigation:**
+  - per source IP, at most 128 open connections and 10 new ones a second (bursts of 100), in
+    Docker's `DOCKER-USER` chain, since ufw and the INPUT chain never see Docker-published ports.
+    Only new connections arriving on the default-route interface are checked, so the hub's own
+    containers are never limited. A systemd unit re-applies the rules at boot and whenever Docker
+    starts;
+  - `max_connections: 1024`, `max_subscriptions: 100` per connection and `max_payload: 1MB` in
+    `nats.conf`, and a memory cap on the NATS container.
+
+  **Residual risk:** a flood from many IPs can still fill `max_connections`; NATS closes a
+  connection that does not authenticate within seconds, but while the flood lasts, members may be
+  refused. Per-IP limits do not stop a botnet; use your provider's DDoS protection if that matters.
+  A team behind one NAT shares one IP's budget, which is sized for a 15-person office reconnecting
+  at once. The rules cover IPv4 only.
+- **Threat: a log flood fills the disk.** Failed connects, refused agents and Discord events all
+  write logs, and Docker's default log never rotates. **Mitigation:** each service's log is rotated
+  at 10 MB, 3 files. **Residual risk:** the journal and Docker's own logs use the host's defaults.
+- **Threat: a compromised container.** The bridge parses everything Discord sends and the hub
+  everything agents and ingest sources send. **Mitigation:** every container runs without Linux
+  capabilities, with `no-new-privileges`, a read-only root filesystem and memory and process caps,
+  and the bridge mounts only its own seed. **Residual risk:**
+  - NATS runs as uid 0 (the image's default), without capabilities;
+  - the hub and the bridge share `deploy/.env` (`env_file`). It holds the Discord bot token, the
+    application and server ids, the ingest secrets (`HERMES_INGEST_TOKEN`,
+    `GITHUB_WEBHOOK_SECRET`, any you added) and the compose settings. Both processes load the whole
+    `mesh.yaml`, which references all of them through `${ENV}`, so splitting the file needs a
+    config change first. A compromised bridge can read the ingest secrets; a compromised hub, the
+    bot token;
+  - a kernel bug can still let a process escape its container.
+- **Threat: malformed JetStream API requests.** **Mitigation:** `nats.conf` pins JetStream's strict
+  mode (`strict: true`), so it no longer depends on the server version's default.
+- **Threat: an unpatched server.** **Mitigation:** `unattended-upgrades` is turned on, with a
+  warning if another apt setting turns it off. **Residual risk:** kernel updates wait for a reboot
+  you schedule, and Docker itself is not upgraded automatically.
+- **Threat: SSH password guessing.** **Mitigation:** `setup host` and `vm-setup.sh` warn when sshd
+  accepts password or root password logins. They never change sshd, because on an existing server
+  that could lock the admin out. **Residual risk:** until the admin turns passwords off, the
+  server is as strong as its passwords.
+
 ## Setup and the admin workspace
 
 `/agentmesh:setup` ([ADR 0007](adr/0007-claude-run-setup.md)) has Claude interview the admin and
@@ -621,15 +670,19 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   `.env` and the seeds get mode 600 and the seeds belong to uid 1000 (the containers' user). It
   first checks that every seed it needs exists locally, since a missing bind-mount source would
   make Docker create a root-owned folder in its place.
-- **The bridge sees only its own seed.** The compose file setup renders mounts only
-  `discord-bridge.nk` into the bridge; the hub keeps the whole `secrets/` folder. A compromised
-  bridge (it parses everything Discord sends) therefore cannot reach the issuer seed.
-  **Residual risk:** the repo's own `deploy/docker-compose.yml`, used by hand-built deploys, still
-  mounts every seed into the bridge. Apply the single-seed mount there at the next redeploy.
+- **The bridge sees only its own seed.** Both compose files, the one setup renders and the repo's
+  own `deploy/docker-compose.yml` for deploys by hand, mount only `discord-bridge.nk` into the
+  bridge; the hub keeps the whole `secrets/` folder. A compromised bridge (it parses everything
+  Discord sends) therefore cannot reach the hub's seed, the issuer seed or the sys seed. A test
+  keeps the two compose files equal apart from building versus pulling the images.
+  **Residual risk:** both services still read the same `deploy/.env`
+  ([above](#the-servers-network-surface-and-limits)). A deploy by hand set up before this change
+  mounts every seed into the bridge until its next redeploy.
 - **The network surface of a setup server.** Port 22 from the admin's IP only, 4222 (NATS, TLS
-  required) and 80 (Let's Encrypt renewals) from anywhere. The hub's HTTP port stays on
-  127.0.0.1, and a new mesh has no ingest sources. A trial binds NATS to 127.0.0.1 without TLS and
-  in static mode; nobody else can join it.
+  required, limited per source IP) and 80 (Let's Encrypt renewals) from anywhere. The hub's HTTP
+  port stays on 127.0.0.1, and a new mesh has no ingest sources. A trial binds NATS to 127.0.0.1
+  without TLS and in static mode; nobody else can join it. The limits and their threats are in
+  [The server's network surface and limits](#the-servers-network-surface-and-limits).
 - **`doctor`'s TLS check** connects to NATS as a client would, but with
   `rejectUnauthorized: false`, only so that it can report Node's reason when the certificate is
   refused. A certificate that fails verification fails the check, and nothing is ever sent over
@@ -643,3 +696,9 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   so build-time code never sees the job token, and an image built by hand on a VM caches no
   secret.
   CI fails a PR or a push to main whose committed `plugins/agentmesh/dist` differs from a build.
+  CI itself runs with a read-only token (`permissions: contents: read`), pins its actions to
+  commit SHAs, checks out without persisted credentials, and checks the nats-server download
+  against the SHA256 published with that release before running it.
+- **Dependencies.** `pnpm audit` should stay clean. Root `package.json` overrides pin patched
+  versions of transitive packages the MCP SDK (itself pinned at 1.32.1) pulls in: `fast-uri`
+  (bundled into the plugin through ajv) and `body-parser` (not bundled).

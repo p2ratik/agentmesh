@@ -11,6 +11,8 @@ export interface NatsConfigInput {
   dev: boolean;
   /** JetStream disk budget in NATS size syntax, e.g. `5GB`. */
   maxFileStore: string;
+  /** Client connections the server accepts in all (default DEFAULT_MAX_CONNECTIONS). */
+  maxConnections?: number;
   /** Skip participants without an nkey (with a warning) instead of failing. */
   allowMissing: boolean;
   /**
@@ -41,7 +43,32 @@ export const DEFAULT_MAX_FILE_STORE = '5GB';
  * user JWTs that an auth callout issues.
  */
 export const MAX_SUBSCRIPTIONS = 100;
+/**
+ * Each Claude Code session is one connection and the hub and each service one or two, so a
+ * team of 15 uses under 100. The cap bounds what a flood of connections takes from a 1–2 GB
+ * server; the host firewall limits each source IP far below it (docs/deploy.md).
+ */
+export const DEFAULT_MAX_CONNECTIONS = 1024;
 const SIZE_PATTERN = /^\d+(?:[KMGT]B?)?$/i;
+
+/**
+ * Server-wide limits. Subscriptions count per connection (MAX_SUBSCRIPTIONS). max_payload stays NATS's default 1MB, which the hub sizes its deliveries to (it reads the
+ * server's value and clips a body that does not fit).
+ */
+function limitLines(maxConnections: number): string[] {
+  if (!Number.isInteger(maxConnections) || maxConnections < 1) {
+    throw new MeshError(
+      'invalid_request',
+      '--max-connections must be a whole number of at least 1 (default 1024)',
+    );
+  }
+  return [
+    '# Limits: what one client, or a flood of clients, can take from this server.',
+    `max_connections: ${maxConnections}`,
+    `max_subscriptions: ${MAX_SUBSCRIPTIONS}`,
+    'max_payload: 1MB',
+  ];
+}
 
 function withKeys(input: NatsConfigInput): {
   users: Array<NatsUser & { nkey: string }>;
@@ -81,12 +108,14 @@ export function renderNatsConfig(input: NatsConfigInput): NatsConfigResult {
     '',
     'port: 4222',
     'http: "127.0.0.1:8222"',
-    '# Per connection: an agent needs two, so one client cannot grow the server without bound.',
-    `max_subscriptions: ${MAX_SUBSCRIPTIONS}`,
+    '',
+    ...limitLines(input.maxConnections ?? DEFAULT_MAX_CONNECTIONS),
     '',
     'jetstream {',
     '  store_dir: "/data/jetstream"',
     `  max_file_store: ${input.maxFileStore.toUpperCase()}`,
+    '  # Pinned rather than left to the default: the JetStream API refuses malformed requests.',
+    '  strict: true',
     '}',
     ...(input.tls
       ? [

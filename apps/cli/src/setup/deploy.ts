@@ -21,7 +21,9 @@ const UP = ['up', '-d', '--force-recreate'];
  * What `setup deploy` runs on the server before and after copying. `prepare` takes back
  * the seeds a previous deploy gave to uid 1000, so scp can replace them, and closes
  * `deploy/` to everyone but the ssh user: scp may create `.env` and the seeds readable by
- * all (Windows scp picks the mode), and only `finish` tightens them. `config/` is copied
+ * all (Windows scp picks the mode), and only `finish` tightens them. It also makes nats.conf
+ * readable by all (it holds only public keys): NATS runs as root without capabilities, so it
+ * cannot read a file of the ssh user's with mode 600. `config/` is copied
  * to a fresh `config.new` that `finish` swaps in: scp merges into an existing folder, and the
  * hub loads every YAML file in the include folders, so a file deleted in the workspace would
  * keep running. `dir` is a validated `hosting.remoteDir` (no spaces or shell characters), so
@@ -37,7 +39,8 @@ export function remoteCommands(dir: string): { prepare: string; finish: string }
       `mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats && rm -rf ${dir}/config.new && chmod 700 ${dir}/deploy`,
     finish:
       `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && ` +
-      `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
+      `chmod 600 ${dir}/deploy/.env && chmod 644 ${dir}/deploy/nats/nats.conf && ` +
+      `sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
       `cd ${dir}/deploy && docker compose --profile discord pull && ` +
       `docker compose --profile discord ${UP.join(' ')}`,
   };

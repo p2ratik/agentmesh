@@ -28,6 +28,7 @@ export function writeNatsConfig(i: {
   callout: boolean;
   dev?: boolean;
   maxFileStore?: string;
+  maxConnections?: number;
   allowMissing?: boolean;
 }): NatsConfigResult {
   const { config } = loadTopology(i.configPath, i.env);
@@ -38,6 +39,7 @@ export function writeNatsConfig(i: {
     users: natsUsersFromConfig(config),
     dev: i.dev ?? false,
     maxFileStore: i.maxFileStore ?? DEFAULT_MAX_FILE_STORE,
+    ...(i.maxConnections !== undefined ? { maxConnections: i.maxConnections } : {}),
     allowMissing: i.allowMissing ?? false,
     ...(i.callout ? { authCallout: config.hub.authCallout ?? {} } : {}),
     ...(tls ? { tls } : {}),

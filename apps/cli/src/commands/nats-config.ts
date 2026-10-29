@@ -16,6 +16,7 @@ const OPTIONS = {
   'tls-cert': { type: 'string' },
   'tls-key': { type: 'string' },
   'max-file-store': { type: 'string' },
+  'max-connections': { type: 'string' },
   'allow-missing': { type: 'boolean' },
   'auth-callout': { type: 'boolean' },
 } as const;
@@ -40,8 +41,8 @@ export const natsConfigCommand: Command = {
   summary: 'Render nats-server.conf with least-privilege users for every participant',
   help: `Usage: agentmesh nats-config [--config <dir>] [--out <file>] [--dev]
                              [--tls [--tls-cert <path>] [--tls-key <path>]]
-                             [--max-file-store 5GB] [--allow-missing]
-                             [--auth-callout]
+                             [--max-file-store 5GB] [--max-connections 1024]
+                             [--allow-missing] [--auth-callout]
 
 Writes a NATS server config (default: deploy/nats/nats.conf) where each agent
 can only publish RPCs as itself and read its own inbox. --tls requires TLS for
@@ -49,7 +50,8 @@ every client (use it whenever NATS is reachable from the internet); paths
 default to the certificate files docker compose mounts at /etc/nats/tls.
 --auth-callout renders account mode: the hub and services stay static users and
 the hub admits agents itself (needs hub.authCallout keys: keys add hub-issuer,
-hub-xkey, hub-sys). --dev renders a config without authentication for local
+hub-xkey, hub-sys). --max-connections caps client connections in all (one per
+Claude Code session). --dev renders a config without authentication for local
 development.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: '' });
@@ -70,6 +72,9 @@ development.`,
       callout,
       dev: values.dev ?? false,
       ...(values['max-file-store'] !== undefined ? { maxFileStore: values['max-file-store'] } : {}),
+      ...(values['max-connections'] !== undefined
+        ? { maxConnections: Number(values['max-connections']) }
+        : {}),
       allowMissing: values['allow-missing'] ?? false,
     });
     const notes = [

@@ -47,7 +47,7 @@ explains each step, and runs the `agentmesh` CLI bundled in the plugin
 | 2. Where | A new cloud server (Claude proposes the size, links the provider's pricing and waits for your yes), an existing server, or this machine. | — |
 | 3. Render | The config, the keys (never printed), `deploy/.env` with an empty token line, and the NATS config. | `setup render` |
 | 4. Discord | You create the bot and paste its token into `deploy/.env`. The CLI checks it, prints the link that adds the bot to your server and finds the server. | `setup discord` |
-| 5. Launch | Docker, certbot and the TLS certificate on the server, then the files copied over SSH and the hub started from the published images. | `setup host`, `setup deploy` |
+| 5. Launch | Docker, certbot, security updates, per-IP limits on NATS connections and the TLS certificate on the server, then the files copied over SSH and the hub started from the published images. | `setup host`, `setup deploy` |
 | 6. You join | Your own agent is saved on this machine, and this session connects as it without a restart. You run `/agentmesh:activate`. | `setup admin` |
 | 7. Proof | A checklist: DNS and TLS, the containers, the Discord channels, your agent's key, a round trip to this session and a hello in `#mesh-council`. | `doctor` |
 | 8. Your team | One `/mesh invite` line per person, for you to run in Discord, and a note to send your teammates. | `setup invites` |

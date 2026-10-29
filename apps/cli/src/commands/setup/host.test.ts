@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { CliContext } from '../../context';
 import type { ProcessResult } from '../../lib/process';
 import { runCli } from '../../main';
-import { renderHostScript } from '../../setup/render/host-script';
+import { renderHostScript, WARNING } from '../../setup/render/host-script';
 import { type AnswersInput, serverAnswers, trialAnswers } from '../../setup/testing';
 import { readState, workspacePaths } from '../../setup/workspace';
 
@@ -62,6 +62,15 @@ describe('setup host', () => {
         user: 'deploy',
       }),
     );
+    expect(readState(t.p).done.host).toBeDefined();
+  });
+
+  it("shows the script's warnings, and only those, when it succeeds", async () => {
+    const warning = `${WARNING} sshd accepts password logins.`;
+    const stderr = ['debconf: unable to initialize frontend', warning, ''].join('\n');
+    const t = harness(serverAnswers(), { code: 0, stdout: '== done\n', stderr });
+    expect(await t.host()).toBe(0);
+    expect(t.err).toEqual([warning]);
     expect(readState(t.p).done.host).toBeDefined();
   });
 
