@@ -194,7 +194,7 @@ describe('rules engine', () => {
     await s.ingest.accept('github', ci('r3'));
     await s.outbox.flush();
     const notices = s.ports.events.filter((e) => e.type === 'notice.posted');
-    expect(notices).toHaveLength(2);
+    expect(notices.map((n) => n.data.trust)).toEqual(['external', 'external']);
   });
 });
 

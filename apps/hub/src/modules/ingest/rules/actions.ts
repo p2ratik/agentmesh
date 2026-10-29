@@ -38,6 +38,7 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
       channel: action.notice.channel,
       text: render(action.notice.text),
       severity: event.severity,
+      trust: 'external',
     });
     return;
   }
