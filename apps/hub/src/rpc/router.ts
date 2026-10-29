@@ -12,6 +12,7 @@ import { isClaiming } from '../modules/sessions/claims';
 import { MIN_CLIENT_VERSION } from '../modules/sessions/version';
 import { resolveActAs, resolveCaller } from './actor';
 import type { IdempotencyStore } from './idempotency';
+import { RpcRateLimiter } from './rate-limit';
 
 export interface RouterDeps {
   /** Read on every call: enrolled members join and leave without a restart. */
@@ -27,13 +28,18 @@ export interface RouterDeps {
   sessions?: Pick<SessionsService, 'verify' | 'recordClaims'>;
   /** `db.transaction`: a claiming handler and its claims commit together. */
   transaction<T>(fn: () => T): T;
+  /** Milliseconds, for the rate limiter; defaults to `Date.now`. */
+  now?: () => number;
 }
 
 /**
  * Turns raw RPC calls into validated, authorized handler invocations.
- * Order: method → caller → actAs → caller kind → role → params → session → idempotency.
+ * Order: method → caller → actAs → caller kind → role → rate limit → params → session →
+ * idempotency.
  */
 export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
+  const limiter = new RpcRateLimiter();
+  const now = deps.now ?? Date.now;
   return async (ctx: RpcCallContext, rawParams: unknown) => {
     if (!isRpcMethodName(ctx.method)) {
       throw new MeshError('not_found', `Unknown method "${ctx.method}"`);
@@ -44,7 +50,9 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
       throw new MeshError('not_found', `Method "${method}" is not available on this hub`);
     }
     const def = (deps.methods ?? RPC_METHODS)[method];
-    const { caller, actor } = authorize(deps.index(), def, ctx, method);
+    const index = deps.index();
+    const { caller, actor } = authorize(index, def, ctx, method);
+    limiter.take(actor, method, index.config.limits, now());
     const params = parseParams(def, method, rawParams);
     const session = verifiedSession(deps, caller, method, ctx.session);
 

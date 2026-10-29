@@ -30,6 +30,10 @@ Request: `{ v: 1, params, actAs?, idempotencyKey?, session? }`. Response: `{ ok:
 Every string and array in `params` has a maximum (ids 64 characters, repos and branches 300,
 labels 60, bodies as listed in the schemas); a longer value is refused with `invalid_request`.
 
+Calls that change state are rate-limited per agent or human (`limits.rpcBurst` at once, then
+`limits.rpcPerMinute`); reads, `messages.seen` and `session.bye` are free. Past the limit the hub
+answers `rate_limited` with `details.retryAfterSeconds`.
+
 `actAs` is honoured only for services with `canActAsHumans` (the Discord bridge); the hub then
 authorises as that human. A retried request with the same `idempotencyKey` returns the original
 result.

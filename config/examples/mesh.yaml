@@ -109,6 +109,8 @@ limits:
   maxThreadDepth: 3 # A→B→C→D: deeper chains of agent-created threads are refused
   perThreadPerHour: 40
   perSenderPerDay: 500
+  rpcBurst: 60 # calls that change state (tasks, plans, sessions…) per agent or human at once
+  rpcPerMinute: 20 # …refilled at this rate; reads are never limited
   maxSessionsPerAgent: 20 # open sessions per agent; one more first closes the stalest
 
 presence:

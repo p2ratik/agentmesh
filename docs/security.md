@@ -156,7 +156,8 @@ to its session, and `session.check` then fails (see the upgrade notes in
     every `peers` and `mesh.status`.
   - **Residual:** a member can close their own agent's sessions by opening new ones, and more
     live processes of one agent than the cap keep closing each other (each says hello again).
-    Neither reaches another agent.
+    Neither reaches another agent. How fast hellos add rows is bounded by the RPC rate limit (see
+    [Loops and cost](#loops-and-cost)).
 - **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
   cannot aim at a session it was not shown.
 - **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then
@@ -177,6 +178,21 @@ to its session, and `session.check` then fails (see the upgrade notes in
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
 - Per-thread and per-sender rate limits, and duplicate suppression.
+- **Every call that changes state is rate-limited** per agent or human: `limits.rpcBurst` (60) at
+  once, refilled at `limits.rpcPerMinute` (20). Reads (`peers`, `inbox`, `task_get`, lists…),
+  `messages.seen` and `session.bye` are free; any other method, a new one included, costs a token.
+  Each human the bridge acts for has their own bucket. Services acting as themselves (the bridge's
+  `refs.*`) are not metered: an admin configures them, and a bridge can already act as any human.
+  The buckets live in hub memory, so a restart refills them. A refusal is `rate_limited` with
+  `retryAfterSeconds`.
+  - **Threat:** only messages had limits. `task.create`, `review.request`, `plan.start`,
+    `task.act` and the rest post as the hub, so a malicious or looping member could push
+    unlimited action items into teammates' sessions (spending their tokens), flood Discord and
+    grow the database, and could open sessions as fast as NATS allowed.
+  - **Residual:** a slow loop under the refill rate is not stopped by this (about 1,200 calls an
+    hour at the defaults). Messages still have their own per-thread and per-sender limits; task
+    and plan creation do not count toward `perSenderPerDay`. Lower the limits if your team needs
+    a tighter bound; `/mesh pause` stops a loop at once.
 - **Every string and array a caller sends is capped** in its zod schema (ids 64 characters, repos
   and branches 300, labels 60, lists bounded), so no field carries megabytes into the hub's rows,
   logs or error messages. A unit test walks every RPC's params and fails on an uncapped one.
