@@ -158,10 +158,18 @@ export function creatorUpdate(
   return `${head(task)} → ${to} (${action} by ${actorName})${task.prUrl && action === 'submit' ? `\nPR: ${task.prUrl}` : ''}`;
 }
 
-export function reviewRequestText(task: TaskRecord, round: number): string {
+/** `inactive` names a reviewer with no active session, so the humans watching notice. */
+export function reviewRequestText(
+  task: TaskRecord,
+  round: number,
+  inactive: string | null = null,
+): string {
   const id = taskKey(task.id);
   return [
     `Review requested: ${head(task)} (round ${round})`,
+    inactive
+      ? `⏸ ${inactive} has no active session right now; this waits until one is activated.`
+      : '',
     task.prUrl ? `PR: ${task.prUrl}` : '',
     task.branch ? `Branch: \`${task.branch}\`` : '',
     task.description ? `Focus / context:\n${task.description}` : '',

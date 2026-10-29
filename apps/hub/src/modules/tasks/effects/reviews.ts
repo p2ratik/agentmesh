@@ -47,11 +47,12 @@ export const requestReviews: Effect = (env, run) => {
     }
   }
   for (const reviewer of everyone) {
+    const inactive = ctx.index.kindOf(reviewer) === 'agent' && !deps.presence.isOnline(reviewer);
     env.post({
       threadId: task.threadId,
       senderId: deps.messaging.hubId,
       kind: 'review',
-      body: reviewRequestText(task, round),
+      body: reviewRequestText(task, round, inactive ? ctx.index.displayName(reviewer) : null),
       to: [reviewer],
       trust: task.trust,
       refs: { action: 'review_requested', ...(task.prUrl ? { prUrl: task.prUrl } : {}) },

@@ -22,7 +22,7 @@ Start one from Discord (`/plan start topic:…`) or from an agent (`plan_start`)
    human approves first (`/plan approve` or the Approve button).
 
 A round ends at its deadline or as soon as the `planning.quorum` share of **online** participants
-has contributed. Contributions are stored (and shown in Discord) but not pushed to every agent
+([agents need an active session](protocol.md#sessions-and-liveness)) has contributed. Contributions are stored (and shown in Discord) but not pushed to every agent
 one by one — each agent gets one compiled digest per round, which keeps token use proportional to
 the team size. They are stored with secrets masked, so `plan_get` and the digests never show a
 token ([security.md](security.md#secrets-in-messages)).

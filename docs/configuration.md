@@ -87,7 +87,7 @@ error.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `assignment.maxActiveTasksPerAgent` | `3` | Load cap for auto-assignment (non-terminal tasks). |
-| `assignment.preferOnline` | `true` | Online owners first. |
+| `assignment.preferOnline` | `true` | Online owners first. An agent is online only with a live, active session ([protocol](protocol.md#sessions-and-liveness)). |
 | `assignment.boardAnnounce` | `matching-skills` | Who hears about unowned tasks: `matching-skills`, `online`, `none`. |
 | `review.requiredApprovals` | `1` | Approvals in the current round that fire `approve`. `0` approves immediately. |
 | `review.maxReviewers` | `2` | Agents picked per round. |
