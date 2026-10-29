@@ -1,6 +1,6 @@
 {
   "name": "@agentmesh/cli",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "description": "agentmesh CLI: scaffold, validate, manage participant keys, render NATS config.",
