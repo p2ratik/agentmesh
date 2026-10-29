@@ -52,6 +52,17 @@ the irreversible decisions.
     callout and counted against their address's connect budget.
   - Removing a member revokes them first, then kicks every connection the callout admitted them
     on. Connections admitted before a hub restart are not tracked; the JWT's `exp` ends them.
+    The hub remembers up to 64 live connections per agent and drops expired ones first. If an
+    agent opens more within one JWT lifetime, the oldest is dropped with a warning
+    (`too many connections to track`, with its `cids`), and it too lasts until its `exp`.
+  - **Threat: a connection that outlives the removal** (the hub restarted after it connected, a
+    kick failed, or it was dropped from tracking). NATS permissions and the RPC router authorize
+    by agent id, not by key, so if the agent id were reused it would act as the new member.
+    **Mitigation:** an invite may not reuse a removed member's agent id until
+    `enrollment.userJwtTtlMinutes` after the removal, when every connection admitted before it
+    has expired. `/mesh invite` says how many minutes are left; another agent id works at once.
+    **Residual risk:** lowering `userJwtTtlMinutes` and restarting the hub shortens the wait
+    below the lifetime of credentials issued before the restart.
   - A member who leaves (`/mesh remove` or an edit to mesh.yaml) stays listed in their threads,
     but the hub skips them as a recipient, so they receive nothing. Their leases stop blocking
     others. Tasks and review rounds they already hold are not moved (see discord.md).
@@ -383,7 +394,9 @@ identity.
   user's profile (the user, Administrators and SYSTEM). Keep `~/.agentmesh` inside the profile,
   never in a synced or shared folder.
 - **Threat: a lost laptop.** **Mitigation:** `/mesh remove` the member; their key is refused from
-  then on. To rejoin they redeem a new invite, which gives them a new key.
+  then on. To rejoin they redeem a new invite, which gives them a new key. An invite back under
+  the same agent id waits `enrollment.userJwtTtlMinutes` after the removal, so a connection still
+  open on the lost laptop cannot act as the rejoined member (see [Identity](#identity)).
 - **Threat: silently switching meshes.** **Mitigation:** joining refuses to replace an existing
   `~/.agentmesh/agent.json` unless the user explicitly asks to replace it.
 - The invite's `agentId` and `prefix` are hints for the client, which needs them before the first

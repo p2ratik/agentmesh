@@ -26,10 +26,16 @@ function setup(overrides: Record<string, unknown> = {}) {
     error: record('error'),
   } as unknown as Logger;
   const keys = { issuer: createAccount(), xkey: createCurve() };
+  const kicked: number[] = [];
+  const sys = {
+    request: async (_subject: string, data: string) => {
+      kicked.push((JSON.parse(data) as { cid: number }).cid);
+    },
+  };
   const service = new CalloutService(h.ctx, {
     keys,
     enrollment: {} as EnrollmentService,
-    sys: {} as NatsConnection,
+    sys: sys as unknown as NatsConnection,
   });
   const server = createServer();
   const serverXkey = createCurve();
@@ -63,8 +69,36 @@ function setup(overrides: Record<string, unknown> = {}) {
     nkey: user.getPublicKey(),
     sig: b64(user.sign(utf8(NONCE))),
   });
-  return { ...h, service, connect, signed, logs };
+  return { ...h, service, connect, signed, logs, kicked };
 }
+
+describe('callout kicks', () => {
+  const alice = createUser();
+  const team = { agents: [{ id: 'alice-agent', owner: 'alice', nkey: alice.getPublicKey() }] };
+
+  it('kicks every live connection, forgetting only expired ones silently', async () => {
+    const s = setup(team);
+    await s.connect('203.0.113.7', s.signed(alice), 1);
+    s.clock.advance(61 * MINUTE_MS); // past enrollment.userJwtTtlMinutes: cid 1 is gone
+    await s.connect('203.0.113.7', s.signed(alice), 2);
+    await s.service.kick('alice-agent');
+    expect(s.kicked).toEqual([2]);
+    expect(s.logs.filter((l) => l.level === 'warn')).toEqual([]);
+  });
+
+  it('warns when it has to forget a live connection', async () => {
+    const s = setup(team);
+    const creds = s.signed(alice);
+    for (let cid = 1; cid <= 65; cid++) await s.connect('203.0.113.7', creds, cid);
+    expect(s.logs.find((l) => l.level === 'warn')?.fields).toEqual({
+      agentId: 'alice-agent',
+      cids: [1],
+    });
+    await s.service.kick('alice-agent');
+    expect(s.kicked).toHaveLength(64);
+    expect(s.kicked).not.toContain(1);
+  });
+});
 
 describe('callout connect budget', () => {
   it('leaves connects over the per-address budget unanswered until the minute is over', async () => {

@@ -14,8 +14,12 @@ export const AUTH_CALLOUT_SUBJECT = '$SYS.REQ.USER.AUTH';
 const XKEY_HEADER = 'Nats-Server-Xkey';
 /** What a refused client's server log shows. Never the reason, never the token. */
 const REFUSAL = 'not authorized';
-/** Connections remembered per agent for kicks; a reconnect loop must not grow it forever. */
-const MAX_TRACKED = 16;
+/**
+ * Live connections remembered per agent for kicks, so a reconnect loop cannot grow it forever.
+ * Connections expire with their credentials, so this only has to hold one credential lifetime
+ * of an agent's sessions and reconnects.
+ */
+const MAX_TRACKED = 64;
 /** Repeated refusals per address and reason within this window are logged at debug. */
 const REFUSAL_LOG_WINDOW_MS = 10 * MINUTE_MS;
 
@@ -49,7 +53,10 @@ export class CalloutService {
   readonly #refusals: RefusalLog;
   // ponytail: in memory, so connections from before a hub restart cannot be kicked; the user
   // JWT's exp (enrollment.userJwtTtlMinutes) ends them. Query CONNZ if that is ever too slow.
-  readonly #connections = new Map<string, Array<{ serverId: string; cid: number }>>();
+  readonly #connections = new Map<
+    string,
+    Array<{ serverId: string; cid: number; expiresAt: number }>
+  >();
 
   constructor(
     ctx: HubContext,
@@ -103,12 +110,12 @@ export class CalloutService {
     }
     const decision = await this.#decide(request);
     const now = this.#ctx.clock.now();
-    const answer =
-      'agentId' in decision
-        ? { jwt: this.#userJwt(request, decision.agentId, now) }
-        : { error: REFUSAL };
+    let answer: { jwt: string } | { error: string } = { error: REFUSAL };
     if ('agentId' in decision) {
-      this.#track(decision.agentId, request);
+      const ttl = this.#ctx.index.config.enrollment.userJwtTtlMinutes * MINUTE_MS;
+      const expiresAt = now.getTime() + ttl;
+      answer = { jwt: this.#userJwt(request, decision.agentId, now, expiresAt) };
+      this.#track(decision.agentId, request, expiresAt);
       this.#ctx.logger.info(
         { agentId: decision.agentId, cid: request.client_info?.id },
         'agent admitted',
@@ -173,17 +180,18 @@ export class CalloutService {
     });
   }
 
-  #userJwt(request: AuthRequest, agentId: string, now: Date): string {
-    const { config } = this.#ctx.index;
-    const perms = permissionsFor({ id: agentId, kind: 'agent' }, config.mesh.prefix);
-    const ttl = config.enrollment.userJwtTtlMinutes * MINUTE_MS;
+  #userJwt(request: AuthRequest, agentId: string, now: Date, expiresAt: number): string {
+    const perms = permissionsFor(
+      { id: agentId, kind: 'agent' },
+      this.#ctx.index.config.mesh.prefix,
+    );
     return signJwt(
       this.#keys.issuer,
       {
         sub: request.user_nkey,
         aud: APP_ACCOUNT,
         name: agentId,
-        exp: Math.floor((now.getTime() + ttl) / 1000),
+        exp: Math.floor(expiresAt / 1000),
         nats: {
           type: 'user',
           version: 2,
@@ -197,11 +205,24 @@ export class CalloutService {
     );
   }
 
-  #track(agentId: string, request: AuthRequest): void {
+  /**
+   * Remembers a connection for kicks. One whose credentials have expired is gone, so it is
+   * dropped; past MAX_TRACKED live ones, the oldest is dropped too, and that one is reported,
+   * since a removal can no longer kick it.
+   */
+  #track(agentId: string, request: AuthRequest, expiresAt: number): void {
     const cid = request.client_info?.id;
     if (cid === undefined) return;
-    const list = this.#connections.get(agentId) ?? [];
-    list.push({ serverId: request.server_id.id, cid });
-    this.#connections.set(agentId, list.slice(-MAX_TRACKED));
+    const now = this.#ctx.clock.now().getTime();
+    const list = (this.#connections.get(agentId) ?? []).filter((c) => c.expiresAt > now);
+    list.push({ serverId: request.server_id.id, cid, expiresAt });
+    const forgotten = list.splice(0, list.length - MAX_TRACKED);
+    if (forgotten.length > 0) {
+      this.#ctx.logger.warn(
+        { agentId, cids: forgotten.map((c) => c.cid) },
+        'too many connections to track; a removal cannot kick these before their credentials expire',
+      );
+    }
+    this.#connections.set(agentId, list);
   }
 }
