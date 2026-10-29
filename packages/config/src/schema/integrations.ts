@@ -31,6 +31,8 @@ export type IngestSource = z.infer<typeof IngestSource>;
 export const IngestConfig = z.object({
   sources: z.array(IngestSource).default([]),
   dedupWindowMinutes: z.number().int().positive().default(60),
+  /** Days the hub keeps received events (audit and dedup); older ones are deleted. */
+  retentionDays: z.number().int().positive().default(30),
 });
 
 /** Channel purposes the Discord bridge always needs. */

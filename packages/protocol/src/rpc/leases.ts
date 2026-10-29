@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Lease, LeaseConflict } from '../leases';
+import { GitRef, IdRef } from '../primitives';
 import { ANY_CALLER, defineMethod } from './define';
 
 export const leaseMethods = {
@@ -10,14 +11,14 @@ export const leaseMethods = {
     callers: ['agent'],
     params: z.object({
       paths: z.array(z.string().min(1).max(300)).min(1).max(50),
-      repo: z.string().optional(),
+      repo: GitRef.optional(),
       ttlMinutes: z
         .number()
         .positive()
         .max(7 * 24 * 60)
         .optional(),
       reason: z.string().max(500).optional(),
-      taskId: z.string().optional(),
+      taskId: IdRef.optional(),
     }),
     result: z.object({ granted: z.array(Lease), conflicts: z.array(LeaseConflict) }),
   }),
@@ -25,7 +26,7 @@ export const leaseMethods = {
     description: 'Release some of your leases, or all of them.',
     callers: ['agent'],
     params: z.object({
-      paths: z.array(z.string()).optional(),
+      paths: z.array(z.string().max(300)).max(200).optional(),
       all: z.boolean().default(false),
     }),
     result: z.object({ released: z.number().int().nonnegative() }),
@@ -33,7 +34,7 @@ export const leaseMethods = {
   'lease.list': defineMethod({
     description: 'List active leases, optionally for one holder or repo.',
     callers: ANY_CALLER,
-    params: z.object({ holder: z.string().optional(), repo: z.string().optional() }),
+    params: z.object({ holder: IdRef.optional(), repo: GitRef.optional() }),
     result: z.object({ leases: z.array(Lease) }),
   }),
 } as const;

@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { MeshMessage, ReplyStatus, SendableKind, ThreadKind, ThreadSummary } from '../messages';
+import { IdRef } from '../primitives';
 import { ANY_CALLER, defineMethod, PARTICIPANTS } from './define';
 
 const Recipients = z
-  .array(z.string().min(1))
+  .array(IdRef.min(1))
   .min(1)
   .max(50)
   .describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
@@ -19,14 +20,14 @@ export const messagingMethods = {
         kind: SendableKind,
         body: z.string().min(1).max(32_000),
         to: Recipients.optional(),
-        threadId: z.string().optional(),
+        threadId: IdRef.optional(),
         /** Thread that caused this one; drives loop protection. */
-        parentThreadId: z.string().optional(),
+        parentThreadId: IdRef.optional(),
         subject: z.string().max(200).optional(),
         status: ReplyStatus.optional(),
         prUrl: z.string().max(500).optional(),
-        taskId: z.string().optional(),
-        toSession: z.string().optional(),
+        taskId: IdRef.optional(),
+        toSession: IdRef.optional(),
         repo: z.string().max(200).optional(),
       })
       .refine((p) => p.to !== undefined || p.threadId !== undefined, {
@@ -43,9 +44,9 @@ export const messagingMethods = {
     description: 'Fetch a thread and its most recent messages (oldest first).',
     callers: ANY_CALLER,
     params: z.object({
-      threadId: z.string(),
+      threadId: IdRef,
       limit: z.number().int().min(1).max(200).default(50),
-      beforeId: z.string().optional(),
+      beforeId: IdRef.optional(),
     }),
     result: z.object({ thread: ThreadSummary, messages: z.array(MeshMessage) }),
   }),
@@ -53,7 +54,7 @@ export const messagingMethods = {
     description: 'List threads, newest activity first.',
     callers: ANY_CALLER,
     params: z.object({
-      participant: z.string().optional(),
+      participant: IdRef.optional(),
       kind: ThreadKind.optional(),
       openOnly: z.boolean().default(true),
       limit: z.number().int().min(1).max(100).default(20),
@@ -95,13 +96,13 @@ export const messagingMethods = {
   'messages.seen': defineMethod({
     description: 'Mark messages you have read (e.g. FYI items shown in a session) as seen.',
     callers: ['agent'],
-    params: z.object({ messageIds: z.array(z.string()).min(1).max(500) }),
+    params: z.object({ messageIds: z.array(IdRef).min(1).max(500) }),
     result: z.object({ ok: z.literal(true) }),
   }),
   'thread.close': defineMethod({
     description: 'Close a conversation thread you participate in.',
     callers: PARTICIPANTS,
-    params: z.object({ threadId: z.string() }),
+    params: z.object({ threadId: IdRef }),
     result: ThreadSummary,
   }),
   escalate: defineMethod({
@@ -109,9 +110,9 @@ export const messagingMethods = {
     callers: ['agent'],
     params: z.object({
       question: z.string().min(1).max(8000),
-      to: z.string().optional(),
-      threadId: z.string().optional(),
-      taskId: z.string().optional(),
+      to: IdRef.optional(),
+      threadId: IdRef.optional(),
+      taskId: IdRef.optional(),
       urgent: z.boolean().default(false),
     }),
     result: z.object({ threadId: z.string(), messageId: z.string() }),

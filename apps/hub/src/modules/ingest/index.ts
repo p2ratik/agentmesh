@@ -33,6 +33,7 @@ export function createIngestModule(ctx: HubContext, deps: IngestDeps): HubModule
   return {
     service,
     handlers: {},
+    ticks: [{ name: 'ingest.prune', run: (now) => service.prune(now) }],
     async start() {
       const { hub, ingest } = ctx.index.config;
       const { transport } = deps;

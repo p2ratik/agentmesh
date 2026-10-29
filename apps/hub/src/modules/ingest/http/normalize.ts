@@ -60,7 +60,10 @@ export function normalizeEvent(source: IngestSource, headers: Headers, raw: Buff
   // Other characters become `_`, which can hide a token from the patterns' word boundaries
   // (a residual risk in docs/security.md).
   const type = joined.replace(/[^A-Za-z0-9_.:-]/g, '_');
-  const producerId = source.idHeader ? header(headers, source.idHeader) : undefined;
+  // An HMAC signs only the body. A header id would let a captured delivery replay under new
+  // ids, so a signed event's id (its dedup key) is the hash of the body it signed.
+  const idHeader = source.auth.type === 'hmac-sha256' ? undefined : source.idHeader;
+  const producerId = idHeader ? header(headers, idHeader) : undefined;
   return {
     ok: true,
     event: { type, severity: 'info', payload, id: eventId(source.id, producerId, raw) },

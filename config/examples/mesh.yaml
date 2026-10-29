@@ -18,6 +18,9 @@ hub:
     enabled: true # GET /healthz and POST /v1/ingest/<source>
     host: 0.0.0.0
     port: 8787
+  streams: # JetStream size caps in MB; the oldest messages go when full. Keep the sum under nats.conf's max_file_store.
+    eventsMaxMB: 128 # activity feed (also kept 7 days at most)
+    ingestMaxMB: 64 # external events waiting for the hub
   # nkey: U…   # written by `agentmesh keys add hub`
   # Only for `agentmesh nats-config --auth-callout` (the hub admits agents itself).
   # Public keys; each is written by `agentmesh keys add hub-issuer|hub-xkey|hub-sys`
@@ -109,6 +112,9 @@ limits:
   maxThreadDepth: 3 # A→B→C→D: deeper chains of agent-created threads are refused
   perThreadPerHour: 40
   perSenderPerDay: 500
+  rpcBurst: 60 # calls that change state (tasks, plans, sessions…) per agent or human at once
+  rpcPerMinute: 20 # …refilled at this rate; reads are never limited
+  maxSessionsPerAgent: 20 # open sessions per agent; one more first closes the stalest
 
 presence:
   heartbeatSeconds: 20 # documented plugin cadence
@@ -136,8 +142,9 @@ ingest:
       format: raw
       typeHeader: x-github-event
       typeField: action
-      idHeader: x-github-delivery
+      idHeader: x-github-delivery # logged only: the HMAC signs the body, so the id is the body's hash
       auth: { type: hmac-sha256, secret: "${GITHUB_WEBHOOK_SECRET}" }
+  retentionDays: 30 # received events (and their dedup ids) are kept this long
 
 discord:
   enabled: false # set to true once the bot exists (docs/discord.md)

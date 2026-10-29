@@ -73,9 +73,37 @@ the irreversible decisions.
       person.
 - Only the bridge service with `canActAsHumans` may act for humans, and only for humans listed in
   config, mapped from their Discord user ids.
+- **The hub answers an RPC only into the caller's own inbox** (`_INBOX_{caller}.…`); a request
+  with any other reply subject is logged and dropped unanswered. Every client sets that inbox
+  prefix (the plugin, `/agentmesh:join`, the bridge).
+  - **Threat:** NATS checks a publisher's subject, never its reply subject, and the hub may
+    publish anywhere. A member could call its own `peers.list` with the reply set to
+    `{p}.presence.<victim>` and the hub would publish there, marking the victim online (confirmed
+    on nats-server 2.15.1). A reply aimed at `{p}.evt.*` was stored in the events stream, and one
+    aimed at `$JS.API.STREAM.PURGE.*` was stopped only by JetStream's strict mode. The
+    authenticated end-to-end test aims a reply at another agent's presence subject and checks
+    that nothing arrives.
 - Keep the ingest endpoint private. NATS is either on a private network (Tailscale) or public
   only over TLS, as `/agentmesh:setup` deploys it (4222 with TLS, plus 80 for Let's Encrypt; see
   [Setup and the admin workspace](#setup-and-the-admin-workspace)).
+  - **If you proxy it publicly** (GitHub webhooks need a public URL), the endpoint limits what an
+    outsider can cost: a bearer token is checked before any of the body is read (an HMAC source
+    needs the body). A `Content-Length` over 1 MiB is refused at once, and a body that grows
+    past it while being read is refused there. Every refusal closes the connection instead of
+    draining the body. Headers must arrive within 10 s and the whole request within 30 s, and
+    at most 100 connections are open at once. Failed auth is logged once a minute per source,
+    with the number of failures. Stored events are deleted after `ingest.retentionDays` (30).
+  - **Threat:** the endpoint read up to 1 MB before checking a bearer token, kept draining
+    oversized bodies, used Node's default timeouts (60 s headers, 300 s request) with no
+    connection cap, logged every 401, and kept every payload (up to 1 MB) forever.
+  - **GitHub replays.** An HMAC signs only the body, and `x-github-delivery` is not signed. So
+    for an HMAC source the hub ignores `idHeader` for dedup: the event's id is a hash of the
+    signed body (the header is only logged), and a captured delivery replayed under a new
+    delivery id or event type is a duplicate.
+  - **Residual:** `x-github-event` is not signed either. A captured body replayed before its
+    original arrives, or after `ingest.retentionDays`, is taken with the event type its sender
+    names. The 100-connection cap is per hub, so a flood of idle connections can still crowd
+    out GitHub for up to 10 s each; put a rate-limiting proxy in front if that matters.
 
 ## Trust labels
 
@@ -213,6 +241,20 @@ to its session, and `session.check` then fails (see the upgrade notes in
   would pull from the removed inbox and could not take per-session delivery, and 0.2.x cannot
   report the FYIs it showed (`messages.seen`). Their later calls carry no session and are refused
   with the same update instruction, so the refusal shows in tool errors.
+- **Sessions are bounded.** `session.hello` caps its fields like a heartbeat: `clientVersion` 32
+  characters, `repo` and `branch` 300, and `previousSessionId` must be a hub-issued id. An agent
+  keeps at most `limits.maxSessionsPerAgent` (default 20) open sessions. A hello that would open
+  one more first closes the stalest: an away session before a live one, then the least recently
+  seen. That is what expiry would do later, so its threads are released. A reconnect that names
+  its open session in `previousSessionId` reuses it and closes nothing. Sessions closed for 30
+  days are deleted.
+  - **Threat:** a member looping `session.hello` filled the disk. Each hello without a previous
+    id added a row that was never deleted, and its megabyte fields went into the hub log and into
+    every `peers` and `mesh.status`.
+  - **Residual:** a member can close their own agent's sessions by opening new ones, and more
+    live processes of one agent than the cap keep closing each other (each says hello again).
+    Neither reaches another agent. How fast hellos add rows is bounded by the RPC rate limit (see
+    [Loops and cost](#loops-and-cost)).
 - **`toSession` is validated:** one agent recipient, and an active session of that agent. A sender
   cannot aim at a session it was not shown.
 - **External content.** A hub-posted body (such as a rendered ingest notice) is masked, then
@@ -235,6 +277,34 @@ to its session, and `session.check` then fails (see the upgrade notes in
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
 - Per-thread and per-sender rate limits, and duplicate suppression.
+- **Every call that changes state is rate-limited** per agent or human: `limits.rpcBurst` (60) at
+  once, refilled at `limits.rpcPerMinute` (20). Reads (`peers`, `inbox`, `task_get`, lists…),
+  `messages.seen` and `session.bye` are free; any other method, a new one included, costs a token.
+  Each human the bridge acts for has their own bucket. Services acting as themselves (the bridge's
+  `refs.*`) are not metered: an admin configures them, and a bridge can already act as any human.
+  The buckets live in hub memory, so a restart refills them. A refusal is `rate_limited` with
+  `retryAfterSeconds`.
+  - **Threat:** only messages had limits. `task.create`, `review.request`, `plan.start`,
+    `task.act` and the rest post as the hub, so a malicious or looping member could push
+    unlimited action items into teammates' sessions (spending their tokens), flood Discord and
+    grow the database, and could open sessions as fast as NATS allowed.
+  - **Residual:** a slow loop under the refill rate is not stopped by this (about 1,200 calls an
+    hour at the defaults). Messages still have their own per-thread and per-sender limits; task
+    and plan creation do not count toward `perSenderPerDay`. Lower the limits if your team needs
+    a tighter bound; `/mesh pause` stops a loop at once.
+- **Every string and array a caller sends is capped** in its zod schema (ids 64 characters, repos
+  and branches 300, labels 60, lists bounded), so no field carries megabytes into the hub's rows,
+  logs or error messages. A unit test walks every RPC's params and fails on an uncapped one.
+- **The JetStream streams have size caps** (`hub.streams.eventsMaxMB`, 128 MB, and
+  `ingestMaxMB`, 64 MB) and drop their oldest messages when full. The hub applies them at every
+  start, to streams an older hub created too. Their sum must fit in `nats.conf`'s
+  `max_file_store`, or NATS refuses the streams and the hub stops with a hint saying so.
+  - **Threat:** the streams had only an age limit. A burst of events or external posts could fill
+    NATS's `max_file_store` (5 GB), after which every publish failed: the event outbox stops at
+    its first failure, so the Discord feed froze.
+  - **Residual:** a bridge offline long enough to fall more than the cap behind misses the oldest
+    events, and an ingest backlog over its cap (the hub down, say) loses its oldest events. The
+    hub database keeps the messages themselves.
 - Planning contributions are delivered as one digest per round, not one message per agent.
 - **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
   also holds deliveries queued before it, in the same transaction, so nothing is pushed while

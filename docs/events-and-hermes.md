@@ -53,9 +53,19 @@ curl -X POST http://<hub>:8787/v1/ingest/hermes \
 Responses: `202` accepted, `400` invalid body (with issues), `401` bad credentials, `404` unknown
 source, `413` body over 1 MiB, `503` NATS unavailable (retry later). `GET /healthz` → `200`.
 
+The endpoint checks a bearer token before it reads the body, and refuses a body over 1 MiB as soon
+as it knows (from `Content-Length`, or while reading). A `401`, `404`, `405` or `413` closes the
+connection. Headers must arrive within 10 s and the whole request within 30 s; at most 100
+connections are open at once. Failed auth is logged once a minute per source, with a count. The
+hub keeps received events for `ingest.retentionDays` (30), which is also how long it remembers
+their ids for dedup.
+
 **GitHub webhooks directly** (`format: raw`): the whole body becomes `payload`, the type is
-`<x-github-event>.<action>`, the id is `x-github-delivery`, and the `x-hub-signature-256` HMAC is
-verified with your webhook secret. A raw type keeps its text so rules match it as sent. Characters
+`<x-github-event>.<action>`, and the `x-hub-signature-256` HMAC is verified with your webhook
+secret. The HMAC signs only the body, so the event id is a hash of the body: a delivery replayed
+under a new `x-github-delivery` is a duplicate. `x-github-delivery` is only logged
+(`idHeader` sets a source's id only for bearer sources). `x-github-event` is not signed either; see
+[security.md](security.md#identity). A raw type keeps its text so rules match it as sent. Characters
 outside `[A-Za-z0-9_.:-]` become `_`, and a type over 120 characters is refused with a `400`, not
 cut. The `_` rewrite can hide a token in the type from secret redaction, so point
 `typeHeader`/`typeField` only at fields that name the event

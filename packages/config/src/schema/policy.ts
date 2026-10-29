@@ -25,6 +25,14 @@ export const LimitsConfig = z.object({
   perSenderPerDay: z.number().int().positive().default(500),
   dedupWindowSeconds: z.number().int().nonnegative().default(120),
   maxBodyChars: z.number().int().positive().default(32_000),
+  /**
+   * Calls that change state (task, plan, review, lease, session and message RPCs; reads are
+   * free), per agent or human: `rpcBurst` at once, refilled at `rpcPerMinute`.
+   */
+  rpcBurst: z.number().int().positive().default(60),
+  rpcPerMinute: z.number().int().positive().default(20),
+  /** Open (live or away) sessions per agent; a new one closes the stalest beyond this. */
+  maxSessionsPerAgent: z.number().int().positive().default(20),
 });
 export type LimitsConfig = z.infer<typeof LimitsConfig>;
 

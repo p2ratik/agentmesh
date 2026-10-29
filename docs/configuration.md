@@ -28,6 +28,7 @@ numbers are not coerced from strings — write them literally.
 | `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz`, `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |
 | `tickSeconds` | `10` | Scheduler interval (outbox retries, presence expiry, deadlines, leases). |
+| `streams.eventsMaxMB` / `ingestMaxMB` | `128` / `64` | Size caps of the activity feed and ingest JetStream streams. When one is full its oldest messages go, so publishing never stops. 128 MB holds weeks of a busy team's feed, past its 7-day age limit. The hub applies them at every start, to existing streams too. Their sum must fit in `nats.conf`'s `max_file_store` (5 GB unless `nats-config --max-file-store` says otherwise), or NATS refuses the streams and the hub does not start. |
 
 ## Participants
 
@@ -96,6 +97,9 @@ error.
 | `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
 | `presence.ownershipGraceMinutes` | `120` | A session silent past `offlineAfterSeconds` goes away but keeps its threads; after this many minutes it closes and releases them (a reconnect with its previous session id reclaims what nobody took). |
+| `limits.rpcBurst` | `60` | Calls that change state (tasks, plans, reviews, leases, sessions, messages) one agent or human may make at once. Reads are free; services acting as themselves are not metered. |
+| `limits.rpcPerMinute` | `20` | How fast that allowance refills. Past it the hub answers `rate_limited` with `retryAfterSeconds`. |
+| `limits.maxSessionsPerAgent` | `20` | Open (live or away) sessions per agent. A new one beyond it first closes the stalest (away before live, then least recently seen), which releases its threads. A reconnect reuses its session and closes nothing. |
 | `limits.maxThreadDepth` | `3` | How deep chains of agent-created threads may go (loop guard). |
 | `limits.perThreadPerHour` | `40` | Messages per thread per hour. |
 | `limits.perSenderPerDay` | `500` | Messages per participant per day. |
@@ -127,9 +131,10 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `ingest.sources` | `[]` | `{ id, auth, format: mesh|raw, typeHeader?, typeField?, idHeader? }`. |
+| `ingest.sources` | `[]` | `{ id, auth, format: mesh|raw, typeHeader?, typeField?, idHeader? }`. `idHeader` sets the event id (the dedup key) only for bearer and `none` sources; an HMAC signs only the body, so an HMAC source's id is a hash of the body and the header is just logged. |
 | `ingest.sources[].auth` | — | `{ type: bearer, token }` (≥16 chars), `{ type: hmac-sha256, secret, header: x-hub-signature-256, prefix: "sha256=" }`, or `{ type: none }`. |
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
+| `ingest.retentionDays` | `30` | How long the hub keeps received events (payloads up to 1 MB each), and so how long it recognises a repeated id as a duplicate. |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
 | `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
 | `rules[].actions[].create_task.assignee` / `.area` | — | A configured agent id / area id. A `{{template}}` is refused, so an event cannot choose who gets the task. |
