@@ -48854,8 +48854,8 @@ function remoteCommands(dir) {
   const seeds = `${dir}/deploy/secrets/*.nk`;
   return {
     // A server rebuilt under the same name has none of the folders setup host made.
-    prepare: `[ -d ${dir}/deploy/secrets ] || { echo 'Run setup host again: ${dir}/deploy/secrets is missing on the server.' >&2; exit 1; }; sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats ${dir}/config && chmod 700 ${dir}/deploy`,
-    finish: `chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
+    prepare: `[ -d ${dir}/deploy/secrets ] || { echo 'Run setup host again: ${dir}/deploy/secrets is missing on the server.' >&2; exit 1; }; sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats && rm -rf ${dir}/config.new && chmod 700 ${dir}/deploy`,
+    finish: `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && chmod 600 ${dir}/deploy/.env && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
   };
 }
 function requireDone(p, steps) {
@@ -48939,7 +48939,7 @@ async function deployWorkspace(ctx, p, a) {
   );
   const seeds = readdirSync4(p.secretsDir).filter((name) => name.endsWith(".nk")).sort().map((name) => `deploy/secrets/${name}`);
   await ssh(prepare, "Preparing the server folders");
-  await scp(["-q", "-r"], ["config"], "");
+  await scp(["-q", "-r"], ["config"], "config.new");
   await scp(["-q"], ["deploy/docker-compose.yml", "deploy/.env"], "deploy/");
   await scp(["-q"], ["deploy/nats/nats.conf"], "deploy/nats/");
   await scp(["-q"], seeds, "deploy/secrets/");
