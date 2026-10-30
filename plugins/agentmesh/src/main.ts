@@ -52,7 +52,7 @@ async function runConfigured(config: PluginConfig, logger: Logger): Promise<void
     problems: [],
   });
   const server = createMcpServer(instructions, () => handler);
-  const handler = meshToolHandler(toolDeps(session, config.agentId));
+  const handler = meshTools(session, config.agentId);
   // Claude Code subscribes to channel notifications just after the handshake and silently
   // drops earlier ones, so queued messages would be acked into the void at startup.
   server.oninitialized = () => {
@@ -99,7 +99,7 @@ async function runUnenrolled(logger: Logger): Promise<void> {
       );
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
-    handler = meshToolHandler(toolDeps(session, agentId));
+    handler = meshTools(session, agentId);
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => undefined);
     logger.info({ agent: agentId, version: VERSION }, 'joined the mesh');
@@ -107,6 +107,16 @@ async function runUnenrolled(logger: Logger): Promise<void> {
 
   await server.connect(new StdioServerTransport());
   logger.info({ version: VERSION }, 'agentmesh plugin waiting for join');
+}
+
+/** The mesh tools; after each call a pull session's counts may have changed (read, answered). */
+function meshTools(session: Session, agentId: string): ToolHandler {
+  const tools = meshToolHandler(toolDeps(session, agentId));
+  return {
+    list: tools.list,
+    call: (name, args, signal) =>
+      tools.call(name, args, signal).finally(() => void session.pull.refresh()),
+  };
 }
 
 function toolDeps(session: Session, agentId: string): ToolDeps {

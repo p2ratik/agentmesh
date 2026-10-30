@@ -12,9 +12,12 @@ Turn this session on for the mesh with the AgentMesh `activate` tool.
    `code` set to that code and `description` set to one line on what this session is working on:
    "$ARGUMENTS" if the user typed one, otherwise a line you write from this conversation, e.g.
    "checkout redesign in acme/web". Teammates see it when they pick a session.
-3. If the first call fails because the hub could not reach this session, or no message arrives
-   within a few seconds, tell the user what the tool said (the NATS permissions or the channel
-   flag). In Claude Desktop the flag cannot be passed, so the message never arrives: the session
-   stays pull-only and reads its messages with `inbox`.
+3. If no message arrives within a few seconds, this session was started without the channel flag
+   (Claude Desktop can never pass it). Call `activate` with `pull: true` and the same
+   `description`. Then tell the user the session is pull-only: nothing is pushed, new mesh
+   messages are announced on each prompt and read with `inbox`, and for instant pushes they can
+   restart it with `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.
+4. If the first call fails because the hub could not reach this session, tell the user what the
+   tool said (try again in a few seconds, or the NATS permissions are outdated).
 
 Later, whenever this session's focus changes, call `describe_session` with a new line.

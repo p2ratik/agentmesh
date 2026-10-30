@@ -64,7 +64,30 @@ describe('session tools', () => {
     const result = await callTool('activate', args, deps);
     expect(calls.map((c) => [c.method, c.params])).toEqual([['session.activate', args]]);
     expect(text(result)).toBe('This session is active on the mesh as “checkout redesign”.');
-    expect(deps.activation).toEqual({ lastDescription: 'checkout redesign', renewedFrom: null });
+    expect(deps.activation).toEqual({
+      lastDescription: 'checkout redesign',
+      renewedFrom: null,
+      pull: false,
+    });
+  });
+
+  // Without the channel flag (Claude Desktop) the test message never arrives.
+  it('activate with pull: true activates pull-only without a code, and deactivate ends it', async () => {
+    const { deps, calls } = fakeHub({
+      'session.activate': { ...view(true, 'desktop'), delivery: 'pull' },
+      'session.deactivate': view(false, 'desktop'),
+    });
+    const noDescription = await callTool('activate', { pull: true }, deps);
+    expect(noDescription.isError).toBe(true);
+    const result = await callTool('activate', { pull: true, description: 'desktop' }, deps);
+    expect(calls.map((c) => [c.method, c.params])).toEqual([
+      ['session.activate', { mode: 'pull', description: 'desktop' }],
+    ]);
+    expect(text(result)).toContain('active on the mesh as “desktop”, pull-only');
+    expect(text(result)).toContain('announced on each prompt');
+    expect(deps.activation.pull).toBe(true);
+    await callTool('deactivate', {}, deps);
+    expect(deps.activation.pull).toBe(false);
   });
 
   it('activate needs a description with the code, and reports a code the hub refused', async () => {
@@ -90,7 +113,7 @@ describe('session tools', () => {
     expect(deps.activation.lastDescription).toBe('billing v2');
     deps.activation.renewedFrom = 'billing';
     await callTool('deactivate', {}, deps);
-    expect(deps.activation).toEqual({ lastDescription: null, renewedFrom: null });
+    expect(deps.activation).toEqual({ lastDescription: null, renewedFrom: null, pull: false });
     const took = await callTool('take', { task_id: 'task-9' }, deps);
     expect(text(took)).toContain('thr-9');
     await callTool('take', { thread_id: 'thr-9' }, deps);
