@@ -168,6 +168,9 @@ describe('join tool', () => {
     );
     const text = `${first.content[0]?.text}${second.content[0]?.text}`;
     expect(second.content[0]?.text).toContain('Joined the AgentMesh "acme" as dana-agent');
+    expect(second.content[0]?.text).toMatch(
+      /Only if they say yes, run `node "[^"\\]+\/cli\.js" autoupdate`/,
+    );
     expect(text).not.toContain(SEED);
     expect(text).not.toContain(CODE);
     expect(text).not.toContain(payload.secret);
