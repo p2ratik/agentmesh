@@ -1298,7 +1298,7 @@ var require_sonic_boom = __commonJS({
       if (!(this instanceof SonicBoom)) {
         return new SonicBoom(opts);
       }
-      let { fd, dest, minLength, maxLength, maxWrite, periodicFlush, sync, append = true, mkdir, retryEAGAIN, fsync, contentMode, mode } = opts || {};
+      let { fd, dest, minLength, maxLength, maxWrite, periodicFlush, sync, append = true, mkdir: mkdir2, retryEAGAIN, fsync, contentMode, mode } = opts || {};
       fd = fd || dest;
       this._len = 0;
       this.fd = -1;
@@ -1323,7 +1323,7 @@ var require_sonic_boom = __commonJS({
       this.append = append || false;
       this.mode = mode;
       this.retryEAGAIN = retryEAGAIN || (() => true);
-      this.mkdir = mkdir || false;
+      this.mkdir = mkdir2 || false;
       let fsWriteSync;
       let fsWrite;
       if (contentMode === kContentModeBuffer) {
@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join5 } = __require("path");
+    var { join: join8 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join5(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join8(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync4 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join5, isAbsolute, sep } = __require("node:path");
+    var { join: join8, isAbsolute, sep } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
     var sleep3 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join5(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join8(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join5(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join8(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join5(__dirname, "..", "file.js");
+          return join8(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join5 = ",";
+            let join8 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join5 = `,
+                join8 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join5;
+                res += join8;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join5}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join5 = `,
+              join8 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join5;
+                separator = join8;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join5;
+              separator = join8;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join5 = ",";
+            let join8 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join5 = `,
+                join8 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join5;
+                res += join8;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join5}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join5 = `,
+              join8 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join5;
+                separator = join8;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join6 = `,
+              const join9 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join6;
+                res2 += join9;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join5 = `,
+            const join8 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join5, maximumBreadth);
+              res += stringifyTypedArray(value, join8, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join5;
+              separator = join8;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join5;
+                separator = join8;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join5;
+              separator = join8;
             }
             if (separator !== "") {
               res = `
@@ -25494,7 +25494,7 @@ function expandHome(path, home = homedir2()) {
 }
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.1";
+var VERSION = "0.4.2";
 
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process2 from "node:process";
@@ -46863,8 +46863,10 @@ var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
 var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
 var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
+var DeliveryMode = external_exports.enum(["push", "pull"]);
 var SessionSummary = external_exports.object({
   id: SessionId,
+  delivery: DeliveryMode.default("push"),
   description: external_exports.string(),
   repo: external_exports.string().nullable(),
   branch: external_exports.string().nullable(),
@@ -47424,6 +47426,7 @@ var leaseMethods = {
 };
 
 // ../../packages/protocol/src/rpc/messaging.ts
+var MAX_PEEK_SENDERS = 5;
 var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
 var messagingMethods = {
   "message.send": defineMethod({
@@ -47499,6 +47502,19 @@ var messagingMethods = {
           liveness: external_exports.enum(["live", "away"])
         })
       ).default([])
+    })
+  }),
+  "inbox.peek": defineMethod({
+    description: "Counts what `inbox.get` would return for this session, without marking anything read: unread threads, how many need action, recent senders and whether any is external.",
+    callers: ["agent"],
+    params: external_exports.object({}),
+    result: external_exports.object({
+      threads: external_exports.number().int().nonnegative(),
+      /** Threads with an unread action item (the rest are FYI only). */
+      actions: external_exports.number().int().nonnegative(),
+      /** Distinct sender ids of the unread messages, newest first. */
+      from: external_exports.array(external_exports.string()).max(MAX_PEEK_SENDERS),
+      external: external_exports.boolean()
     })
   }),
   "messages.seen": defineMethod({
@@ -47590,6 +47606,7 @@ var planningMethods = {
 var SessionView = external_exports.object({
   id: SessionId,
   active: external_exports.boolean(),
+  delivery: DeliveryMode.default("push"),
   description: external_exports.string().nullable(),
   repo: external_exports.string().nullable(),
   branch: external_exports.string().nullable(),
@@ -47644,11 +47661,14 @@ var sessionMethods = {
     result: external_exports.object({ ok: external_exports.literal(true) })
   }),
   "session.activate": defineMethod({
-    description: "Make this session the one that receives work: the code from its check and a short description.",
+    description: "Make this session one that receives work: the code from its check and a short description. In `pull` mode (no channel flag) no code is needed and nothing is pushed: it reads with inbox.",
     callers: ["agent"],
     params: external_exports.object({
-      code: external_exports.string().min(1).max(20),
+      mode: DeliveryMode.default("push"),
+      code: external_exports.string().min(1).max(20).optional(),
       description: external_exports.string().min(1).max(200)
+    }).refine((p) => p.mode === "pull" || p.code !== void 0, {
+      message: 'Pass the code from the test message, or mode "pull".'
     }),
     result: SessionView
   }),
@@ -47881,6 +47901,7 @@ var MAX_INSTRUCTIONS = 4096;
 var PROTOCOL = `How the mesh works:
 - Mesh events arrive as <channel source="plugin:agentmesh:mesh" \u2026> tags with thread_id (pass it to reply), from / from_kind (agent|human|service), kind (ask, reply, broadcast, task, review, plan, escalation, event, system), status, task_id, plan_id, pr_url, trust.
 - Pushes are best-effort; the inbox tool is the source of truth. Once this session is active, call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
+- A pull-only session (activate with pull: true, e.g. Claude Desktop) gets no pushes; an AgentMesh line on each prompt says when mesh work is waiting.
 - Status updates ride along at the end of your next mesh tool result; they never start a turn.
 - Answer with reply(thread_id, text, status: answer|accepted|declined|working|blocked|done|needs_human|info). Skip replies to pure FYI. Be short and evidence-based (files, lines, commands run).
 - ask(to, text) a teammate; broadcast to all; peers() shows who is online and their load.
@@ -48451,7 +48472,8 @@ function formatPeers(peers) {
 function formatSession(s) {
   const where = s.repo ? ` (${s.repo}${s.branch ? `@${s.branch}` : ""})` : "";
   const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(", ")}` : "";
-  return `    \xB7 ${s.id} \u2014 ${s.description}${where}${owns}`;
+  const pull = s.delivery === "pull" ? " [pull: reads on its next prompt]" : "";
+  return `    \xB7 ${s.id} \u2014 ${s.description}${where}${owns}${pull}`;
 }
 function formatMessage(m) {
   const tags = [m.kind, m.status, m.trust === "external" ? "EXTERNAL" : null].filter(Boolean).join(", ");
@@ -48874,31 +48896,48 @@ var planningTools = [
 // src/tools/sessions.ts
 var Description = external_exports.string().min(1).max(200);
 var LISTEN_WAIT_MS = 3e3;
-var CHECK_SENT = "Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag: restart it with claude --dangerously-load-development-channels plugin:agentmesh@agentmesh. Claude Desktop cannot pass that flag, so a Desktop session cannot be activated: tell your human it stays pull-only, and call inbox when they ask; every other tool works without activation.";
+var RESTART = "claude --dangerously-load-development-channels plugin:agentmesh@agentmesh";
+var CHECK_SENT = `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag (Claude Desktop cannot pass that flag): call activate with pull: true and the description instead, and tell your human the session is pull-only. For instant pushes they can restart it with ${RESTART}.`;
+var PULL_ACTIVE = `Nothing is pushed to this pull-only session: new mesh messages are announced on each prompt, and the inbox tool reads them. Tell your human; for instant pushes, restart the session with ${RESTART}.`;
+var needDescription = () => new MeshError(
+  "invalid_request",
+  "Pass description too: one line on what this session is working on."
+);
 var sessionTools = [
   defineTool({
     name: "activate",
-    description: "Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing.",
-    input: external_exports.object({ code: external_exports.string().optional(), description: Description.optional() }),
+    description: "Turn this session on for the mesh, only when your human asks (/agentmesh:activate). Until then it receives nothing. pull: true activates it without pushes; use it only when the test message did not arrive (no channel flag, or Claude Desktop).",
+    input: external_exports.object({
+      code: external_exports.string().optional(),
+      description: Description.optional(),
+      pull: external_exports.boolean().optional()
+    }),
     mutating: false,
     run: async (args, { hub, activation, listening }) => {
+      if (args.pull) {
+        if (!args.description) throw needDescription();
+        const view2 = await hub.call("session.activate", {
+          mode: "pull",
+          description: args.description
+        });
+        activation.lastDescription = view2.description ?? args.description;
+        activation.renewedFrom = null;
+        activation.pull = true;
+        return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D, pull-only. ${PULL_ACTIVE}`;
+      }
       if (args.code === void 0) {
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
         await hub.call("session.check", {});
         return CHECK_SENT;
       }
-      if (!args.description) {
-        throw new MeshError(
-          "invalid_request",
-          "Pass description too: one line on what this session is working on."
-        );
-      }
+      if (!args.description) throw needDescription();
       const view = await hub.call("session.activate", {
         code: args.code,
         description: args.description
       });
       activation.lastDescription = view.description ?? args.description;
       activation.renewedFrom = null;
+      activation.pull = false;
       return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
     }
   }),
@@ -48911,6 +48950,7 @@ var sessionTools = [
       await hub.call("session.deactivate", {});
       activation.lastDescription = null;
       activation.renewedFrom = null;
+      activation.pull = false;
       return "This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.";
     }
   }),
@@ -49194,7 +49234,10 @@ function text(value, isError = false) {
 
 // src/join/tool.ts
 import { homedir as homedir6 } from "node:os";
+import { join as join5 } from "node:path";
 var JOIN_TOOL = "join";
+var CLI = join5(import.meta.dirname, "cli.js").replaceAll("\\", "/");
+var AUTOUPDATE_OFFER = `Then ask your human whether to turn on automatic updates for the AgentMesh plugin. Only if they say yes, run \`node "${CLI}" autoupdate\` and show what it printed.`;
 var JoinInput = external_exports.object({
   invite_file: external_exports.string().optional().describe(
     "File holding the invite code (default ~/.agentmesh/invite.txt). Never ask for the code itself."
@@ -49234,7 +49277,8 @@ Ask your human whether ${outcome.summary.hub} is your team's hub. Only if they s
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : "";
     return text2(
-      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.`
+      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.
+${AUTOUPDATE_OFFER}`
     );
   } catch (error63) {
     return text2(isMeshError(error63) ? error63.message : `join failed: ${String(error63)}`, true);
@@ -51024,6 +51068,9 @@ function pushEvent(server, event2) {
   });
 }
 
+// src/session.ts
+import { homedir as homedir7 } from "node:os";
+
 // src/hub.ts
 import { setTimeout as sleep2 } from "node:timers/promises";
 var UNREACHABLE = "The mesh hub is unreachable right now; nothing was sent. Try again shortly.";
@@ -51297,10 +51344,98 @@ var Presence = class {
   }
 };
 
+// src/pull/state.ts
+import { join as join6 } from "node:path";
+var STATE_MAX_AGE_MS = 2 * 6e4;
+function pullStateDirs(env, home) {
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join6(home, ".agentmesh", "run")];
+  return [...new Set(dirs.filter((d) => !!d))];
+}
+var pullStateFile = (prefix, agentId, sessionId) => `pull-${prefix}-${agentId}-${sessionId}.json`;
+
+// src/pull/watcher.ts
+import { rmSync as rmSync2 } from "node:fs";
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { join as join7 } from "node:path";
+var POLL_MS = 3e4;
+var PullWatcher = class {
+  #deps;
+  #file = null;
+  #running = null;
+  #again = false;
+  #timer = null;
+  constructor(deps) {
+    this.#deps = deps;
+  }
+  start() {
+    this.#timer = setInterval(() => void this.refresh(), POLL_MS);
+    this.#timer.unref();
+  }
+  /** One refresh at a time; a call during one runs once more after it, so no change is missed. */
+  refresh() {
+    if (this.#running) {
+      this.#again = true;
+      return this.#running;
+    }
+    this.#running = this.#refresh().finally(() => {
+      this.#running = null;
+      if (!this.#again) return;
+      this.#again = false;
+      void this.refresh();
+    });
+    return this.#running;
+  }
+  /** Removes this process's state file. Synchronous, so it also runs on the way out. */
+  clear() {
+    if (!this.#file) return;
+    try {
+      rmSync2(this.#file, { force: true });
+    } catch (err) {
+      this.#deps.logger.warn({ err }, "could not remove the pull state file");
+    }
+    this.#file = null;
+  }
+  stop() {
+    if (this.#timer) clearInterval(this.#timer);
+    this.#timer = null;
+    this.clear();
+  }
+  async #refresh() {
+    const { hub, activation, logger } = this.#deps;
+    const sessionId = hub.sessionId;
+    if (!activation.pull || !sessionId) return this.clear();
+    try {
+      const peek = await hub.call("inbox.peek", {});
+      if (!activation.pull || hub.sessionId !== sessionId) return;
+      const { agentId, prefix, dir, projectDir } = this.#deps;
+      const file2 = join7(dir, pullStateFile(prefix, agentId, sessionId));
+      if (this.#file !== file2) this.clear();
+      const state = {
+        agentId,
+        sessionId,
+        projectDir,
+        // Field by field: counts and ids only, whatever else a hub might send.
+        threads: peek.threads,
+        actions: peek.actions,
+        from: peek.from,
+        external: peek.external,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      await mkdir(dir, { recursive: true, mode: 448 });
+      await writeFile(`${file2}.tmp`, JSON.stringify(state), { mode: 384 });
+      await rename(`${file2}.tmp`, file2);
+      this.#file = file2;
+    } catch (err) {
+      logger.warn({ err }, "could not refresh the pull state");
+    }
+  }
+};
+
 // src/tools/activation.ts
 var newActivationState = () => ({
   lastDescription: null,
-  renewedFrom: null
+  renewedFrom: null,
+  pull: false
 });
 function checkEvent(code, previous) {
   const intro = previous ? "This session reconnected to the mesh after a long absence and is no longer active. " : "";
@@ -51317,7 +51452,9 @@ var HELLO_WAIT_MS2 = 4e3;
 var SHUTDOWN_MS = 250;
 async function openSession(config2, logger) {
   const hub = new HubClient(config2, logger);
-  const presence = new Presence(hub, logger, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
+  const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  const presence = new Presence(hub, logger, projectDir);
+  const activation = newActivationState();
   hub.connect();
   await presence.refreshGit();
   let inFlight = null;
@@ -51326,10 +51463,19 @@ async function openSession(config2, logger) {
     hub,
     presence,
     hello: null,
-    activation: newActivationState(),
+    activation,
     fyi: new FyiBuffer(),
     onHello: null,
     listening: Promise.withResolvers(),
+    pull: new PullWatcher({
+      hub,
+      activation,
+      agentId: config2.agentId,
+      prefix: config2.prefix,
+      dir: pullStateDirs(process.env, homedir7())[0] ?? ".",
+      projectDir,
+      logger
+    }),
     sayHello: () => {
       inFlight ??= register(hub, presence, logger).then((landed) => {
         if (landed) session.onHello?.(landed.renewed);
@@ -51358,6 +51504,7 @@ function startSession(server, session, logger, pushDelayMs) {
     if (renewed) recheck(session, logger);
   };
   presence.start();
+  session.pull.start();
   const retry = setInterval(
     () => hub.sessionId ? inbox?.retryFailed() : rehello(),
     hub.config.heartbeatSeconds * 1e3
@@ -51381,6 +51528,7 @@ function startSession(server, session, logger, pushDelayMs) {
   };
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
+    session.pull.stop();
     abort.abort();
     clearInterval(retry);
     hub.onSessionLost = null;
@@ -51398,6 +51546,11 @@ function startSession(server, session, logger, pushDelayMs) {
 function recheck(session, logger) {
   const { activation, hub } = session;
   if (activation.lastDescription === null) return;
+  if (activation.pull) {
+    logger.info({ session: hub.sessionId }, "new hub session; re-activating it in pull mode");
+    void hub.call("session.activate", { mode: "pull", description: activation.lastDescription }).then(() => session.pull.refresh()).catch((err) => logger.warn({ err }, "could not re-activate the pull session"));
+    return;
+  }
   activation.renewedFrom = activation.lastDescription;
   logger.info({ session: hub.sessionId }, "new hub session; re-running the activation check");
   void hub.call("session.check", {}).catch((err) => logger.warn({ err }, "could not start the activation check"));
@@ -51454,7 +51607,7 @@ async function runConfigured(config2, logger) {
     problems: []
   });
   const server = createMcpServer(instructions, () => handler);
-  const handler = meshToolHandler(toolDeps(session, config2.agentId));
+  const handler = meshTools(session, config2.agentId);
   server.oninitialized = () => {
     cleanup = startSession(server, session, logger, CHANNEL_READY_MS);
   };
@@ -51491,13 +51644,20 @@ async function runUnenrolled(logger) {
       );
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
     const session = await openSession(resolved.config, logger);
-    handler = meshToolHandler(toolDeps(session, agentId));
+    handler = meshTools(session, agentId);
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => void 0);
     logger.info({ agent: agentId, version: VERSION }, "joined the mesh");
   }
   await server.connect(new StdioServerTransport());
   logger.info({ version: VERSION }, "agentmesh plugin waiting for join");
+}
+function meshTools(session, agentId) {
+  const tools = meshToolHandler(toolDeps(session, agentId));
+  return {
+    list: tools.list,
+    call: (name, args, signal) => tools.call(name, args, signal).finally(() => void session.pull.refresh())
+  };
 }
 function toolDeps(session, agentId) {
   return {
