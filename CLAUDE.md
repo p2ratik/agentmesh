@@ -200,11 +200,11 @@ Run `pnpm check` before calling anything done.
 
 ## Status (as of 2026-10-30)
 
-**Built (v1, release 0.4.2):**
+**Built (v1, release 0.4.3):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
-- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take|setup`, and an unenrolled
+- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take|setup|autoupdate`, and an unenrolled
   mode with `join` and `connect`.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
   commands, buttons, echo guard, `/mesh invite|uninvite|remove`.

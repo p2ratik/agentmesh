@@ -25494,7 +25494,7 @@ function expandHome(path, home = homedir2()) {
 }
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.2";
+var VERSION = "0.4.3";
 
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process2 from "node:process";

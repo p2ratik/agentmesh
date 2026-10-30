@@ -233,7 +233,8 @@ editing it, followed by a re-render or a hub restart. The steps differ by mode; 
 Claude Code leaves automatic updates off for a marketplace you add yourself, and the marketplace
 cannot turn them on for you. Turn them on once per Claude account, in any of these ways:
 
-- **The command.** `/agentmesh:join` and `/agentmesh:setup` offer to run it. From a terminal:
+- **The command.** In Claude Code, run `/agentmesh:autoupdate` (`/agentmesh:autoupdate off` turns
+  it off again). `/agentmesh:join` and `/agentmesh:setup` also offer it. From a terminal:
 
   ```bash
   node <plugin dir>/dist/cli.js autoupdate     # --off turns it off again

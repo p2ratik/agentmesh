@@ -1,6 +1,6 @@
 {
   "name": "@agentmesh/plugin",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "Claude Code channel plugin: connects a local session to the AgentMesh hub.",
