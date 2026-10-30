@@ -25,6 +25,7 @@ export const MAX_INSTRUCTIONS = 4096;
 const PROTOCOL = `How the mesh works:
 - Mesh events arrive as <channel source="plugin:agentmesh:mesh" …> tags with thread_id (pass it to reply), from / from_kind (agent|human|service), kind (ask, reply, broadcast, task, review, plan, escalation, event, system), status, task_id, plan_id, pr_url, trust.
 - Pushes are best-effort; the inbox tool is the source of truth. Once this session is active, call inbox at session start, after a compaction, and whenever you suspect you missed something. Ignore exact duplicates.
+- A pull-only session (activate with pull: true, e.g. Claude Desktop) gets no pushes; an AgentMesh line on each prompt says when mesh work is waiting.
 - Status updates ride along at the end of your next mesh tool result; they never start a turn.
 - Answer with reply(thread_id, text, status: answer|accepted|declined|working|blocked|done|needs_human|info). Skip replies to pure FYI. Be short and evidence-based (files, lines, commands run).
 - ask(to, text) a teammate; broadcast to all; peers() shows who is online and their load.

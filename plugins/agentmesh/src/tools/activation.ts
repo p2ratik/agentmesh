@@ -9,11 +9,14 @@ export interface ActivationState {
   lastDescription: string | null;
   /** The line an active session had when the hub replaced it; the next check suggests it again. */
   renewedFrom: string | null;
+  /** Active in pull mode (ADR 0008): nothing is pushed; the prompt hook announces unread work. */
+  pull: boolean;
 }
 
 export const newActivationState = (): ActivationState => ({
   lastDescription: null,
   renewedFrom: null,
+  pull: false,
 });
 
 /**

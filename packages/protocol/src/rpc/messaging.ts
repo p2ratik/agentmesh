@@ -3,6 +3,9 @@ import { MeshMessage, ReplyStatus, SendableKind, ThreadKind, ThreadSummary } fro
 import { IdRef } from '../primitives';
 import { ANY_CALLER, defineMethod, PARTICIPANTS } from './define';
 
+/** Most sender ids an `inbox.peek` names. */
+export const MAX_PEEK_SENDERS = 5;
+
 const Recipients = z
   .array(IdRef.min(1))
   .min(1)
@@ -91,6 +94,21 @@ export const messagingMethods = {
           }),
         )
         .default([]),
+    }),
+  }),
+  'inbox.peek': defineMethod({
+    description:
+      'Counts what `inbox.get` would return for this session, without marking anything read: ' +
+      'unread threads, how many need action, recent senders and whether any is external.',
+    callers: ['agent'],
+    params: z.object({}),
+    result: z.object({
+      threads: z.number().int().nonnegative(),
+      /** Threads with an unread action item (the rest are FYI only). */
+      actions: z.number().int().nonnegative(),
+      /** Distinct sender ids of the unread messages, newest first. */
+      from: z.array(z.string()).max(MAX_PEEK_SENDERS),
+      external: z.boolean(),
     }),
   }),
   'messages.seen': defineMethod({

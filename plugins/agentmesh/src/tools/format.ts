@@ -32,11 +32,12 @@ export function formatPeers(peers: readonly PeerInfo[]): string {
     .join('\n');
 }
 
-/** An active session, which an `ask` can pick with `to_session`. */
+/** An active session, which an `ask` can pick with `to_session`. A pull one reads on its next prompt. */
 function formatSession(s: SessionSummary): string {
   const where = s.repo ? ` (${s.repo}${s.branch ? `@${s.branch}` : ''})` : '';
   const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(', ')}` : '';
-  return `    · ${s.id} — ${s.description}${where}${owns}`;
+  const pull = s.delivery === 'pull' ? ' [pull: reads on its next prompt]' : '';
+  return `    · ${s.id} — ${s.description}${where}${owns}${pull}`;
 }
 
 /** A header line, then the body quoted (`│ `), so no body line can pass for another entry. */

@@ -215,6 +215,7 @@ describe('sessions service', () => {
     expect(listed()).toEqual([
       {
         id: s2,
+        delivery: 'push',
         description: 'checkout redesign',
         repo: null,
         branch: null,

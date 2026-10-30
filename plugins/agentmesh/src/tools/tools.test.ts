@@ -110,6 +110,7 @@ describe('tool registry', () => {
         },
         {
           id: 's-cccccccccccc',
+          delivery: 'pull',
           description: 'reading docs',
           repo: null,
           branch: null,
@@ -123,7 +124,7 @@ describe('tool registry', () => {
     expect(lines[0]).toMatch(/^- bob-agent /);
     expect(lines.slice(1)).toEqual([
       '    · s-bbbbbbbbbbbb — checkout redesign (opzami/web@agent/bob/task-7-checkout) owns task-7',
-      '    · s-cccccccccccc — reading docs',
+      '    · s-cccccccccccc — reading docs [pull: reads on its next prompt]',
     ]);
   });
 

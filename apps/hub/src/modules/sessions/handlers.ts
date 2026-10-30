@@ -108,10 +108,14 @@ export function sessionHandlers(
       }
       return { ok: true };
     },
+    /**
+     * The code proves pushes reach the session. A pull session gets none, so it needs no
+     * proof: only the authenticated agent can activate its own session (security.md).
+     */
     'session.activate': (params, call) => {
       const session = own(call);
-      checks.confirm(session, params.code, now());
-      sessions.activate(call.actor.id, session, params.description);
+      if (params.mode === 'push') checks.confirm(session, params.code ?? '', now());
+      sessions.activate(call.actor.id, session, params.description, params.mode);
       return sessions.view(session);
     },
     'session.deactivate': (_params, call) => {

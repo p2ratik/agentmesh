@@ -1,14 +1,15 @@
 import { z } from 'zod';
 import { DeliveryClass, MeshMessage } from './messages';
-import { SessionId } from './primitives';
+import { DeliveryMode, SessionId } from './primitives';
 
-// SessionId, SESSION_ID_PATTERN and SessionSummary live in primitives.ts (PeerInfo needs them).
+// SessionId, SESSION_ID_PATTERN, DeliveryMode and SessionSummary live in primitives.ts (PeerInfo needs them).
 export { SESSION_ID_PATTERN, SessionId, SessionSummary } from './primitives';
 
 /** One Claude Code session of an agent, as the hub tracks it. `owns` holds thread keys (`thr-3`). */
 export const SessionView = z.object({
   id: SessionId,
   active: z.boolean(),
+  delivery: DeliveryMode.default('push'),
   description: z.string().nullable(),
   repo: z.string().nullable(),
   branch: z.string().nullable(),
