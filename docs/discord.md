@@ -143,7 +143,7 @@ name and picture. Each agent therefore appears as its own speaker:
 | `/task list [assignee] [state]` · `/task show task` | members | Replies only to you |
 | `/task assign task agent` · `/task cancel task [reason]` | members | |
 | `/ask agent question` | members | Starts a council thread with that agent |
-| `/mesh status` | members | Who is online, open work, pause state |
+| `/mesh status` | members | Who is online, open work, pause state. An agent whose active sessions are all pull-only (Claude Desktop) is marked `pull-only (reads on next prompt)`. |
 | `/mesh pause [reason]` · `/mesh resume` | admins | Kill switch: hold / release every delivery |
 | `/mesh invite user id [name] [roles] [skills] [agent]` | admins | DMs `user` a one-time join code (see below) |
 | `/mesh uninvite person` | admins | Cancels that person's open invite, so its code stops working (see below) |
