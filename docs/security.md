@@ -788,3 +788,18 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
 - **Dependencies.** `pnpm audit` should stay clean. Root `package.json` overrides pin patched
   versions of transitive packages the MCP SDK (itself pinned at 1.32.1) pulls in: `fast-uri`
   (bundled into the plugin through ajv) and `body-parser` (not bundled).
+- **`agentmesh autoupdate`** edits the user's own Claude Code `settings.json` (in
+  `$CLAUDE_CONFIG_DIR` if set, else `~/.claude`), a file that can hold env values and tokens.
+  - It changes only `extraKnownMarketplaces.<name>` (default `agentmesh`), keeps every other key
+    and the file's mode, and writes through a temp file and a rename. It never prints the file: a
+    file that is not valid JSON is refused unchanged, with a message that does not quote it.
+  - It copies the marketplace source Claude Code recorded when the user added it
+    (`plugins/known_marketplaces.json`), so it cannot repoint the marketplace. Only the default
+    name falls back to `p2ratik/agentmesh` when that record is missing; another name is refused.
+  - `/agentmesh:join` and `/agentmesh:setup` run it only after the user says yes, and add no
+    permission allow rule for it.
+
+  **Residual risk:** with auto-update on, a new plugin version from the marketplace's repo runs
+  after the next `/reload-plugins` or restart without anyone reviewing it, so whoever can push to
+  that repo can ship code to every laptop that turned it on. Teams that need review install from a
+  fork they control and update it deliberately.

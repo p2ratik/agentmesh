@@ -22,9 +22,11 @@ describe('the /agentmesh:setup skill', () => {
     expect(calls.length).toBeGreaterThan(5);
     for (const call of calls) {
       expect(call).toMatch(
-        /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/dist\/cli\.js" [a-z <>]+ --dir "<workspace>"/,
+        // `autoupdate` edits the admin's Claude Code settings, not the workspace.
+        /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/dist\/cli\.js" ([a-z <>]+ --dir "<workspace>"|autoupdate$)/,
       );
     }
+    expect(calls.some((call) => call.endsWith('/dist/cli.js" autoupdate'))).toBe(true);
   });
 
   it('shows Claude an answers file that the CLI accepts', async () => {

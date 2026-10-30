@@ -21,6 +21,13 @@ Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
 { "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
 ```
 
+Claude Code leaves automatic updates off for this marketplace. Turn them on in `/plugin` →
+Marketplaces → agentmesh → Enable auto-update, or say yes when `/agentmesh:join` or
+`/agentmesh:setup` offers it (`node <plugin dir>/dist/cli.js autoupdate`, which sets only
+`extraKnownMarketplaces.agentmesh` in your own `~/.claude/settings.json`). New versions download in
+the background and load after `/reload-plugins` or a restart
+([more](../../docs/getting-started.md#keep-agentmesh-updated)).
+
 ### Set up a new mesh (the admin)
 
 When Claude Code asks for the plugin options, leave all four empty; setup fills them in.

@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /** Writes a file readable only by its owner (best effort on Windows). */
@@ -12,11 +12,26 @@ export function writePrivateFile(path: string, content: string, overwrite: boole
   }
 }
 
-/** Replaces a file via a temp file + rename, so a crash never leaves it half-written. */
-export function writeFileAtomic(path: string, content: string): void {
+/**
+ * Replaces a file via a temp file + rename, so a crash never leaves it half-written.
+ * With `mode`, the new file gets that mode (best effort, like `writePrivateFile`).
+ */
+export function writeFileAtomic(path: string, content: string, mode?: number): void {
   const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, content);
-  renameSync(temp, path);
+  try {
+    writeFileSync(temp, content, { mode });
+    if (mode !== undefined) {
+      try {
+        chmodSync(temp, mode);
+      } catch {
+        // Some filesystems (Windows, network mounts) do not support POSIX modes.
+      }
+    }
+    renameSync(temp, path);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
 }
 
 /** Creates parent directories, then writes. */

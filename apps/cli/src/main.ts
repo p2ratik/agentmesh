@@ -1,5 +1,6 @@
 import { isMeshError } from '@agentmesh/common';
 import { agentSetupCommand } from './commands/agent-setup';
+import { autoupdateCommand } from './commands/autoupdate';
 import { doctorCommand } from './commands/doctor';
 import { initCommand } from './commands/init';
 import { keysAddCommand, keysListCommand } from './commands/keys';
@@ -31,6 +32,7 @@ export const COMMANDS: readonly Command[] = [
   setupInvitesCommand,
   doctorCommand,
   upgradeCommand,
+  autoupdateCommand,
 ];
 
 function usage(): string {

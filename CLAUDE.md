@@ -126,7 +126,8 @@ file is gitignored and is never committed.
   - Human replies in mirrored threads are relayed to agents as `from_kind="human"`.
 - **CLI** (`apps/cli`, run as `pnpm mesh …`, or `node <plugin dir>/dist/cli.js …` from the
   plugin): `init`, `validate`, `keys add|list`, `nats-config [--tls|--dev]`, `agent-setup`, and
-  for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`.
+  for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`, plus
+  `autoupdate [--off]` (turns on Claude Code's plugin auto-update for the user's own account).
   The setup steps work on a workspace folder (`--dir`), the source of truth after the first
   render; servers pull the hub and bridge images that CI publishes to GHCR.
 

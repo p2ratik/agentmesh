@@ -13,6 +13,10 @@ Join this laptop to an AgentMesh with the `join` tool of the AgentMesh plugin.
   hub. Only if they confirm, call `join` again with `confirm_hub` set to exactly that host.
 - If `join` says this laptop is already set up for another mesh, ask the user before calling it
   again with `replace: true`.
+- After `join` succeeds, ask the user whether to turn on automatic updates for the AgentMesh
+  plugin (Claude Code leaves them off for this marketplace). Only if they say yes, run
+  `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" autoupdate` and show what it printed. Never add
+  permission allow rules for it.
 - If there is no `join` tool, the plugin is already configured for a mesh, or it is not running.
   Tell the user, and mention the terminal alternative:
   `node <plugin dir>/dist/server.js join --file ~/.agentmesh/invite.txt`.
