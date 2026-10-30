@@ -1,0 +1,29 @@
+{
+  "description": "Pull-only AgentMesh sessions (Claude Desktop, or no channel flag): announces unread mesh work in one line on each prompt and at session start.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/dist/hook.js"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/dist/hook.js"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
