@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { DeclaredStatus, GitPolicy, GitRef, IdRef, PeerInfo, SessionId } from '../primitives';
+import {
+  DeclaredStatus,
+  DeliveryMode,
+  GitPolicy,
+  GitRef,
+  IdRef,
+  PeerInfo,
+  SessionId,
+} from '../primitives';
 import { SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
@@ -41,12 +49,18 @@ export const sessionMethods = {
   }),
   'session.activate': defineMethod({
     description:
-      'Make this session the one that receives work: the code from its check and a short description.',
+      'Make this session one that receives work: the code from its check and a short description. ' +
+      'In `pull` mode (no channel flag) no code is needed and nothing is pushed: it reads with inbox.',
     callers: ['agent'],
-    params: z.object({
-      code: z.string().min(1).max(20),
-      description: z.string().min(1).max(200),
-    }),
+    params: z
+      .object({
+        mode: DeliveryMode.default('push'),
+        code: z.string().min(1).max(20).optional(),
+        description: z.string().min(1).max(200),
+      })
+      .refine((p) => p.mode === 'pull' || p.code !== undefined, {
+        message: 'Pass the code from the test message, or mode "pull".',
+      }),
     result: SessionView,
   }),
   'session.deactivate': defineMethod({

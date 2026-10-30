@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import type { Logger } from '@agentmesh/common';
 import type { RpcResult } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -6,6 +7,8 @@ import { HubClient } from './hub';
 import { FyiBuffer } from './inbox/fyi';
 import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
+import { pullStateDirs } from './pull/state';
+import { PullWatcher } from './pull/watcher';
 import { pushEvent, VERSION } from './server';
 import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
 
@@ -29,12 +32,16 @@ export interface Session {
   onHello: ((renewed: boolean) => void) | null;
   /** Resolved once the inbox first listens on the session subject (the hub's check goes there). */
   listening: PromiseWithResolvers<void>;
+  /** Keeps the prompt hook's state file current while this session is active in pull mode. */
+  pull: PullWatcher;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
 export async function openSession(config: PluginConfig, logger: Logger): Promise<Session> {
   const hub = new HubClient(config, logger);
-  const presence = new Presence(hub, logger, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
+  const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+  const presence = new Presence(hub, logger, projectDir);
+  const activation = newActivationState();
   hub.connect();
   await presence.refreshGit();
   let inFlight: Promise<Hello | null> | null = null;
@@ -43,10 +50,19 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     hub,
     presence,
     hello: null,
-    activation: newActivationState(),
+    activation,
     fyi: new FyiBuffer(),
     onHello: null,
     listening: Promise.withResolvers(),
+    pull: new PullWatcher({
+      hub,
+      activation,
+      agentId: config.agentId,
+      prefix: config.prefix,
+      dir: pullStateDirs(process.env, homedir())[0] ?? '.',
+      projectDir,
+      logger,
+    }),
     sayHello: () => {
       inFlight ??= register(hub, presence, logger)
         .then((landed) => {
@@ -93,6 +109,7 @@ export function startSession(
     if (renewed) recheck(session, logger);
   };
   presence.start();
+  session.pull.start();
   // Without a session the hub delivers nothing, so keep asking until it answers; a refused
   // subscription (NATS permissions, say) is retried on the same beat.
   const retry = setInterval(
@@ -120,6 +137,7 @@ export function startSession(
   // ponytail: fixed delay, no ready signal exists; missed pushes still show up via inbox.
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
+    session.pull.stop();
     abort.abort();
     clearInterval(retry);
     hub.onSessionLost = null;
@@ -139,11 +157,20 @@ export function startSession(
 /**
  * The hub closed this window's active session (a long sleep, say) and gave it a
  * new, inactive one. The human opted this window in, so Claude re-confirms
- * through a fresh check (sent by the hub) that suggests the previous line.
+ * through a fresh check (sent by the hub) that suggests the previous line. A
+ * pull session gets no check to answer, so it re-activates in pull mode at once.
  */
 function recheck(session: Session, logger: Logger): void {
   const { activation, hub } = session;
   if (activation.lastDescription === null) return;
+  if (activation.pull) {
+    logger.info({ session: hub.sessionId }, 'new hub session; re-activating it in pull mode');
+    void hub
+      .call('session.activate', { mode: 'pull', description: activation.lastDescription })
+      .then(() => session.pull.refresh())
+      .catch((err) => logger.warn({ err }, 'could not re-activate the pull session'));
+    return;
+  }
   activation.renewedFrom = activation.lastDescription;
   logger.info({ session: hub.sessionId }, 'new hub session; re-running the activation check');
   void hub

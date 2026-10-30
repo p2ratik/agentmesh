@@ -22,6 +22,7 @@ export const autoAssign: Effect = (env, run) => {
     maxActive: cfg.maxActiveTasksPerAgent,
     preferOnline: cfg.preferOnline,
     isOnline: (id) => presence.isOnline(id),
+    reachesInstantly: (id) => presence.reachesInstantly(id),
     lastAssignedAt: (id) => presence.lastAssignedAt(id),
   });
   if (winner && env.applySystem(task.id, 'assign', { to: winner })) {

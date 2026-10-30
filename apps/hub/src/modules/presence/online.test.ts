@@ -7,11 +7,11 @@ import { agent, baseTask as base, human } from '../../testing/tasks';
 function setup() {
   const h = createTestHarness();
   const { presence, sessions, tasks } = buildModules(h.ctx, null, { kick: null }).services;
-  /** A heartbeating agent with one open session, activated or not. */
-  const connect = (agentId: string, active: boolean) => {
+  /** A heartbeating agent with one open session: inactive, active (push), or active in pull mode. */
+  const connect = (agentId: string, active: boolean | 'pull') => {
     presence.touch(agentId);
     const id = sessions.open(agentId, { clientVersion: '0.3.0' }).session.id;
-    if (active) sessions.activate(agentId, id, 'working');
+    if (active) sessions.activate(agentId, id, 'working', active === 'pull' ? 'pull' : 'push');
     return id;
   };
   const reviewRequest = async (id: string) => {
@@ -80,5 +80,34 @@ describe('online', () => {
     const request = await reviewRequest('carol-agent');
     expect(request?.body).toContain('Review requested');
     expect(request?.body).not.toContain('has no active session');
+  });
+
+  it('counts a pull session as online, but not as reached at once', () => {
+    const { presence, connect } = setup();
+    connect('alice-agent', 'pull');
+    expect(presence.isOnline('alice-agent')).toBe(true);
+    expect(presence.reachesInstantly('alice-agent')).toBe(false);
+    connect('carol-agent', true);
+    expect(presence.reachesInstantly('carol-agent')).toBe(true);
+  });
+
+  it('assigns to a push owner over a pull-only one, and to pull-only over nobody', () => {
+    const { tasks, connect } = setup();
+    connect('alice-agent', 'pull');
+    connect('carol-agent', true);
+    expect(tasks.create({ ...base, area: 'api' }, human('bob')).assignee).toBe('carol-agent');
+    const second = setup();
+    second.connect('alice-agent', 'pull');
+    expect(second.tasks.create({ ...base, area: 'api' }, human('bob')).assignee).toBe(
+      'alice-agent',
+    );
+  });
+
+  it('picks a push reviewer over a pull-only one', () => {
+    const { ctx, connect, submitted } = setup();
+    ctx.index.config.review.maxReviewers = 1;
+    connect('alice-agent', 'pull');
+    connect('carol-agent', true);
+    expect(submitted().reviewers).toEqual(['carol-agent']);
   });
 });

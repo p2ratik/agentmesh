@@ -60,11 +60,15 @@ export function asked(agent: string, threadId: string, councilChannel: string | 
   return `💬 Asked **${agent}** (${threadId}). The conversation will appear${channel(councilChannel)}.`;
 }
 
+/** Active sessions all in pull mode: work reaches the agent on its next prompt, not at once. */
+const pullOnly = (p: PeerInfo): boolean =>
+  p.sessions.length > 0 && p.sessions.every((s) => s.delivery === 'pull');
+
 export function meshStatus(status: RpcResult<'mesh.status'>): string {
   const agents = status.peers.filter((p) => p.kind === 'agent');
   const lines = agents.map(
     (p) =>
-      `${STATUS_DOT[p.status]} **${p.id}** ${p.status}${p.statusNote ? ` — ${p.statusNote}` : ''} · ${p.activeTasks} task(s)${p.repo ? ` · ${p.repo}${p.branch ? `@${p.branch}` : ''}` : ''}`,
+      `${STATUS_DOT[p.status]} **${p.id}** ${p.status}${p.statusNote ? ` — ${p.statusNote}` : ''} · ${p.activeTasks} task(s)${p.repo ? ` · ${p.repo}${p.branch ? `@${p.branch}` : ''}` : ''}${pullOnly(p) ? ' · pull-only (reads on next prompt)' : ''}`,
   );
   const c = status.counts;
   return [

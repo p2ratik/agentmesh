@@ -21,6 +21,13 @@ Let the mesh tools run without a prompt per call (`~/.claude/settings.json`):
 { "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
 ```
 
+Claude Code leaves automatic updates off for this marketplace. Turn them on in `/plugin` →
+Marketplaces → agentmesh → Enable auto-update, or say yes when `/agentmesh:join` or
+`/agentmesh:setup` offers it (`node <plugin dir>/dist/cli.js autoupdate`, which sets only
+`extraKnownMarketplaces.agentmesh` in your own `~/.claude/settings.json`). New versions download in
+the background and load after `/reload-plugins` or a restart
+([more](../../docs/getting-started.md#keep-agentmesh-updated)).
+
 ### Set up a new mesh (the admin)
 
 When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
@@ -80,13 +87,23 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 Pushes need that flag, and Claude Code turns channels on only from the command line. The Claude
 Desktop app (the Code tab) cannot pass it, so a Desktop session is **pull-only**:
 
-- Every tool works without activation. Ask Claude to call `inbox` to read your messages, then
-  `task_get`, `task_act`, `review_submit` or `reply` to act on them. The hub keeps everything
-  until it is read, so nothing is lost.
-- Do not run `/agentmesh:activate` there. The test message never arrives, and an active session
-  that nothing wakes would only hold the work it claims.
+- Run `/agentmesh:activate` as usual. The test message never arrives, so Claude activates the
+  session in pull mode (`activate` with `pull: true`) and tells you so. Teammates then see you
+  online, with the session marked `pull` in `peers` and `/mesh status`.
+- Nothing is pushed. The hub keeps your messages unread, and the plugin's hook adds one line to
+  each prompt, such as `AgentMesh (pull-only session): 3 unread threads (2 need action) from
+  bob-agent, dana. Call the inbox tool to read them when it fits the user's request.` Claude reads
+  them with `inbox` and acts with `task_act`, `review_submit` or `reply`. Work reaches you on
+  your next prompt, not at once, so routing prefers teammates with a push session.
 - To receive pushes, start the session from a terminal with the command above. On Windows,
   PowerShell works.
+
+How pull mode finds out: while the session is active in pull mode, the MCP server calls
+`inbox.peek` every 30 s and after each mesh tool call. It writes the counts (never message text)
+to `pull-<prefix>-<agent>-<session>.json` in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`.
+The `UserPromptSubmit` / `SessionStart` hook (`dist/hook.js`) reads the files under 2 minutes
+old for the project. The file is removed on deactivate and on exit. Without the hook, a pull
+session still works: ask Claude to call `inbox`.
 
 ## Activate a session
 
@@ -94,8 +111,9 @@ Every session starts inactive: the tools work, but nothing is pushed to it, and 
 see it. Run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
 a test message with a code to the session over NATS, and the plugin pushes it into Claude Code;
 Claude reads it and confirms with the code and a one-line description of what the session is
-working on. If no test message arrives, the session was started without the channel flag, so
-restart it with the command above (in Claude Desktop you cannot; see [Run](#run)). If `activate` says the hub could not reach the session, try
+working on. If no test message arrives, the session was started without the channel flag: Claude
+activates it pull-only instead ([Run](#run)), and you can restart it with the command above for
+instant pushes. If `activate` says the hub could not reach the session, try
 again in a few seconds. If it keeps failing, the NATS permissions predate 0.2.0: ask your mesh
 admin, or restart Claude Code if the hub uses auth callout.
 
@@ -144,8 +162,8 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 
 - **Nothing arrives**: the session must be started with the channel flag above and activated
   (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
-  to call `inbox` — the hub keeps everything. In Claude Desktop nothing is ever pushed: use
-  `inbox` there.
+  to call `inbox` — the hub keeps everything. In Claude Desktop nothing is ever pushed: activate
+  it pull-only, and new work is announced on each prompt.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
 - **"This session isn't registered with the hub"**: the plugin is older than 0.3.0. Run
   `claude plugin update agentmesh@agentmesh` and restart Claude Code.

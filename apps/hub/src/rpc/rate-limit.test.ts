@@ -11,6 +11,7 @@ function setup() {
   const handlers = {
     'thread.close': async () => ({}),
     'peers.list': async () => ({ peers: [] }),
+    'inbox.peek': async () => ({ threads: 0, actions: 0, from: [], external: false }),
     'refs.set': async () => ({ ok: true }),
   } as unknown as Partial<RpcHandlerMap>;
   const dispatch = createRpcRouter({
@@ -27,6 +28,7 @@ function setup() {
       { threadId: 'thr-1' },
     );
   const peers = () => dispatch({ caller: 'alice-agent', method: 'peers.list' }, {});
+  const peek = () => dispatch({ caller: 'alice-agent', method: 'inbox.peek' }, {});
   const refs = () =>
     dispatch(
       { caller: 'discord-bridge', method: 'refs.set' },
@@ -35,7 +37,7 @@ function setup() {
   const advance = (ms: number) => {
     now += ms;
   };
-  return { close, peers, refs, advance };
+  return { close, peers, peek, refs, advance };
 }
 
 describe('RPC rate limit', () => {
@@ -51,10 +53,11 @@ describe('RPC rate limit', () => {
     await expect(close()).rejects.toMatchObject({ code: 'rate_limited' });
   });
 
-  it('never meters reads', async () => {
-    const { close, peers } = setup();
+  it('never meters reads, pull sessions polling their inbox included', async () => {
+    const { close, peers, peek } = setup();
     for (let i = 0; i < 3; i += 1) await close();
     for (let i = 0; i < 10; i += 1) await peers();
+    for (let i = 0; i < 10; i += 1) await peek();
   });
 
   it('meters each participant on its own, humans the bridge acts for included', async () => {

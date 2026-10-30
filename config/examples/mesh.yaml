@@ -96,7 +96,7 @@ policy:
 
 assignment:
   maxActiveTasksPerAgent: 3
-  preferOnline: true
+  preferOnline: true # online owners first; among them push sessions before pull-only ones
   boardAnnounce: matching-skills # who hears about unowned tasks: matching-skills | online | none
 
 review:

@@ -50,7 +50,9 @@ describe('renderJoinNote', () => {
     expect(note).toContain('`claude plugin marketplace add p2ratik/agentmesh`');
     expect(note).toContain('`~/.agentmesh/invite.txt`');
     expect(note).toContain('`/agentmesh:join` and confirm that the hub is `mesh.acme.dev:4222`');
-    expect(note).toContain('7. Run `/agentmesh:activate`.');
+    expect(note).toContain('7. Say yes when Claude offers automatic plugin updates');
+    expect(note).toContain('`/plugin` → Marketplaces → agentmesh → Enable auto-update');
+    expect(note).toContain('8. Run `/agentmesh:activate`.');
     expect(note.trimEnd().endsWith('Install first: codes expire 24 hours after the invite.')).toBe(
       true,
     );

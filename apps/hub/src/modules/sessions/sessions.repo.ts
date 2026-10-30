@@ -1,3 +1,4 @@
+import type { DeliveryMode } from '@agentmesh/protocol';
 import type { Db } from '../../db/database';
 
 export type SessionLiveness = 'live' | 'away' | 'closed';
@@ -7,6 +8,8 @@ export interface SessionRow {
   agent_id: string;
   active: number;
   liveness: SessionLiveness;
+  /** How work reaches it while active; only `push` sessions are delivered to. */
+  delivery: DeliveryMode;
   description: string | null;
   repo: string | null;
   branch: string | null;
@@ -87,6 +90,10 @@ export class SessionsRepo {
        WHERE id = $id`,
       { id, active: active ? 1 : 0, at },
     );
+  }
+
+  setDelivery(id: string, delivery: DeliveryMode): void {
+    this.#db.run('UPDATE sessions SET delivery = $delivery WHERE id = $id', { id, delivery });
   }
 
   setDescription(id: string, text: string | null): void {

@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join14 } = __require("path");
+    var { join: join15 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join14(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join15(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync13 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join14, isAbsolute: isAbsolute2, sep } = __require("node:path");
+    var { join: join15, isAbsolute: isAbsolute2, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join15(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join15(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join14(__dirname, "..", "file.js");
+          return join15(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join14 = ",";
+            let join15 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join14 = `,
+                join15 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join14;
+                res += join15;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join14 = `,
+              join15 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join14;
+                separator = join15;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join14;
+              separator = join15;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join14 = ",";
+            let join15 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join14 = `,
+                join15 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join14;
+                res += join15;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join14 = `,
+              join15 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join14;
+                separator = join15;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join15 = `,
+              const join16 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join15;
+                res2 += join16;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join16}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join14 = `,
+            const join15 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join14, maximumBreadth);
+              res += stringifyTypedArray(value, join15, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join14;
+              separator = join15;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join14;
+                separator = join15;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join14;
+              separator = join15;
             }
             if (separator !== "") {
               res = `
@@ -25695,7 +25695,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.1";
+var VERSION = "0.4.2";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -45631,8 +45631,10 @@ var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
 var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
 var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
+var DeliveryMode = external_exports.enum(["push", "pull"]);
 var SessionSummary = external_exports.object({
   id: SessionId,
+  delivery: DeliveryMode.default("push"),
   description: external_exports.string(),
   repo: external_exports.string().nullable(),
   branch: external_exports.string().nullable(),
@@ -46187,6 +46189,7 @@ var leaseMethods = {
 };
 
 // ../../packages/protocol/src/rpc/messaging.ts
+var MAX_PEEK_SENDERS = 5;
 var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
 var messagingMethods = {
   "message.send": defineMethod({
@@ -46262,6 +46265,19 @@ var messagingMethods = {
           liveness: external_exports.enum(["live", "away"])
         })
       ).default([])
+    })
+  }),
+  "inbox.peek": defineMethod({
+    description: "Counts what `inbox.get` would return for this session, without marking anything read: unread threads, how many need action, recent senders and whether any is external.",
+    callers: ["agent"],
+    params: external_exports.object({}),
+    result: external_exports.object({
+      threads: external_exports.number().int().nonnegative(),
+      /** Threads with an unread action item (the rest are FYI only). */
+      actions: external_exports.number().int().nonnegative(),
+      /** Distinct sender ids of the unread messages, newest first. */
+      from: external_exports.array(external_exports.string()).max(MAX_PEEK_SENDERS),
+      external: external_exports.boolean()
     })
   }),
   "messages.seen": defineMethod({
@@ -46353,6 +46369,7 @@ var planningMethods = {
 var SessionView = external_exports.object({
   id: SessionId,
   active: external_exports.boolean(),
+  delivery: DeliveryMode.default("push"),
   description: external_exports.string().nullable(),
   repo: external_exports.string().nullable(),
   branch: external_exports.string().nullable(),
@@ -46407,11 +46424,14 @@ var sessionMethods = {
     result: external_exports.object({ ok: external_exports.literal(true) })
   }),
   "session.activate": defineMethod({
-    description: "Make this session the one that receives work: the code from its check and a short description.",
+    description: "Make this session one that receives work: the code from its check and a short description. In `pull` mode (no channel flag) no code is needed and nothing is pushed: it reads with inbox.",
     callers: ["agent"],
     params: external_exports.object({
-      code: external_exports.string().min(1).max(20),
+      mode: DeliveryMode.default("push"),
+      code: external_exports.string().min(1).max(20).optional(),
       description: external_exports.string().min(1).max(200)
+    }).refine((p) => p.mode === "pull" || p.code !== void 0, {
+      message: 'Pass the code from the test message, or mode "pull".'
     }),
     result: SessionView
   }),
@@ -47326,7 +47346,7 @@ function loadTopology(configPath, env) {
 }
 
 // ../../apps/cli/src/lib/files.ts
-import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname as dirname3 } from "node:path";
 function writePrivateFile(path, content, overwrite) {
   mkdirSync(dirname3(path), { recursive: true, mode: 448 });
@@ -47336,10 +47356,21 @@ function writePrivateFile(path, content, overwrite) {
   } catch {
   }
 }
-function writeFileAtomic(path, content) {
+function writeFileAtomic(path, content, mode) {
   const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, content);
-  renameSync(temp, path);
+  try {
+    writeFileSync(temp, content, { mode });
+    if (mode !== void 0) {
+      try {
+        chmodSync(temp, mode);
+      } catch {
+      }
+    }
+    renameSync(temp, path);
+  } catch (error62) {
+    rmSync(temp, { force: true });
+    throw error62;
+  }
 }
 function writeFileWithDirs(path, content) {
   mkdirSync(dirname3(path), { recursive: true });
@@ -47480,6 +47511,127 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
   }
 };
 
+// ../../apps/cli/src/commands/autoupdate.ts
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync4, statSync as statSync3 } from "node:fs";
+import { join as join7 } from "node:path";
+
+// ../../apps/cli/src/lib/claude-settings.ts
+import { isDeepStrictEqual } from "node:util";
+
+// ../../apps/cli/src/setup/defaults.ts
+var DEFAULT_IMAGE_REGISTRY = "ghcr.io/p2ratik";
+var IMAGE_REGISTRY = /^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
+var IMAGE_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
+var DEFAULT_MARKETPLACE = "p2ratik/agentmesh";
+var DEFAULT_MARKETPLACE_NAME = "agentmesh";
+var DEFAULT_REMOTE_DIR = "/opt/agentmesh";
+var MAX_POLICY_CHARS = 2e3;
+var NATS_PORT = 4222;
+
+// ../../apps/cli/src/lib/claude-settings.ts
+var FALLBACK_SOURCE = { source: "github", repo: DEFAULT_MARKETPLACE };
+var KnownMarketplace = external_exports.looseObject({ source: external_exports.looseObject({ source: external_exports.string() }) });
+var Settings = external_exports.looseObject({
+  extraKnownMarketplaces: external_exports.record(external_exports.string(), external_exports.looseObject({})).optional()
+});
+function parseJson(text) {
+  try {
+    return JSON.parse(text.replace(/^﻿/, ""));
+  } catch {
+    return void 0;
+  }
+}
+function marketplaceSource(knownText, name) {
+  const known = knownText === void 0 ? void 0 : parseJson(knownText);
+  const entry = known !== null && typeof known === "object" && Object.hasOwn(known, name) ? KnownMarketplace.safeParse(known[name]) : void 0;
+  if (entry?.success) return entry.data.source;
+  if (name === DEFAULT_MARKETPLACE_NAME) return FALLBACK_SOURCE;
+  throw new MeshError(
+    "invalid_request",
+    `Claude Code has no marketplace named "${name}". Add it with \`claude plugin marketplace add <source>\` first.`
+  );
+}
+function setAutoUpdate(settingsText, name, source, autoUpdate) {
+  const settings = settingsText === void 0 ? {} : parseJson(settingsText);
+  if (!Settings.safeParse(settings).success) {
+    throw new MeshError(
+      "invalid_request",
+      "settings.json is not a JSON object with an object-valued extraKnownMarketplaces; fix it in an editor, then run this again. Nothing was changed."
+    );
+  }
+  const root = settings;
+  const marketplaces = root.extraKnownMarketplaces ?? {};
+  const before = Object.hasOwn(marketplaces, name) ? marketplaces[name] : void 0;
+  const after = { ...before, source, autoUpdate };
+  const next = { ...root, extraKnownMarketplaces: { ...marketplaces, [name]: after } };
+  return { text: `${JSON.stringify(next, null, 2)}
+`, changed: !isDeepStrictEqual(before, after) };
+}
+
+// ../../apps/cli/src/commands/autoupdate.ts
+function claudeConfigDir(ctx) {
+  const dir = ctx.env.CLAUDE_CONFIG_DIR;
+  return dir ? resolveFrom(ctx, dir) : join7(ctx.homeDir, ".claude");
+}
+function readIfPresent(path) {
+  try {
+    return readFileSync4(path, "utf8");
+  } catch (error62) {
+    if (error62.code === "ENOENT") return void 0;
+    throw error62;
+  }
+}
+function readKnownMarketplaces(configDir) {
+  try {
+    return readFileSync4(join7(configDir, "plugins", "known_marketplaces.json"), "utf8");
+  } catch {
+    return void 0;
+  }
+}
+var autoupdateCommand = {
+  name: "autoupdate",
+  summary: "Turn Claude Code's automatic plugin updates on (or off) for AgentMesh",
+  help: `Usage: agentmesh autoupdate [--off] [--marketplace <name>]
+
+Sets extraKnownMarketplaces.<name>.autoUpdate in your own Claude Code settings.json
+($CLAUDE_CONFIG_DIR, else ~/.claude), with the marketplace source Claude Code recorded when you
+added it. Nothing else in the file changes, and the file is never printed. Claude Code then
+downloads new plugin versions in the background; /reload-plugins or a restart loads them.
+
+--off          turn automatic updates off again
+--marketplace  the marketplace's name in Claude Code (default ${DEFAULT_MARKETPLACE_NAME})`,
+  run(argv, ctx) {
+    const { values } = parseCommandArgs(
+      argv,
+      {
+        off: { type: "boolean", default: false },
+        marketplace: { type: "string", default: DEFAULT_MARKETPLACE_NAME }
+      },
+      { min: 0, max: 0, names: "" }
+    );
+    const name = values.marketplace;
+    const on = !values.off;
+    const configDir = claudeConfigDir(ctx);
+    const file2 = join7(configDir, "settings.json");
+    const current = readIfPresent(file2);
+    const source = marketplaceSource(readKnownMarketplaces(configDir), name);
+    const { text, changed } = setAutoUpdate(current, name, source, on);
+    const what = `auto-update for the "${name}" plugin marketplace`;
+    if (!changed) {
+      ctx.stdout(
+        `Auto-update for the "${name}" plugin marketplace was already ${on ? "on" : "off"} in ${file2}; nothing changed.`
+      );
+      return 0;
+    }
+    if (current === void 0) mkdirSync2(configDir, { recursive: true });
+    writeFileAtomic(file2, text, current === void 0 ? 384 : statSync3(file2).mode & 511);
+    ctx.stdout(
+      on ? `Turned on ${what} in ${file2}. Claude Code downloads new versions in the background; run /reload-plugins or restart Claude Code to load one.` : `Turned off ${what} in ${file2}.`
+    );
+    return 0;
+  }
+};
+
 // ../../apps/cli/src/lib/process.ts
 import { spawn } from "node:child_process";
 var runProcess = (cmd, args, opts = {}) => new Promise((resolve3) => {
@@ -47505,15 +47657,6 @@ var runProcess = (cmd, args, opts = {}) => new Promise((resolve3) => {
   });
   child.stdin.end(opts.input);
 });
-
-// ../../apps/cli/src/setup/defaults.ts
-var DEFAULT_IMAGE_REGISTRY = "ghcr.io/p2ratik";
-var IMAGE_REGISTRY = /^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
-var IMAGE_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
-var DEFAULT_MARKETPLACE = "p2ratik/agentmesh";
-var DEFAULT_REMOTE_DIR = "/opt/agentmesh";
-var MAX_POLICY_CHARS = 2e3;
-var NATS_PORT = 4222;
 
 // ../../apps/cli/src/setup/answers.ts
 var Person = external_exports.object({
@@ -47616,13 +47759,13 @@ var everyone = (a) => [
 var import_jetstream2 = __toESM(require_mod4(), 1);
 
 // ../../packages/bus/src/connect.ts
-import { readFileSync as readFileSync4 } from "node:fs";
+import { readFileSync as readFileSync5 } from "node:fs";
 var import_transport_node = __toESM(require_transport_node(), 1);
 var SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 function resolveSeed(seedOrPath) {
   const value = seedOrPath.trim();
   if (SEED_PATTERN.test(value)) return value;
-  const fromFile = readFileSync4(expandHome(value), "utf8").trim();
+  const fromFile = readFileSync5(expandHome(value), "utf8").trim();
   if (!SEED_PATTERN.test(fromFile))
     throw new Error(`File ${value} does not contain an nkey user seed`);
   return fromFile;
@@ -48019,7 +48162,7 @@ function checkNatsTls(host, port, now, timeoutMs = 5e3) {
 }
 
 // ../../apps/cli/src/setup/env-file.ts
-import { readFileSync as readFileSync5, renameSync as renameSync2, rmSync } from "node:fs";
+import { readFileSync as readFileSync6, renameSync as renameSync2, rmSync as rmSync2 } from "node:fs";
 function splitLine(line) {
   const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/s.exec(line);
   return match ? [match[1], match[2].trim()] : void 0;
@@ -48056,23 +48199,23 @@ function setEnvValues(text, values) {
 `;
 }
 function readEnvFile(path) {
-  return parseEnv(readFileSync5(path, "utf8"));
+  return parseEnv(readFileSync6(path, "utf8"));
 }
 function updateEnvFile(path, values) {
-  const text = setEnvValues(readFileSync5(path, "utf8"), values);
+  const text = setEnvValues(readFileSync6(path, "utf8"), values);
   const temp = `${path}.${process.pid}.tmp`;
   try {
     writePrivateFile(temp, text, true);
     renameSync2(temp, path);
   } catch (error62) {
-    rmSync(temp, { force: true });
+    rmSync2(temp, { force: true });
     throw error62;
   }
 }
 
 // ../../apps/cli/src/setup/remote.ts
 import { existsSync as existsSync6 } from "node:fs";
-import { join as join7 } from "node:path";
+import { join as join8 } from "node:path";
 var SSH_OPTIONS = [
   "-o",
   "BatchMode=yes",
@@ -48086,7 +48229,7 @@ var SSH_OPTIONS = [
 function sshProgram(name, ctx) {
   const root = ctx.env.SystemRoot;
   if (ctx.platform !== "win32" || !root) return name;
-  const system = join7(root, "System32", "OpenSSH", `${name}.exe`);
+  const system = join8(root, "System32", "OpenSSH", `${name}.exe`);
   return existsSync6(system) ? system : name;
 }
 function sshUser(target) {
@@ -48114,34 +48257,34 @@ function renderChecklist(team, results) {
 }
 
 // ../../apps/cli/src/setup/workspace.ts
-import { existsSync as existsSync7, readFileSync as readFileSync6 } from "node:fs";
-import { join as join8 } from "node:path";
+import { existsSync as existsSync7, readFileSync as readFileSync7 } from "node:fs";
+import { join as join9 } from "node:path";
 function workspaceFrom(ctx, dir) {
   if (!dir) throw usageError("Missing --dir <workspace>");
   return workspacePaths(resolveFrom(ctx, dir));
 }
 function workspacePaths(root) {
-  const configDir = join8(root, "config");
-  const deployDir = join8(root, "deploy");
+  const configDir = join9(root, "config");
+  const deployDir = join9(root, "deploy");
   return {
     root,
-    answers: join8(root, "setup-answers.json"),
-    state: join8(root, ".agentmesh-setup.json"),
+    answers: join9(root, "setup-answers.json"),
+    state: join9(root, ".agentmesh-setup.json"),
     configDir,
-    meshFile: join8(configDir, "mesh.yaml"),
-    policyFile: join8(configDir, "policy", "team-policy.md"),
+    meshFile: join9(configDir, "mesh.yaml"),
+    policyFile: join9(configDir, "policy", "team-policy.md"),
     deployDir,
-    compose: join8(deployDir, "docker-compose.yml"),
-    envFile: join8(deployDir, ".env"),
-    natsConf: join8(deployDir, "nats", "nats.conf"),
-    secretsDir: join8(deployDir, "secrets"),
-    gitignore: join8(root, ".gitignore"),
-    claudeSettings: join8(root, ".claude", "settings.json"),
-    claudeMd: join8(root, "CLAUDE.md")
+    compose: join9(deployDir, "docker-compose.yml"),
+    envFile: join9(deployDir, ".env"),
+    natsConf: join9(deployDir, "nats", "nats.conf"),
+    secretsDir: join9(deployDir, "secrets"),
+    gitignore: join9(root, ".gitignore"),
+    claudeSettings: join9(root, ".claude", "settings.json"),
+    claudeMd: join9(root, "CLAUDE.md")
   };
 }
 function agentSeedFile(homeDir, meshName, agentId) {
-  return join8(agentmeshDir(homeDir), `${meshName}-${agentId}.nk`);
+  return join9(agentmeshDir(homeDir), `${meshName}-${agentId}.nk`);
 }
 var STEPS = ["render", "discord", "host", "deploy", "admin"];
 var HUB_STEPS = ["host", "deploy", "admin"];
@@ -48155,7 +48298,7 @@ var SetupState = external_exports.object({
 });
 function readJson(path) {
   try {
-    return JSON.parse(readFileSync6(path, "utf8"));
+    return JSON.parse(readFileSync7(path, "utf8"));
   } catch (error62) {
     if (error62 instanceof SyntaxError) {
       throw new MeshError("invalid_request", `${path} is not valid JSON: ${error62.message}`);
@@ -48201,7 +48344,7 @@ function loadAnswers(p) {
 }
 function writeRendered(path, content, force) {
   const exists = existsSync7(path);
-  if (exists && readFileSync6(path, "utf8") === content) return "unchanged";
+  if (exists && readFileSync7(path, "utf8") === content) return "unchanged";
   if (exists && !force) return "differs";
   writeFileWithDirs(path, content);
   return exists ? "replaced" : "created";
@@ -48277,14 +48420,14 @@ fails. It changes nothing.`,
 };
 
 // ../../apps/cli/src/lib/scaffold.ts
-import { copyFileSync, existsSync as existsSync8, mkdirSync as mkdirSync2, readdirSync as readdirSync3, statSync as statSync3 } from "node:fs";
-import { dirname as dirname5, join as join9 } from "node:path";
+import { copyFileSync, existsSync as existsSync8, mkdirSync as mkdirSync3, readdirSync as readdirSync3, statSync as statSync4 } from "node:fs";
+import { dirname as dirname5, join as join10 } from "node:path";
 function listFiles(dir) {
-  return readdirSync3(dir, { recursive: true, encoding: "utf8" }).filter((rel) => statSync3(join9(dir, rel)).isFile()).map((rel) => rel.split("\\").join("/")).sort();
+  return readdirSync3(dir, { recursive: true, encoding: "utf8" }).filter((rel) => statSync4(join10(dir, rel)).isFile()).map((rel) => rel.split("\\").join("/")).sort();
 }
 function scaffold(from, to, force) {
   const files = listFiles(from);
-  const existing = files.filter((rel) => existsSync8(join9(to, rel)));
+  const existing = files.filter((rel) => existsSync8(join10(to, rel)));
   if (existing.length > 0 && !force) {
     throw new MeshError(
       "conflict",
@@ -48293,9 +48436,9 @@ function scaffold(from, to, force) {
     );
   }
   for (const rel of files) {
-    const target = join9(to, rel);
-    mkdirSync2(dirname5(target), { recursive: true });
-    copyFileSync(join9(from, rel), target);
+    const target = join10(to, rel);
+    mkdirSync3(dirname5(target), { recursive: true });
+    copyFileSync(join10(from, rel), target);
   }
   return files;
 }
@@ -48333,11 +48476,11 @@ Copies config/examples (mesh.yaml, workflows/, rules/, policy/) into <dir>
 };
 
 // ../../apps/cli/src/commands/keys.ts
-import { existsSync as existsSync9, readFileSync as readFileSync8 } from "node:fs";
-import { join as join10 } from "node:path";
+import { existsSync as existsSync9, readFileSync as readFileSync9 } from "node:fs";
+import { join as join11 } from "node:path";
 
 // ../../apps/cli/src/lib/keys.ts
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 import { dirname as dirname6 } from "node:path";
 var import_nkeys = __toESM(require_mod2(), 1);
 
@@ -48466,7 +48609,7 @@ function createKey(holder) {
   return (0, import_nkeys.createUser)();
 }
 function addKey(meshFile, seedFile, id, opts) {
-  const text = readFileSync7(meshFile, "utf8");
+  const text = readFileSync8(meshFile, "utf8");
   const holder = findKeyHolder(text, id);
   if (holder.nkey && !opts.force) {
     throw new MeshError(
@@ -48556,7 +48699,7 @@ and hub-sys for the keys \`nats-config --auth-callout\` needs. --force rotates a
     });
     const meshFile = meshFilePath(configPathFrom(ctx, values.config));
     const id = positionals[0] ?? "";
-    const added = addKey(meshFile, join10(secretsDir(ctx, values.secrets), `${id}.nk`), id, {
+    const added = addKey(meshFile, join11(secretsDir(ctx, values.secrets), `${id}.nk`), id, {
       force: values.force ?? false,
       cli: cliOf(ctx)
     });
@@ -48572,9 +48715,9 @@ var keysListCommand = {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: "" });
     const meshFile = meshFilePath(configPathFrom(ctx, values.config));
     const dir = secretsDir(ctx, values.secrets);
-    const rows = listKeyHolders(readFileSync8(meshFile, "utf8")).map((holder) => ({
+    const rows = listKeyHolders(readFileSync9(meshFile, "utf8")).map((holder) => ({
       holder,
-      seedFound: existsSync9(join10(dir, `${holder.id}.nk`))
+      seedFound: existsSync9(join11(dir, `${holder.id}.nk`))
     }));
     ctx.stdout(renderKeyTable(rows, dir));
     return 0;
@@ -48846,7 +48989,7 @@ development.`,
 
 // ../../apps/cli/src/commands/setup/admin.ts
 import { existsSync as existsSync10 } from "node:fs";
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 var setupAdminCommand = {
   name: "setup admin",
   summary: "Save the admin's agent settings to ~/.agentmesh/agent.json on this machine",
@@ -48879,7 +49022,7 @@ refuses to replace settings for another agent or hub unless --replace.`,
       );
     }
     const { prefix } = loadTopology(p.configDir, ctx.env).config.mesh;
-    const file2 = join11(dir, "agent.json");
+    const file2 = join12(dir, "agent.json");
     writePrivateFile(file2, agentJson({ agentId, natsUrl, seedFile, prefix }), true);
     const options = "If the plugin's agent_id, nats_url or nkey_seed options are set, clear them in /plugin and restart Claude Code: while they name another agent, the plugin ignores this file.";
     const lines = [
@@ -48908,7 +49051,7 @@ refuses to replace settings for another agent or hub unless --replace.`,
 
 // ../../apps/cli/src/setup/deploy.ts
 import { existsSync as existsSync11, readdirSync as readdirSync4 } from "node:fs";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 var UP = ["up", "-d", "--force-recreate"];
 function remoteCommands(dir) {
   const seeds = `${dir}/deploy/secrets/*.nk`;
@@ -48926,7 +49069,7 @@ function requireDone(p, steps) {
 function requireSeeds(p, mode) {
   const seeds = ["hub.nk", "discord-bridge.nk"];
   if (mode === "server") seeds.push("hub-issuer.nk", "hub-xkey.nk", "hub-sys.nk");
-  const missing = seeds.find((name) => !existsSync11(join12(p.secretsDir, name)));
+  const missing = seeds.find((name) => !existsSync11(join13(p.secretsDir, name)));
   if (missing) {
     throw new MeshError("not_found", `Missing deploy/secrets/${missing}; run setup render again.`);
   }
@@ -49033,7 +49176,7 @@ On a trial it runs them in deploy/. The hub version is the workspace's pin, whic
 };
 
 // ../../apps/cli/src/commands/setup/discord.ts
-import { readFileSync as readFileSync9 } from "node:fs";
+import { readFileSync as readFileSync10 } from "node:fs";
 var OPTIONS3 = {
   dir: { type: "string" },
   guild: { type: "string" },
@@ -49109,7 +49252,7 @@ bot is in several servers, pick one with --guild. The token is never printed.`,
     }
     const guild = await api.guild(chosen.id);
     const admin = await api.user(given ?? guild.owner_id);
-    const mesh = setHumanDiscordId(readFileSync9(p.meshFile, "utf8"), adminId, admin.id);
+    const mesh = setHumanDiscordId(readFileSync10(p.meshFile, "utf8"), adminId, admin.id);
     updateEnvFile(p.envFile, { DISCORD_GUILD_ID: guild.id });
     writeFileAtomic(p.meshFile, mesh);
     markDone(p, "discord", /* @__PURE__ */ new Date());
@@ -49349,7 +49492,8 @@ function renderJoinNote(i) {
     "4. When the invite DM arrives, save the code to `~/.agentmesh/invite.txt`, never in a chat.",
     "5. Start `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.",
     `6. Run \`/agentmesh:join\` and confirm that the hub is \`${i.publicHost}:${NATS_PORT}\`.`,
-    "7. Run `/agentmesh:activate`.",
+    "7. Say yes when Claude offers automatic plugin updates, or turn them on later in `/plugin` \u2192 Marketplaces \u2192 agentmesh \u2192 Enable auto-update.",
+    "8. Run `/agentmesh:activate`.",
     "",
     "Install first: codes expire 24 hours after the invite."
   ].join("\n");
@@ -49396,8 +49540,8 @@ var setupInvitesCommand = {
 };
 
 // ../../apps/cli/src/commands/setup/render.ts
-import { existsSync as existsSync12, readFileSync as readFileSync10 } from "node:fs";
-import { join as join13, relative } from "node:path";
+import { existsSync as existsSync12, readFileSync as readFileSync11 } from "node:fs";
+import { join as join14, relative } from "node:path";
 
 // ../../apps/cli/src/setup/render/deploy-files.ts
 function renderCompose() {
@@ -49787,7 +49931,7 @@ function keyTargets(meshText, a, p, home) {
   return [
     ...[...services, ...server].map((id) => ({
       id,
-      seedFile: join13(p.secretsDir, `${id}.nk`),
+      seedFile: join14(p.secretsDir, `${id}.nk`),
       shared: false
     })),
     ...agents.map((id) => ({
@@ -49872,10 +50016,10 @@ trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agen
     }
     const fresh = renderMeshYaml(a);
     const targets = keyTargets(fresh, a, p, ctx.homeDir);
-    const previous = existsSync12(p.meshFile) ? readFileSync10(p.meshFile, "utf8") : null;
+    const previous = existsSync12(p.meshFile) ? readFileSync11(p.meshFile, "utf8") : null;
     const policy = renderPolicy(a);
     for (const warning of policy.warnings) ctx.stderr(`warning: ${warning}`);
-    const gitignore = existsSync12(p.gitignore) ? readFileSync10(p.gitignore, "utf8") : "";
+    const gitignore = existsSync12(p.gitignore) ? readFileSync11(p.gitignore, "utf8") : "";
     const report = writeFiles(p, state, force, [
       [p.meshFile, previous ? carryOver(fresh, previous, targets, a.admin.id) : fresh],
       [p.policyFile, policy.text],
@@ -49886,7 +50030,7 @@ trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agen
     ]);
     report.push(writeEnv(p, a, force || !renderedAt, values.registry));
     for (const { id, seedFile: file2, shared } of targets) {
-      if (findKeyHolder(readFileSync10(p.meshFile, "utf8"), id).nkey) continue;
+      if (findKeyHolder(readFileSync11(p.meshFile, "utf8"), id).nkey) continue;
       const { seedFile } = addKey(p.meshFile, file2, id, { force: false, cli: cliOf(ctx), shared });
       report.push(`  ${"key".padEnd(10)}${id} (seed ${seedFile})`);
     }
@@ -50054,7 +50198,8 @@ var COMMANDS = [
   setupStatusCommand,
   setupInvitesCommand,
   doctorCommand,
-  upgradeCommand
+  upgradeCommand,
+  autoupdateCommand
 ];
 function usage() {
   const width = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;

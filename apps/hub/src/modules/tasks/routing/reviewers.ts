@@ -9,6 +9,8 @@ export interface ReviewerRequest {
   /** Every configured agent, in config order. */
   agents: ReadonlyArray<{ id: string; skills: readonly string[] }>;
   isOnline(id: string): boolean;
+  /** Online with a push session (see `PresenceService.reachesInstantly`). */
+  reachesInstantly(id: string): boolean;
   load: ReadonlyMap<string, number>;
   max: number;
 }
@@ -16,7 +18,7 @@ export interface ReviewerRequest {
 /**
  * Picks up to `max` reviewers. Tiers, in order: other owners of the area, agents
  * sharing a skill with the task, any other agent. Within a tier: online first,
- * then lower load, then config order.
+ * push over pull-only, then lower load, then config order.
  */
 export function selectReviewers(req: ReviewerRequest): string[] {
   const excluded = new Set(req.exclude);
@@ -31,12 +33,14 @@ export function selectReviewers(req: ReviewerRequest): string[] {
       order,
       tier: tier(a),
       online: req.isOnline(a.id),
+      instant: req.reachesInstantly(a.id),
       load: req.load.get(a.id) ?? 0,
     }))
     .sort(
       (a, b) =>
         a.tier - b.tier ||
         Number(b.online) - Number(a.online) ||
+        Number(b.instant) - Number(a.instant) ||
         a.load - b.load ||
         a.order - b.order,
     )
