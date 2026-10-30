@@ -1,12 +1,12 @@
 import { MeshError } from '@agentmesh/common';
 import type { Actor, RpcHandlerMap } from '../../contracts';
 import { internalId } from '../../core/ids';
-import { readInbox } from './inbox';
+import { peekInbox, readInbox } from './inbox';
 import type { MessagingServiceImpl } from './messaging.service';
 
 type ThreadHandlers = Pick<
   RpcHandlerMap,
-  'thread.get' | 'thread.list' | 'thread.close' | 'inbox.get' | 'messages.seen'
+  'thread.get' | 'thread.list' | 'thread.close' | 'inbox.get' | 'inbox.peek' | 'messages.seen'
 >;
 
 /** `me` (or nothing, for agents) means the caller; humans and services default to every thread. */
@@ -60,6 +60,8 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
     },
     'inbox.get': (params, call) =>
       readInbox(messaging, call.actor.id, call.session, params.limit, params.perThread),
+    /** A pull session's poll (ADR 0008): counts only, nothing marked read. */
+    'inbox.peek': (_params, call) => peekInbox(messaging, call.actor.id, call.session),
     /** What the plugin showed (status items ride along unread until then). */
     'messages.seen': (params, call) => {
       messaging.markSeen(call.actor.id, params.messageIds);

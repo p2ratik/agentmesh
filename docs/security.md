@@ -235,6 +235,22 @@ to its session, and `session.check` then fails (see the upgrade notes in
   (`disable-model-invocation`), but with the `mcp__plugin_agentmesh_mesh__*` allow rule Claude
   could call the `activate` tool by itself. The tool description tells it to do so only when its
   human asks; that is the only guard.
+- **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
+  "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
+  new: the code was never an authorization, and only the authenticated agent can activate its own
+  session. A pull session is never delivered to, so it cannot swallow work: its messages stay unread
+  in the hub until it reads them with `inbox`. The worst a stray pull activation does is make the
+  agent count as online, so routing may pick it over an offline teammate; push sessions are still
+  preferred.
+- **The pull state file and hook carry counts and ids only.** While a session is active in pull
+  mode, the plugin writes `pull-<prefix>-<agent>-<session>.json` (mode 600) to
+  `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`. It holds the agent and session ids, the project
+  directory, unread and action counts, up to 5 sender ids and an external flag. It never holds
+  subjects or bodies, and it is deleted on deactivate and on exit. The `UserPromptSubmit` /
+  `SessionStart` hook reads only fresh files (under 2 minutes old) for its project. It drops any
+  sender id that does not match the participant id pattern and adds one fixed-format line to the
+  prompt, so a crafted file cannot inject more than an id-shaped token. Anyone who can write to
+  that directory can already edit the user's Claude Code settings.
 - **Descriptions are team-visible.** A session's one-line description and its id appear in `peers`
   for the whole team. Descriptions go through secret redaction; do not put anything private in one.
 - **Old plugins are refused.** `session.hello` rejects plugins older than 0.3.0: before 0.2.0 they

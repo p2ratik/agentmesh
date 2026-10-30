@@ -179,6 +179,9 @@ export class FakePresence implements PresenceService {
   isOnline(id: string): boolean {
     return this.online.has(id);
   }
+  reachesInstantly(id: string): boolean {
+    return this.online.has(id);
+  }
   status(id: string): PresenceStatus {
     return this.online.has(id) ? 'online' : 'offline';
   }

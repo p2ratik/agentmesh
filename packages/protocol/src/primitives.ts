@@ -40,8 +40,17 @@ export type PresenceStatus = z.infer<typeof PresenceStatus>;
 export const SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 export const SessionId = z.string().regex(SESSION_ID_PATTERN);
 
+/**
+ * How work reaches an active session: `push` (channel events) or `pull` (no channel flag, e.g.
+ * Claude Desktop: nothing is pushed, the session reads with `inbox` on its next prompt).
+ * Defaults to push wherever it appears, so results from older hubs still parse.
+ */
+export const DeliveryMode = z.enum(['push', 'pull']);
+export type DeliveryMode = z.infer<typeof DeliveryMode>;
+
 export const SessionSummary = z.object({
   id: SessionId,
+  delivery: DeliveryMode.default('push'),
   description: z.string(),
   repo: z.string().nullable(),
   branch: z.string().nullable(),

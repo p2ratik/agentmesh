@@ -9,6 +9,7 @@ import { taskMethods } from './tasks';
 
 export * from './define';
 export * from './envelope';
+export { MAX_PEEK_SENDERS } from './messaging';
 export { TaskCreateParams } from './tasks';
 
 export const RPC_METHODS = {

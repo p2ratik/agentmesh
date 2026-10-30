@@ -1,5 +1,11 @@
 /** The sessions module's contract (re-exported from `contracts.ts`). */
-import type { MeshMessage, RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
+import type {
+  DeliveryMode,
+  MeshMessage,
+  RpcMethodName,
+  SessionSummary,
+  SessionView,
+} from '@agentmesh/protocol';
 import type { CallContext } from './contracts';
 import type { Route } from './modules/sessions/routing';
 
@@ -8,6 +14,7 @@ export interface SessionRecord {
   agentId: string;
   active: boolean;
   liveness: 'live' | 'away' | 'closed';
+  delivery: DeliveryMode;
   description: string | null;
   repo: string | null;
   branch: string | null;
@@ -30,7 +37,13 @@ export interface SessionsService {
   ): { session: SessionRecord; reclaimed: number[] };
   /** The agent's non-closed session, else not_found "Unknown or closed session <id>; reconnect". */
   verify(agentId: string, sessionId: string): SessionRecord;
-  activate(agentId: string, sessionId: string, description: string): SessionRecord;
+  /** `pull`: active, but never delivered to; it reads with `inbox` (ADR 0008). Default push. */
+  activate(
+    agentId: string,
+    sessionId: string,
+    description: string,
+    delivery?: DeliveryMode,
+  ): SessionRecord;
   /** A clean stop: releases everything the session owns at once (spec §3). */
   deactivate(agentId: string, sessionId: string): SessionRecord;
   describe(agentId: string, sessionId: string, description: string): SessionRecord;
@@ -56,8 +69,10 @@ export interface SessionsService {
   view(sessionId: string): SessionView;
   activeSessions(agentId: string): SessionSummary[];
   hasLiveSession(agentId: string): boolean;
-  /** Whether any session of the agent is active and live, so routing could deliver now. */
+  /** Whether any session of the agent is active, live and push, so routing could deliver now. */
   hasReadySession(agentId: string): boolean;
+  /** How work reaches the agent now: an active, live push session, else a pull one, else null. */
+  reach(agentId: string): DeliveryMode | null;
   ownerOf(threadId: number, agentId: string): string | null;
   /** The session routing treats as owning the thread's work: its owner, its parent's, then its task's. */
   effectiveOwner(threadId: number, agentId: string): string | null;

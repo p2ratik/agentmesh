@@ -1,5 +1,6 @@
 import { MeshError } from '@agentmesh/common';
 import type {
+  DeliveryMode,
   ParticipantKind,
   PeerInfo,
   PresenceStatus,
@@ -31,7 +32,7 @@ export class PresenceServiceImpl implements PresenceService {
   readonly #repo: ParticipantsRepo;
   #load: () => Map<string, number> = () => new Map();
   #sessions: (agentId: string) => SessionSummary[] = () => [];
-  #ready: (agentId: string) => boolean = () => false;
+  #reach: (agentId: string) => DeliveryMode | null = () => null;
 
   constructor(ctx: HubContext) {
     this.#ctx = ctx;
@@ -66,13 +67,19 @@ export class PresenceServiceImpl implements PresenceService {
 
   /**
    * Heartbeats alone keep humans and services online. An agent also needs an
-   * active, live session: an inactive one (Claude Desktop, or a session never
-   * activated) heartbeats too but receives nothing, so routing must skip it.
+   * active, live session, push or pull: an inactive one (never activated)
+   * heartbeats too but reads nothing, so routing must skip it.
    */
   isOnline(participantId: string): boolean {
     const row = this.#repo.get(participantId);
     if (row?.online !== 1) return false;
-    return row.kind !== 'agent' || this.#ready(row.id);
+    return row.kind !== 'agent' || this.#reach(row.id) !== null;
+  }
+
+  reachesInstantly(participantId: string): boolean {
+    const row = this.#repo.get(participantId);
+    if (row?.online !== 1) return false;
+    return row.kind !== 'agent' || this.#reach(row.id) === 'push';
   }
 
   status(participantId: string): PresenceStatus {
@@ -112,8 +119,8 @@ export class PresenceServiceImpl implements PresenceService {
     this.#sessions = reader;
   }
 
-  setReadyReader(reader: (agentId: string) => boolean): void {
-    this.#ready = reader;
+  setReadyReader(reader: (agentId: string) => DeliveryMode | null): void {
+    this.#reach = reader;
   }
 
   #toPeer(row: ParticipantRow, load: Map<string, number>): PeerInfo {

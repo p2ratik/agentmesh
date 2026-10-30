@@ -4,6 +4,7 @@ import { type RouteInput, type RouteSession, routeDelivery } from './routing';
 const s = (over: Partial<RouteSession> & { id: string }): RouteSession => ({
   active: true,
   liveness: 'live',
+  delivery: 'push',
   repo: null,
   activatedAt: '2026-10-21T09:00:00Z',
   ...over,
@@ -97,7 +98,37 @@ describe('routeDelivery', () => {
   it('never picks an inactive session by fallback', () => {
     expect(routeDelivery(input({ sessions: [s({ id: 's1', active: false })] }))).toEqual({
       kind: 'wait',
-      reason: 'no active session',
+      reason: 'no active push session',
+    });
+  });
+
+  // A delivery is acked as read and claims its thread: a pull session must never get one.
+  describe('pull sessions', () => {
+    const pull = s({ id: 's1', delivery: 'pull' });
+
+    it('are never picked by fallback', () => {
+      expect(routeDelivery(input({ sessions: [pull, s2] }))).toMatchObject({
+        kind: 'deliver',
+        sessionId: 's2',
+      });
+      expect(routeDelivery(input({ sessions: [pull] }))).toEqual({
+        kind: 'wait',
+        reason: 'no active push session',
+      });
+    });
+
+    it('keep the threads they own: the work waits for them to read it', () => {
+      expect(routeDelivery(input({ sessions: [pull, s2], threadOwner: 's1' }))).toEqual({
+        kind: 'wait',
+        reason: 'held for s1 (pull)',
+      });
+    });
+
+    it('keep what a sender picked them for', () => {
+      expect(routeDelivery(input({ sessions: [pull, s2], picked: 's1' }))).toEqual({
+        kind: 'wait',
+        reason: 'held for s1 (picked, pull)',
+      });
     });
   });
 

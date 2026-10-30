@@ -35,7 +35,7 @@ describe('activation check', () => {
     ]);
     const refused = { code: 'invalid_request', message: expect.stringContaining('wrong or stale') };
     const activate = (code: string) =>
-      rpc('session.activate', { code, description: 'billing api' });
+      rpc('session.activate', { mode: 'push', code, description: 'billing api' });
     await expect(activate('WRONG1')).rejects.toMatchObject(refused);
     await rpc('session.check', {});
     const [replaced, latest] = codes();
@@ -46,7 +46,22 @@ describe('activation check', () => {
 
     await rpc('session.check', {});
     const view = await activate(` ${codes().at(-1)?.toLowerCase()} `);
-    expect(view).toMatchObject({ id: session, active: true, description: 'billing api' });
+    expect(view).toMatchObject({
+      id: session,
+      active: true,
+      delivery: 'push',
+      description: 'billing api',
+    });
+  });
+
+  it('activates a pull session without a code, and push still needs one', async () => {
+    const { transport, session, rpc } = setup();
+    const view = await rpc('session.activate', { mode: 'pull', description: 'desktop' });
+    expect(view).toMatchObject({ id: session, active: true, delivery: 'pull' });
+    expect(transport.checks).toEqual([]);
+    await expect(
+      rpc('session.activate', { mode: 'push', code: 'ABCDEF', description: 'desktop' }),
+    ).rejects.toMatchObject({ code: 'invalid_request' });
   });
 
   it('a session nobody answers for fails the check and names the likely causes', async () => {
