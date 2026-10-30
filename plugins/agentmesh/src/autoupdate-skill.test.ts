@@ -14,10 +14,9 @@ describe('the /agentmesh:autoupdate skill', () => {
 
   it('runs only the bundled CLI autoupdate step, on or off', () => {
     const calls = [...SKILL.matchAll(/node "[^"]*" [^`\n]*/g)].map((m) => m[0]);
-    expect(calls).toEqual([
-      'node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" autoupdate --off',
-      'node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" autoupdate',
-    ]);
+    // Claude Code substitutes the plugin root in skill text; the test spells it literally.
+    const cli = `node "${'$'}{CLAUDE_PLUGIN_ROOT}/dist/cli.js"`;
+    expect(calls).toEqual([`${cli} autoupdate --off`, `${cli} autoupdate`]);
   });
 
   it('names a step the CLI has', async () => {
