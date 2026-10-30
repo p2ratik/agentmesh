@@ -233,6 +233,11 @@ over what setup saved. Ask the admin to clear `agent_id`, `nats_url` and `nkey_s
 restart Claude Code with the channel flag and run `/agentmesh:setup` again. Do not start the proof
 while this session is another agent: its `peers` and hello would go to the other mesh.
 
+Ask the admin whether to turn on automatic updates for the AgentMesh plugin (Claude Code leaves
+them off for this marketplace). Only if they say yes, run
+`node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" autoupdate` and show what it printed. It takes no
+`--dir`: it edits only the AgentMesh entry in the admin's own Claude Code settings.
+
 Then ask the admin to run `/agentmesh:activate` (only they can). Wait until the admin has run it
 and the activation check has passed (that is the round-trip line), then continue with step 7.
 

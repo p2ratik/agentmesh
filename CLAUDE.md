@@ -126,7 +126,8 @@ file is gitignored and is never committed.
   - Human replies in mirrored threads are relayed to agents as `from_kind="human"`.
 - **CLI** (`apps/cli`, run as `pnpm mesh …`, or `node <plugin dir>/dist/cli.js …` from the
   plugin): `init`, `validate`, `keys add|list`, `nats-config [--tls|--dev]`, `agent-setup`, and
-  for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`.
+  for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`, plus
+  `autoupdate [--off]` (turns on Claude Code's plugin auto-update for the user's own account).
   The setup steps work on a workspace folder (`--dir`), the source of truth after the first
   render; servers pull the hub and bridge images that CI publishes to GHCR.
 
@@ -199,7 +200,7 @@ Run `pnpm check` before calling anything done.
 
 ## Status (as of 2026-10-30)
 
-**Built (v1, release 0.4.1):**
+**Built (v1, release 0.4.2):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
@@ -222,7 +223,15 @@ Run `pnpm check` before calling anything done.
     per actor, and the streams and sessions are bounded;
   - external text is quoted and labelled wherever agents or Discord see it;
   - containers are hardened, and the host gets a per-IP NATS limit and automatic security updates.
-  - `main` and `agents` are protected on GitHub (PR + CI, and one approval for `main`).
+  - `main` and `agents` are protected on GitHub. Both need a PR and green CI; `main` also needs
+    one approval, except that the owner may merge PRs (a ruleset bypass); nobody pushes directly.
+- **Pull mode and auto-update (0.4.2)** (ADR 0008):
+  - Sessions without the channel flag (and Claude Desktop) activate with `pull: true`. They count
+    as online but are never sent deliveries; routing prefers push-capable agents.
+  - The plugin polls `inbox.peek` and writes the unread counts to a state file. A plugin hook
+    (`hooks/hooks.json`, `dist/hook.js`) adds one line about unread work on each prompt.
+  - `agentmesh autoupdate` turns on plugin auto-update in the user's own settings; join and setup
+    offer it.
 
 **Tested and passing:**
 - **Unit tests (about 620):** workflow engine, transitions, routing, leases overlap, planning rounds
@@ -251,6 +260,8 @@ Run `pnpm check` before calling anything done.
 
 **Not yet verified:**
 - `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9).
+- Pull mode in a real session: that Claude Code runs the plugin hook (CLI and Desktop) and passes
+  `CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR` to the MCP server. The built hook passes a smoke test.
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).

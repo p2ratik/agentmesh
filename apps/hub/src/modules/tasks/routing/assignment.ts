@@ -2,15 +2,18 @@
 export interface AssignCandidate {
   id: string;
   online: boolean;
+  /** Online with a push session, so work reaches it at once (not only on its next prompt). */
+  instant: boolean;
   load: number;
   /** ISO time of the agent's last assignment; null if never assigned. */
   lastAssignedAt: string | null;
 }
 
 /**
- * Orders candidates: online first (when `preferOnline`), then fewer active
- * tasks, then least recently assigned (never-assigned first). Ties keep the
- * input order, which is the configured preference order.
+ * Orders candidates: online first (when `preferOnline`), and among those the
+ * ones reached at once over pull-only ones, then fewer active tasks, then least
+ * recently assigned (never-assigned first). Ties keep the input order, which is
+ * the configured preference order.
  */
 export function rankCandidates(
   candidates: readonly AssignCandidate[],
@@ -18,6 +21,7 @@ export function rankCandidates(
 ): AssignCandidate[] {
   return [...candidates].sort((a, b) => {
     if (preferOnline && a.online !== b.online) return a.online ? -1 : 1;
+    if (preferOnline && a.instant !== b.instant) return a.instant ? -1 : 1;
     if (a.load !== b.load) return a.load - b.load;
     return recency(a.lastAssignedAt) - recency(b.lastAssignedAt);
   });
@@ -33,6 +37,7 @@ export interface AssignmentRequest {
   maxActive: number;
   preferOnline: boolean;
   isOnline(id: string): boolean;
+  reachesInstantly(id: string): boolean;
   lastAssignedAt(id: string): string | null;
 }
 
@@ -43,6 +48,7 @@ export function pickAssignee(req: AssignmentRequest): string | null {
     .map((id) => ({
       id,
       online: req.isOnline(id),
+      instant: req.reachesInstantly(id),
       load: req.load.get(id) ?? 0,
       lastAssignedAt: req.lastAssignedAt(id),
     }))

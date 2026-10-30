@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { expandHome, isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
 import { listTools, type ToolListing, type ToolResult } from '../tools/registry';
@@ -7,6 +8,11 @@ import { runJoin } from './flow';
 import { confirmationText } from './invite';
 
 export const JOIN_TOOL = 'join';
+
+/** The bundled CLI next to dist/server.js, which this module is bundled into. */
+const CLI = join(import.meta.dirname, 'cli.js').replaceAll('\\', '/');
+/** Auto-update is off for our marketplace until each user turns it on; never without a yes. */
+const AUTOUPDATE_OFFER = `Then ask your human whether to turn on automatic updates for the AgentMesh plugin. Only if they say yes, run \`node "${CLI}" autoupdate\` and show what it printed.`;
 
 const JoinInput = z.object({
   invite_file: z
@@ -66,7 +72,7 @@ export async function callJoinTool(rawArgs: unknown, deps: JoinToolDeps): Promis
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : '';
     return text(
-      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.`,
+      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.\n${AUTOUPDATE_OFFER}`,
     );
   } catch (error) {
     return text(isMeshError(error) ? error.message : `join failed: ${String(error)}`, true);

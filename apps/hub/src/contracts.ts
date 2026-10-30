@@ -5,6 +5,7 @@
  */
 import type {
   DeliveryClass,
+  DeliveryMode,
   IngestEvent,
   MemberRecord,
   MeshMessage,
@@ -100,6 +101,11 @@ export interface PresenceService {
   markOffline(participantId: string): void;
   /** Heartbeating; an agent also needs an active, live session (work reaches it only there). */
   isOnline(participantId: string): boolean;
+  /**
+   * Online, and work reaches it at once: an agent needs an active, live push session (a pull-only
+   * one reads on its next prompt). Routing prefers these among online agents, never requires it.
+   */
+  reachesInstantly(participantId: string): boolean;
   status(participantId: string): PresenceStatus;
   peer(participantId: string): PeerInfo;
   peers(kind?: ParticipantKind | 'all'): PeerInfo[];
@@ -109,8 +115,8 @@ export interface PresenceService {
   setLoadReader(reader: () => Map<string, number>): void;
   /** Wired once the sessions module exists: an agent's active sessions for `PeerInfo`. */
   setSessionReader(reader: (agentId: string) => SessionSummary[]): void;
-  /** Wired once the sessions module exists: whether an agent has an active, live session. */
-  setReadyReader(reader: (agentId: string) => boolean): void;
+  /** Wired once the sessions module exists: how work reaches an agent now (`reach`). */
+  setReadyReader(reader: (agentId: string) => DeliveryMode | null): void;
 }
 
 // ---------------------------------------------------------------- messaging

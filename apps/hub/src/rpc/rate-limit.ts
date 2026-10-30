@@ -12,6 +12,7 @@ const FREE: ReadonlySet<RpcMethodName> = new Set<RpcMethodName>([
   'thread.get',
   'thread.list',
   'inbox.get',
+  'inbox.peek',
   'messages.seen',
   'session.bye',
   'task.get',

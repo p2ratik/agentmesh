@@ -60,6 +60,19 @@ export class ReadsRepo {
     );
   }
 
+  /** Per unread thread and sender: whether any of it is external (0/1). Newest first. */
+  unreadSenders(
+    participantId: string,
+  ): Array<{ threadId: number; senderId: string; external: number }> {
+    return this.#db.all(
+      `SELECT m.thread_id AS threadId, m.sender_id AS senderId, MAX(m.seq) AS lastSeq,
+         MAX(m.trust = 'external') AS external
+       FROM messages m ${UNREAD}
+       GROUP BY m.thread_id, m.sender_id ORDER BY lastSeq DESC`,
+      { p: participantId },
+    );
+  }
+
   unreadThreadCount(participantId: string): number {
     return (
       this.#db.get<{ n: number }>(

@@ -81,6 +81,7 @@ function chooseAgents(env: EffectEnv, task: TaskRecord, round: number): string[]
     skills: taskSkills(index, task),
     agents: index.agents(),
     isOnline: (id) => env.deps.presence.isOnline(id),
+    reachesInstantly: (id) => env.deps.presence.reachesInstantly(id),
     load: env.views.activeLoad(),
     max: index.config.review.maxReviewers,
   });

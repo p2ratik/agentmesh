@@ -63,7 +63,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | --- | --- | --- |
 | `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300) and `previousSessionId` (a hub-issued id); the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
-| `session.activate` | agent | Turn this session on: `{ code, description }`, the code from its latest check and a one-line description. A wrong or stale code is refused with `invalid_request`. |
+| `session.activate` | agent | Turn this session on: `{ mode, code, description }`. `mode` is `push` (default) or `pull`. Push needs the code from the latest check; a wrong or stale code is refused with `invalid_request`. Pull needs no code (see [Pull mode](#pull-mode)). The result's `delivery` says which. |
 | `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
 | `session.take` | agent | Move a thread or task (`threadId` or `taskId`, exactly one) to this session |
 | `session.bye` | agent, service | Close this session and release what it owns |
@@ -71,6 +71,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `peers.list` | any | Participants with presence and load |
 | `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
 | `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread (by the same owner chain as `inbox.get`). |
+| `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external }`: unread threads, how many need action, up to 5 sender ids (newest first) and whether any unread message is external. Marks nothing read. Free, like every read. |
 | `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
 | `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
 | `escalate` | agent | Ask a human (owner by default) |
@@ -191,11 +192,29 @@ both the NATS leg and the channel push:
 The `activate` tool first waits up to 3 s for the session to listen, then asks for the check.
 `session.deactivate` turns the session off and releases everything it owns at once, like a clean
 close; activating again takes none of it back. After a long absence, when `session.hello` answers
-with a new session for a window that was active, the plugin calls `session.check` by itself.
+with a new session for a window that was active, the plugin calls `session.check` by itself (a
+pull session re-activates in pull mode instead).
+
+### Pull mode
+
+Claude Code shows channel pushes only in sessions started with the channel flag, and the Claude
+Desktop app cannot pass it ([ADR 0008](adr/0008-pull-mode.md)). Such a session activates with
+`session.activate { mode: "pull", description }`, without a check. A pull session:
+
+- **Is never delivered to.** A delivery's ack marks action items read and claims the thread, so the
+  hub never sends one to a pull session. Its messages wait unread in the hub, and it reads them
+  with `inbox.get`, which marks them read; the outbox then publishes them without a push.
+- **Keeps what it owns.** A thread a pull session owns (it replied, accepted, or `take`s it) is
+  held for it (`held for s-… (pull)`), even when the agent also has a push session. So is a message
+  whose sender picked it with `toSession` (`held for s-… (picked, pull)`).
+- **Counts as online,** but routing prefers agents with a push session (below).
+- **Is announced, not pushed.** The plugin polls `inbox.peek` every 30 s and after each mesh tool
+  call, and writes the counts to a state file; a `UserPromptSubmit` / `SessionStart` hook adds one
+  line about unread work to the next prompt (see the plugin README).
 
 The hub tracks each session as:
 
-- **live:** heartbeating, or calling the hub as this session. Only a live, active session is
+- **live:** heartbeating, or calling the hub as this session. Only a live, active, push session is
   delivered to.
 - **away:** silent for `presence.offlineAfterSeconds`, or a delivery to it failed. It keeps what it
   owns and its deliveries wait. A heartbeat or a call made as the session makes it live again.
@@ -206,26 +225,33 @@ The hub tracks each session as:
   nobody else took. Closed sessions are deleted after 30 days.
 
 **Online.** An agent counts as online only while it heartbeats *and* has a live, active session,
-because that is the only place work reaches it. A session that was never activated, or a pull-only
-client such as Claude Desktop, heartbeats too but does not count. Humans and services count on
-heartbeats alone. Everything that prefers online agents uses this rule: auto-assignment, reviewer
-picks, board announcements, planning quorum, ingest recipients and the `online` recipient token.
-`peers` shows heartbeat presence with each agent's active sessions beside it. A review request to an
-agent that is not online says so in one line, so the humans watching notice.
+push or pull, because only then does work reach it. A session that was never activated heartbeats
+too but does not count. Humans and services count on heartbeats alone. Everything that prefers
+online agents uses this rule: auto-assignment, reviewer picks, board announcements, planning
+quorum, ingest recipients and the `online` recipient token. Among online agents, auto-assignment
+and reviewer picks rank those with a live, active push session ahead of pull-only ones (they see
+work at once, not on their next prompt); a pull-only agent still beats an offline one, and with
+`assignment.preferOnline` off neither preference applies to assignment. `peers` shows heartbeat
+presence with each agent's active sessions beside it, each with its `delivery`. A review request
+to an agent that is not online says so in one line, so the humans watching notice.
 
 ### Routing
 
 The first rule that matches decides. Each decision is logged with its reason.
 
 1. **The owner** of the thread (`owns thread`), of its parent thread (`owns parent thread`) or of
-   its task's thread (`owns task`). If that session is live and active, the message goes there. If
-   it is inactive or away, the message waits (`held for s-… (inactive|away)`) and is not rerouted,
-   so an inactive session that asked a question still gets its answer. A closed owner is ignored.
-2. **The session the sender picked** (`toSession`), if live and active (`picked by sender`).
-3. **An active session in the message's repo** (`in repo …`): the sender's `repo`, else the task's.
-4. **The longest-active session** (`longest-active session`).
-5. **Otherwise it waits** in the hub (`no active session`) for the next session the human
-   activates, and `inbox` shows it.
+   its task's thread (`owns task`). If that session is live, active and push, the message goes
+   there. If it is inactive, away or pull, the message waits (`held for s-… (inactive|away|pull)`)
+   and is not rerouted, so an inactive session that asked a question still gets its answer. A
+   closed owner is ignored.
+2. **The session the sender picked** (`toSession`), if live, active and push (`picked by
+   sender`). A live, active pull pick holds the message for that session (`held for s-… (picked,
+   pull)`).
+3. **An active push session in the message's repo** (`in repo …`): the sender's `repo`, else the
+   task's.
+4. **The longest-active push session** (`longest-active session`).
+5. **Otherwise it waits** in the hub (`no active push session`) for the next session the human
+   activates, and `inbox` shows it (a pull session reads it there).
 
 Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits), and
 when a delivery lands by rules 1 (parent or task), 2, 3 or 4. The first owner keeps the work:

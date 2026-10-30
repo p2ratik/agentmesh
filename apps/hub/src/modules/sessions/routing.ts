@@ -4,6 +4,8 @@ export interface RouteSession {
   id: string;
   active: boolean;
   liveness: 'live' | 'away';
+  /** A `pull` session is never delivered to: it reads its messages with `inbox`. */
+  delivery: 'push' | 'pull';
   repo: string | null;
   activatedAt: string | null;
 }
@@ -27,7 +29,13 @@ export type Route =
   | { kind: 'deliver'; sessionId: string; claim: boolean; reason: string }
   | { kind: 'wait'; reason: string };
 
-const ready = (s: RouteSession): boolean => s.active && s.liveness === 'live';
+/** A delivery target: active, live and push (a pull session reads its own messages). */
+const ready = (s: RouteSession): boolean =>
+  s.active && s.liveness === 'live' && s.delivery === 'push';
+
+/** Why a session that holds work cannot take a delivery now. */
+const notReady = (s: RouteSession): string =>
+  !s.active ? 'inactive' : s.liveness === 'away' ? 'away' : 'pull';
 
 /** Earliest activation first; ties keep list order. */
 const longestActive = (list: RouteSession[]): RouteSession | undefined =>
@@ -59,7 +67,7 @@ export function routeDelivery(input: RouteInput): Route {
     if (ready(session)) return { kind: 'deliver', sessionId: session.id, claim, reason };
     return {
       kind: 'wait',
-      reason: `held for ${session.id} (${session.active ? 'away' : 'inactive'})`,
+      reason: `held for ${session.id} (${notReady(session)})`,
     };
   }
 
@@ -67,6 +75,10 @@ export function routeDelivery(input: RouteInput): Route {
   const picked = input.picked ? byId.get(input.picked) : undefined;
   if (picked && ready(picked)) {
     return { kind: 'deliver', sessionId: picked.id, claim: true, reason: 'picked by sender' };
+  }
+  // The sender chose that window on purpose: a live pull pick reads it itself; nobody else takes it.
+  if (picked?.active && picked.liveness === 'live' && picked.delivery === 'pull') {
+    return { kind: 'wait', reason: `held for ${picked.id} (picked, pull)` };
   }
 
   const candidates = input.sessions.filter(ready);
@@ -80,5 +92,5 @@ export function routeDelivery(input: RouteInput): Route {
   if (any) {
     return { kind: 'deliver', sessionId: any.id, claim: true, reason: 'longest-active session' };
   }
-  return { kind: 'wait', reason: 'no active session' };
+  return { kind: 'wait', reason: 'no active push session' };
 }

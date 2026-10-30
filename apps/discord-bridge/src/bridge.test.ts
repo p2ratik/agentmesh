@@ -118,11 +118,39 @@ describe('command plumbing', () => {
           activeTasks: 2,
           sessions: [],
         },
+        {
+          id: 'dana-agent',
+          kind: 'agent',
+          displayName: 'Dana',
+          owner: 'dana',
+          status: 'online',
+          statusNote: null,
+          lastSeen: null,
+          repo: null,
+          branch: null,
+          skills: [],
+          areas: [],
+          activeTasks: 0,
+          sessions: [
+            {
+              id: 's-dddddddddddd',
+              delivery: 'pull',
+              description: 'desktop',
+              repo: null,
+              branch: null,
+              activeSince: '2026-10-30T09:00:00.000Z',
+              tasks: [],
+            },
+          ],
+        },
       ],
       counts: { openThreads: 3, openTasks: 2, activePlans: 1, heldDeliveries: 4 },
     });
     expect(text).toContain('PAUSED (incident)');
-    expect(text).toContain('🟠 **bob-agent** busy — deploy · 2 task(s) · acme/api@main');
+    expect(text).toContain('🟠 **bob-agent** busy — deploy · 2 task(s) · acme/api@main\n');
+    expect(text).toContain(
+      '🟢 **dana-agent** online · 0 task(s) · pull-only (reads on next prompt)',
+    );
   });
 });
 

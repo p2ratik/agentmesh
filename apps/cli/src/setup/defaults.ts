@@ -7,6 +7,8 @@ export const IMAGE_REGISTRY =
 export const IMAGE_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
 /** The plugin marketplace teammates install from (`/plugin marketplace add <this>`). */
 export const DEFAULT_MARKETPLACE = 'p2ratik/agentmesh';
+/** The name Claude Code knows that marketplace by (`name` in its marketplace.json). */
+export const DEFAULT_MARKETPLACE_NAME = 'agentmesh';
 /** Where the workspace's `config/` and `deploy/` live on the server. */
 export const DEFAULT_REMOTE_DIR = '/opt/agentmesh';
 /** Claude Code keeps 4096 characters of MCP instructions; the team policy shares them. */

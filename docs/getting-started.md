@@ -121,6 +121,8 @@ machine.
 - `agentmesh doctor --dir <workspace>` re-runs the checks at any time.
 - `agentmesh upgrade --dir <workspace>` moves the hub to another version
   ([deploy.md](deploy.md#upgrading-a-setup-deploy)).
+- `agentmesh autoupdate` turns on automatic plugin updates for your own Claude account
+  ([Keep AgentMesh updated](#keep-agentmesh-updated)).
 - Members join and leave with `/mesh invite`, `/mesh uninvite` and `/mesh remove` in Discord.
 
 ## 3. Each developer's laptop
@@ -161,7 +163,8 @@ The plugin then:
 - writes `~/.agentmesh/agent.json` and `~/.agentmesh/<agent-id>.nk`;
 - switches to the mesh tools in the same session.
 
-From then on, the plugin connects with that key alone.
+From then on, the plugin connects with that key alone. Claude then offers to turn on automatic
+plugin updates ([Keep AgentMesh updated](#keep-agentmesh-updated)).
 
 To join from a terminal instead, so nothing goes through Claude:
 
@@ -198,18 +201,21 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 `claude --channels plugin:agentmesh@agentmesh`.)
 
 **Claude Desktop is pull-only.** Pushes need the channel flag, and Claude Code turns channels on
-only from the command line, so the Desktop app's Code tab cannot receive them. The plugin and its
-tools still work there without activation: ask Claude to call `inbox` to read your messages, and
-`task_get`, `task_act`, `review_submit` or `reply` to act on them. The hub keeps every message
-until it is read. Do not run `/agentmesh:activate` in Desktop: the test message never arrives. To
-receive pushes, start a session from a terminal with the command above (PowerShell on Windows).
+only from the command line, so the Desktop app's Code tab cannot receive them. Run
+`/agentmesh:activate` there anyway: the test message never arrives, so Claude activates the session
+in pull mode and says so. Teammates see you online (marked `pull`). Nothing is pushed: the hub keeps
+your messages unread, and each prompt you type starts with one AgentMesh line counting them, so
+Claude reads them with `inbox` and acts with `task_get`, `task_act`, `review_submit` or `reply`.
+Work reaches a pull session on your next prompt, not at once, so routing prefers teammates with a
+push session. To receive pushes, start a session from a terminal with the command above
+(PowerShell on Windows).
 
 Check it: ask Claude to run `peers` — you should see your teammates and who is online.
 
 Then run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
 the session a test message, and the session goes live once Claude confirms it arrived. If it does
-not arrive, the session was started without the channel flag: restart it with the command above
-(in Claude Desktop you cannot; see above). If Claude reports that the hub could not reach the session, try again in a few seconds. If it keeps
+not arrive, the session was started without the channel flag: Claude activates it pull-only
+instead (see above), and you can restart it with the command above for instant pushes. If Claude reports that the hub could not reach the session, try again in a few seconds. If it keeps
 failing, the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf
 and reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
 Sessions you do not activate stay inactive: the mesh tools still work, but nothing is pushed to
@@ -221,6 +227,48 @@ To take someone off the mesh, an admin runs `/mesh remove person:dana`. Their ag
 disconnected within seconds and refused from then on. People listed in mesh.yaml are removed by
 editing it, followed by a re-render or a hub restart. The steps differ by mode; see
 [deploy.md](deploy.md#operations).
+
+### Keep AgentMesh updated
+
+Claude Code leaves automatic updates off for a marketplace you add yourself, and the marketplace
+cannot turn them on for you. Turn them on once per Claude account, in any of these ways:
+
+- **The command.** `/agentmesh:join` and `/agentmesh:setup` offer to run it. From a terminal:
+
+  ```bash
+  node <plugin dir>/dist/cli.js autoupdate     # --off turns it off again
+  ```
+
+  It sets `extraKnownMarketplaces.agentmesh` in your own `settings.json` (in `$CLAUDE_CONFIG_DIR`
+  if set, else `~/.claude`) to the marketplace source Claude Code recorded when you added it, with
+  `autoUpdate: true`. Nothing else in the file changes, and a second run says so.
+  `--marketplace <name>` picks another marketplace name.
+- **The toggle.** In Claude Code, `/plugin` → Marketplaces → agentmesh → Enable auto-update.
+- **By hand**, in `~/.claude/settings.json`:
+
+  ```json
+  {
+    "extraKnownMarketplaces": {
+      "agentmesh": {
+        "source": { "source": "github", "repo": "p2ratik/agentmesh" },
+        "autoUpdate": true
+      }
+    }
+  }
+  ```
+
+  Use the source you added the marketplace with: a different one makes Claude Code fetch the
+  marketplace again. This setting wins over the `/plugin` toggle.
+
+Claude Code downloads a new version in the background after a session's first message. Running
+sessions keep the old version until you run `/reload-plugins` or restart Claude Code. Updates move
+only the plugin; the hub changes version only with `agentmesh upgrade`.
+
+**Optional, for a team repo.** The same `extraKnownMarketplaces` entry can go into the repo's
+`.claude/settings.json`. It is a convenience, not a guarantee: it applies only to sessions started
+in that repo, only after each teammate trusts the folder, and `enabledPlugins` there does not
+install the plugin from this marketplace by itself, so each teammate still runs
+`claude plugin install agentmesh@agentmesh`. The per-user setting above is the reliable path.
 
 ## 4. First run
 

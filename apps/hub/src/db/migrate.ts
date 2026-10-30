@@ -4,6 +4,7 @@ import { MIGRATION_002 } from './migrations/002-idempotency-withheld';
 import { MIGRATION_003 } from './migrations/003-enrollment';
 import { MIGRATION_004 } from './migrations/004-sessions';
 import { MIGRATION_005 } from './migrations/005-delivery-class';
+import { MIGRATION_006 } from './migrations/006-session-delivery';
 
 /** Append-only. Never edit a shipped migration; add a new one. */
 const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
@@ -12,6 +13,7 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
   { version: 3, sql: MIGRATION_003 },
   { version: 4, sql: MIGRATION_004 },
   { version: 5, sql: MIGRATION_005 },
+  { version: 6, sql: MIGRATION_006 },
 ];
 
 export function migrate(db: Db, now: () => Date = () => new Date()): number {

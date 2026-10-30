@@ -1,5 +1,11 @@
 import { MeshError, newSessionId, parseId, redactSecrets } from '@agentmesh/common';
-import type { MeshMessage, RpcMethodName, SessionSummary, SessionView } from '@agentmesh/protocol';
+import type {
+  DeliveryMode,
+  MeshMessage,
+  RpcMethodName,
+  SessionSummary,
+  SessionView,
+} from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type {
   CallContext,
@@ -10,6 +16,7 @@ import type {
 import { internalId, taskKey, threadKey } from '../../core/ids';
 import { claimTargets } from './claims';
 import { evictStalest, expireSessions, releaseAndClose } from './liveness';
+import { toRecord, toRouteSession, toSummary, toView } from './mappers';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
 import { chainOwner, type Route, type RouteInput, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
@@ -19,21 +26,6 @@ export interface SessionsDeps {
   /** Late-bound: the task and planning modules are built after this one. */
   locate(taskId: number): { threadId: number; repo: string | null } | null;
   threadOf(planId: number): number | null;
-}
-
-function toRecord(row: SessionRow): SessionRecord {
-  return {
-    id: row.id,
-    agentId: row.agent_id,
-    active: row.active === 1,
-    liveness: row.liveness,
-    description: row.description,
-    repo: row.repo,
-    branch: row.branch,
-    createdAt: row.created_at,
-    activatedAt: row.activated_at,
-    lastSeen: row.last_seen,
-  };
 }
 
 /**
@@ -88,13 +80,25 @@ export class SessionsServiceImpl implements SessionsService {
 
   /**
    * Stamps `activated_at` only when the session was inactive, so re-activating keeps its age.
-   * Kicks the outbox: messages waiting for an active session can go now.
+   * `delivery` replaces the previous mode. Kicks the outbox: messages waiting for an active
+   * session can go now.
    */
-  activate(agentId: string, sessionId: string, description: string): SessionRecord {
-    const record = this.#change(agentId, sessionId, 'session activated', (row, at) => {
-      if (row.active === 0) this.repo.setActive(sessionId, true, at);
-      this.repo.setDescription(sessionId, redactSecrets(description));
-    });
+  activate(
+    agentId: string,
+    sessionId: string,
+    description: string,
+    delivery: DeliveryMode = 'push',
+  ): SessionRecord {
+    const record = this.#change(
+      agentId,
+      sessionId,
+      `session activated (${delivery})`,
+      (row, at) => {
+        if (row.active === 0) this.repo.setActive(sessionId, true, at);
+        this.repo.setDelivery(sessionId, delivery);
+        this.repo.setDescription(sessionId, redactSecrets(description));
+      },
+    );
     this.#ctx.outbox.kick();
     return record;
   }
@@ -201,14 +205,7 @@ export class SessionsServiceImpl implements SessionsService {
   view(sessionId: string): SessionView {
     const row = this.repo.get(sessionId);
     if (!row) throw new MeshError('not_found', `Unknown session ${sessionId}`);
-    return {
-      id: row.id,
-      active: row.active === 1,
-      description: row.description,
-      repo: row.repo,
-      branch: row.branch,
-      owns: this.repo.ownedThreads(row.id).map(threadKey),
-    };
+    return toView(row, this.repo.ownedThreads(row.id).map(threadKey));
   }
 
   /** Active, non-closed sessions with the tasks whose threads they own. */
@@ -216,14 +213,7 @@ export class SessionsServiceImpl implements SessionsService {
     return this.repo
       .listLive(agentId)
       .filter((s) => s.active === 1)
-      .map((s) => ({
-        id: s.id,
-        description: s.description ?? '',
-        repo: s.repo,
-        branch: s.branch,
-        activeSince: s.activated_at ?? s.created_at,
-        tasks: this.#ownedTasks(s.id),
-      }));
+      .map((s) => toSummary(s, this.#ownedTasks(s.id)));
   }
 
   hasLiveSession(agentId: string): boolean {
@@ -231,7 +221,15 @@ export class SessionsServiceImpl implements SessionsService {
   }
 
   hasReadySession(agentId: string): boolean {
-    return this.repo.listLive(agentId).some((s) => s.active === 1 && s.liveness === 'live');
+    return this.reach(agentId) === 'push';
+  }
+
+  reach(agentId: string): DeliveryMode | null {
+    const ready = this.repo
+      .listLive(agentId)
+      .filter((s) => s.active === 1 && s.liveness === 'live');
+    if (ready.some((s) => s.delivery === 'push')) return 'push';
+    return ready.length > 0 ? 'pull' : null;
   }
 
   ownerOf(threadId: number, agentId: string): string | null {
@@ -243,13 +241,7 @@ export class SessionsServiceImpl implements SessionsService {
     const owner = (id: number | null) => (id === null ? null : this.repo.owner(id, agentId));
     const task = taskId === null ? null : this.#deps.locate(taskId);
     return {
-      sessions: this.repo.listLive(agentId).map((s) => ({
-        id: s.id,
-        active: s.active === 1,
-        liveness: s.liveness === 'live' ? 'live' : 'away',
-        repo: s.repo,
-        activatedAt: s.activated_at,
-      })),
+      sessions: this.repo.listLive(agentId).map(toRouteSession),
       threadOwner: owner(threadId),
       parentOwner: owner(this.#deps.messaging.thread(threadId).parentId),
       taskOwner: task && task.threadId !== threadId ? owner(task.threadId) : null,
