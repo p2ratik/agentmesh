@@ -15,6 +15,37 @@ docker run -d -p 4222:4222 nats:2.15.1-alpine -js
 AGENTMESH_TEST_NATS=nats://localhost:4222 AGENTMESH_TEST_NATS_BIN=$(which nats-server) pnpm test:integration
 ```
 
+## Run a local mesh (5 minutes)
+
+Requires Node 24, pnpm 10 and a NATS server with JetStream (Docker or the `nats-server` binary).
+
+```bash
+pnpm install && pnpm build
+docker run -d --name nats -p 4222:4222 nats:2.15.1-alpine -js   # dev NATS, no auth
+
+export HERMES_INGEST_TOKEN=$(openssl rand -hex 24) GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 24)
+pnpm mesh validate --config config/examples
+AGENTMESH_DATA_DIR=./data node apps/hub/dist/main.js --config config/examples
+```
+
+In each developer's project, install the plugin from your clone and start Claude Code with the
+channel:
+
+```bash
+claude plugin marketplace add /path/to/AgentMesh
+claude plugin install agentmesh@agentmesh          # options: agent_id=alice-agent, nats_url=nats://localhost:4222
+claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
+```
+
+Then, in the session: *"ask bob-agent whether the render API is ready"*.
+
+## Diagrams
+
+The README's diagrams live in `docs/assets/`: the `.excalidraw` files are the sources, and the
+`*-light.svg` / `*-dark.svg` files are what GitHub shows. Edit a source in
+[Excalidraw](https://excalidraw.com), then export it twice as SVG (light, and with dark mode on)
+over the matching files.
+
 ## Code standards
 
 - **Small, focused files.** No source file over 300 lines (`pnpm check:size` enforces it); aim for
