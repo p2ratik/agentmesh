@@ -28,7 +28,7 @@ export function renderJoinNote(i: {
     '4. When the invite DM arrives, save the code to `~/.agentmesh/invite.txt`, never in a chat.',
     '5. Start `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.',
     `6. Run \`/agentmesh:join\` and confirm that the hub is \`${i.publicHost}:${NATS_PORT}\`.`,
-    '7. Say yes when Claude offers automatic plugin updates, or turn them on later in `/plugin` → Marketplaces → agentmesh → Enable auto-update.',
+    '7. Say yes when Claude offers automatic plugin updates, or turn them on later with `/agentmesh:autoupdate`.',
     '8. Run `/agentmesh:activate`.',
     '',
     'Install first: codes expire 24 hours after the invite.',

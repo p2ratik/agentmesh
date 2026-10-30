@@ -1,6 +1,6 @@
 {
   "name": "@agentmesh/hub",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "AgentMesh coordinator: routing, threads, tasks, workflows, planning, leases, event rules.",
