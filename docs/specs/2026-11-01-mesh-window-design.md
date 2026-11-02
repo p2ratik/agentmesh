@@ -712,3 +712,91 @@ Later:
    worktree.** This replaces the desk folder (with its own clones, or with worktrees inside it).
    §3 makes "every piece of work in a worktree" enforceable through Claude Code's own permission
    rules and a plugin hook.
+
+
+## 13. Inputs for plans 2 and 3 (re-check of 2026-11-02)
+
+An independent builder check and a security review of the "any folder" §3 found the following. Plan
+1 (§4, plus §5's claim rules) is built and isn't affected. Plans 2 and 3 must resolve each item
+before they're written. Items marked **Pratik** are his calls; the rest are mine to settle in the
+plan, with a ruling recorded.
+
+**Claims in §3 and §8 that are overstated and must be corrected:**
+- "Bash writes … prompt" is false while test commands are allow-listed. A branch's test code runs
+  as the human's OS user and can **write** as well as read, including:
+  - into the human's checkout;
+  - into `<repo>/.git/hooks`, which every worktree shares;
+  - into `~/.agentmesh/` and the plugin's own guard.
+- "The mesh window can't loosen its own rules" is false for the same reason.
+- "No teammate text passes through the window's model" is false. The window reads every ask, task
+  and notice, so prompt injection could make it call `SendMessage` with its own words.
+- **Pratik:** the accepted risk in §12, decision 3, needs restating as "reads **and writes** as you,
+  including persistence in `.git/hooks` and switching off the guard". Pratik should confirm the
+  decision with that wording.
+
+**The worktree guard (plan 2):**
+- **Resolve paths before comparing.**
+  - Use `realpathSync.native` of the nearest existing parent, compared without regard to case on
+    win32 and darwin.
+  - Refuse `\\?\`, `\\.\`, UNC paths and alternate data streams.
+  - Accept a path only inside a worktree git has **registered**, by checking the worktree's `.git`
+    file and git's back-pointer. Symlinks, junctions and a fake `.claude/worktrees` folder otherwise
+    get through.
+- **Prefix mesh worktree names with `mesh-`** everywhere (allow rules, git commands, the guard).
+  `.claude/worktrees/` is also where the human's own `claude --worktree` sessions keep theirs.
+- **Guard Bash and PowerShell too** (mesh window only). Return `ask` unless the command matches one
+  exact pattern with no shell metacharacters. Allow-rule wildcards accept extra flags (`-f -B`,
+  `--force`, `+src:dst` refspecs), and the human's own allow rules and Shift+Tab mode changes still
+  apply. Allow rules are exact strings, with no `:*`.
+- **Fail closed.**
+  - It's its own entry point (`dist/guard.js`), reading stdin to the end with no truncation.
+  - When the marker is set, it denies (exit 2) on a parse error, a missing path, or an unknown tool.
+    NotebookEdit uses `notebook_path`.
+- **Settings in the folder must not be able to switch it off or spoof it.**
+  - Put `env.AGENTMESH_MESH_WINDOW` and `disableAllHooks: false` in the launcher's `--settings`
+    file.
+  - Make the marker a random token issued by the window's setup command.
+  - `activate` in a marked session refuses to run unless the guard reported itself alive.
+- **Git can run repo-controlled code.**
+  - Set `core.hooksPath` to an empty folder, `core.fsmonitor=false` and
+    `safe.bareRepository=explicit` through `GIT_CONFIG_*` in the launcher's settings.
+  - The guard denies writes to any `.git` path segment.
+- **Tests on other people's branches.** **Pratik:** on Windows (no sandbox), should the guard return
+  `ask` for test commands in worktrees whose branch isn't `agent/<self>/…`? That covers reviews and
+  outside PRs. On macOS and Linux, run tests in Claude Code's sandbox by default, with
+  `autoAllowBashIfSandboxed: false` and writes limited to `.claude/worktrees/mesh-*`.
+- **The launcher on Windows** writes the absolute path of `claude` (from `where claude`) and sets
+  `NoDefaultCurrentDirectoryInExePath=1`.
+  - A `claude.cmd` planted at a repo root would otherwise run.
+  - The bare `node` in `hooks.json` has the same exposure today.
+- **The human's own tools** (vitest, tsc, biome) can walk into `.claude/worktrees/`.
+  - The window's setup warns when a repo's test, tsconfig or lint excludes lack it.
+  - The window removes review worktrees after it submits the review.
+- **Repo matching.** Match a task's `owner/name` to a checkout's `origin` exactly (host, owner and
+  name, ignoring case, without `.git`). Require exactly one match; otherwise ask.
+- **The bypass setting** is `permissions.disableBypassPermissionsMode: "disable"`, a string.
+
+**Routing and settings (plan 2):**
+- **The mesh window wins over the repo rule.** A window started in a parent folder has repo `null`.
+  Under "pick, repo, mesh window" order, a session activated out of habit in the task's repo would
+  collect the task, without the guard. *My call:* the order is pick, then mesh window, then repo,
+  then longest-active.
+- **Layered settings.** Claude Code merges the human's user and project allow rules into the mesh
+  window. Plan 2 decides between two options:
+  - accept that, and document it;
+  - restrict setting sources, so the launcher's settings file has to carry plugin enablement,
+    `pluginConfigs` and the mesh allow rule.
+- **The route reason should name a skipped inactive chain owner.** Parked from plan 1's final review.
+
+**The relay (plan 3):**
+- **`localKey` = the `claude` process id plus `startedAt`.** `claude agents --json` includes
+  `startedAt`. The prompt hook matches its own session by its parent pid against the state file the
+  plugin wrote. It must not spawn `claude` on every prompt.
+- **Delivery depends on teammates' Claude Code settings.**
+  - Messages to a "prompting" session are delivered by default, unless `crossSessionInbound` is
+    `hold` or `refuse` there.
+  - `SendMessage` may need an allow rule in the mesh window.
+  - Verify both on a teammate's machine. The spike ran with Pratik's `crossSessionInbound: "accept"`.
+- **A `SendMessage` guard in the mesh window** denies any send unless:
+  - the body matches the fixed pointer pattern exactly, and
+  - the target equals a `forward_to` that the plugin recorded for a pending relay.
