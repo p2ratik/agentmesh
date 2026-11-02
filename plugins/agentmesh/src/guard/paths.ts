@@ -55,21 +55,33 @@ const keys = (file: string, o: PathOptions) => {
   return [key(top, o), ...segments.map((s) => key(s, o))];
 };
 
-/** `inner` is `outer` or below it. */
+/** `inner` is `outer` or below it. A refusal check, so it folds case on every platform: a
+ * case-insensitive folder can sit on any OS. */
 function within(inner: string, outer: string, o: PathOptions): boolean {
-  const a = keys(inner, o);
-  const b = keys(outer, o);
+  const a = keys(inner, o).map((k) => k.toUpperCase());
+  const b = keys(outer, o).map((k) => k.toUpperCase());
   return b.length <= a.length && b.every((k, i) => k === a[i]);
 }
 
-/** Why a path is refused before the disk is touched (no UNC host is ever contacted), or null. */
-function badInput(file: string, o: PathOptions): Refusal | null {
-  if (file.includes('\0')) return NOT_ABSOLUTE;
-  if (o.platform !== 'win32') return path.posix.isAbsolute(file) ? null : NOT_ABSOLUTE;
-  if (/^[\\/]([\\/]|\?\?[\\/])/.test(file)) return DEVICE;
+/** A name Win32 opens as a device, with any extension (`nul`, `com1.ts`, `conout$`). */
+const DOS_DEVICE =
+  /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
+
+/** Why a path is refused before the disk is touched (no UNC host is ever contacted), or null.
+ * `.` and `..` are refused rather than resolved: a writer that folds them as text and a kernel that
+ * follows a link before its `..` land in different places. */
+function badInput(file: unknown, o: PathOptions): Refusal | null {
+  if (typeof file !== 'string' || file.includes('\0') || file !== file.trim()) return NOT_ABSOLUTE;
+  const win = o.platform === 'win32';
+  if (win && /^[\\/]([\\/]|\?\?[\\/])/.test(file)) return DEVICE;
+  const segments = file.split(win ? /[\\/]/ : '/');
+  if (segments.some((s) => s === '.' || s === '..')) return NOT_ABSOLUTE;
+  if (!win) return file.startsWith('/') ? null : NOT_ABSOLUTE;
   if (!/^[a-z]:[\\/]/i.test(file)) return NOT_ABSOLUTE;
-  // Win32 drops a segment's trailing dots and spaces (`out.` opens the link `out`); Node doesn't.
-  return file.includes(':', 2) || /[. ](\\|$)/.test(path.win32.resolve(file)) ? DEVICE : null;
+  if (file.includes(':', 2)) return DEVICE;
+  // Win32 drops trailing dots and spaces (`out.` opens the link `out`) and opens device names;
+  // Node's fs doesn't, so the two would disagree about where the write lands.
+  return segments.slice(1).some((s) => /[. ]$/.test(s) || DOS_DEVICE.test(s)) ? DEVICE : null;
 }
 
 /** The real path, or the path itself when nothing is there yet; null when something is there but
@@ -85,20 +97,26 @@ function realOrMissing(file: string): string | null {
   }
 }
 
-/** Where a write to `file` lands: links followed segment by segment, a missing tail kept. Win32
- * folds `..` as text before following links; POSIX kernels follow a link before its `..`. */
+/** Where a write to `file` (no `.` or `..` in it) lands: links followed segment by segment, a
+ * missing tail kept. */
 function resolve(file: string, o: PathOptions): string | null {
   const p = lib(o);
-  const full = o.platform === 'win32' ? p.resolve(file) : file;
-  const { top, segments } = split(full, o);
+  const { top, segments } = split(p.resolve(file), o);
   let current = top;
   for (const segment of segments) {
-    if (segment === '.') continue;
-    const next = realOrMissing(segment === '..' ? p.dirname(current) : p.join(current, segment));
+    const next = realOrMissing(p.join(current, segment));
     if (next === null) return null;
     current = next;
   }
   return current;
+}
+
+/** The write would reach past the path: its last segment is a link (a temp-and-rename writer
+ * replaces the link in the link's own folder), or the file has other hard links. */
+function escapes(file: string, resolved: string, o: PathOptions): boolean {
+  if (attempt(() => lstatSync(lib(o).resolve(file)))?.isSymbolicLink()) return true;
+  const target = attempt(() => lstatSync(resolved));
+  return target !== undefined && !target.isDirectory() && target.nlink > 1;
 }
 
 /** The real path of an existing file that git wrote, refusing device and UNC spellings in it. */
@@ -155,15 +173,18 @@ export function meshWorktreeOf(file: string, o: PathOptions): MeshWorktree | Ref
 }
 
 /** Whether the mesh window may write `file`: strictly inside a registered mesh worktree, never a
- * `.git` path below its root, never inside the real `~/.agentmesh`. */
+ * `.git` path below its root (in any case), never inside the real `~/.agentmesh`, never a link or
+ * a hard-linked file. */
 export function editTarget(file: string, o: PathOptions): { ok: true } | Refusal {
   const resolved = located(file, o);
   if (typeof resolved !== 'string') return resolved;
+  if (typeof o.home !== 'string') return NOT_ABSOLUTE;
   const p = lib(o);
   const agentmesh = p.isAbsolute(o.home) ? resolve(p.join(o.home, '.agentmesh'), o) : null;
   if (agentmesh === null || within(resolved, agentmesh, o)) return AGENTMESH;
   const found = registered(resolved, o);
   if ('refused' in found) return found;
   if (found.below.length === 0) return OUTSIDE;
-  return found.below.includes(key('.git', o)) ? DOT_GIT : { ok: true };
+  if (found.below.some((k) => k.toUpperCase() === '.GIT')) return DOT_GIT;
+  return escapes(file, resolved, o) ? OUTSIDE : { ok: true };
 }
