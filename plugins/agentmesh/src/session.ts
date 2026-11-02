@@ -1,4 +1,4 @@
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import type { Logger } from '@agentmesh/common';
 import type { RpcResult } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -7,10 +7,10 @@ import { HubClient } from './hub';
 import { FyiBuffer } from './inbox/fyi';
 import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
-import { pullStateDirs } from './pull/state';
 import { PullWatcher } from './pull/watcher';
 import { pushEvent, VERSION } from './server';
 import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
+import { type MeshWindowContext, meshWindowContext } from './window/context';
 
 const HELLO_WAIT_MS = 4000;
 const SHUTDOWN_MS = 250;
@@ -23,6 +23,8 @@ export interface Session {
   presence: Presence;
   /** The hub's greeting, or null if it did not answer in time. */
   hello: Hello | null;
+  /** Whether this process is the user's mesh window; hello reports it to the hub. */
+  window: MeshWindowContext;
   /** Says hello (again), one call at a time; resolves null if it failed. */
   sayHello(): Promise<Hello | null>;
   activation: ActivationState;
@@ -42,6 +44,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
   const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
   const presence = new Presence(hub, logger, projectDir);
   const activation = newActivationState();
+  const window = meshWindowContext(process.env, homedir(), platform(), projectDir, config.agentId);
   hub.connect();
   await presence.refreshGit();
   let inFlight: Promise<Hello | null> | null = null;
@@ -50,6 +53,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     hub,
     presence,
     hello: null,
+    window,
     activation,
     fyi: new FyiBuffer(),
     onHello: null,
@@ -59,12 +63,12 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
       activation,
       agentId: config.agentId,
       prefix: config.prefix,
-      dir: pullStateDirs(process.env, homedir())[0] ?? '.',
+      dir: window.dataDir,
       projectDir,
       logger,
     }),
     sayHello: () => {
-      inFlight ??= register(hub, presence, logger)
+      inFlight ??= register(hub, presence, logger, window.state === 'verified')
         .then((landed) => {
           if (landed) session.onHello?.(landed.renewed);
           return landed?.hello ?? null;
@@ -187,6 +191,7 @@ async function register(
   hub: HubClient,
   presence: Presence,
   logger: Logger,
+  meshWindow: boolean,
 ): Promise<{ hello: Hello; renewed: boolean } | null> {
   try {
     await hub.whenConnected();
@@ -194,6 +199,7 @@ async function register(
     const hello = await hub.call('session.hello', {
       clientVersion: VERSION,
       ...presence.git,
+      ...(meshWindow ? { meshWindow: true } : {}),
       ...(previous ? { previousSessionId: previous } : {}),
     });
     hub.sessionId = hello.sessionId;

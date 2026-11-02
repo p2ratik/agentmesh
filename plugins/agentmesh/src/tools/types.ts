@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { HubClient } from '../hub';
 import type { FyiBuffer } from '../inbox/fyi';
+import type { MeshWindowContext } from '../window/context';
 import type { ActivationState } from './activation';
 
 export interface ToolDeps {
@@ -12,7 +13,12 @@ export interface ToolDeps {
   fyi: FyiBuffer;
   /** Resolves once this session listens on its subject, where the hub sends the activation check. */
   listening: Promise<void>;
+  /** Whether this session is the user's mesh window (spec §3). */
+  window: MeshWindowContext;
 }
+
+/** A refusal shown to Claude verbatim as an error (no code prefix). */
+export class ToolRefusal extends Error {}
 
 /**
  * One MCP tool: a zod input schema (snake_case, Claude-facing) and a runner

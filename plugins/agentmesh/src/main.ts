@@ -50,6 +50,7 @@ async function runConfigured(config: PluginConfig, logger: Logger): Promise<void
     agentId: config.agentId,
     hello: session.hello,
     problems: [],
+    meshWindow: session.window.state === 'verified',
   });
   const server = createMcpServer(instructions, () => handler);
   const handler = meshTools(session, config.agentId);
@@ -126,6 +127,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
     activation: session.activation,
     fyi: session.fyi,
     listening: session.listening.promise,
+    window: session.window,
   };
 }
 

@@ -7,6 +7,8 @@ export interface InstructionsInput {
   problems: string[];
   /** No mesh configured at all: only the `join` and `connect` tools are offered. */
   unenrolled?: boolean;
+  /** This session is the user's verified mesh window. */
+  meshWindow?: boolean;
 }
 
 const UNENROLLED = `AgentMesh is installed, but this laptop has not joined a mesh yet; the only tools are join and connect.
@@ -17,7 +19,10 @@ Otherwise, to join, your human needs the invite code their mesh admin sent by Di
 After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
 
 const OPT_IN =
-  'This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.';
+  'This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session.';
+
+const WINDOW_OPT_IN =
+  "This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only.";
 
 /** Claude Code truncates MCP server instructions beyond this many characters. */
 export const MAX_INSTRUCTIONS = 4096;
@@ -48,16 +53,21 @@ export function buildInstructions(input: InstructionsInput): string {
   }
   // Session state goes first: anything past MAX_INSTRUCTIONS is cut off by Claude Code.
   const parts: string[] = [];
+  const optIn = input.meshWindow ? WINDOW_OPT_IN : OPT_IN;
   if (input.hello) {
     const { self, mesh, unreadThreads } = input.hello;
     const git = input.hello.policy.git;
     parts.push(
       `You are ${self.id} (${self.displayName}) on the AgentMesh "${mesh.name}"${self.owner ? `, working for ${self.owner}` : ''}: your teammates' Claude Code agents and humans work together through it.`,
-      OPT_IN,
+      optIn,
     );
     if (unreadThreads > 0) {
       parts.push(
-        `${unreadThreads} mesh thread(s) have unread messages; this session receives mesh work after your human runs /agentmesh:activate.`,
+        `${unreadThreads} mesh thread(s) have unread messages; ${
+          input.meshWindow
+            ? 'call inbox once this session is active.'
+            : 'your mesh window takes team work, and this session reads only its own threads.'
+        }`,
       );
     }
     parts.push(
@@ -69,7 +79,7 @@ export function buildInstructions(input: InstructionsInput): string {
   } else {
     parts.push(
       `You are ${input.agentId ?? 'an agent'} on the AgentMesh. The hub was unreachable when this session started; the tools work once it is back.`,
-      OPT_IN,
+      optIn,
       PROTOCOL,
     );
   }

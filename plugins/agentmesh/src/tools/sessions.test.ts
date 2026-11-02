@@ -63,7 +63,7 @@ describe('session tools', () => {
     const args = { code: 'K7Q2ZP', description: 'checkout redesign' };
     const result = await callTool('activate', args, deps);
     expect(calls.map((c) => [c.method, c.params])).toEqual([['session.activate', args]]);
-    expect(text(result)).toBe('This session is active on the mesh as “checkout redesign”.');
+    expect(text(result)).toContain('This session is active on the mesh as “checkout redesign”.');
     expect(deps.activation).toEqual({
       lastDescription: 'checkout redesign',
       renewedFrom: null,

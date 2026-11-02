@@ -43,8 +43,8 @@ describe('buildInstructions', () => {
       problems: [],
     });
     expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
-    expect(text.slice(0, 450)).toContain(
-      '2 mesh thread(s) have unread messages; this session receives mesh work after your human runs /agentmesh:activate.',
+    expect(text.slice(0, 650)).toContain(
+      '2 mesh thread(s) have unread messages; your mesh window takes team work, and this session reads only its own threads.',
     );
     expect(text).toContain('policy truncated');
   });
@@ -61,7 +61,7 @@ describe('buildInstructions', () => {
 
   it('mentions /agentmesh:activate and stays under 4096', () => {
     const line =
-      'This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.';
+      'This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session.';
     for (const h of [hello('Escalate crucial decisions to aheen. '.repeat(300), 2), null]) {
       const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
       expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
@@ -89,5 +89,18 @@ describe('buildInstructions', () => {
     });
     expect(text).toContain('Team policy:\nBe kind.');
     expect(text).not.toContain('unread');
+  });
+  it('tells the mesh window it takes team work, within the limit', () => {
+    const base = { agentId: 'bob-agent', problems: [], meshWindow: true };
+    for (const h of [hello('Escalate crucial decisions to aheen. '.repeat(300), 2), null]) {
+      const text = buildInstructions({ ...base, hello: h });
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+      expect(text.split('\n\n')[1]).toBe(
+        "This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only.",
+      );
+    }
+    expect(buildInstructions({ ...base, hello: hello('Be kind.', 2) })).toContain(
+      '2 mesh thread(s) have unread messages; call inbox once this session is active.',
+    );
   });
 });

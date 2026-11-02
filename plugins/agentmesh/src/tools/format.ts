@@ -37,7 +37,8 @@ function formatSession(s: SessionSummary): string {
   const where = s.repo ? ` (${s.repo}${s.branch ? `@${s.branch}` : ''})` : '';
   const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(', ')}` : '';
   const pull = s.delivery === 'pull' ? ' [pull: reads on its next prompt]' : '';
-  return `    · ${s.id} — ${s.description}${where}${owns}${pull}`;
+  const window = s.meshWindow ? ' [mesh window]' : '';
+  return `    · ${s.id} — ${s.description}${where}${owns}${pull}${window}`;
 }
 
 /** A header line, then the body quoted (`│ `), so no body line can pass for another entry. */

@@ -20,4 +20,8 @@ Turn this session on for the mesh with the AgentMesh `activate` tool.
 4. If the first call fails because the hub could not reach this session, tell the user what the
    tool said (try again in a few seconds, or the NATS permissions are outdated).
 
+In your mesh window, never use `pull: true`: if no test message arrives, call `activate` again
+with no arguments, and if it still doesn't arrive, tell the user to restart the window with
+`~/.agentmesh/mesh-window`.
+
 Later, whenever this session's focus changes, call `describe_session` with a new line.
