@@ -55,6 +55,8 @@ export const SessionSummary = z.object({
   repo: z.string().nullable(),
   branch: z.string().nullable(),
   activeSince: IsoDate,
+  /** Started by the mesh window launcher; routing prefers it for team work. */
+  meshWindow: z.boolean().default(false),
   tasks: z.array(z.string()),
 });
 export type SessionSummary = z.infer<typeof SessionSummary>;

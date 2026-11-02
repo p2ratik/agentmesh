@@ -45,6 +45,8 @@ describe('RPC params caps', () => {
     const ok = { clientVersion: '0.4.0', repo: 'acme/api', branch: 'agent/x/task-1-y' };
     expect(hello.safeParse(ok).success).toBe(true);
     expect(hello.safeParse({ ...ok, previousSessionId: 's-abcdefghijkl' }).success).toBe(true);
+    expect(hello.safeParse({ ...ok, meshWindow: true }).success).toBe(true);
+    expect(hello.safeParse({ ...ok, meshWindow: 'yes' }).success).toBe(false);
     const huge = '1.'.repeat(500_000);
     expect(hello.safeParse({ ...ok, clientVersion: huge }).success).toBe(false);
     expect(hello.safeParse({ ...ok, repo: 'r'.repeat(301) }).success).toBe(false);

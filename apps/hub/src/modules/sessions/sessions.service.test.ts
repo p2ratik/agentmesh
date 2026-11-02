@@ -223,6 +223,7 @@ describe('sessions service', () => {
         repo: null,
         branch: null,
         activeSince: clock.now().toISOString(),
+        meshWindow: false,
         tasks: [task.id],
       },
     ]);

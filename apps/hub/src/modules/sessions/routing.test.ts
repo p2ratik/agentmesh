@@ -7,6 +7,7 @@ const s = (over: Partial<RouteSession> & { id: string }): RouteSession => ({
   delivery: 'push',
   repo: null,
   activatedAt: '2026-10-21T09:00:00Z',
+  meshWindow: false,
   ...over,
 });
 const s1 = s({ id: 's1' });
@@ -140,14 +141,71 @@ describe('routeDelivery', () => {
   });
 });
 
+describe('the mesh window', () => {
+  const w = s({ id: 's2', meshWindow: true, activatedAt: '2026-10-21T10:00:00Z' });
+  const win = { kind: 'deliver', sessionId: 's2', claim: true, reason: 'mesh window' };
+  it('prefers a ready mesh window over a session activated earlier', () => {
+    expect(routeDelivery(input({ sessions: [s1, w] }))).toEqual(win);
+  });
+  it('prefers the mesh window over a session in the task repo', () => {
+    const web = s({ id: 's1', repo: 'acme/web' });
+    expect(routeDelivery(input({ sessions: [web, w], repo: 'acme/web' }))).toEqual(win);
+    const wWeb = { ...w, repo: 'acme/web' };
+    expect(routeDelivery(input({ sessions: [web, wWeb], repo: 'acme/web' }))).toEqual(win);
+  });
+  it('skips a mesh window that is away or pull', () => {
+    for (const bad of [{ liveness: 'away' as const }, { delivery: 'pull' as const }]) {
+      expect(routeDelivery(input({ sessions: [s1, { ...w, ...bad }] }))).toEqual({
+        kind: 'deliver',
+        sessionId: 's1',
+        claim: true,
+        reason: 'longest-active session',
+      });
+    }
+  });
+  it('a sender pick and a thread owner still win over the mesh window', () => {
+    expect(routeDelivery(input({ sessions: [s1, w], picked: 's1' }))).toMatchObject({
+      sessionId: 's1',
+      reason: 'picked by sender',
+    });
+    expect(routeDelivery(input({ sessions: [s1, w], threadOwner: 's1' }))).toMatchObject({
+      sessionId: 's1',
+      reason: 'owns thread',
+    });
+  });
+  it('names the inactive chain owner it skipped', () => {
+    const s1i = s({ id: 's1', active: false });
+    const p = { parentOwner: 's1' };
+    expect(routeDelivery(input({ sessions: [s1i, s2], ...p }))).toMatchObject({
+      reason: 'longest-active session; skipped inactive s1 (owns parent thread)',
+    });
+    expect(routeDelivery(input({ sessions: [s1i, w], ...p }))).toMatchObject({
+      reason: 'mesh window; skipped inactive s1 (owns parent thread)',
+    });
+    expect(routeDelivery(input({ sessions: [s1i], taskOwner: 's1' }))).toEqual({
+      kind: 'wait',
+      reason: 'no active push session; skipped inactive s1 (owns task)',
+    });
+  });
+});
+
 describe('chain owners that are inactive', () => {
   const off = s({ id: 's1', active: false });
-  const fall = { kind: 'deliver', sessionId: 's2', claim: true, reason: 'longest-active session' };
+  const fall = (why: string) => ({
+    kind: 'deliver',
+    sessionId: 's2',
+    claim: true,
+    reason: `longest-active session; skipped inactive s1 (${why})`,
+  });
   it('an inactive parent owner does not hold the work', () => {
-    expect(routeDelivery(input({ sessions: [off, s2], parentOwner: 's1' }))).toEqual(fall);
+    expect(routeDelivery(input({ sessions: [off, s2], parentOwner: 's1' }))).toEqual(
+      fall('owns parent thread'),
+    );
   });
   it('an inactive task owner does not hold the work', () => {
-    expect(routeDelivery(input({ sessions: [off, s2], taskOwner: 's1' }))).toEqual(fall);
+    expect(routeDelivery(input({ sessions: [off, s2], taskOwner: 's1' }))).toEqual(
+      fall('owns task'),
+    );
   });
   it('an away parent owner still holds', () => {
     const away = s({ id: 's1', liveness: 'away' });

@@ -14,6 +14,7 @@ export interface SessionRow {
   repo: string | null;
   branch: string | null;
   client_version: string;
+  mesh_window: number;
   created_at: string;
   activated_at: string | null;
   last_seen: string;
@@ -30,6 +31,7 @@ export interface NewSession {
   description?: string | null;
   repo?: string | null;
   branch?: string | null;
+  meshWindow?: boolean;
   at: string;
 }
 
@@ -47,8 +49,9 @@ export class SessionsRepo {
   insert(row: NewSession): void {
     this.#db.run(
       `INSERT INTO sessions (id, agent_id, active, liveness, description, repo, branch,
-         client_version, created_at, last_seen)
-       VALUES ($id, $agentId, 0, 'live', $description, $repo, $branch, $clientVersion, $at, $at)`,
+         client_version, mesh_window, created_at, last_seen)
+       VALUES ($id, $agentId, 0, 'live', $description, $repo, $branch, $clientVersion,
+         $meshWindow, $at, $at)`,
       {
         id: row.id,
         agentId: row.agentId,
@@ -56,6 +59,7 @@ export class SessionsRepo {
         repo: row.repo ?? null,
         branch: row.branch ?? null,
         clientVersion: row.clientVersion,
+        meshWindow: row.meshWindow ? 1 : 0,
         at: row.at,
       },
     );

@@ -10,6 +10,7 @@ import type { HubContext } from '../../context';
 import type {
   CallContext,
   MessagingService,
+  OpenInput,
   SessionRecord,
   SessionsService,
 } from '../../contracts';
@@ -44,10 +45,7 @@ export class SessionsServiceImpl implements SessionsService {
   }
 
   /** Reuses an open previous session; after a closed one, reclaims what nobody took since. */
-  open(
-    agentId: string,
-    input: { clientVersion: string; repo?: string; branch?: string; previousSessionId?: string },
-  ): { session: SessionRecord; reclaimed: number[] } {
+  open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] } {
     const at = this.#now();
     const git = { repo: input.repo ?? null, branch: input.branch ?? null };
     const result = this.#ctx.db.transaction(() => {
@@ -60,7 +58,8 @@ export class SessionsServiceImpl implements SessionsService {
       }
       const id = newSessionId();
       const evicted = evictStalest(this.#ctx, this.repo, agentId, at);
-      this.repo.insert({ id, agentId, clientVersion: input.clientVersion, ...git, at });
+      const { clientVersion, meshWindow } = input;
+      this.repo.insert({ id, agentId, clientVersion, meshWindow, ...git, at });
       const reclaimed = mine ? reclaimReleased(this.repo, mine, id, at) : [];
       return { session: this.verify(agentId, id), reclaimed, evicted };
     });

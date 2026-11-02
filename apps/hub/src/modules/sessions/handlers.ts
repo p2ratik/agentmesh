@@ -76,7 +76,7 @@ export function sessionHandlers(
       presence.touch(agentId, { repo: params.repo, branch: params.branch });
       const { session, reclaimed } = sessions.open(agentId, params);
       ctx.logger.info(
-        { participant: agentId, clientVersion, session: session.id },
+        { participant: agentId, clientVersion, session: session.id, meshWindow: params.meshWindow },
         'session hello',
       );
       const { config } = ctx.loaded;
