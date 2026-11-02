@@ -712,6 +712,17 @@ Later:
    worktree.** This replaces the desk folder (with its own clones, or with worktrees inside it).
    §3 makes "every piece of work in a worktree" enforceable through Claude Code's own permission
    rules and a plugin hook.
+5. **Tests on other people's branches (2026-11-02): read freely, ask before running.**
+   - When the mesh window reviews someone else's branch (for example Sagar's PR), it reads the diff
+     on its own, without asking.
+   - Before it runs that branch's tests, it asks its human. In practice that means a permission
+     prompt in the mesh window.
+   - At the same time it tells the author's agent, in the review's thread, that running the tests
+     needs its human's approval, so the author's agent knows to wait.
+   - Tests on the mesh window's own branches (`agent/<self>/…`) still run without asking. This
+     narrows decision 3: on its own branches Pratik accepts the full risk, including writes (§13).
+   - It resolves both §13 items marked **Pratik**.
+   - On macOS and Linux, Claude Code's sandbox can stand in for the prompt; that's a plan-2 detail.
 
 
 ## 13. Inputs for plans 2 and 3 (re-check of 2026-11-02)
@@ -730,9 +741,9 @@ plan, with a ruling recorded.
 - "The mesh window can't loosen its own rules" is false for the same reason.
 - "No teammate text passes through the window's model" is false. The window reads every ask, task
   and notice, so prompt injection could make it call `SendMessage` with its own words.
-- **Pratik:** the accepted risk in §12, decision 3, needs restating as "reads **and writes** as you,
-  including persistence in `.git/hooks` and switching off the guard". Pratik should confirm the
-  decision with that wording.
+- **Pratik (decided, §12 decision 5):** the accepted risk in decision 3 is restated as "reads
+  **and writes** as you, including persistence in `.git/hooks` and switching off the guard". It now
+  applies only to tests on the mesh window's own branches.
 
 **The worktree guard (plan 2):**
 - **Resolve paths before comparing.**
@@ -761,10 +772,14 @@ plan, with a ruling recorded.
   - Set `core.hooksPath` to an empty folder, `core.fsmonitor=false` and
     `safe.bareRepository=explicit` through `GIT_CONFIG_*` in the launcher's settings.
   - The guard denies writes to any `.git` path segment.
-- **Tests on other people's branches.** **Pratik:** on Windows (no sandbox), should the guard return
-  `ask` for test commands in worktrees whose branch isn't `agent/<self>/…`? That covers reviews and
-  outside PRs. On macOS and Linux, run tests in Claude Code's sandbox by default, with
-  `autoAllowBashIfSandboxed: false` and writes limited to `.claude/worktrees/mesh-*`.
+- **Tests on other people's branches (Pratik decided, §12 decision 5).**
+  - The Bash guard returns `ask` for a test command in a worktree whose branch isn't
+    `agent/<self>/…`. That covers reviews and outside PRs.
+  - Before running such tests, the mesh window tells the author's agent in the review thread that
+    the run waits for its human's approval.
+  - Reading the diff never prompts.
+  - On macOS and Linux the sandbox (with `autoAllowBashIfSandboxed: false`, and writes limited to
+    `.claude/worktrees/mesh-*`) can be offered instead of the prompt.
 - **The launcher on Windows** writes the absolute path of `claude` (from `where claude`) and sets
   `NoDefaultCurrentDirectoryInExePath=1`.
   - A `claude.cmd` planted at a repo root would otherwise run.
