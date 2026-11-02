@@ -94,6 +94,10 @@ export const messagingMethods = {
           }),
         )
         .default([]),
+      /** Unread unowned threads this session may not take (not active, or a push session is ready). */
+      waiting: z.number().int().nonnegative().default(0),
+      /** True while the mesh is paused (the inbox is held). */
+      paused: z.boolean().default(false),
     }),
   }),
   'inbox.peek': defineMethod({
@@ -109,6 +113,8 @@ export const messagingMethods = {
       /** Distinct sender ids of the unread messages, newest first. */
       from: z.array(z.string()).max(MAX_PEEK_SENDERS),
       external: z.boolean(),
+      /** Unread unowned threads this session may not take; not counted in `threads`. */
+      waiting: z.number().int().nonnegative().default(0),
     }),
   }),
   'messages.seen': defineMethod({

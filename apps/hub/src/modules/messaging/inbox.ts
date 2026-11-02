@@ -5,24 +5,40 @@ import type { UnreadThread } from './reads.repo';
 
 type OtherSession = RpcResult<'inbox.get'>['otherSessions'][number];
 
+/** Sessionless callers may take anything; a session only if the hub says so. */
+export function mayTakeUnowned(
+  messaging: MessagingServiceImpl,
+  participantId: string,
+  sessionId: string | null,
+): boolean {
+  return sessionId === null || messaging.deps.mayTakeUnowned(participantId, sessionId);
+}
+
 /**
- * The participant's unread threads this session may read: its own and unowned
- * ones, in `unreadThreads` order. Threads owned by the agent's other sessions are
+ * The participant's unread threads this session may read: its own and the unowned
+ * ones it may take (the rest only count as `waiting`), in `unreadThreads` order. Threads owned by the agent's other sessions are
  * only named (`otherSessions`) and stay unread. Without a session, every thread.
  */
 function selectUnread(
   messaging: MessagingServiceImpl,
   participantId: string,
   sessionId: string | null,
-): { unread: UnreadThread[]; otherSessions: OtherSession[] } {
+): { unread: UnreadThread[]; otherSessions: OtherSession[]; waiting: number } {
   const otherSessions: OtherSession[] = [];
+  let waiting = 0;
+  const mayTake = mayTakeUnowned(messaging, participantId, sessionId);
   const unread = messaging.reads.unreadThreads(participantId).filter((entry) => {
     const owner = messaging.ownerOf(entry.threadId, participantId);
-    if (sessionId === null || owner === null || owner.sessionId === sessionId) return true;
+    if (sessionId === null || owner?.sessionId === sessionId) return true;
+    if (owner === null) {
+      if (mayTake) return true;
+      waiting += 1;
+      return false;
+    }
     otherSessions.push({ threadId: threadKey(entry.threadId), ...owner });
     return false;
   });
-  return { unread, otherSessions };
+  return { unread, otherSessions, waiting };
 }
 
 /**
@@ -39,7 +55,7 @@ export function readInbox(
   perThread: number,
 ): RpcResult<'inbox.get'> {
   return messaging.ctx.db.transaction(() => {
-    const { unread, otherSessions } = selectUnread(messaging, participantId, sessionId);
+    const { unread, otherSessions, waiting } = selectUnread(messaging, participantId, sessionId);
     const picked = unread.slice(0, limit);
     const threads = picked.map((entry) => {
       const messages = messaging.reads
@@ -57,7 +73,13 @@ export function readInbox(
         fyi: entry.actions === 0,
       };
     });
-    return { threads, remainingThreads: unread.length - picked.length, otherSessions };
+    return {
+      threads,
+      remainingThreads: unread.length - picked.length,
+      otherSessions,
+      waiting,
+      paused: false,
+    };
   });
 }
 
@@ -67,7 +89,7 @@ export function peekInbox(
   participantId: string,
   sessionId: string | null,
 ): RpcResult<'inbox.peek'> {
-  const { unread } = selectUnread(messaging, participantId, sessionId);
+  const { unread, waiting } = selectUnread(messaging, participantId, sessionId);
   const mine = new Set(unread.map((entry) => entry.threadId));
   const senders = messaging.reads.unreadSenders(participantId).filter((s) => mine.has(s.threadId));
   return {
@@ -75,5 +97,6 @@ export function peekInbox(
     actions: unread.filter((entry) => entry.actions > 0).length,
     from: [...new Set(senders.map((s) => s.senderId))].slice(0, MAX_PEEK_SENDERS),
     external: senders.some((s) => s.external === 1),
+    waiting,
   };
 }

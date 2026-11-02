@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CallContext, ThreadOwner } from '../../contracts';
 import { createServiceHarness } from '../../testing/services';
+import { peekInbox } from './inbox';
 import type { MessagingServiceImpl } from './messaging.service';
 import { threadHandlers } from './thread.handlers';
 
 describe('read state with sessions', () => {
-  const setup = () => {
-    const h = createServiceHarness();
+  const setup = (mayTakeUnowned: () => boolean = () => true) => {
+    const h = createServiceHarness(undefined, { mayTakeUnowned });
     const owners = new Map<number, ThreadOwner>();
     h.messaging.setOwnerReader((threadId) => owners.get(threadId) ?? null);
     const handlers = threadHandlers(h.messaging as MessagingServiceImpl);
@@ -29,6 +30,33 @@ describe('read state with sessions', () => {
       h.messaging.post({ threadId, senderId: 'alice-agent', kind: 'ask', body });
     return { h, owners, handlers, call, thread, ask };
   };
+
+  it("an inactive session's inbox leaves unowned threads unread and counts them as waiting", async () => {
+    const { h, handlers, call, thread, ask } = setup(() => false);
+    for (let i = 0; i < 3; i++) ask(thread().id, 'hi');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    expect(inbox.threads).toEqual([]);
+    expect(inbox.waiting).toBe(3);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(3);
+  });
+
+  it('an inactive session still reads the threads it owns', async () => {
+    const { h, owners, handlers, call, thread, ask } = setup(() => false);
+    const t = thread();
+    ask(t.id, 'hi');
+    owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
+  });
+
+  it('peek counts only what this session may take and reports the rest as waiting', () => {
+    const { h, owners, thread, ask } = setup(() => false);
+    const [mine, a, b] = [thread(), thread(), thread()] as const;
+    for (const t of [mine, a, b]) ask(t.id, 'hi');
+    owners.set(mine.id, { sessionId: 'ses_1', liveness: 'live' });
+    const peeked = peekInbox(h.messaging as MessagingServiceImpl, 'bob-agent', 'ses_1');
+    expect([peeked.threads, peeked.waiting]).toEqual([1, 2]);
+  });
 
   it('a reply does not mark earlier unseen messages read', () => {
     const { h, thread, ask } = setup();

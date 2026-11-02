@@ -41,11 +41,12 @@ describe('pull sessions', () => {
       actions: 2,
       from: [messaging.hubId, 'alice-agent'],
       external: true,
+      waiting: 0,
     });
     expect(peek(s).threads).toBe(3); // peeking marks nothing read
 
     readInbox(messaging, 'bob-agent', s, 20, 5);
-    expect(peek(s)).toEqual({ threads: 0, actions: 0, from: [], external: false });
+    expect(peek(s)).toEqual({ threads: 0, actions: 0, from: [], external: false, waiting: 0 });
     await outbox.flush();
     expect(transport.sends).toEqual([]);
     expect(pending()).toEqual([]);
@@ -74,5 +75,14 @@ describe('pull sessions', () => {
     const m = ask(thread());
     await outbox.flush();
     expect(transport.sends).toEqual([{ agentId: 'bob-agent', sessionId: s2, ids: [m.id] }]);
+  });
+  it('take unowned work only while no push session is ready', () => {
+    const { pull, active, thread, ask, peek, messaging } = setup();
+    const s = pull();
+    active();
+    for (let i = 0; i < 3; i++) ask(thread());
+    expect(peek(s).threads).toBe(0);
+    expect(peek(s).waiting).toBe(3);
+    expect(readInbox(messaging, 'bob-agent', s, 20, 5).threads).toEqual([]);
   });
 });

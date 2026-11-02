@@ -30,6 +30,8 @@ export interface MessagingDeps {
   presence: PresenceService;
   /** Late-bound to the sessions module (built after messaging): may a sender pick this session? */
   isActiveSessionOf(agentId: string, sessionId: string): boolean;
+  /** Late-bound likewise: may this session read (and so claim) threads nobody owns? */
+  mayTakeUnowned(agentId: string, sessionId: string): boolean;
 }
 
 const MAX_SUBJECT = 120;
