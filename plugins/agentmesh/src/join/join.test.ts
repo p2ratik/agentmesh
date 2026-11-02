@@ -171,6 +171,8 @@ describe('join tool', () => {
     expect(second.content[0]?.text).toMatch(
       /Only if they say yes, run `node "[^"\\]+\/cli\.js" autoupdate`/,
     );
+    expect(second.content[0]?.text).toContain('/agentmesh:window');
+    expect(second.content[0]?.text).toContain('~/.agentmesh/mesh-window');
     expect(text).not.toContain(SEED);
     expect(text).not.toContain(CODE);
     expect(text).not.toContain(payload.secret);

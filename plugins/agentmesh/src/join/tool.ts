@@ -72,7 +72,7 @@ export async function callJoinTool(rawArgs: unknown, deps: JoinToolDeps): Promis
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : '';
     return text(
-      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.\n${AUTOUPDATE_OFFER}`,
+      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ~/.agentmesh/mesh-window in their team's folder. This session stays private unless they activate it.\n${AUTOUPDATE_OFFER}`,
     );
   } catch (error) {
     return text(isMeshError(error) ? error.message : `join failed: ${String(error)}`, true);
