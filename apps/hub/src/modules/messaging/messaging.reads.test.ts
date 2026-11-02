@@ -113,16 +113,10 @@ describe('read state with sessions', () => {
     await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, looking);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
     expect(looking.notes).toContain('The mesh is paused: nothing was marked read.');
-    const sessionless = call(null);
-    await handlers['thread.get'](
-      { threadId: h.messaging.summary(t.id).id, limit: 30 },
-      sessionless,
-    );
-    expect(sessionless.notes).toEqual([]);
-    h.control.pause('aheen', null);
     h.control.resume('aheen');
     const after = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
     expect(after.paused).toBe(false);
+    expect(after.threads).toHaveLength(1);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
@@ -142,7 +136,12 @@ describe('read state with sessions', () => {
     const t = thread();
     ask(t.id, 'one');
     h.control.pause('aheen', null);
-    await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, call(null));
+    const sessionless = call(null);
+    await handlers['thread.get'](
+      { threadId: h.messaging.summary(t.id).id, limit: 30 },
+      sessionless,
+    );
+    expect(sessionless.notes).toEqual([]);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
