@@ -34,9 +34,13 @@ describe('read state with sessions', () => {
   it("an inactive session's inbox leaves unowned threads unread and counts them as waiting", async () => {
     const { h, handlers, call, thread, ask } = setup(() => false);
     for (let i = 0; i < 3; i++) ask(thread().id, 'hi');
-    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    const c = call('ses_1');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, c);
     expect(inbox.threads).toEqual([]);
     expect(inbox.waiting).toBe(3);
+    expect(c.notes).toEqual([
+      "3 team thread(s) are waiting for an active session of this agent; this session can't take them right now.",
+    ]);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(3);
   });
 
@@ -45,8 +49,10 @@ describe('read state with sessions', () => {
     const t = thread();
     ask(t.id, 'hi');
     owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
-    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    const c = call('ses_1');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, c);
     expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
+    expect(c.notes).toEqual([]);
   });
 
   it('peek counts only what this session may take and reports the rest as waiting', () => {
@@ -105,8 +111,10 @@ describe('read state with sessions', () => {
     ask(t.id, 'one');
     owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
     h.control.pause('aheen', null);
-    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    const pausedCall = call('ses_1');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, pausedCall);
     expect(inbox.paused).toBe(true);
+    expect(pausedCall.notes).toEqual(['The mesh is paused: nothing was marked read.']);
     expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
     const looking = call('ses_1');

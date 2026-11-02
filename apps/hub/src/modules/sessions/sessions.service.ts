@@ -193,10 +193,10 @@ export class SessionsServiceImpl implements SessionsService {
   recordClaims(call: CallContext, method: RpcMethodName, params: unknown, result: unknown): void {
     const { session: sessionId } = call;
     if (call.caller.kind !== 'agent' || !sessionId) return;
+    const inactive = this.repo.get(sessionId)?.active !== 1;
     for (const target of claimTargets(method, params, result)) {
       const threadId = claimedThread(target, this.#deps);
       if (threadId === null) continue;
-      const inactive = this.repo.get(sessionId)?.active !== 1;
       if (inactive && !claimsWhenInactive(method, this.#deps.messaging.thread(threadId).kind))
         continue;
       const claim = { agentId: call.caller.id, sessionId, threadId, at: this.#now() };

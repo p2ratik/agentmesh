@@ -122,6 +122,8 @@ admin, or restart Claude Code if the hub uses auth callout.
 - `/agentmesh:take <task or thread>` moves that work to this session. Work belongs to the session
   that first acted on it, and its messages go there until it deactivates or closes, or you take
   the work. `inbox` lists the unread threads your other sessions own, with their session ids.
+  An inactive session's `inbox` reads only the threads it owns; other team work is only counted
+  ("N team thread(s) are waiting…") until a session is activated.
 
 The slash commands are user-only. Claude updates the description with `describe_session` when the
 session's focus changes.
@@ -162,7 +164,7 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 
 - **Nothing arrives**: the session must be started with the channel flag above and activated
   (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
-  to call `inbox` — the hub keeps everything. In Claude Desktop nothing is ever pushed: activate
+  to call `inbox` — the hub keeps everything (an inactive session's `inbox` only counts team work and reads just its own threads). In Claude Desktop nothing is ever pushed: activate
   it pull-only, and new work is announced on each prompt.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
 - **"This session isn't registered with the hub"**: the plugin is older than 0.3.0. Run

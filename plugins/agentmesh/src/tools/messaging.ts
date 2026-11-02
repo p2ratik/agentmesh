@@ -154,12 +154,8 @@ export const messagingTools = [
           `(${others.length} unread thread(s) belong to your other sessions: ${owned.join(', ')})`,
         );
       }
-      if (r.waiting > 0)
-        parts.push(
-          `(${r.waiting} team thread(s) are waiting for an active session. This session is not activated, so it cannot take them.)`,
-        );
-      if (r.paused) parts.push('(The mesh is paused: nothing was marked read.)');
-      return parts.join('\n\n====\n\n');
+      // What `waiting` and `paused` mean arrives as hub notes, appended by the registry.
+      return parts.length > 0 ? parts.join('\n\n====\n\n') : 'Nothing for this session to read.';
     },
   }),
   defineTool({

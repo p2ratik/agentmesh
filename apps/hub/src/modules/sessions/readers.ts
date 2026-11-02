@@ -1,3 +1,4 @@
+import { MeshError } from '@agentmesh/common';
 import type { SessionsService, ThreadOwner } from '../../contracts';
 
 /**
@@ -15,8 +16,9 @@ export function takeUnownedReader(
       const s = service.verify(agentId, sessionId);
       if (s.liveness === 'closed' || !s.active) return false;
       return s.delivery === 'push' || !service.hasReadySession(agentId);
-    } catch {
-      return false;
+    } catch (err) {
+      if (err instanceof MeshError && err.code === 'not_found') return false;
+      throw err;
     }
   };
 }

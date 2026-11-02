@@ -21,6 +21,14 @@ describe('claims by an inactive (private) session', () => {
     expect(sessions.ownerOf(t, 'bob-agent')).toBe(s);
   });
 
+  it('a private session that escalates in a conversation owns it', () => {
+    const { priv, thread, sessions, callAs } = setup();
+    const s = priv();
+    const t = thread();
+    sessions.recordClaims(callAs(s), 'escalate', {}, { threadId: `thr-${t}` });
+    expect(sessions.ownerOf(t, 'bob-agent')).toBe(s);
+  });
+
   it('a private session does not own a task it creates', () => {
     const { priv, thread, sessions, callAs } = setup();
     const s = priv();

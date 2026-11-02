@@ -53,8 +53,8 @@ Part 1 changes who may take unowned work. The relay and the mesh window itself c
 
 Still to come:
 
-- Plan 2: the relay, which carries an answer to the private session that asked.
-- Plan 3: the mesh window, the one activated push session per teammate that takes team work.
+- Plan 2: the mesh window, the one activated push session per teammate that takes team work.
+- Plan 3: the relay, which carries an answer to the private session that asked.
 
 ## Consequences
 

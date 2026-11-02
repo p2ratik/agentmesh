@@ -26,19 +26,22 @@ const unreadThread = {
 };
 
 describe('inbox tool', () => {
-  it('inbox says how many team threads wait for an active session', async () => {
-    const { deps } = fakeHub({ 'inbox.get': { ...base, waiting: 2 } });
-    expect(text(await callTool('inbox', {}, deps))).toBe(
-      '(2 team thread(s) are waiting for an active session. This session is not activated, so it cannot take them.)',
-    );
+  it('prints the hub note, not its own line, when team threads are waiting', async () => {
+    const note =
+      "2 team thread(s) are waiting for an active session of this agent; this session can't take them right now.";
+    const { deps } = fakeHub({ 'inbox.get': { ...base, waiting: 2 } }, { 'inbox.get': [note] });
+    const result = await callTool('inbox', {}, deps);
+    const all = result.content.map((c) => c.text).join('\n');
+    expect(all).not.toContain('Inbox zero');
+    expect(all.split(note)).toHaveLength(2);
+    expect(all).not.toContain('not activated');
   });
 
-  it('inbox says when the mesh is paused', async () => {
+  it('does not print its own paused line (the hub note carries it)', async () => {
     const { deps } = fakeHub({
       'inbox.get': { ...base, threads: [unreadThread], waiting: 0, paused: true },
     });
-    const out = text(await callTool('inbox', {}, deps));
-    expect(out.endsWith('(The mesh is paused: nothing was marked read.)')).toBe(true);
+    expect(text(await callTool('inbox', {}, deps))).not.toContain('paused');
   });
 
   it('inbox is zero only with no threads, no other sessions and nothing waiting', async () => {

@@ -73,7 +73,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. An agent session's `thread.get` advances the agent's read cursor only for a thread that session owns, and never while the mesh is paused (the result then carries the note "The mesh is paused: nothing was marked read."). On any other thread it only looks. A call with no session (a human, a service) still marks read, paused or not. |
 | `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external, waiting }`: unread threads, how many need action, up to 5 sender ids (newest first), whether any unread message is external, and `waiting`, the unowned unread threads this session may not take (not counted in `threads`). Marks nothing read. Free, like every read. |
 | `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
-| `inbox.get` | agent | Unread messages; marks them read (see [Reads](#reads)). Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. `waiting` counts the unowned unread threads this session may not take; `paused` is true while the mesh is paused, when nothing is returned as read or claimed. |
+| `inbox.get` | agent | Unread messages; marks them read (see [Reads](#reads)). Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own threads, plus the unowned ones only if it may take unowned work (see [Reads](#reads)); threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. `waiting` counts the unowned unread threads this session may not take; `paused` is true while the mesh is paused, when nothing is marked read or claimed (threads are still returned). The hub also says both in the call's `notes`, so every plugin version shows them (see [Reads](#reads)). |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
 | `task.act` | agent, human | Apply a workflow action |
@@ -247,10 +247,11 @@ Who may read, and mark read, which threads ([ADR 0009](adr/0009-mesh-window.md))
 - **`inbox.get`** by an active session claims the non-FYI threads it returns, in the same
   transaction as the read.
 - **`thread.get`** by a session marks read only a thread that session owns. It claims nothing.
+- **Notes.** `inbox.get` adds the call note "N team thread(s) are waiting for an active session of this agent; this session can't take them right now." when `waiting > 0`, and "The mesh is paused: nothing was marked read." when `paused` is true. Plugins show notes, so even one older than 0.4.4 (which drops `waiting` and `paused`) tells the user.
 - **While paused,** a read by a caller with a session only looks: `inbox.get` returns `paused: true`
   and advances and claims nothing. Callers without a session are unaffected.
-- **Inactive sessions claim only their own conversations:** `message.send` on a `conversation`
-  thread and `escalate` on an `escalation` thread. Their `task.*`, `review.*` and `plan.*` actions,
+- **Inactive sessions claim only their own conversations and escalations:** `message.send` or
+  `escalate` on a `conversation` or `escalation` thread (`escalate` may carry a `threadId`). Their `task.*`, `review.*` and `plan.*` actions,
   and replies into task, planning or event threads, claim nothing.
 
 ### Routing
@@ -273,7 +274,7 @@ The first rule that matches decides. Each decision is logged with its reason.
 5. **Otherwise it waits** in the hub (`no active push session`) for the next session the human
    activates, and `inbox` shows it (a pull session reads it there).
 
-Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits), and
+Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits; an active session's `inbox` read also claims, and an inactive session claims only in its own conversation and escalation threads, see [Reads](#reads)), and
 when a delivery lands by rules 1 (parent or task), 2, 3 or 4. The first owner keeps the work:
 another session's action goes through, with a note saying where replies will go. Ownership moves
 only through `session.take`, or is released when the owner deactivates or closes. `take`, `bye`,

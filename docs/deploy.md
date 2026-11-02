@@ -264,6 +264,11 @@ working. Nothing else moves the pin. Hub migrations
 run on start. When a release raises the hub's minimum plugin version (as 0.3.0 did), members
 update their plugins first.
 
+**To 0.4.4 (reads).** Inactive sessions no longer read team work through `inbox`; they only see it
+counted ("N team thread(s) are waiting…"). Claude Desktop members must be on plugin 0.4.2 or later
+and activate with pull; a pull session takes team work only while no push session of the agent is
+ready. Threads an inactive session already owned stay held for it until it closes or deactivates.
+
 ## Checking and changing a setup deploy
 
 - **`agentmesh doctor --dir <workspace>`** prints a ✓ or ✗ line per check, with what to do for

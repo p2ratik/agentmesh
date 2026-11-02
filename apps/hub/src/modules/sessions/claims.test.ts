@@ -68,10 +68,13 @@ describe('claimTargets', () => {
 describe('claimsWhenInactive', () => {
   const kinds = ['conversation', 'task', 'planning', 'escalation', 'event'] as const;
   it('lets an inactive session claim only conversations it sends in', () => {
-    expect(claimsWhenInactive('message.send', 'conversation')).toBe(true);
-    expect(claimsWhenInactive('escalate', 'escalation')).toBe(true);
+    for (const m of ['message.send', 'escalate'] as const) {
+      expect(claimsWhenInactive(m, 'conversation')).toBe(true);
+      expect(claimsWhenInactive(m, 'escalation')).toBe(true);
+    }
     for (const k of ['task', 'planning', 'event'] as const) {
       expect(claimsWhenInactive('message.send', k)).toBe(false);
+      expect(claimsWhenInactive('escalate', k)).toBe(false);
     }
     for (const m of Object.keys(RPC_METHODS) as RpcMethodName[]) {
       if (m === 'message.send' || m === 'escalate') continue;

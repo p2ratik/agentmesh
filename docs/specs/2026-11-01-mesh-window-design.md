@@ -5,7 +5,7 @@ marked "my call" are mine. The cross-session messaging spike is done (§9). Ever
 checked against `origin/agents` 61f393d by a verified code map. An independent builder check,
 security review and requirements check have been folded in. Pratik answered the three open
 questions (§12). On 2026-11-02 he decided the mesh window runs in any folder, with every piece of
-work in its own worktree (§3). The implementation plan comes after approval. It builds on the session-routing design
+work in its own worktree (§3). It builds on the session-routing design
 ([2026-10-21](2026-10-21-session-routing-design.md)) and pull mode
 ([ADR 0008](../adr/0008-pull-mode.md)).
 

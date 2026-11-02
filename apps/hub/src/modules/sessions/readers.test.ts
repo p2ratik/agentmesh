@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CallContext } from '../../contracts';
+import type { CallContext, SessionsService } from '../../contracts';
 import { createBobDispatchHarness } from '../../testing/services';
 import { readInbox } from '../messaging/inbox';
 import type { MessagingServiceImpl } from '../messaging/messaging.service';
@@ -50,5 +50,21 @@ describe('takeUnownedReader', () => {
   it('answers false for a closed or unknown session instead of throwing', () => {
     const h = setup();
     expect(h.take('bob-agent', 's-zzzzzzzzzzzz')).toBe(false);
+  });
+
+  it('rethrows an error that is not "unknown session"', () => {
+    const h = setup();
+    const s = h.active();
+    const boom = new Error('db down');
+    const broken = {
+      verify: h.sessions.verify.bind(h.sessions),
+      hasReadySession: () => {
+        throw boom;
+      },
+    } as unknown as SessionsService;
+    const pull = open(h);
+    h.sessions.activate('bob-agent', pull, 'desktop', 'pull');
+    expect(() => takeUnownedReader(() => broken)('bob-agent', pull)).toThrow(boom);
+    expect(s).toBeTruthy();
   });
 });

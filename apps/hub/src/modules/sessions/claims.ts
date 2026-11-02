@@ -21,11 +21,11 @@ export function isClaiming(method: RpcMethodName): boolean {
   return CLAIMS_RESULT_THREAD.has(method) || method === 'plan.contribute' || method === 'inbox.get';
 }
 
-/** A private (inactive) session owns only its own conversations: it sends or escalates in one. */
+/** A private (inactive) session owns only its own conversations: it sends or escalates in one (escalate may target a conversation). */
 export function claimsWhenInactive(method: RpcMethodName, kind: ThreadKind): boolean {
   return (
-    (method === 'message.send' && kind === 'conversation') ||
-    (method === 'escalate' && kind === 'escalation')
+    (method === 'message.send' || method === 'escalate') &&
+    (kind === 'conversation' || kind === 'escalation')
   );
 }
 

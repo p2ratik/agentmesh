@@ -9,6 +9,8 @@ type ThreadHandlers = Pick<
   'thread.get' | 'thread.list' | 'thread.close' | 'inbox.get' | 'inbox.peek' | 'messages.seen'
 >;
 
+const PAUSED_NOTE = 'The mesh is paused: nothing was marked read.';
+
 /** `me` (or nothing, for agents) means the caller; humans and services default to every thread. */
 function listParticipant(requested: string | undefined, actor: Actor): string | null {
   if (requested === 'me') return actor.id;
@@ -37,7 +39,7 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       // A session only marks what it owns, and never while paused; anyone else just looks.
       const owner = messaging.ownerOf(thread.id, call.actor.id);
       const paused = call.session !== null && messaging.deps.control.isPaused();
-      if (paused) call.notes.push('The mesh is paused: nothing was marked read.');
+      if (paused) call.notes.push(PAUSED_NOTE);
       const mayMarkRead = call.session === null || (owner?.sessionId === call.session && !paused);
       if (last && mayMarkRead) messaging.reads.advance(thread.id, call.actor.id, last.seq);
       return {
@@ -62,8 +64,23 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       }
       return messaging.closeThread(threadId, call.actor.id);
     },
-    'inbox.get': (params, call) =>
-      readInbox(messaging, call.actor.id, call.session, params.limit, params.perThread),
+    /** Says in call notes what the result's `waiting`/`paused` mean, so every plugin version shows it. */
+    'inbox.get': (params, call) => {
+      const result = readInbox(
+        messaging,
+        call.actor.id,
+        call.session,
+        params.limit,
+        params.perThread,
+      );
+      if (result.waiting > 0) {
+        call.notes.push(
+          `${result.waiting} team thread(s) are waiting for an active session of this agent; this session can't take them right now.`,
+        );
+      }
+      if (result.paused) call.notes.push(PAUSED_NOTE);
+      return result;
+    },
     /** A pull session's poll (ADR 0008): counts only, nothing marked read. */
     'inbox.peek': (_params, call) => peekInbox(messaging, call.actor.id, call.session),
     /** What the plugin showed (status items ride along unread until then). */
