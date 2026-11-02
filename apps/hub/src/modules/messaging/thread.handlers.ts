@@ -18,7 +18,10 @@ function listParticipant(requested: string | undefined, actor: Actor): string | 
 
 export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers {
   return {
-    /** The team is trusted: anyone may read any thread. A call without a session marks it read; a session does so only for a thread it owns, and not while the mesh is paused. */
+    /**
+     * The team is trusted: anyone may read any thread. A call without a session marks it
+     * read; a session does so only for a thread it owns, and not while the mesh is paused.
+     */
     'thread.get': (params, call) => {
       const threadId = internalId('thread', params.threadId);
       const thread = messaging.thread(threadId);
@@ -33,9 +36,9 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       const last = rows.at(-1);
       // A session only marks what it owns, and never while paused; anyone else just looks.
       const owner = messaging.ownerOf(thread.id, call.actor.id);
-      const mayMarkRead =
-        call.session === null ||
-        (owner?.sessionId === call.session && !messaging.deps.control.isPaused());
+      const paused = call.session !== null && messaging.deps.control.isPaused();
+      if (paused) call.notes.push('The mesh is paused: nothing was marked read.');
+      const mayMarkRead = call.session === null || (owner?.sessionId === call.session && !paused);
       if (last && mayMarkRead) messaging.reads.advance(thread.id, call.actor.id, last.seq);
       return {
         thread: messaging.summary(thread.id),

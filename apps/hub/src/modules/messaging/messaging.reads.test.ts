@@ -109,14 +109,31 @@ describe('read state with sessions', () => {
     expect(inbox.paused).toBe(true);
     expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    const looking = call('ses_1');
+    await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, looking);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    expect(looking.notes).toContain('The mesh is paused: nothing was marked read.');
+    const sessionless = call(null);
     await handlers['thread.get'](
       { threadId: h.messaging.summary(t.id).id, limit: 30 },
-      call('ses_1'),
+      sessionless,
     );
-    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    expect(sessionless.notes).toEqual([]);
+    h.control.pause('aheen', null);
     h.control.resume('aheen');
     const after = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
     expect(after.paused).toBe(false);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('while paused, an inbox read without a session still marks what it reads', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    h.control.pause('aheen', null);
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call(null));
+    expect(inbox.paused).toBe(false);
+    expect(inbox.threads).toHaveLength(1);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
