@@ -65,6 +65,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
       prefix: config.prefix,
       dir: window.dataDir,
       projectDir,
+      meshWindow: window.state === 'verified',
       logger,
     }),
     sayHello: () => {
@@ -176,6 +177,7 @@ function recheck(session: Session, logger: Logger): void {
     return;
   }
   activation.renewedFrom = activation.lastDescription;
+  void session.pull.refresh();
   logger.info({ session: hub.sessionId }, 'new hub session; re-running the activation check');
   void hub
     .call('session.check', {})
