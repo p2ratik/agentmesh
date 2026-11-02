@@ -72,7 +72,7 @@ export class SessionsRepo {
   /** The agent's non-closed sessions, oldest first. */
   listLive(agentId: string): SessionRow[] {
     return this.#db.all<SessionRow>(
-      `SELECT * FROM sessions WHERE agent_id = $agentId AND ${NOT_CLOSED} ORDER BY created_at, id`,
+      `SELECT * FROM sessions WHERE agent_id = $agentId AND ${NOT_CLOSED} ORDER BY created_at, rowid`,
       { agentId },
     );
   }
