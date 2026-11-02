@@ -80,6 +80,55 @@ describe('read state with sessions', () => {
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 
+  it('a session that does not own an unowned thread only looks at it', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    await handlers['thread.get'](
+      { threadId: h.messaging.summary(t.id).id, limit: 30 },
+      call('ses_2'),
+    );
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+  });
+
+  it('a caller without a session still marks what it reads', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, call(null));
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('while paused, inbox and thread only look', async () => {
+    const { h, owners, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
+    h.control.pause('aheen', null);
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    expect(inbox.paused).toBe(true);
+    expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    await handlers['thread.get'](
+      { threadId: h.messaging.summary(t.id).id, limit: 30 },
+      call('ses_1'),
+    );
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    h.control.resume('aheen');
+    const after = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    expect(after.paused).toBe(false);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('while paused, a caller without a session still marks what it reads', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    h.control.pause('aheen', null);
+    await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, call(null));
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
   it("the inbox shows this session's and unowned threads and names the rest", async () => {
     const { h, owners, handlers, call, thread, ask } = setup();
     const [mine, theirs, free] = [thread(), thread(), thread()] as const;

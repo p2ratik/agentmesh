@@ -45,7 +45,8 @@ function selectUnread(
  * Unread threads for a participant: those needing it first, then FYI ones
  * (every unread message is status), each group most recent first. Each has its
  * unread count and newest `perThread` unread messages. Returned threads are marked
- * read up to their latest message; the rest stay unread for the next call.
+ * read up to their latest message; the rest stay unread for the next call. While the
+ * mesh is paused nothing is marked read and the result says `paused: true`.
  */
 export function readInbox(
   messaging: MessagingServiceImpl,
@@ -56,16 +57,19 @@ export function readInbox(
 ): RpcResult<'inbox.get'> {
   return messaging.ctx.db.transaction(() => {
     const { unread, otherSessions, waiting } = selectUnread(messaging, participantId, sessionId);
+    const paused = messaging.deps.control.isPaused();
     const picked = unread.slice(0, limit);
     const threads = picked.map((entry) => {
       const messages = messaging.reads
         .unreadMessages(entry.threadId, participantId, perThread)
         .map((row) => messaging.toMessage(row));
-      messaging.reads.advance(
-        entry.threadId,
-        participantId,
-        messaging.messages.maxSeq(entry.threadId),
-      );
+      if (!paused) {
+        messaging.reads.advance(
+          entry.threadId,
+          participantId,
+          messaging.messages.maxSeq(entry.threadId),
+        );
+      }
       return {
         thread: messaging.summary(entry.threadId),
         unread: entry.unread,
@@ -78,7 +82,7 @@ export function readInbox(
       remainingThreads: unread.length - picked.length,
       otherSessions,
       waiting,
-      paused: false,
+      paused,
     };
   });
 }
