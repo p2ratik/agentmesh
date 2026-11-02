@@ -25494,7 +25494,7 @@ function expandHome(path, home = homedir2()) {
 }
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.3";
+var VERSION = "0.4.4";
 
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 import process2 from "node:process";
@@ -47501,7 +47501,11 @@ var messagingMethods = {
           sessionId: external_exports.string(),
           liveness: external_exports.enum(["live", "away"])
         })
-      ).default([])
+      ).default([]),
+      /** Unread unowned threads this session may not take (not active, or a push session is ready). */
+      waiting: external_exports.number().int().nonnegative().default(0),
+      /** True while the mesh is paused (the inbox is held). */
+      paused: external_exports.boolean().default(false)
     })
   }),
   "inbox.peek": defineMethod({
@@ -47514,7 +47518,9 @@ var messagingMethods = {
       actions: external_exports.number().int().nonnegative(),
       /** Distinct sender ids of the unread messages, newest first. */
       from: external_exports.array(external_exports.string()).max(MAX_PEEK_SENDERS),
-      external: external_exports.boolean()
+      external: external_exports.boolean(),
+      /** Unread unowned threads this session may not take; not counted in `threads`. */
+      waiting: external_exports.number().int().nonnegative().default(0)
     })
   }),
   "messages.seen": defineMethod({
@@ -48741,7 +48747,8 @@ var messagingTools = [
     run: async (args, { hub }) => {
       const r = await hub.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
-      if (r.threads.length === 0 && others.length === 0) return "Inbox zero \u2014 nothing unread.";
+      if (r.threads.length === 0 && others.length === 0 && !r.waiting)
+        return "Inbox zero \u2014 nothing unread.";
       const needs = r.threads.filter((t) => !t.fyi).map((t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages)}`);
       const fyi = r.threads.filter((t) => t.fyi).map((t) => {
         const latest = firstLine(t.messages.at(-1)?.body ?? "", 100);
@@ -48760,6 +48767,11 @@ ${fyi.join("\n")}`);
           `(${others.length} unread thread(s) belong to your other sessions: ${owned.join(", ")})`
         );
       }
+      if (r.waiting > 0)
+        parts.push(
+          `(${r.waiting} team thread(s) are waiting for an active session. This session is not activated, so it cannot take them.)`
+        );
+      if (r.paused) parts.push("(The mesh is paused: nothing was marked read.)");
       return parts.join("\n\n====\n\n");
     }
   }),

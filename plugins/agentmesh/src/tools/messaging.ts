@@ -132,7 +132,8 @@ export const messagingTools = [
     run: async (args, { hub }) => {
       const r = await hub.call('inbox.get', { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
-      if (r.threads.length === 0 && others.length === 0) return 'Inbox zero — nothing unread.';
+      if (r.threads.length === 0 && others.length === 0 && !r.waiting)
+        return 'Inbox zero — nothing unread.';
       const needs = r.threads
         .filter((t) => !t.fyi)
         .map((t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`);
@@ -153,6 +154,11 @@ export const messagingTools = [
           `(${others.length} unread thread(s) belong to your other sessions: ${owned.join(', ')})`,
         );
       }
+      if (r.waiting > 0)
+        parts.push(
+          `(${r.waiting} team thread(s) are waiting for an active session. This session is not activated, so it cannot take them.)`,
+        );
+      if (r.paused) parts.push('(The mesh is paused: nothing was marked read.)');
       return parts.join('\n\n====\n\n');
     },
   }),

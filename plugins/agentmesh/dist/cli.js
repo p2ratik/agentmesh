@@ -25695,7 +25695,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.3";
+var VERSION = "0.4.4";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -46264,7 +46264,11 @@ var messagingMethods = {
           sessionId: external_exports.string(),
           liveness: external_exports.enum(["live", "away"])
         })
-      ).default([])
+      ).default([]),
+      /** Unread unowned threads this session may not take (not active, or a push session is ready). */
+      waiting: external_exports.number().int().nonnegative().default(0),
+      /** True while the mesh is paused (the inbox is held). */
+      paused: external_exports.boolean().default(false)
     })
   }),
   "inbox.peek": defineMethod({
@@ -46277,7 +46281,9 @@ var messagingMethods = {
       actions: external_exports.number().int().nonnegative(),
       /** Distinct sender ids of the unread messages, newest first. */
       from: external_exports.array(external_exports.string()).max(MAX_PEEK_SENDERS),
-      external: external_exports.boolean()
+      external: external_exports.boolean(),
+      /** Unread unowned threads this session may not take; not counted in `threads`. */
+      waiting: external_exports.number().int().nonnegative().default(0)
     })
   }),
   "messages.seen": defineMethod({
