@@ -67,10 +67,17 @@ describe('launcherScript', () => {
         'set "NoDefaultCurrentDirectoryInExePath=1"',
         `set "AGENTMESH_MESH_WINDOW=${token}"`,
         'if not "%~1"=="" cd /d "%~1" || exit /b 1',
-        `"C:\\bin\\claude.cmd" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "${i.files.settings}" "${LAUNCH_PROMPT}"`,
+        `call "C:\\bin\\claude.cmd" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "${i.files.settings}" "${LAUNCH_PROMPT}"`,
         '',
       ].join('\r\n'),
     );
+  });
+
+  it('leaves out the prompt when there is none', () => {
+    const w = launcherScript(inputs('win32', 'C:\\c.cmd', 'C:\\h'), 'win32', null).split('\r\n');
+    expect(w[5]).toMatch(/^call "C:\\c\.cmd" .* --settings "[^"]*"$/);
+    const p = launcherScript(inputs('linux', '/c', '/h'), 'linux', null).split('\n');
+    expect(p[3]).toMatch(/^exec '\/c' .* --settings '[^']*'$/);
   });
 
   it('writes the posix launcher', () => {

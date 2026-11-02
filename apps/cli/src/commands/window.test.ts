@@ -15,9 +15,9 @@ import { runCli } from '../main';
 
 const platform = process.platform;
 
-function setup(withClaude = true) {
+function setup(withClaude = true, homeName = 'home') {
   const root = mkdtempSync(join(tmpdir(), 'agentmesh-window-'));
-  const home = join(root, 'home');
+  const home = join(root, homeName);
   const bin = join(root, 'bin');
   const work = join(root, 'work');
   for (const d of [home, bin, work]) mkdirSync(d);
@@ -96,6 +96,31 @@ describe('agentmesh window init', () => {
       expect(await run(...bad)).toBe(2);
       expect(() => statSync(files.dir)).toThrow();
     }
+  });
+
+  it('refuses a home path it cannot bake into the launcher', async () => {
+    const { run, files, err } = setup(true, platform === 'win32' ? 'R&D' : "o'b");
+    expect(await run('--agent', 'bob-agent')).toBe(2);
+    expect(err.join('\n')).toContain('Cannot bake the path');
+    expect(() => statSync(files.dir)).toThrow();
+  });
+
+  it('refuses a --dir that is not a folder', async () => {
+    const { run, files, work } = setup();
+    expect(await run('--agent', 'bob-agent', '--dir', join(work, 'nope'))).toBe(2);
+    expect(() => statSync(files.dir)).toThrow();
+  });
+
+  it('warns when empty-git-hooks is not empty, and deletes nothing', async () => {
+    const { run, files, out } = setup();
+    await run('--agent', 'bob-agent');
+    writeFileSync(join(files.emptyHooks, 'pre-commit'), '');
+    out.length = 0;
+    expect(await run('--agent', 'bob-agent')).toBe(0);
+    expect(out.at(-2)).toBe(
+      `Warning: ${files.emptyHooks} is not empty; git hooks found there would run in the mesh window. Empty it.`,
+    );
+    expect(readdirSync(files.emptyHooks)).toEqual(['pre-commit']);
   });
 
   it('says when claude is not on PATH', async () => {

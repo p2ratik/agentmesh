@@ -44,6 +44,14 @@ function checkouts(dir: string): string[] {
 const ignoresWorktrees = (checkout: string): boolean =>
   (read(join(checkout, '.gitignore')) ?? '').split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
 
+const isFolder = (p: string): boolean => {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
 const worktreeWarnings = (dir: string): string[] =>
   checkouts(dir)
     .filter((c) => !ignoresWorktrees(c))
@@ -116,6 +124,7 @@ Running it again keeps the window's token.
       }
     }
     const dir = resolveFrom(ctx, values.dir ?? '.');
+    if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
     const inputs = {
       agentId,
       claude,
@@ -147,6 +156,11 @@ Running it again keeps the window's token.
       );
     }
     for (const line of worktreeWarnings(dir)) ctx.stdout(line);
+    if (readdirSync(files.emptyHooks).length > 0) {
+      ctx.stdout(
+        `Warning: ${files.emptyHooks} is not empty; git hooks found there would run in the mesh window. Empty it.`,
+      );
+    }
     ctx.stdout(
       "Check that each repo's test runner, typechecker and linter skip .claude/worktrees/ (vitest's default include does not).",
     );

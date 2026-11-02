@@ -58,7 +58,11 @@ export function windowSettings(i: WindowInputs): Record<string, unknown> {
 }
 
 /** The launcher: marks the window with the token, enters the folder, starts Claude Code. */
-export function launcherScript(i: WindowInputs, platform: NodeJS.Platform): string {
+export function launcherScript(
+  i: WindowInputs,
+  platform: NodeJS.Platform,
+  prompt: string | null = LAUNCH_PROMPT,
+): string {
   const win = platform === 'win32';
   const q = (s: string) => (win ? `"${s}"` : `'${s}'`);
   const claude = [
@@ -68,7 +72,7 @@ export function launcherScript(i: WindowInputs, platform: NodeJS.Platform): stri
     q(sessionName(i.agentId)),
     '--permission-mode default --settings',
     q(i.files.settings),
-    ...(LAUNCH_PROMPT === null ? [] : [q(LAUNCH_PROMPT)]),
+    ...(prompt === null ? [] : [q(prompt)]),
   ].join(' ');
   const lines = win
     ? [
@@ -77,7 +81,7 @@ export function launcherScript(i: WindowInputs, platform: NodeJS.Platform): stri
         'set "NoDefaultCurrentDirectoryInExePath=1"',
         `set "AGENTMESH_MESH_WINDOW=${i.token}"`,
         'if not "%~1"=="" cd /d "%~1" || exit /b 1',
-        claude,
+        `call ${claude}`,
       ]
     : [
         '#!/bin/sh',
