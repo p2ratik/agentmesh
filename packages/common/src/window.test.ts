@@ -29,8 +29,14 @@ describe('ownBranchPrefix', () => {
     expect(ownBranchPrefix('agent/{agent}/{task}', 'pratik', 'pratik-agent')).toBe(
       'agent/pratik-agent/',
     );
-    expect(ownBranchPrefix('agent/{owner}-{slug}', 'pratik', 'pratik-agent')).toBe('agent/pratik-');
-    expect(ownBranchPrefix('{task}-{slug}', 'pratik', 'pratik-agent')).toBeNull();
+    const p = (tpl: string) => ownBranchPrefix(tpl, 'pratik', 'pratik-agent');
+    expect(p('agent/{owner}-{slug}')).toBe('agent/pratik-');
+    expect(p('{owner}-{task}')).toBe('pratik-');
+    expect(p('{task}-{slug}')).toBeNull();
+    expect(p('feature/{task}')).toBeNull();
+    expect(p('agent/{task}')).toBeNull();
+    expect(p('x/{team}/{owner}/{task}')).toBeNull();
+    expect(p('agent/{owner}/{team}/{task}')).toBe('agent/pratik/');
   });
 });
 
@@ -77,6 +83,14 @@ describe('readMarker', () => {
     expect(readMarker({ [MESH_WINDOW_ENV]: TOKEN }, home, 'linux', 'pratik-agent').state).toBe(
       'verified',
     );
+  });
+
+  it('is marked, never throwing, when the policy file is malformed', () => {
+    writeFileSync(windowFiles(home, 'linux').policy, '{not json', 'utf8');
+    expect(readMarker({ [MESH_WINDOW_ENV]: TOKEN }, home, 'linux')).toEqual({
+      state: 'marked',
+      policy: null,
+    });
   });
 
   it('is marked, never throwing, when the policy file is missing', () => {

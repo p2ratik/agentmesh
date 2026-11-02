@@ -76,13 +76,16 @@ export function parseWindowPolicy(text: string): WindowPolicy | null {
   return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
 }
 
-/** The fixed start of the branch template, up to its first {task} or {slug}; null if empty. */
+/**
+ * The branch template up to its first placeholder other than {owner} and {agent}, with those
+ * filled in. Null when that head names neither the owner nor the agent (so every test asks).
+ */
 export function ownBranchPrefix(template: string, owner: string, agent: string): string | null {
-  const cut = template.search(/\{(task|slug)\}/);
-  const head = (cut < 0 ? template : template.slice(0, cut))
-    .replaceAll('{owner}', owner)
-    .replaceAll('{agent}', agent);
-  return head === '' || head.includes('{') ? null : head;
+  const cut = template.search(/{(?!owner}|agent})[^}]*}/);
+  const head = cut < 0 ? template : template.slice(0, cut);
+  if (!/{(owner|agent)}/.test(head)) return null;
+  const filled = head.replaceAll('{owner}', owner).replaceAll('{agent}', agent);
+  return filled === '' ? null : filled;
 }
 
 export type MarkerState = 'none' | 'marked' | 'verified';
