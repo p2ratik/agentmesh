@@ -30,8 +30,12 @@ describe('ownBranchPrefix', () => {
       'agent/pratik-agent/',
     );
     const p = (tpl: string) => ownBranchPrefix(tpl, 'pratik', 'pratik-agent');
-    expect(p('agent/{owner}-{slug}')).toBe('agent/pratik-');
-    expect(p('{owner}-{task}')).toBe('pratik-');
+    // `-` can't end a prefix: ids may contain it, so `pratik-` would also cover `pratik-2`
+    expect(p('agent/{owner}-{slug}')).toBeNull();
+    expect(p('{owner}-{task}')).toBeNull();
+    expect(p('{owner}_{task}')).toBe('pratik_');
+    expect(p('agent/{owner}.{task}')).toBe('agent/pratik.');
+    expect(p('agent/{owner}')).toBeNull();
     expect(p('{task}-{slug}')).toBeNull();
     expect(p('feature/{task}')).toBeNull();
     expect(p('agent/{task}')).toBeNull();

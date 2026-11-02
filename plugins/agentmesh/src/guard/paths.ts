@@ -64,13 +64,13 @@ function within(inner: string, outer: string, o: PathOptions): boolean {
 }
 
 /** A name Win32 opens as a device, with any extension (`nul`, `com1.ts`, `conout$`). */
-const DOS_DEVICE =
+export const DOS_DEVICE =
   /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
 
 /** Why a path is refused before the disk is touched (no UNC host is ever contacted), or null.
  * `.` and `..` are refused rather than resolved: a writer that folds them as text and a kernel that
  * follows a link before its `..` land in different places. */
-function badInput(file: unknown, o: PathOptions): Refusal | null {
+export function badInput(file: unknown, o: PathOptions): Refusal | null {
   if (typeof file !== 'string' || file.includes('\0') || file !== file.trim()) return NOT_ABSOLUTE;
   const win = o.platform === 'win32';
   if (win && /^[\\/]([\\/]|\?\?[\\/])/.test(file)) return DEVICE;

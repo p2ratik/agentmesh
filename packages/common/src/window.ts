@@ -78,14 +78,15 @@ export function parseWindowPolicy(text: string): WindowPolicy | null {
 
 /**
  * The branch template up to its first placeholder other than {owner} and {agent}, with those
- * filled in. Null when that head names neither the owner nor the agent (so every test asks).
+ * filled in. Null when that head names neither the owner nor the agent, or doesn't end in `/`,
+ * `_` or `.`: ids may contain `-`, so `pratik-` would also prefix teammate `pratik-2`'s branches.
  */
 export function ownBranchPrefix(template: string, owner: string, agent: string): string | null {
   const cut = template.search(/{(?!owner}|agent})[^}]*}/);
   const head = cut < 0 ? template : template.slice(0, cut);
   if (!/{(owner|agent)}/.test(head)) return null;
   const filled = head.replaceAll('{owner}', owner).replaceAll('{agent}', agent);
-  return filled === '' ? null : filled;
+  return /[/_.]$/.test(filled) ? filled : null;
 }
 
 export type MarkerState = 'none' | 'marked' | 'verified';

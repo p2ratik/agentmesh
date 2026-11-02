@@ -14,7 +14,6 @@ import {
   own,
   PASS,
   THEIRS,
-  theirs,
   UNLISTED,
   win32,
 } from './commands.fixture';
@@ -153,54 +152,47 @@ describe('classifyCommand tricks', () => {
     ]);
   });
 
-  it('refuses worktree changes with other paths, slugs, flags or start points', () => {
-    const wt = '.claude/worktrees/mesh-x';
-    asksAll(
-      [
-        `git worktree add ${wt} origin/agents -f`,
-        `git worktree add ${wt} origin/agents --force`,
-        `git worktree add -B agent/pratik/x ${wt} origin/agents`,
-        `git worktree add ${wt} -B agent/pratik/x origin/agents`,
-        `git worktree add ${wt} --detach origin/agents`,
-        `git worktree add ${wt} --lock origin/agents`,
-        'git worktree add .claude/worktrees/mesh-X origin/agents',
-        'git worktree add .claude/worktrees/mesh- origin/agents',
-        'git worktree add .claude/worktrees/mesh--x origin/agents',
-        `git worktree add .claude/worktrees/mesh-${'a'.repeat(64)} origin/agents`,
-        `git worktree add ${wt}/../../../x origin/agents`,
-        `git worktree add ../${wt} origin/agents`,
-        `git worktree add /tmp/${wt} origin/agents`,
-        `git worktree add ./${wt} origin/agents`,
-        `git worktree add ${wt} origin/-x`,
-        `git worktree add ${wt} origin/a..b`,
-        `git worktree add ${wt} origin/agents:x`,
-        `git worktree add ${wt} agents`,
-        `git worktree add ${wt} upstream/agents`,
-        `git worktree add ${wt}`,
-        `git worktree add ${wt} -b agent/pratik/ origin/agents`,
-        `git worktree add ${wt} -b agent/pratik/a..b origin/agents`,
-        `git worktree add ${wt} -b agent/pratik/x origin/agents origin/main`,
-        `git worktree add ${wt} -b agent/pratik/x HEAD`,
-        `git worktree add ${wt} -b agent/pratik/x origin/main`,
-        `git worktree remove ${wt} -f`,
-        `git worktree remove ${wt}/..`,
-        'git worktree remove ../x',
-        'git worktree prune',
-        `git worktree move ${wt} x`,
-      ],
-      'C:/t',
-    );
+  it('keeps reads inside the tree', () => {
+    asksAll([
+      'git diff C:/Users/x/.ssh/id_ed25519 C:/t/empty',
+      'git diff c:/x',
+      'git diff ../../../../.aws/credentials /dev/null',
+      'git diff --no-index ~/.ssh/x /dev/null',
+      'git diff --no-index a b',
+      'git diff /etc/passwd',
+      'git log -- ../x',
+      'git diff src/../../x',
+      'git show x/..',
+      'ls ~/.ssh',
+      'ls ~',
+      'ls /',
+      'ls ..',
+      'ls src/../..',
+    ]);
+    const reads = [
+      'git log A..B',
+      'git diff A...B',
+      'git diff origin/agents..HEAD -- src',
+      'git show HEAD~2:src/a.ts',
+      'git diff ./src',
+      'ls -la src/x',
+      'ls .claude',
+    ];
+    expect(decide(own.root, reads)).toEqual(every(reads, PASS));
   });
 
-  it('makes and removes worktrees only from a checkout, never inside a mesh worktree', () => {
-    const changes = [
-      'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x origin/agents',
-      'git worktree add .claude/worktrees/mesh-y origin/agent/sagar/y',
-      'git worktree remove .claude/worktrees/mesh-x',
-    ];
-    asksAll(changes, own.root);
-    asksAll(changes, theirs.root);
-    expect(decide(resolve('/t/web'), changes)).toEqual(every(changes, PASS));
+  it('refuses // (a UNC host in Git Bash) in reads and paths on every platform', () => {
+    asksAll([
+      'ls //evil.example@SSL/dav',
+      'git log //evil.example/share/x',
+      'git diff -O//evil.example/x',
+      'git log --format=x//evil.example/y',
+      'cd //evil.example/share',
+      'cd "//evil.example/share"',
+      'git add -- //evil.example/x',
+      'cd //evil.example/share && pnpm check',
+      'cd "//evil.example/share" && git add -A',
+    ]);
   });
 
   it('refuses cd forms that bash and node could read differently', () => {

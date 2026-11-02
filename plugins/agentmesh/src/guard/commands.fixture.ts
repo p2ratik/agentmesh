@@ -32,9 +32,20 @@ export const slash = (p: string) => p.replaceAll('\\', '/');
 export const OWN = slash(own.root);
 export const THEIRS = slash(theirs.root);
 
+/** Checkout tops (a real `.git` folder) and the remote branches they have fetched. */
+export const TOPS = ['C:/t', '/t/web', '/t/John Smith/web'].map((d) => resolve(d));
+export const REMOTES = ['agents', 'agent/sagar/task-2-x', 'agent/sagar/y'];
+
 export function ctx(cwd: string, over: Partial<CommandContext> = {}): CommandContext {
   const known = new Map([own, theirs, detached].map((w) => [resolve(w.root), w]));
-  return { policy, cwd, worktreeOf: (dir) => known.get(resolve(dir)) ?? null, ...over };
+  return {
+    policy,
+    cwd,
+    worktreeOf: (dir) => known.get(resolve(dir)) ?? null,
+    checkoutTop: (dir) => (TOPS.includes(resolve(dir)) ? resolve(dir) : null),
+    remoteRefExists: (top, branch) => TOPS.includes(top) && REMOTES.includes(branch),
+    ...over,
+  };
 }
 
 export type Decision = ReturnType<typeof classifyCommand>;

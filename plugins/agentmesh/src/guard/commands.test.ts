@@ -33,19 +33,59 @@ describe('classifyCommand', () => {
       'git worktree list',
       'cd C:/t/web',
       'cd "C:/Users/John Smith/web"',
-      'git worktree add .claude/worktrees/mesh-task-3-login -b agent/pratik/task-3-login origin/agents',
-      'git worktree add .claude/worktrees/mesh-review-task-2 origin/agent/sagar/task-2-x',
+      'git worktree add .claude/worktrees/mesh-task-3-login -b agent/pratik/task-3-login --track origin/agents',
+      'git worktree add .claude/worktrees/mesh-review-task-2 refs/remotes/origin/agent/sagar/task-2-x',
       'git worktree remove .claude/worktrees/mesh-task-3-login',
       // and a few more of the same forms
       'ls',
       'git diff',
+      'git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x',
       'git show HEAD:src/a.ts',
       'git log --format=oneline --since=2.weeks origin/agents..HEAD',
+      'git log A..B -- src/a.ts',
       'cd .claude/worktrees/mesh-task-3-login',
       'cd ..',
-      `git worktree add .claude/worktrees/mesh-${'a'.repeat(63)} origin/agents`,
+      `git worktree add .claude/worktrees/mesh-${'a'.repeat(63)} refs/remotes/origin/agents`,
     ];
     expect(decide('C:/t', routine)).toEqual(every(routine, PASS));
+  });
+
+  it('checks out only real remote branches, from a real checkout top', () => {
+    // a fetched tag can shadow origin/<b>; --track refuses a tag, refs/remotes/… names the branch
+    asksAll(
+      [
+        'git worktree add .claude/worktrees/mesh-task-3-login -b agent/pratik/task-3-login origin/agents',
+        'git worktree add .claude/worktrees/mesh-review-task-2 origin/agent/sagar/task-2-x',
+        'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x refs/remotes/origin/agents',
+        'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x --track refs/remotes/origin/agents',
+        'git worktree add .claude/worktrees/mesh-x --track -b agent/pratik/x origin/agents',
+        'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x --track origin/agents --force',
+        'git worktree add .claude/worktrees/mesh-x refs/remotes/origin/agent/sagar/missing',
+        'git worktree add .claude/worktrees/mesh-x refs/tags/refs/remotes/origin/agents',
+        'git worktree add .claude/worktrees/mesh-x refs/remotes/upstream/agents',
+        'git worktree add .claude/worktrees/mesh-x refs/remotes/origin/a..b',
+        'git worktree add .claude/worktrees/mesh-x --track origin/agents',
+      ],
+      'C:/t',
+    );
+    const changes = [
+      'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x --track origin/agents',
+      'git worktree add .claude/worktrees/mesh-y refs/remotes/origin/agent/sagar/y',
+      'git worktree remove .claude/worktrees/mesh-x',
+    ];
+    expect(decide(resolve('/t/web'), changes)).toEqual(every(changes, PASS));
+    // not a checkout top: a worktree, a subfolder, or no checkout at all
+    for (const cwd of [own.root, theirs.root, resolve('/t/web/src'), resolve('/t')]) {
+      asksAll(changes, cwd);
+    }
+    // the existence check gets the checkout top and the branch
+    const seen: string[] = [];
+    const remoteRefExists = (top: string, branch: string) => {
+      seen.push(`${top}|${branch}`);
+      return true;
+    };
+    classifyCommand(changes[1] ?? '', ctx(resolve('/t/web'), { remoteRefExists }));
+    expect(seen).toEqual([`${resolve('/t/web')}|agent/sagar/y`]);
   });
 
   it('runs tests without asking only on its own branch', () => {
@@ -193,11 +233,11 @@ describe('classifyCommand', () => {
       'git fetch origin +refs/heads/*:refs/heads/*',
       'git fetch origin main:main',
       'git push origin agent/pratik/x',
-      'git worktree add .claude/worktrees/mesh-x -b agent/sagar/x origin/agents',
-      'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x origin/agent/sagar/y',
-      'git worktree add -f .claude/worktrees/mesh-x origin/agents',
+      'git worktree add .claude/worktrees/mesh-x -b agent/sagar/x --track origin/agents',
+      'git worktree add .claude/worktrees/mesh-x -b agent/pratik/x --track origin/agent/sagar/y',
+      'git worktree add -f .claude/worktrees/mesh-x refs/remotes/origin/agents',
       'git worktree remove --force .claude/worktrees/mesh-x',
-      'git worktree add .claude/worktrees/feature origin/agents',
+      'git worktree add .claude/worktrees/feature refs/remotes/origin/agents',
       'git -C web status',
       'git diff --output=/tmp/x',
       'git status; rm -rf .',
