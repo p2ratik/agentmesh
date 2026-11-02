@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
+import type { CallContext } from '../../contracts';
 import { createBobDispatchHarness } from '../../testing/services';
+import { readInbox } from '../messaging/inbox';
+import type { MessagingServiceImpl } from '../messaging/messaging.service';
 import { takeUnownedReader } from './readers';
+
+describe('inbox.get claims', () => {
+  it("an active session's inbox read makes it the owner of what it took", () => {
+    const { active, thread, ask, sessions, messaging } = createBobDispatchHarness();
+    const s = active();
+    const t = thread();
+    ask(t);
+    const result = readInbox(messaging as MessagingServiceImpl, 'bob-agent', s, 20, 5);
+    const actor = { id: 'bob-agent', kind: 'agent' as const, roles: [] };
+    const call: CallContext = { actor, caller: actor, method: 'inbox.get', session: s, notes: [] };
+    sessions.recordClaims(call, 'inbox.get', {}, result);
+    expect(sessions.ownerOf(t, 'bob-agent')).toBe(s);
+  });
+});
 
 describe('takeUnownedReader', () => {
   const setup = () => {
