@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./window": "./src/window.ts"
   },
   "dependencies": {
     "pino": "10.4.0",
