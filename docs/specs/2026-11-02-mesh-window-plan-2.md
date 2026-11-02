@@ -548,7 +548,11 @@ Task 12, with a fallback:
       3. `set "NoDefaultCurrentDirectoryInExePath=1"`
       4. `set "AGENTMESH_MESH_WINDOW=<token>"`
       5. `if not "%~1"=="" cd /d "%~1" || exit /b 1`
-      6. `"<claude>" <CHANNEL_FLAG> -n "<name>" --permission-mode default --settings "<settings>" "<LAUNCH_PROMPT>"`
+      6. `call "<claude>" <CHANNEL_FLAG> -n "<name>" --permission-mode default --settings "<settings>" "<LAUNCH_PROMPT>"`
+         — `call` is required (controller ruling, Task 4 review): without it, an npm-installed `claude.cmd`
+         shim ends the launcher's `setlocal` context before node starts, losing the `cd`,
+         `NoDefaultCurrentDirectoryInExePath` and the marker. `bakeable` already refuses `%` and `^`, so
+         `call`'s second expansion is safe.
     - **Elsewhere**, LF, lines:
       1. `#!/bin/sh`
       2. `export AGENTMESH_MESH_WINDOW='<token>'`
