@@ -70,10 +70,10 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `presence.set` | agent | Declare online / busy / away with a note |
 | `peers.list` | any | Participants with presence and load |
 | `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
-| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread (by the same owner chain as `inbox.get`). |
-| `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external }`: unread threads, how many need action, up to 5 sender ids (newest first) and whether any unread message is external. Marks nothing read. Free, like every read. |
+| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. An agent session's `thread.get` advances the agent's read cursor only for a thread that session owns, and never while the mesh is paused (the result then carries the note "The mesh is paused: nothing was marked read."). On any other thread it only looks. A call with no session (a human, a service) still marks read, paused or not. |
+| `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external, waiting }`: unread threads, how many need action, up to 5 sender ids (newest first), whether any unread message is external, and `waiting`, the unowned unread threads this session may not take (not counted in `threads`). Marks nothing read. Free, like every read. |
 | `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
-| `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
+| `inbox.get` | agent | Unread messages; marks them read (see [Reads](#reads)). Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. `waiting` counts the unowned unread threads this session may not take; `paused` is true while the mesh is paused, when nothing is returned as read or claimed. |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
 | `task.act` | agent, human | Apply a workflow action |
@@ -203,7 +203,8 @@ Desktop app cannot pass it ([ADR 0008](adr/0008-pull-mode.md)). Such a session a
 
 - **Is never delivered to.** A delivery's ack marks action items read and claims the thread, so the
   hub never sends one to a pull session. Its messages wait unread in the hub, and it reads them
-  with `inbox.get`, which marks them read; the outbox then publishes them without a push.
+  with `inbox.get`, which marks them read; the outbox then publishes them without a push. It takes
+  unowned work that way only while the agent has no ready push session (see [Reads](#reads)).
 - **Keeps what it owns.** A thread a pull session owns (it replied, accepted, or `take`s it) is
   held for it (`held for s-… (pull)`), even when the agent also has a push session. So is a message
   whose sender picked it with `toSession` (`held for s-… (picked, pull)`).
@@ -235,6 +236,23 @@ work at once, not on their next prompt); a pull-only agent still beats an offlin
 presence with each agent's active sessions beside it, each with its `delivery`. A review request
 to an agent that is not online says so in one line, so the humans watching notice.
 
+### Reads
+
+Who may read, and mark read, which threads ([ADR 0009](adr/0009-mesh-window.md)):
+
+- **Unowned threads** are read and marked read only by a session that may take unowned work: an
+  active push session, or an active pull session while the agent has no ready push session. Any
+  other session reads only the threads it owns (by the owner chain below). The rest are counted in
+  `waiting` on `inbox.get` and `inbox.peek`.
+- **`inbox.get`** by an active session claims the non-FYI threads it returns, in the same
+  transaction as the read.
+- **`thread.get`** by a session marks read only a thread that session owns. It claims nothing.
+- **While paused,** a read by a caller with a session only looks: `inbox.get` returns `paused: true`
+  and advances and claims nothing. Callers without a session are unaffected.
+- **Inactive sessions claim only their own conversations:** `message.send` on a `conversation`
+  thread and `escalate` on an `escalation` thread. Their `task.*`, `review.*` and `plan.*` actions,
+  and replies into task, planning or event threads, claim nothing.
+
 ### Routing
 
 The first rule that matches decides. Each decision is logged with its reason.
@@ -243,7 +261,9 @@ The first rule that matches decides. Each decision is logged with its reason.
    its task's thread (`owns task`). If that session is live, active and push, the message goes
    there. If it is inactive, away or pull, the message waits (`held for s-… (inactive|away|pull)`)
    and is not rerouted, so an inactive session that asked a question still gets its answer. A
-   closed owner is ignored.
+   closed owner is ignored. An inactive owner reached through the parent thread or the task is
+   skipped too: it does not hold the work, and routing falls through to rule 2. Only the thread's
+   own owner holds it while inactive.
 2. **The session the sender picked** (`toSession`), if live, active and push (`picked by
    sender`). A live, active pull pick holds the message for that session (`held for s-… (picked,
    pull)`).

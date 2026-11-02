@@ -238,10 +238,34 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own
-  session. A pull session is never delivered to, so it cannot swallow work: its messages stay unread
-  in the hub until it reads them with `inbox`. The worst a stray pull activation does is make the
-  agent count as online, so routing may pick it over an offline teammate; push sessions are still
-  preferred.
+  session. A pull session is never delivered to, but it can still take work by reading it, so a
+  read rule limits that (next bullets, [ADR 0009](adr/0009-mesh-window.md)). The worst a stray pull
+  activation does is make the agent count as online, so routing may pick it over an offline
+  teammate; push sessions are still preferred.
+- **Reads do not take team work away from where it belongs.** Before ADR 0009, `inbox.get` from any
+  session, in any project, marked unowned threads read and claimed nothing, so a poll in an
+  unrelated project could hide a request from everyone (Aheen's lost request, 2026-11-01). Now:
+  - Only a session that may take unowned work reads and marks read an unowned thread: an active
+    push session, or an active pull session while the agent has no ready push session. Every other
+    session reads only the threads it owns, and `inbox.get` and `inbox.peek` give it a `waiting`
+    count of the rest.
+  - `thread` marks read only a thread the calling session owns. On any other thread it only looks.
+    Callers without a session (humans, services) are unchanged.
+  - An active session's `inbox.get` claims the action threads it returns, so follow-ups go to the
+    session that has the context. FYI threads are not claimed.
+  - **Pause stops all consuming.** While `/mesh pause` is on, a read by a caller with a session
+    only looks: nothing is marked read or claimed, and the result says so (`paused`, or a note on
+    `thread`). Callers without a session are unaffected.
+  - **Inactive sessions claim only their own conversations.** They claim through `message.send` on
+    a conversation thread and `escalate` on an escalation thread. Their task, review and plan
+    actions, and replies into task, planning or event threads, claim nothing, so that work stays
+    unowned and routes to an active session. An inactive owner reached through the parent thread or
+    the task no longer holds work.
+  - **Still possible, by acting:** an inactive session can take unowned work with `take`, or by
+    replying into an unowned conversation thread. Both are deliberate.
+  - **Residual risk:** a pull session with no ready push session still takes unowned work, which is
+    what pull mode is for. Without a push session nothing reads the work until someone activates
+    one.
 - **The pull state file and hook carry counts and ids only.** While a session is active in pull
   mode, the plugin writes `pull-<prefix>-<agent>-<session>.json` (mode 600) to
   `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`. It holds the agent and session ids, the project
@@ -325,8 +349,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
   also holds deliveries queued before it, in the same transaction, so nothing is pushed while
   paused and no status item rides along either. A batch already being handed over when the pause
-  lands can still finish. The pause stops pushes, not pulls: an agent that calls `inbox` or
-  `thread` while paused still reads its messages, and they are not pushed again on resume.
+  lands can still finish. It also stops reads from consuming: while paused, a session's `inbox` and `thread` only look,
+  so nothing is marked read or claimed until `/mesh resume` (see the read rule above). A caller
+  without a session, such as a human, still reads normally.
 
 ## Secrets in messages
 
@@ -751,6 +776,8 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   **Residual risk:** an admin who approves a prompt without reading it. Keep the deploy commands
   on "ask". Auto mode asks nothing, so the approval is gone: do not run the operator session (the
   setup session, or any session in the workspace) in auto mode while the mesh is activated in it.
+  The same goes for any session that has used the mesh: a teammate's message can reach it, and in
+  auto mode nothing asks before it acts.
 - **Files on the server.** Before copying, `setup deploy` closes the remote `deploy/` folder
   (`chmod 700`), because scp may create `.env` and the seeds readable by everyone. Afterwards
   `.env` and the seeds get mode 600 and the seeds belong to uid 1000 (the containers' user). It

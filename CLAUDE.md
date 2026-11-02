@@ -214,7 +214,7 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0007, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0009, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
 - **Security hardening (0.4.1)**, from a launch audit (`docs/security.md`):
@@ -320,8 +320,8 @@ Target users are self-hosted startup teams of 5–15 people who already know age
 - New config option: schema in `packages/config` with a default → validation → example in
   `config/examples` → `docs/configuration.md`.
 - After changing anything the plugin bundles, rebuild `plugins/agentmesh/dist/` and commit it.
-  Bump the version: one VERSION in `packages/common/src/version.ts` plus every package.json and
-  plugin.json; a bump merged to main is a release. Claude Code caches plugins by version, so
+  Bump the version: `VERSION` lives in `packages/common/src/version.ts`; a bump touches it, the 9 workspace
+  package.json files and plugin.json (`version.test.ts` pins them); a bump merged to main is a release. Claude Code caches plugins by version, so
   `claude plugin update` ignores same-version changes, and the release workflow publishes the hub
   and bridge images for that version.
 - Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with

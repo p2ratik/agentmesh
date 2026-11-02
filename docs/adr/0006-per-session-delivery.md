@@ -33,7 +33,8 @@ The full evidence is in the [design](../specs/2026-10-21-session-routing-design.
     reply), `escalate`, `task.create`, `task.act`, `review.request`, `review.submit`,
     `plan.start`, `plan.submit` and `plan.cancel` claim the thread their result names;
     `plan.contribute` claims the plan's thread. Reads (`thread.get`, `inbox.get`, `task.get`, …)
-    claim nothing.
+    claim nothing. *Amended by [ADR 0009](0009-mesh-window.md): an active session's `inbox` read
+    claims the action threads it returns.*
   - **A delivery the session acked,** in the transaction that marks it published, when routing
     chose the session as the owner of the parent thread or the task, as the sender's pick, by repo
     or as the longest-active session. A delivery to the thread's own owner claims nothing new.

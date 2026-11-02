@@ -1,6 +1,6 @@
 # The mesh window — design
 
-Date: 2026-11-01 · Status: draft. The direction is Pratik's, from conversation, and the calls
+Date: 2026-11-01 · Status: Plan 1 built (reads and ownership). The direction is Pratik's, from conversation, and the calls
 marked "my call" are mine. The cross-session messaging spike is done (§9). Every code reference was
 checked against `origin/agents` 61f393d by a verified code map. An independent builder check,
 security review and requirements check have been folded in. Pratik answered the three open
@@ -379,7 +379,8 @@ own commit path.
 **Tasks belong to the mesh window** (Pratik's decision, §12). When a private session hands out a
 task, the teammate's questions and updates go to the mesh window, not back to that session.
 - **An inactive session's actions claim only its own conversations.** `message.send` (asks and
-  replies) and `escalate` still make it the owner. `task.create`, `task.act`, `review.*` and
+  replies) and `escalate` still make it the owner, but only in its own `conversation` and
+  `escalation` threads: a reply into a task, planning or event thread claims nothing. `task.create`, `task.act`, `review.*` and
   `plan.*` from an inactive session don't. Their threads stay unowned, and routing sends them to
   the mesh window.
   - This is a small guard in `recordClaims`, scoped by method, so the asking session still owns
