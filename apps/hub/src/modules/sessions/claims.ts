@@ -1,4 +1,4 @@
-import type { RpcMethodName } from '@agentmesh/protocol';
+import type { RpcMethodName, ThreadKind } from '@agentmesh/protocol';
 
 /** What a successful RPC makes the calling session own. Keys are protocol keys (`thr-3`). */
 export type ClaimTarget = { kind: 'thread' | 'task' | 'plan'; key: string };
@@ -19,6 +19,14 @@ const CLAIMS_RESULT_THREAD: ReadonlySet<string> = new Set([
 /** Whether `claimTargets` can return anything for this method (the router runs these atomically). */
 export function isClaiming(method: RpcMethodName): boolean {
   return CLAIMS_RESULT_THREAD.has(method) || method === 'plan.contribute' || method === 'inbox.get';
+}
+
+/** A private (inactive) session owns only its own conversations: it sends or escalates in one. */
+export function claimsWhenInactive(method: RpcMethodName, kind: ThreadKind): boolean {
+  return (
+    (method === 'message.send' && kind === 'conversation') ||
+    (method === 'escalate' && kind === 'escalation')
+  );
 }
 
 /** The action (non-FYI) threads an `inbox.get` result returned; none while paused. */

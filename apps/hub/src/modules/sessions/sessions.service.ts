@@ -14,7 +14,7 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { claimTargets } from './claims';
+import { claimsWhenInactive, claimTargets } from './claims';
 import { evictStalest, expireSessions, releaseAndClose } from './liveness';
 import { toRecord, toRouteSession, toSummary, toView } from './mappers';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
@@ -196,6 +196,9 @@ export class SessionsServiceImpl implements SessionsService {
     for (const target of claimTargets(method, params, result)) {
       const threadId = claimedThread(target, this.#deps);
       if (threadId === null) continue;
+      const inactive = this.repo.get(sessionId)?.active !== 1;
+      if (inactive && !claimsWhenInactive(method, this.#deps.messaging.thread(threadId).kind))
+        continue;
       const claim = { agentId: call.caller.id, sessionId, threadId, at: this.#now() };
       const note = claimThread(this.repo, claim);
       if (note) call.notes.push(note);

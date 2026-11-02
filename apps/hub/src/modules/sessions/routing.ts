@@ -55,7 +55,9 @@ export function chainOwner(
   ];
   for (const o of owners) {
     const session = input.sessions.find((s) => s.id === o.id); // a closed owner is not listed
-    if (session) return { session, claim: o.claim, reason: o.reason };
+    // an inactive parent/task owner does not hold work (a private session owns only its conversations)
+    if (session && (!o.claim || session.active))
+      return { session, claim: o.claim, reason: o.reason };
   }
   return undefined;
 }

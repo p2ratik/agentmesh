@@ -139,3 +139,19 @@ describe('routeDelivery', () => {
     });
   });
 });
+
+describe('chain owners that are inactive', () => {
+  const off = s({ id: 's1', active: false });
+  const fall = { kind: 'deliver', sessionId: 's2', claim: true, reason: 'longest-active session' };
+  it('an inactive parent owner does not hold the work', () => {
+    expect(routeDelivery(input({ sessions: [off, s2], parentOwner: 's1' }))).toEqual(fall);
+  });
+  it('an inactive task owner does not hold the work', () => {
+    expect(routeDelivery(input({ sessions: [off, s2], taskOwner: 's1' }))).toEqual(fall);
+  });
+  it('an away parent owner still holds', () => {
+    const away = s({ id: 's1', liveness: 'away' });
+    const r = routeDelivery(input({ sessions: [away, s2], parentOwner: 's1' }));
+    expect(r).toEqual({ kind: 'wait', reason: 'held for s1 (away)' });
+  });
+});
