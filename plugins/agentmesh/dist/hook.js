@@ -11,13 +11,15 @@ import { join } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
+var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
+var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
 function windowFiles(home, platform) {
   const dir = join(home, ".agentmesh");
   return {
     dir,
     policy: join(dir, "mesh-window.json"),
     settings: join(dir, "mesh-window.settings.json"),
-    launcher: join(dir, platform === "win32" ? "mesh-window.cmd" : "mesh-window"),
+    launcher: join(dir, launcherName(platform)),
     emptyHooks: join(dir, "empty-git-hooks")
   };
 }
@@ -146,7 +148,7 @@ function ownBranchLines(policy) {
   const tests = policy.testCommands;
   return [
     tests.length > 0 ? `- In a worktree on your own branch (${prefix}\u2026), run without asking: ${tests.join(", ")} (as cd "<worktree>" && <test>, exactly as written). Any other test command asks.` : "- Every test run asks your human: the window lists no test commands.",
-    `- From your own task worktree these run without asking, each as cd "<worktree>" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base ${policy.integrationBranch} --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask.`
+    `- From your own task worktree these run without asking, each as cd "<worktree>" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base ${policy.integrationBranch} --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask. Then task_act(action: "submit", pr_url, branch: <branch>), so reviewers can diff it.`
   ];
 }
 function windowRules(policy) {
@@ -164,8 +166,10 @@ function windowRules(policy) {
     `- Work in a folder in two steps: run cd "<dir>" alone first (a cd inside the window's folder doesn't prompt), then each command below as cd "<dir>" && <command> with the same absolute path. That cd changes nothing, so Claude Code doesn't prompt, and the guard still sees the folder. git -C, a relative cd chain and a second cd ask.`,
     "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
     `- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/${base}. Edits anywhere else are refused.`,
+    // A restart is a new session: its context and its hub session start empty.
+    '- After a restart, call task_list and resume each task still in progress in its existing worktree (cd "<checkout>" && git worktree list shows them). Before you answer a reply that arrived for an earlier session, read its thread with thread.',
     // Full ref spellings: a fetched tag named origin/<branch> outranks the remote branch.
-    `- Reviews: read the diff${freely}: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn't yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human's approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.`,
+    `- Reviews: read the diff${freely}: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. <branch> is the review request's Branch: line (task_get's branch:), <base> task_get's base: or else ${base}; if no branch is named, ask the author in the task thread (gh pr diff asks here). Before you run the tests of a branch that isn't yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human's approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.`,
     '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
     ...ownBranchLines(policy),
     "- Merging and anything not named here ask your human. Escalate before anything risky.",
@@ -174,14 +178,14 @@ function windowRules(policy) {
 }
 
 // src/window/session-start.ts
-var HINT_START = "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ~/.agentmesh/mesh-window in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)";
+var hintStart = (platform) => `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${launcherDisplay(platform)} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
 var HINT_SETUP = "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Run /agentmesh:window to set one up. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)";
 function sessionStartOutput(i) {
   if (i.marked) return { additionalContext: windowRules(i.policy), systemMessage: null };
   const hint = i.source === "startup" && i.enrolled && !i.hintOff && !i.listening;
   return {
     additionalContext: null,
-    systemMessage: hint ? i.launcherExists ? HINT_START : HINT_SETUP : null
+    systemMessage: hint ? i.launcherExists ? hintStart(i.platform) : HINT_SETUP : null
   };
 }
 
@@ -241,7 +245,8 @@ function sessionStart(source) {
     enrolled: existsSync(join3(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
-    launcherExists: existsSync(windowFiles(home, process.platform).launcher)
+    launcherExists: existsSync(windowFiles(home, process.platform).launcher),
+    platform: process.platform
   });
 }
 async function main() {

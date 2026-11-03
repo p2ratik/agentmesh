@@ -9,13 +9,14 @@ import { join } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
+var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
   const dir = join(home, ".agentmesh");
   return {
     dir,
     policy: join(dir, "mesh-window.json"),
     settings: join(dir, "mesh-window.settings.json"),
-    launcher: join(dir, platform === "win32" ? "mesh-window.cmd" : "mesh-window"),
+    launcher: join(dir, launcherName(platform)),
     emptyHooks: join(dir, "empty-git-hooks")
   };
 }
@@ -102,9 +103,10 @@ var keys = (file, o) => {
   const { top, segments } = split(file, o);
   return [key(top, o), ...segments.map((s) => key(s, o))];
 };
+var refusalKey = (k) => k.normalize("NFC").replace(new RegExp("\\p{Cf}", "gu"), "").toUpperCase();
 function within(inner, outer, o) {
-  const a = keys(inner, o).map((k) => k.toUpperCase());
-  const b = keys(outer, o).map((k) => k.toUpperCase());
+  const a = keys(inner, o).map(refusalKey);
+  const b = keys(outer, o).map(refusalKey);
   return b.length <= a.length && b.every((k, i) => k === a[i]);
 }
 var DOS_DEVICE = /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
@@ -195,7 +197,7 @@ function editTarget(file, o) {
   const found = registered(resolved, o);
   if ("refused" in found) return found;
   if (found.below.length === 0) return OUTSIDE;
-  if (found.below.some((k) => k.toUpperCase() === ".GIT")) return DOT_GIT;
+  if (found.below.some((k) => refusalKey(k) === ".GIT")) return DOT_GIT;
   return escapes(file, resolved, o) ? OUTSIDE : { ok: true };
 }
 
