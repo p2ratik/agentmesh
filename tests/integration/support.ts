@@ -1,5 +1,8 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RpcClient } from '@agentmesh/bus';
+import { MESH_WINDOW_ENV, MESH_WINDOW_HINT_ENV } from '@agentmesh/common/window';
 import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -34,21 +37,30 @@ export interface AgentEnv {
   nkeySeed?: string;
   /** Home directory holding `.agentmesh` (agent.json, keys, invite.txt). */
   home?: string;
+  /** Set last, e.g. the mesh window marker or a CLAUDE_PLUGIN_DATA of the test's own. */
+  extraEnv?: Record<string, string>;
 }
 
 /** Starts one plugin process over MCP stdio and records its channel events. */
 export async function spawnAgent(env: AgentEnv): Promise<Agent> {
+  const inherited = { ...process.env };
+  // A test runs in no mesh window unless it says so.
+  delete inherited[MESH_WINDOW_ENV];
+  delete inherited[MESH_WINDOW_HINT_ENV];
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [PLUGIN],
     env: {
-      ...process.env,
+      ...inherited,
       ...(env.home ? { HOME: env.home, USERPROFILE: env.home } : {}),
       AGENTMESH_AGENT_ID: env.agentId,
       AGENTMESH_NATS_URL: env.natsUrl,
       AGENTMESH_PREFIX: env.prefix,
       AGENTMESH_NKEY_SEED: env.nkeySeed ?? '',
       AGENTMESH_LOG_FILE: '',
+      // State and heartbeat files land here, never in the real ~/.agentmesh/run.
+      CLAUDE_PLUGIN_DATA: mkdtempSync(join(tmpdir(), 'am-e2e-data-')),
+      ...env.extraEnv,
     },
     stderr: 'pipe',
   });
@@ -89,16 +101,16 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
 /**
  * Opts the session in the way Claude does after /agentmesh:activate: asks for
  * a check (retrying until the plugin listens on its session subject), reads the
- * code the hub pushed, and sends it back with a description.
+ * code the hub pushed, and sends it back with a description. Returns the final result's text.
  */
-export async function activate(agent: Agent, description: string): Promise<void> {
+export async function activate(agent: Agent, description: string): Promise<string> {
   const before = agent.events.length;
   await untilConnected(() => agent.call('activate', {}));
   const check = await agent.waitFor(
     (e) => agent.events.indexOf(e) >= before && e.content.includes('Code:'),
   );
   const code = /Code: (\w+)/.exec(check.content)?.[1] ?? '';
-  await agent.call('activate', { code, description });
+  return agent.call('activate', { code, description });
 }
 
 /** Calls the hub as a fresh session of the client's agent: the hub refuses agent calls without one. */

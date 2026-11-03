@@ -60,6 +60,32 @@ const worktreeWarnings = (dir: string): string[] =>
         `Warning: ${c} doesn't ignore .claude/worktrees/; add it to .gitignore so the window's worktrees don't show up as untracked files.`,
     );
 
+/** What follows the "Wrote …" lines: a re-run note, then the warnings. */
+function printNotes(
+  ctx: CliContext,
+  n: { rerun: boolean; prefix: string | null; dir: string; emptyHooks: string },
+): void {
+  if (n.rerun) {
+    ctx.stdout(
+      'A mesh window that is already running keeps working; restart it to load the new settings.',
+    );
+  }
+  if (n.prefix === null) {
+    ctx.stdout(
+      "Warning: the branch template names neither the owner nor the agent, so the window can't tell its own branches: every test run will ask.",
+    );
+  }
+  for (const line of worktreeWarnings(n.dir)) ctx.stdout(line);
+  if (readdirSync(n.emptyHooks).length > 0) {
+    ctx.stdout(
+      `Warning: ${n.emptyHooks} is not empty; git hooks found there would run in the mesh window. Empty it.`,
+    );
+  }
+  ctx.stdout(
+    "Check that each repo's test runner, typechecker and linter skip .claude/worktrees/ (vitest's default include does not).",
+  );
+}
+
 export const windowInitCommand: Command = {
   name: 'window init',
   summary: 'Write the mesh window launcher, its settings and policy in ~/.agentmesh',
@@ -145,25 +171,7 @@ Running it again keeps the window's token.
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`,
     );
     ctx.stdout(`Start it each day in your team's folder: ${LAUNCHER_DISPLAY} "${dir}"`);
-    if (kept) {
-      ctx.stdout(
-        'A mesh window that is already running keeps working; restart it to load the new settings.',
-      );
-    }
-    if (prefix === null) {
-      ctx.stdout(
-        "Warning: the branch template names neither the owner nor the agent, so the window can't tell its own branches: every test run will ask.",
-      );
-    }
-    for (const line of worktreeWarnings(dir)) ctx.stdout(line);
-    if (readdirSync(files.emptyHooks).length > 0) {
-      ctx.stdout(
-        `Warning: ${files.emptyHooks} is not empty; git hooks found there would run in the mesh window. Empty it.`,
-      );
-    }
-    ctx.stdout(
-      "Check that each repo's test runner, typechecker and linter skip .claude/worktrees/ (vitest's default include does not).",
-    );
+    printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   },
 };

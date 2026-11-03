@@ -210,7 +210,7 @@ Run `pnpm check` before calling anything done.
 
 ## Status (as of 2026-11-03)
 
-**Built (v1, release 0.4.3):**
+**Built (v1, release 0.5.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
@@ -255,7 +255,7 @@ Run `pnpm check` before calling anything done.
     is listening.
 
 **Tested and passing:**
-- **Unit tests (about 620):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 960):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
@@ -269,6 +269,8 @@ Run `pnpm check` before calling anything done.
   - Onboarding end to end: invite, join, ask, remove, kick, refuse.
   - Setup end to end: the bundled CLI renders a trial workspace, the hub starts from it, and an
     unenrolled plugin connects as the admin's agent with `connect`.
+  - The mesh window: team work goes to the window rather than the session activated first, and
+    a marked session whose guard didn't run can't activate.
 - **Live deployment:**
   - Hub image built on the VM; NATS requires TLS.
   - Laptop → TLS → hub RPC works (~100–300 ms).

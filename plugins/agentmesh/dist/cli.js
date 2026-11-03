@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join15 } = __require("path");
+    var { join: join18 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join15(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join18(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2552,9 +2552,9 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync13 } = __require("node:fs");
+    var { existsSync: existsSync14 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join15, isAbsolute: isAbsolute2, sep } = __require("node:path");
+    var { join: join18, isAbsolute: isAbsolute2, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute2(path) && !existsSync13(path);
+      return isAbsolute2(path) && !existsSync14(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join15(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join18(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join15(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join18(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join15(__dirname, "..", "file.js");
+          return join18(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join15 = ",";
+            let join18 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join15 = `,
+                join18 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join15;
+                res += join18;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join18}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join15 = `,
+              join18 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join15;
+                separator = join18;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join15;
+              separator = join18;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join15 = ",";
+            let join18 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join15 = `,
+                join18 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join15;
+                res += join18;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join18}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join15 = `,
+              join18 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join15;
+                separator = join18;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join16 = `,
+              const join19 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join16;
+                res2 += join19;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join16}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join15 = `,
+            const join18 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join15, maximumBreadth);
+              res += stringifyTypedArray(value, join18, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join15;
+              separator = join18;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join15;
+                separator = join18;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join15;
+              separator = join18;
             }
             if (separator !== "") {
               res = `
@@ -25695,7 +25695,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.4.4";
+var VERSION = "0.5.0";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -45615,7 +45615,7 @@ function date4(params) {
 // ../../packages/protocol/src/primitives.ts
 var IsoDate = external_exports.string().min(1);
 var IdRef = external_exports.string().max(64);
-var GitRef = external_exports.string().max(300);
+var GitRef = external_exports.string().max(300).regex(/^[^\p{Cc}\p{Zl}\p{Zp}]*$/u, "one line, with no control characters");
 var Label = external_exports.string().max(60);
 var ParticipantId = external_exports.string().regex(
   PARTICIPANT_ID_PATTERN,
@@ -45639,6 +45639,8 @@ var SessionSummary = external_exports.object({
   repo: external_exports.string().nullable(),
   branch: external_exports.string().nullable(),
   activeSince: IsoDate,
+  /** Started by the mesh window launcher; routing prefers it for team work. */
+  meshWindow: external_exports.boolean().default(false),
   tasks: external_exports.array(external_exports.string())
 });
 var PeerInfo = ParticipantRef.extend({
@@ -45877,9 +45879,10 @@ var PlanTaskDraft = external_exports.object({
   key: external_exports.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
   title: external_exports.string().min(3).max(200),
   description: external_exports.string().max(8e3),
-  // Capped like task.create's params, which these drafts become.
+  // Capped like task.create's params, which these drafts become. The repo is only capped here:
+  // results must still read a plan stored before GitRef refused line breaks (PlanTaskDraftParams).
   area: IdRef.optional(),
-  repo: GitRef.optional(),
+  repo: external_exports.string().max(300).optional(),
   assignee: IdRef.optional(),
   priority: Priority.optional(),
   labels: external_exports.array(Label).max(20).optional(),
@@ -45887,6 +45890,7 @@ var PlanTaskDraft = external_exports.object({
   doneWhen: external_exports.string().max(2e3).optional(),
   estimateHours: external_exports.number().positive().optional()
 });
+var PlanTaskDraftParams = PlanTaskDraft.extend({ repo: GitRef.optional() });
 var Plan = external_exports.object({
   id: external_exports.string(),
   topic: external_exports.string(),
@@ -46353,7 +46357,7 @@ var planningMethods = {
     params: external_exports.object({
       planId: IdRef,
       summary: external_exports.string().min(1).max(32e3),
-      tasks: external_exports.array(PlanTaskDraft).min(1).max(100)
+      tasks: external_exports.array(PlanTaskDraftParams).min(1).max(100)
     }),
     result: Plan
   }),
@@ -46403,7 +46407,9 @@ var sessionMethods = {
       repo: GitRef.optional(),
       branch: GitRef.optional(),
       /** This process's session before a reconnect: reused if still open, else reclaimed from. */
-      previousSessionId: SessionId.optional()
+      previousSessionId: SessionId.optional(),
+      /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
+      meshWindow: external_exports.boolean().optional()
     }),
     result: external_exports.object({
       self: PeerInfo,
@@ -49499,7 +49505,7 @@ function renderJoinNote(i) {
     "5. Start `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.",
     `6. Run \`/agentmesh:join\` and confirm that the hub is \`${i.publicHost}:${NATS_PORT}\`.`,
     "7. Say yes when Claude offers automatic plugin updates, or turn them on later with `/agentmesh:autoupdate`.",
-    "8. Run `/agentmesh:activate`.",
+    "8. Run `/agentmesh:window`, then start your mesh window each day with `~/.agentmesh/mesh-window` in your team's folder.",
     "",
     "Install first: codes expire 24 hours after the invite."
   ].join("\n");
@@ -50188,6 +50194,306 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
   }
 };
 
+// ../../apps/cli/src/commands/window.ts
+import { randomBytes } from "node:crypto";
+import { existsSync as existsSync13, mkdirSync as mkdirSync4, readdirSync as readdirSync5, readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
+import { join as join17 } from "node:path";
+
+// ../../packages/common/src/window.ts
+import { join as join15 } from "node:path";
+var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
+var RESTART = `claude ${CHANNEL_FLAG}`;
+var LAUNCH_PROMPT = "/agentmesh:activate mesh window";
+var LAUNCHER_DISPLAY = "~/.agentmesh/mesh-window";
+function windowFiles(home, platform) {
+  const dir = join15(home, ".agentmesh");
+  return {
+    dir,
+    policy: join15(dir, "mesh-window.json"),
+    settings: join15(dir, "mesh-window.settings.json"),
+    launcher: join15(dir, platform === "win32" ? "mesh-window.cmd" : "mesh-window"),
+    emptyHooks: join15(dir, "empty-git-hooks")
+  };
+}
+var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
+var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+var MAX_TEST_COMMANDS = 10;
+function isBranchName(v) {
+  return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(v) && !v.includes("..");
+}
+var endsAsPrefix = (v) => /[/_.]$/.test(v);
+function isTestCommand(v) {
+  return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
+}
+function parseWindowPolicy(text) {
+  let v;
+  try {
+    v = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof v !== "object" || v === null) return null;
+  const p = v;
+  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  if (p.version !== 1) return null;
+  if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
+  if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
+  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
+  if (prefix !== null && !prefixOk) return null;
+  if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
+  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
+    return null;
+  }
+  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+}
+function ownBranchPrefix(template, owner, agent) {
+  const cut = template.search(/{(?!owner}|agent})[^}]*}/);
+  const head = cut < 0 ? template : template.slice(0, cut);
+  if (!/{(owner|agent)}/.test(head)) return null;
+  const filled = head.replaceAll("{owner}", owner).replaceAll("{agent}", agent);
+  return endsAsPrefix(filled) ? filled : null;
+}
+
+// ../../apps/cli/src/lib/path-lookup.ts
+import { statSync as statSync5 } from "node:fs";
+import { join as join16, posix, win32 } from "node:path";
+var isRegularFile = (p) => {
+  try {
+    return statSync5(p).isFile();
+  } catch {
+    return false;
+  }
+};
+function findOnPath(name, env, platform, isFile) {
+  const win = platform === "win32";
+  const exts = win ? (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean).map((e) => e.toLowerCase()) : [""];
+  for (const dir of pathDirs(env.PATH ?? "", win)) {
+    for (const ext of exts) {
+      const candidate = join16(dir, name + ext);
+      if (isFile(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+function pathDirs(path, win) {
+  const absolute = win ? win32.isAbsolute : posix.isAbsolute;
+  return path.split(win ? ";" : ":").map((d) => win ? d.trim().replace(/^"(.*)"$/, "$1") : d).filter((d) => d !== "" && absolute(d));
+}
+
+// ../../apps/cli/src/render/window.ts
+var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
+function bakeable(path, platform) {
+  if (/[\r\n]/.test(path)) return false;
+  return platform === "win32" ? !/[%^&"!<>|]/.test(path) : !path.includes("'");
+}
+function windowSettings(i) {
+  const push = i.ownBranchPrefix ? [
+    `Bash(git push origin ${i.ownBranchPrefix}*)`,
+    `Bash(git push -u origin ${i.ownBranchPrefix}*)`
+  ] : [];
+  return {
+    env: {
+      AGENTMESH_MESH_WINDOW: i.token,
+      GIT_CONFIG_COUNT: "3",
+      GIT_CONFIG_KEY_0: "core.hooksPath",
+      GIT_CONFIG_VALUE_0: i.files.emptyHooks,
+      GIT_CONFIG_KEY_1: "core.fsmonitor",
+      GIT_CONFIG_VALUE_1: "false",
+      GIT_CONFIG_KEY_2: "safe.bareRepository",
+      GIT_CONFIG_VALUE_2: "explicit"
+    },
+    disableAllHooks: false,
+    permissions: {
+      defaultMode: "default",
+      disableBypassPermissionsMode: "disable",
+      disableAutoMode: "disable",
+      allow: [
+        "Edit(**/.claude/worktrees/mesh-*/**)",
+        "Bash(git status)",
+        "Bash(git fetch origin)",
+        "Bash(git worktree add .claude/worktrees/mesh-*)",
+        "Bash(git worktree remove .claude/worktrees/mesh-*)",
+        ...i.testCommands.map((c) => `Bash(${c})`),
+        "Bash(git add *)",
+        "Bash(git commit -m *)",
+        ...push,
+        `Bash(gh pr create --base ${i.integrationBranch} *)`
+      ]
+    }
+  };
+}
+function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
+  const win = platform === "win32";
+  const q = (s) => win ? `"${s}"` : `'${s}'`;
+  const claude = [
+    q(i.claude),
+    CHANNEL_FLAG,
+    "-n",
+    q(sessionName(i.agentId)),
+    "--permission-mode default --settings",
+    q(i.files.settings),
+    ...prompt === null ? [] : [q(prompt)]
+  ].join(" ");
+  const lines = win ? [
+    "@echo off",
+    "setlocal",
+    'set "NoDefaultCurrentDirectoryInExePath=1"',
+    `set "AGENTMESH_MESH_WINDOW=${i.token}"`,
+    'if not "%~1"=="" cd /d "%~1" || exit /b 1',
+    `call ${claude}`
+  ] : [
+    "#!/bin/sh",
+    `export AGENTMESH_MESH_WINDOW='${i.token}'`,
+    'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+    `exec ${claude}`
+  ];
+  return `${lines.join(win ? "\r\n" : "\n")}${win ? "\r\n" : "\n"}`;
+}
+
+// ../../apps/cli/src/commands/window.ts
+var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
+var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
+var read = (path) => {
+  try {
+    return readFileSync12(path, "utf8");
+  } catch {
+    return null;
+  }
+};
+function checkouts(dir) {
+  const found = existsSync13(join17(dir, ".git")) ? [dir] : [];
+  let names = [];
+  try {
+    names = readdirSync5(dir).sort();
+  } catch {
+  }
+  for (const n of names) {
+    const sub = join17(dir, n);
+    if (existsSync13(join17(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
+  }
+  return found;
+}
+var ignoresWorktrees = (checkout) => (read(join17(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var isFolder = (p) => {
+  try {
+    return statSync6(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
+var worktreeWarnings = (dir) => checkouts(dir).filter((c) => !ignoresWorktrees(c)).map(
+  (c) => `Warning: ${c} doesn't ignore .claude/worktrees/; add it to .gitignore so the window's worktrees don't show up as untracked files.`
+);
+function printNotes(ctx, n) {
+  if (n.rerun) {
+    ctx.stdout(
+      "A mesh window that is already running keeps working; restart it to load the new settings."
+    );
+  }
+  if (n.prefix === null) {
+    ctx.stdout(
+      "Warning: the branch template names neither the owner nor the agent, so the window can't tell its own branches: every test run will ask."
+    );
+  }
+  for (const line of worktreeWarnings(n.dir)) ctx.stdout(line);
+  if (readdirSync5(n.emptyHooks).length > 0) {
+    ctx.stdout(
+      `Warning: ${n.emptyHooks} is not empty; git hooks found there would run in the mesh window. Empty it.`
+    );
+  }
+  ctx.stdout(
+    "Check that each repo's test runner, typechecker and linter skip .claude/worktrees/ (vitest's default include does not)."
+  );
+}
+var windowInitCommand = {
+  name: "window init",
+  summary: "Write the mesh window launcher, its settings and policy in ~/.agentmesh",
+  help: `Usage: agentmesh window init --agent <id> [--owner <id>] [--branch-template <t>]
+                            [--integration-branch <b>] [--test <command>]... [--dir <folder>]
+
+Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
+claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
+empty empty-git-hooks/ folder. Start the window each day with the launcher, in your team's folder.
+Running it again keeps the window's token.
+
+--agent               your agent id (required)
+--owner               your id in branch names (default: the agent id)
+--branch-template     default ${DEFAULT_TEMPLATE}
+--integration-branch  default agents
+--test                a test command the window may run without asking; repeatable
+--dir                 the folder the launcher is started in (default: the current folder)`,
+  run(argv, ctx) {
+    const { values } = parseCommandArgs(
+      argv,
+      {
+        agent: { type: "string" },
+        owner: { type: "string" },
+        "branch-template": { type: "string", default: DEFAULT_TEMPLATE },
+        "integration-branch": { type: "string", default: "agents" },
+        test: { type: "string", multiple: true },
+        dir: { type: "string" }
+      },
+      { min: 0, max: 0, names: "" }
+    );
+    const agentId = values.agent;
+    if (!agentId) throw usageError("Missing --agent <id>");
+    const platform = ctx.platform ?? process.platform;
+    const files = windowFiles(ctx.homeDir, platform);
+    const prefix = ownBranchPrefix(values["branch-template"], values.owner ?? agentId, agentId);
+    const existing = read(files.policy);
+    const kept = existing === null ? null : parseWindowPolicy(existing);
+    const policy = {
+      version: 1,
+      agentId,
+      token: kept?.token ?? randomBytes(16).toString("hex"),
+      ownBranchPrefix: prefix,
+      integrationBranch: values["integration-branch"],
+      testCommands: values.test ?? []
+    };
+    if (!parseWindowPolicy(JSON.stringify(policy))) {
+      throw usageError(
+        "Invalid input: --agent is lowercase letters, digits and dashes; --owner and --branch-template must give a plain branch prefix, --integration-branch a plain branch name; --test takes at most 10 plain commands (letters, digits, spaces and . _ : / = @ -, no shell characters)."
+      );
+    }
+    const claude = findOnPath("claude", ctx.env, platform, isRegularFile);
+    if (!claude) {
+      ctx.stderr("error: claude is not on PATH. Install Claude Code first.");
+      return 1;
+    }
+    for (const p of [claude, files.settings]) {
+      if (!bakeable(p, platform)) {
+        throw usageError(
+          `Cannot bake the path ${JSON.stringify(p)} into the launcher: it has characters a shell script would misread. Move it or use another home folder.`
+        );
+      }
+    }
+    const dir = resolveFrom(ctx, values.dir ?? ".");
+    if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
+    const inputs = {
+      agentId,
+      claude,
+      files,
+      token: policy.token,
+      testCommands: policy.testCommands,
+      ownBranchPrefix: prefix,
+      integrationBranch: policy.integrationBranch
+    };
+    mkdirSync4(files.dir, { recursive: true, mode: 448 });
+    mkdirSync4(files.emptyHooks, { recursive: true, mode: 448 });
+    writeFileAtomic(files.policy, `${JSON.stringify(policy, null, 2)}
+`, 384);
+    writeFileAtomic(files.settings, `${JSON.stringify(windowSettings(inputs), null, 2)}
+`, 384);
+    writeFileAtomic(files.launcher, launcherScript(inputs, platform), 448);
+    ctx.stdout(
+      `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`
+    );
+    ctx.stdout(`Start it each day in your team's folder: ${LAUNCHER_DISPLAY} "${dir}"`);
+    printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
+    return 0;
+  }
+};
+
 // ../../apps/cli/src/main.ts
 var COMMANDS = [
   initCommand,
@@ -50205,7 +50511,8 @@ var COMMANDS = [
   setupInvitesCommand,
   doctorCommand,
   upgradeCommand,
-  autoupdateCommand
+  autoupdateCommand,
+  windowInitCommand
 ];
 function usage() {
   const width = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;
