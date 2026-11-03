@@ -1,9 +1,8 @@
 // Built-ins only: the hook bundle imports this (common/window imports nothing but node:*).
-import { launcherHint, type WindowPolicy } from '@agentmesh/common/window';
+import { START_COMMAND, type WindowPolicy } from '@agentmesh/common/window';
 import { windowRules } from './rules';
 
-export const hintStart = (platform: NodeJS.Platform): string =>
-  `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${launcherHint(platform)} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
+export const HINT_START = `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${START_COMMAND} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
 export const HINT_SETUP =
   "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Run /agentmesh:window to set one up. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)";
 
@@ -15,7 +14,6 @@ export interface SessionStartInput {
   hintOff: boolean;
   listening: boolean;
   launcherExists: boolean;
-  platform: NodeJS.Platform;
 }
 
 /** The mesh window gets its rules every start; other sessions hear about a missing window once, at startup. */
@@ -27,6 +25,6 @@ export function sessionStartOutput(i: SessionStartInput): {
   const hint = i.source === 'startup' && i.enrolled && !i.hintOff && !i.listening;
   return {
     additionalContext: null,
-    systemMessage: hint ? (i.launcherExists ? hintStart(i.platform) : HINT_SETUP) : null,
+    systemMessage: hint ? (i.launcherExists ? HINT_START : HINT_SETUP) : null,
   };
 }

@@ -24,10 +24,12 @@ You ask a few questions and run one CLI step; the CLI writes the files.
    `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" window init --agent <agent> --owner <owner> --branch-template "<template>" --integration-branch <branch> --test "<test command>" --dir "<folder>"`
    (one `--test` per command line) and show its output. If it prints an error, show the error to
    the user and stop; don't retry with other values.
-5. Give the user the line (on Windows, the two lines) the output prints for starting the window
-   each day in a terminal, exactly as printed. They confirm the development channel, and it
-   activates itself; if it does not, they type `/agentmesh:activate mesh window`.
+5. Give the user the line the output prints for starting the window each day in a terminal
+   (`Start it each day in any folder: claude-mesh …`), exactly as printed. If the output also
+   prints a line asking them to add a folder to their PATH, give them that line and the launcher
+   lines after it exactly as printed too. They confirm the development channel, and it activates
+   itself; if it does not, they type `/agentmesh:activate mesh window`.
 6. Tell them to deactivate any other session they had activated, and to turn off any inbox poll
    (Claude Desktop).
 
-Never run the launcher yourself, never edit the files it wrote, and never add permission rules.
+Never run the launcher yourself (nor `claude-mesh`), never edit the files it wrote, and never add permission rules.

@@ -500,6 +500,21 @@ The design (§3 and §8) first claimed more than holds:
   - The Windows launcher sets `NoDefaultCurrentDirectoryInExePath=1` before it starts Claude Code,
     so a bare `node` (the hooks) isn't looked up in the current folder. The live check, with a
     planted `node.exe`, hasn't been run yet.
+  - **`claude-mesh`** only forwards to the launcher (`call "<launcher>" %*` in `claude-mesh.cmd`,
+    `exec '<launcher>' "$@"` elsewhere; Git Bash's sh script on Windows runs the `.cmd` beside
+    it), so every check above still holds. The launcher path in it is baked and checked as the
+    launcher's own paths are.
+    - `window init` writes it next to `claude` only when that folder is under the home folder
+      (compared without case on Windows and macOS), so never into a system folder. Otherwise it
+      goes to `~/.agentmesh/bin`.
+    - It never overwrites a `claude-mesh` or `claude-mesh.cmd` that lacks its marker line
+      (`rem agentmesh claude-mesh` or `# agentmesh claude-mesh`); it says it left that file
+      alone. A file that carries the marker is rewritten.
+    - It never edits PATH, the registry or a shell profile.
+    - In cmd, Windows looks in the current folder first, so a repo holding a planted
+      `claude-mesh.cmd` would run it when you type `claude-mesh` there. PowerShell and Git Bash
+      don't do this. It's the same exposure as typing `claude` in cmd. The launcher's
+      `NoDefaultCurrentDirectoryInExePath=1` comes too late to stop that lookup.
 - **`meshWindow` in hello** is a client-asserted routing hint that grants nothing. An agent's key
   can already activate any of its own sessions; the flag only makes routing prefer that one. The
   hub stores it when it creates the session; a hello that reuses a session (only the same agent's,

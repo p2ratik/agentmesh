@@ -122,16 +122,27 @@ Claude asks for your team's folder and the exact test commands, and the bundled 
 `CLAUDE_CONFIG_DIR` set (an absolute path), the window starts in that Claude account; without it,
 the launcher clears one the terminal has. `window init` prints which account it uses.
 
-**Start it each day** in a terminal, with the line `window init` printed. It names your folder in
-full:
+**Start it each day** in a terminal, in the folder that holds your team's repos:
 
 ```bash
-~/.agentmesh/mesh-window "/home/alice/code/acme"    # the folder that holds your team's repos
+claude-mesh                        # in the current folder
+claude-mesh "/home/alice/code/acme"    # or in the folder it names, from anywhere
 ```
 
-On Windows `window init` prints two lines: the first for PowerShell or Git Bash (as it is, with its
-absolute folder; a `~` in the folder doesn't work in PowerShell), the second for cmd, which doesn't
-know `~` at all:
+`claude-mesh` only runs the launcher, and works the same in cmd, PowerShell and Git Bash. `window
+init` writes it next to `claude`, whose folder is on PATH already, when that folder is under your
+home folder and holds no `claude-mesh` it didn't write (on Windows, `claude-mesh.cmd` plus a
+`claude-mesh` sh script for Git Bash). Otherwise it writes it to `~/.agentmesh/bin` and prints a
+line telling you to add that folder to your PATH; it never changes PATH itself. Until you do, use
+the launcher line it prints:
+
+```bash
+~/.agentmesh/mesh-window "/home/alice/code/acme"
+```
+
+On Windows that is two lines: the first for PowerShell or Git Bash (as it is, with its absolute
+folder; a `~` in the folder doesn't work in PowerShell), the second for cmd, which doesn't know `~`
+at all:
 
 ```powershell
 ~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell or Git Bash
@@ -141,8 +152,8 @@ know `~` at all:
 "%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
 ```
 
-The Windows launcher writes paths under your user folder as `%USERPROFILE%\…`, so a non-ASCII user
-folder works; any other non-ASCII path is refused.
+The Windows launcher and `claude-mesh.cmd` write paths under your user folder as `%USERPROFILE%\…`,
+so a non-ASCII user folder works; any other non-ASCII path is refused.
 
 The launcher marks the session and starts Claude Code with the channel flag, the name
 `mesh-<agent>`, `--permission-mode default` and its settings file. The window then activates itself
@@ -187,7 +198,7 @@ the session over NATS, and the plugin pushes it into Claude Code; Claude reads i
 the code and a one-line description of what the session is working on. If no test message arrives,
 the session was started without the channel flag: Claude activates it pull-only instead
 ([Run](#run)), and you can restart it with the command above for instant pushes. The mesh window
-never goes pull-only: Claude tries again, then asks you to restart it with the launcher. If
+never goes pull-only: Claude tries again, then asks you to restart it with `claude-mesh`. If
 `activate` says
 the hub could not reach the session, try again in a few seconds. If it keeps failing, the NATS
 permissions predate 0.2.0: ask your mesh admin, or restart Claude Code if the hub uses auth
@@ -225,6 +236,7 @@ Files in `~/.agentmesh/`:
 | `mesh-window.settings.json` | `window init` | The settings file the launcher passes with `--settings`: the marker, the git environment and the allow rules (mode 600) |
 | `mesh-window` (`mesh-window.cmd` on Windows) | `window init` | The launcher (mode 700) |
 | `empty-git-hooks/` | `window init` | An empty folder; the window's git uses it as `core.hooksPath` |
+| `bin/claude-mesh` (plus `claude-mesh.cmd` on Windows) | `window init` | `claude-mesh`, only when it can't go next to `claude` (mode 755); add `bin/` to your PATH |
 
 State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`: `pull-…json` for a pull
 session ([Run](#run)), a `push-…json` heartbeat from each active push session (the session-start
@@ -278,7 +290,7 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 - **The mesh window won't activate**:
   - "The mesh window's worktree guard did not run for this call…": hooks are off
     (`disableAllHooks`) or `node` isn't on PATH.
-  - "AGENTMESH_MESH_WINDOW is set, but it doesn't match…": start the window with the launcher, or
+  - "AGENTMESH_MESH_WINDOW is set, but it doesn't match…": start the window with `claude-mesh`, or
     run `/agentmesh:window` again.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set
   `AGENTMESH_LOG_FILE` for the plugin's own log.

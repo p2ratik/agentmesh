@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join18 } = __require("path");
+    var { join: join19 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join18(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join19(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2552,9 +2552,9 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync14 } = __require("node:fs");
+    var { existsSync: existsSync15 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join18, isAbsolute: isAbsolute3, sep } = __require("node:path");
+    var { join: join19, isAbsolute: isAbsolute3, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute3(path) && !existsSync14(path);
+      return isAbsolute3(path) && !existsSync15(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join18(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join18(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join18(__dirname, "..", "file.js");
+          return join19(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join18 = ",";
+            let join19 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join18 = `,
+                join19 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join18;
+                res += join19;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join18}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join18 = `,
+              join19 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join18;
+                separator = join19;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join18;
+              separator = join19;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join18 = ",";
+            let join19 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join18 = `,
+                join19 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join18;
+                res += join19;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join18}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join18 = `,
+              join19 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join18;
+                separator = join19;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join19 = `,
+              const join20 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join19;
+                res2 += join20;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join18 = `,
+            const join19 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join18, maximumBreadth);
+              res += stringifyTypedArray(value, join19, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join18;
+              separator = join19;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join18;
+                separator = join19;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join18;
+              separator = join19;
             }
             if (separator !== "") {
               res = `
@@ -49508,7 +49508,7 @@ function renderJoinNote(i) {
     "5. Start `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.",
     `6. Run \`/agentmesh:join\` and confirm that the hub is \`${i.publicHost}:${NATS_PORT}\`.`,
     "7. Say yes when Claude offers automatic plugin updates, or turn them on later with `/agentmesh:autoupdate`.",
-    "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with the line it prints (`~/.agentmesh/mesh-window`; `~/.agentmesh/mesh-window.cmd` on Windows).",
+    "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with `claude-mesh` (`window init` says when a folder must go on PATH first).",
     "",
     "Install first: codes expire 24 hours after the invite."
   ].join("\n");
@@ -50199,8 +50199,8 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
 
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync13, mkdirSync as mkdirSync4, readdirSync as readdirSync5, readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join17 } from "node:path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
+import { isAbsolute as isAbsolute2, join as join18 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { join as join15 } from "node:path";
@@ -50208,6 +50208,7 @@ var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@age
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var LAUNCH_PROMPT = "/agentmesh:activate mesh window";
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
+var START_COMMAND = "claude-mesh";
 var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
 var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
 function windowFiles(home, platform) {
@@ -50217,7 +50218,8 @@ function windowFiles(home, platform) {
     policy: join15(dir, "mesh-window.json"),
     settings: join15(dir, "mesh-window.settings.json"),
     launcher: join15(dir, launcherName(platform)),
-    emptyHooks: join15(dir, "empty-git-hooks")
+    emptyHooks: join15(dir, "empty-git-hooks"),
+    bin: join15(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -50284,6 +50286,10 @@ function pathDirs(path, win) {
   const absolute = win ? win32.isAbsolute : posix.isAbsolute;
   return path.split(win ? ";" : ":").map((d) => win ? d.trim().replace(/^"(.*)"$/, "$1") : d).filter((d) => d !== "" && absolute(d));
 }
+
+// ../../apps/cli/src/lib/shim.ts
+import { existsSync as existsSync13, mkdirSync as mkdirSync4, readFileSync as readFileSync12 } from "node:fs";
+import { dirname as dirname7, join as join17, posix as posix2, win32 as win322 } from "node:path";
 
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
@@ -50365,31 +50371,81 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
   ];
   return `${lines.join(win ? "\r\n" : "\n")}${win ? "\r\n" : "\n"}`;
 }
+var SHIM_MARK = `agentmesh ${START_COMMAND}`;
+var isOurShim = (text) => text.split(/\r?\n/).some((l) => l === `rem ${SHIM_MARK}` || l === `# ${SHIM_MARK}`);
+function shimScripts(launcher, platform, userProfile = null) {
+  const sh = (target) => `#!/bin/sh
+# ${SHIM_MARK}
+exec ${target} "$@"
+`;
+  if (platform !== "win32") return [{ name: START_COMMAND, content: sh(`'${launcher}'`) }];
+  const call = `call "${bakedPath(launcher, platform, userProfile)}" %*`;
+  return [
+    {
+      name: `${START_COMMAND}.cmd`,
+      content: ["@echo off", `rem ${SHIM_MARK}`, call, ""].join("\r\n")
+    },
+    { name: START_COMMAND, content: sh('"$0.cmd"') }
+  ];
+}
+
+// ../../apps/cli/src/lib/shim.ts
+function isBelow(dir, home, platform) {
+  const path = platform === "win32" ? win322 : posix2;
+  const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
+  const rel = path.relative(fold(home), fold(dir));
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+var ours = (p) => {
+  try {
+    return isOurShim(readFileSync12(p, "utf8"));
+  } catch {
+    return false;
+  }
+};
+function installShim(scripts, i) {
+  const write = (dir2) => {
+    for (const s of scripts) writeFileAtomic(join17(dir2, s.name), s.content, 493);
+  };
+  const dir = dirname7(i.claude);
+  const below = isBelow(dir, i.home, i.platform);
+  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter((p) => existsSync13(p) && !ours(p)) : [];
+  if (below && foreign.length === 0) {
+    try {
+      write(dir);
+      return { dir, fallback: false, foreign };
+    } catch {
+    }
+  }
+  mkdirSync4(i.fallbackDir, { recursive: true, mode: 448 });
+  write(i.fallbackDir);
+  return { dir: i.fallbackDir, fallback: true, foreign };
+}
 
 // ../../apps/cli/src/commands/window.ts
 var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
 var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
 var read = (path) => {
   try {
-    return readFileSync12(path, "utf8");
+    return readFileSync13(path, "utf8");
   } catch {
     return null;
   }
 };
 function checkouts(dir) {
-  const found = existsSync13(join17(dir, ".git")) ? [dir] : [];
+  const found = existsSync14(join18(dir, ".git")) ? [dir] : [];
   let names = [];
   try {
     names = readdirSync5(dir).sort();
   } catch {
   }
   for (const n of names) {
-    const sub = join17(dir, n);
-    if (existsSync13(join17(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
+    const sub = join18(dir, n);
+    if (existsSync14(join18(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
   }
   return found;
 }
-var ignoresWorktrees = (checkout) => (read(join17(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var ignoresWorktrees = (checkout) => (read(join18(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
 var isFolder = (p) => {
   try {
     return statSync6(p).isDirectory();
@@ -50421,12 +50477,25 @@ function printStart(ctx, s) {
   ctx.stdout(
     s.configDir ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).` : "The window uses your default Claude account (~/.claude)."
   );
+  for (const p of s.shim.foreign) {
+    ctx.stdout(
+      `Left ${p} alone: AgentMesh didn't write it, and ${START_COMMAND} runs it while its folder comes first on PATH.`
+    );
+  }
+  ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
+  ctx.stdout(
+    `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
+  );
+  if (!s.shim.fallback) return;
+  ctx.stdout(
+    `Add ${s.shim.dir} to your PATH to use ${START_COMMAND}; window init never changes PATH.`
+  );
   const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
   if (s.platform !== "win32") {
-    ctx.stdout(`Start it each day in your team's folder: ${line}`);
+    ctx.stdout(`Until then: ${line}`);
     return;
   }
-  ctx.stdout(`Start it each day in your team's folder (PowerShell or Git Bash): ${line}`);
+  ctx.stdout(`Until then (PowerShell or Git Bash): ${line}`);
   ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
 }
 function printNotes(ctx, n) {
@@ -50458,9 +50527,11 @@ var windowInitCommand = {
 
 Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
-empty empty-git-hooks/ folder. Start the window each day with the launcher, in your team's folder.
-Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in that
-Claude account.
+empty empty-git-hooks/ folder. It also writes claude-mesh, which runs the launcher: next to claude
+when that folder is under your home folder and holds no claude-mesh of someone else's, else in
+~/.agentmesh/bin, which you add to PATH. Start the window each day with claude-mesh in your team's
+folder. Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in
+that Claude account.
 
 --agent               your agent id (required)
 --owner               your id in branch names (default: the agent id)
@@ -50506,7 +50577,11 @@ Claude account.
       ctx.stderr("error: claude is not on PATH. Install Claude Code first.");
       return 1;
     }
-    const { userProfile, configDir } = launcherEnv(ctx, platform, [claude, files.settings]);
+    const { userProfile, configDir } = launcherEnv(ctx, platform, [
+      claude,
+      files.settings,
+      files.launcher
+    ]);
     const dir = resolveFrom(ctx, values.dir ?? ".");
     if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
     const inputs = {
@@ -50520,17 +50595,23 @@ Claude account.
       userProfile,
       configDir
     };
-    mkdirSync4(files.dir, { recursive: true, mode: 448 });
-    mkdirSync4(files.emptyHooks, { recursive: true, mode: 448 });
+    mkdirSync5(files.dir, { recursive: true, mode: 448 });
+    mkdirSync5(files.emptyHooks, { recursive: true, mode: 448 });
     writeFileAtomic(files.policy, `${JSON.stringify(policy, null, 2)}
 `, 384);
     writeFileAtomic(files.settings, `${JSON.stringify(windowSettings(inputs), null, 2)}
 `, 384);
     writeFileAtomic(files.launcher, launcherScript(inputs, platform), 448);
+    const shim = installShim(shimScripts(files.launcher, platform, userProfile), {
+      claude,
+      home: ctx.homeDir,
+      fallbackDir: files.bin,
+      platform
+    });
     ctx.stdout(
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`
     );
-    printStart(ctx, { platform, dir, configDir });
+    printStart(ctx, { platform, dir, configDir, shim });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   }

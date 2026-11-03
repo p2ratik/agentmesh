@@ -8,35 +8,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseWindowPolicy, windowFiles } from '@agentmesh/common/window';
 import { describe, expect, it } from 'vitest';
-import type { CliContext } from '../context';
-import { runCli } from '../main';
-
-const platform = process.platform;
-
-function setup(withClaude = true, homeName = 'home', binName = 'bin', env: CliContext['env'] = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'agentmesh-window-'));
-  const home = join(root, homeName);
-  const bin = join(root, binName);
-  const work = join(root, 'work');
-  for (const d of [home, bin, work]) mkdirSync(d);
-  if (withClaude) writeFileSync(join(bin, platform === 'win32' ? 'claude.cmd' : 'claude'), '');
-  const out: string[] = [];
-  const err: string[] = [];
-  const ctx: CliContext = {
-    cwd: work,
-    env: { PATH: withClaude ? bin : '', PATHEXT: '.CMD', USERPROFILE: home, ...env },
-    homeDir: home,
-    stdout: (t) => out.push(t),
-    stderr: (t) => err.push(t),
-    platform,
-  };
-  const files = windowFiles(home, platform);
-  const run = (...argv: string[]) => runCli(['window', 'init', ...argv], ctx);
-  const policy = () => parseWindowPolicy(readFileSync(files.policy, 'utf8'));
-  return { work, out, err, run, files, policy, home, root };
-}
+import { platform, setup } from './window.fixture';
 
 const mode = (p: string) => statSync(p).mode & 0o777;
 
@@ -86,19 +59,6 @@ describe('agentmesh window init', () => {
     expect(out).toContain(
       "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask.",
     );
-  });
-
-  it('prints the start line for this platform', async () => {
-    const { out, run, work } = setup();
-    await run('--agent', 'bob-agent');
-    const lines =
-      platform === 'win32'
-        ? [
-            `Start it each day in your team's folder (PowerShell or Git Bash): ~/.agentmesh/mesh-window.cmd "${work}"`,
-            `In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${work}"`,
-          ]
-        : [`Start it each day in your team's folder: ~/.agentmesh/mesh-window "${work}"`];
-    expect(out.slice(2, 2 + lines.length)).toEqual(lines);
   });
 
   it('bakes a non-ASCII home folder so the launcher still finds its files', async () => {

@@ -80,7 +80,6 @@ function sessionStart(source: unknown): {
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === 'off',
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
     launcherExists: existsSync(windowFiles(home, process.platform).launcher),
-    platform: process.platform,
   });
 }
 

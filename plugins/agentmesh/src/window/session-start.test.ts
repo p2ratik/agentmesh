@@ -1,7 +1,12 @@
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { describe, expect, it } from 'vitest';
 import { windowRules } from './rules';
-import { HINT_SETUP, hintStart, type SessionStartInput, sessionStartOutput } from './session-start';
+import {
+  HINT_SETUP,
+  HINT_START,
+  type SessionStartInput,
+  sessionStartOutput,
+} from './session-start';
 
 const policy: WindowPolicy = {
   version: 1,
@@ -19,7 +24,6 @@ const base: SessionStartInput = {
   hintOff: false,
   listening: false,
   launcherExists: true,
-  platform: 'linux',
 };
 
 describe('sessionStartOutput', () => {
@@ -35,16 +39,15 @@ describe('sessionStartOutput', () => {
   it('tells a new session once when nothing is listening', () => {
     expect(sessionStartOutput(base)).toEqual({
       additionalContext: null,
-      systemMessage: hintStart('linux'),
+      systemMessage: HINT_START,
     });
     expect(sessionStartOutput({ ...base, launcherExists: false }).systemMessage).toBe(HINT_SETUP);
   });
 
-  it('names the launcher the way this platform runs it', () => {
-    expect(sessionStartOutput({ ...base, platform: 'win32' }).systemMessage).toBe(
-      'No AgentMesh mesh window is running for this account, so teammates\' requests will wait. Start it with ~/.agentmesh/mesh-window.cmd (cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd") in your team\'s folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)',
+  it('names claude-mesh, the same start command on every platform', () => {
+    expect(HINT_START).toBe(
+      "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with claude-mesh in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)",
     );
-    expect(hintStart('linux')).toContain('Start it with ~/.agentmesh/mesh-window in');
   });
 
   it('stays quiet otherwise', () => {

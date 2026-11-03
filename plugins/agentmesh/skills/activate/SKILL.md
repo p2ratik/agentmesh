@@ -22,6 +22,6 @@ Turn this session on for the mesh with the AgentMesh `activate` tool.
 
 In your mesh window, never use `pull: true`: if no test message arrives, call `activate` again
 with no arguments, and if it still doesn't arrive, tell the user to restart the window with
-`~/.agentmesh/mesh-window` (`~/.agentmesh/mesh-window.cmd` on Windows).
+`claude-mesh`.
 
 Later, whenever this session's focus changes, call `describe_session` with a new line.

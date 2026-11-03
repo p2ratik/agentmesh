@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   launcherDisplay,
-  launcherHint,
   MESH_WINDOW_ENV,
   ownBranchPrefix,
   parseWindowPolicy,
@@ -114,23 +113,17 @@ describe('readMarker', () => {
 });
 
 describe('windowFiles', () => {
-  it('names the launcher by platform', () => {
+  it('names the launcher by platform, and keeps the claude-mesh fallback in its bin folder', () => {
     expect(windowFiles('/h', 'win32').launcher.endsWith('mesh-window.cmd')).toBe(true);
     expect(windowFiles('/h', 'linux').launcher.endsWith(join('.agentmesh', 'mesh-window'))).toBe(
       true,
     );
+    expect(windowFiles('/h', 'linux').bin).toBe(join('/h', '.agentmesh', 'bin'));
   });
 
   it('displays the launcher so PowerShell and Git Bash find it on windows', () => {
     expect(launcherDisplay('win32')).toBe('~/.agentmesh/mesh-window.cmd');
     expect(launcherDisplay('linux')).toBe('~/.agentmesh/mesh-window');
     expect(launcherDisplay('darwin')).toBe('~/.agentmesh/mesh-window');
-  });
-
-  it('adds the cmd form to a hint on windows, as window init prints it', () => {
-    expect(launcherHint('win32')).toBe(
-      '~/.agentmesh/mesh-window.cmd (cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd")',
-    );
-    expect(launcherHint('linux')).toBe('~/.agentmesh/mesh-window');
   });
 });

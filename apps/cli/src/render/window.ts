@@ -1,4 +1,9 @@
-import { CHANNEL_FLAG, LAUNCH_PROMPT, type WindowFiles } from '@agentmesh/common/window';
+import {
+  CHANNEL_FLAG,
+  LAUNCH_PROMPT,
+  START_COMMAND,
+  type WindowFiles,
+} from '@agentmesh/common/window';
 
 export interface WindowInputs {
   agentId: string;
@@ -124,4 +129,32 @@ export function launcherScript(
         `exec ${claude}`,
       ];
   return `${lines.join(win ? '\r\n' : '\n')}${win ? '\r\n' : '\n'}`;
+}
+
+/** The marker line's text: a `claude-mesh` file that carries it was written by `window init`. */
+const SHIM_MARK = `agentmesh ${START_COMMAND}`;
+
+export const isOurShim = (text: string): boolean =>
+  text.split(/\r?\n/).some((l) => l === `rem ${SHIM_MARK}` || l === `# ${SHIM_MARK}`);
+
+/**
+ * `claude-mesh`, which only forwards to the launcher, so the launcher's checks all still hold.
+ * Windows gets a `.cmd` for cmd and PowerShell, and a sh script for Git Bash, which finds no `.cmd`
+ * by its bare name; it runs the `.cmd` beside it (`$0` is its own path).
+ */
+export function shimScripts(
+  launcher: string,
+  platform: NodeJS.Platform,
+  userProfile: string | null = null,
+): { name: string; content: string }[] {
+  const sh = (target: string) => `#!/bin/sh\n# ${SHIM_MARK}\nexec ${target} "$@"\n`;
+  if (platform !== 'win32') return [{ name: START_COMMAND, content: sh(`'${launcher}'`) }];
+  const call = `call "${bakedPath(launcher, platform, userProfile)}" %*`;
+  return [
+    {
+      name: `${START_COMMAND}.cmd`,
+      content: ['@echo off', `rem ${SHIM_MARK}`, call, ''].join('\r\n'),
+    },
+    { name: START_COMMAND, content: sh('"$0.cmd"') },
+  ];
 }

@@ -10,16 +10,16 @@ export const RESTART = `claude ${CHANNEL_FLAG}`;
 export const LAUNCH_PROMPT: string | null = '/agentmesh:activate mesh window';
 const launcherName = (platform: NodeJS.Platform) =>
   platform === 'win32' ? 'mesh-window.cmd' : 'mesh-window';
-/** The launcher in a printed start line. PowerShell and Git Bash on Windows need the `.cmd`. */
+/**
+ * The command that starts the mesh window: `window init` puts it on PATH (or says which folder to
+ * add). cmd and PowerShell find its `.cmd`, Git Bash and other shells its sh script.
+ */
+export const START_COMMAND = 'claude-mesh';
+/** The launcher in the fallback start line. PowerShell and Git Bash on Windows need the `.cmd`. */
 export const launcherDisplay = (platform: NodeJS.Platform): string =>
   `~/.agentmesh/${launcherName(platform)}`;
 /** The Windows launcher as cmd, which knows no `~`, runs it. */
 export const LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
-/** The launcher in a hint; on Windows with the cmd form too. */
-export const launcherHint = (platform: NodeJS.Platform): string =>
-  platform === 'win32'
-    ? `${launcherDisplay(platform)} (cmd: ${LAUNCHER_CMD})`
-    : launcherDisplay(platform);
 
 export interface WindowFiles {
   dir: string;
@@ -27,6 +27,8 @@ export interface WindowFiles {
   settings: string;
   launcher: string;
   emptyHooks: string;
+  /** Where `claude-mesh` goes when it can't go next to `claude`. */
+  bin: string;
 }
 
 export function windowFiles(home: string, platform: NodeJS.Platform): WindowFiles {
@@ -37,6 +39,7 @@ export function windowFiles(home: string, platform: NodeJS.Platform): WindowFile
     settings: join(dir, 'mesh-window.settings.json'),
     launcher: join(dir, launcherName(platform)),
     emptyHooks: join(dir, 'empty-git-hooks'),
+    bin: join(dir, 'bin'),
   };
 }
 

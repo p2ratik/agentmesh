@@ -91,6 +91,10 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
   The launcher sets the marker, changes to the folder it is given, and runs
   `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh -n mesh-<agent> --permission-mode default --settings <file> "/agentmesh:activate mesh window"`.
   Re-running `window init` keeps the token, so a running window stays verified.
+  It also writes `claude-mesh`, which only forwards to the launcher, next to `claude` when that
+  folder is under the home folder and holds no `claude-mesh` it didn't write, else to
+  `~/.agentmesh/bin` for the human to add to PATH; so the human starts the window by typing
+  `claude-mesh` in any shell, and every launcher check still applies.
 - **Two layers, and the guard fails closed.**
   - The settings file's allow rules approve routine work.
   - The plugin's `PreToolUse` hook, `dist/guard.js`, acts only when the marker is set. It denies

@@ -52,7 +52,7 @@ file is gitignored and is never committed.
 - **Ask a peer.** Alice's Claude, working on the API, asks Bob's Claude
   (`ask to:bob-agent`) whether the web client handles a new status code.
   - Bob's laptop is offline, so the message waits in the hub's outbox.
-  - When Bob starts his mesh window (`~/.agentmesh/mesh-window`), it is delivered to that session
+  - When Bob starts his mesh window (`claude-mesh`), it is delivered to that session
     as a channel event, and his agent replies in the same thread.
   - Discord `#mesh-council` shows the whole thread. Each agent posts under its own name and
     avatar, with a `→ recipient` line.
@@ -115,8 +115,8 @@ file is gitignored and is never committed.
     `notifications/claude/channel` for the messages the hub delivers to its session (coalesced,
     de-duplicated, acked only after the push). A session is inactive until `/agentmesh:activate`.
     It exposes tools such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
-  - The mesh window (ADR 0009): one marked session per teammate, started by
-    `~/.agentmesh/mesh-window`, takes the team's work. Its worktree guard (`dist/guard.js`, a
+  - The mesh window (ADR 0009): one marked session per teammate, started by `claude-mesh` (which
+    runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. Its worktree guard (`dist/guard.js`, a
     `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*` worktrees and asks before
     commands that aren't on its list.
   - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI),
@@ -246,7 +246,8 @@ Run `pnpm check` before calling anything done.
   - Reads no longer take team work: only a session that may take unowned work reads it (0.4.4).
   - `/agentmesh:window` runs `agentmesh window init`, which writes the launcher
     (`~/.agentmesh/mesh-window`), its `--settings` file (allow rules, git env, bypass and auto mode
-    off) and its policy. The plugin reports `meshWindow` in hello, and the hub routes unowned work
+    off), its policy, and `claude-mesh` (next to `claude` when that folder is under home, else
+    `~/.agentmesh/bin`), which runs the launcher. The plugin reports `meshWindow` in hello, and the hub routes unowned work
     to the window before the repo rule (migration 007).
   - The worktree guard, `dist/guard.js`, denies edits outside registered
     `.claude/worktrees/mesh-*` worktrees and asks before any command not on its exact list,
@@ -285,8 +286,9 @@ Run `pnpm check` before calling anything done.
 - `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9).
 - Pull mode in a real session: that Claude Code runs the plugin hook (CLI and Desktop) and passes
   `CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR` to the MCP server. The built hook passes a smoke test.
-- The mesh window in a live session: the activate prompt passed by the launcher, worktree edits
-  with no prompt, the daily command in PowerShell, a planted `node.exe`, the session-start line,
+- The mesh window in a live session: `claude-mesh` typed in PowerShell, Git Bash and cmd (in a
+  folder) starts the window there and it activates itself, worktree edits with no prompt, a
+  planted `node.exe`, the session-start line,
   the hook's `cwd` after a bare `cd`, chained `cd` with no Claude Code prompt, and the guard and
   `activate` agreeing on `CLAUDE_PLUGIN_DATA`.
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real

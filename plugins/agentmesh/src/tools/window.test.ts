@@ -10,11 +10,8 @@ import { callTool } from './registry';
 
 const NOT_WINDOW =
   "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
-/** The launcher as this platform runs it; on Windows with the cmd form too (launcherHint). */
-const LAUNCHER =
-  process.platform === 'win32'
-    ? '~/.agentmesh/mesh-window.cmd (cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd")'
-    : '~/.agentmesh/mesh-window';
+/** The start command, the same on every platform. */
+const LAUNCHER = 'claude-mesh';
 const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
 
 const policy: WindowPolicy = {

@@ -6,6 +6,7 @@ import {
   launcherDisplay,
   ownBranchPrefix,
   parseWindowPolicy,
+  START_COMMAND,
   type WindowPolicy,
   windowFiles,
 } from '@agentmesh/common/window';
@@ -13,7 +14,8 @@ import { parseCommandArgs, usageError } from '../args';
 import { type CliContext, type Command, resolveFrom } from '../context';
 import { writeFileAtomic } from '../lib/files';
 import { findOnPath, isRegularFile } from '../lib/path-lookup';
-import { bakeable, launcherScript, windowSettings } from '../render/window';
+import { installShim, type ShimPlace } from '../lib/shim';
+import { bakeable, launcherScript, shimScripts, windowSettings } from '../render/window';
 
 const DEFAULT_TEMPLATE = 'agent/{owner}/{task}-{slug}';
 const IGNORES = new Set(['.claude/worktrees/', '.claude/worktrees', '.claude/', '.claude']);
@@ -85,22 +87,38 @@ function launcherEnv(
   return { userProfile, configDir };
 }
 
-/** Which Claude account the window uses, and the line that starts it (two forms on Windows). */
+/**
+ * Which Claude account the window uses, where claude-mesh went and the start line. From the
+ * fallback folder, also the PATH line and the launcher's own start line (two forms on Windows).
+ */
 function printStart(
   ctx: CliContext,
-  s: { platform: NodeJS.Platform; dir: string; configDir: string | null },
+  s: { platform: NodeJS.Platform; dir: string; configDir: string | null; shim: ShimPlace },
 ): void {
   ctx.stdout(
     s.configDir
       ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).`
       : 'The window uses your default Claude account (~/.claude).',
   );
+  for (const p of s.shim.foreign) {
+    ctx.stdout(
+      `Left ${p} alone: AgentMesh didn't write it, and ${START_COMMAND} runs it while its folder comes first on PATH.`,
+    );
+  }
+  ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
+  ctx.stdout(
+    `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`,
+  );
+  if (!s.shim.fallback) return;
+  ctx.stdout(
+    `Add ${s.shim.dir} to your PATH to use ${START_COMMAND}; window init never changes PATH.`,
+  );
   const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
   if (s.platform !== 'win32') {
-    ctx.stdout(`Start it each day in your team's folder: ${line}`);
+    ctx.stdout(`Until then: ${line}`);
     return;
   }
-  ctx.stdout(`Start it each day in your team's folder (PowerShell or Git Bash): ${line}`);
+  ctx.stdout(`Until then (PowerShell or Git Bash): ${line}`);
   ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
 }
 
@@ -138,9 +156,11 @@ export const windowInitCommand: Command = {
 
 Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
-empty empty-git-hooks/ folder. Start the window each day with the launcher, in your team's folder.
-Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in that
-Claude account.
+empty empty-git-hooks/ folder. It also writes claude-mesh, which runs the launcher: next to claude
+when that folder is under your home folder and holds no claude-mesh of someone else's, else in
+~/.agentmesh/bin, which you add to PATH. Start the window each day with claude-mesh in your team's
+folder. Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in
+that Claude account.
 
 --agent               your agent id (required)
 --owner               your id in branch names (default: the agent id)
@@ -187,7 +207,11 @@ Claude account.
       ctx.stderr('error: claude is not on PATH. Install Claude Code first.');
       return 1;
     }
-    const { userProfile, configDir } = launcherEnv(ctx, platform, [claude, files.settings]);
+    const { userProfile, configDir } = launcherEnv(ctx, platform, [
+      claude,
+      files.settings,
+      files.launcher,
+    ]);
     const dir = resolveFrom(ctx, values.dir ?? '.');
     if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
     const inputs = {
@@ -207,11 +231,17 @@ Claude account.
     writeFileAtomic(files.policy, `${JSON.stringify(policy, null, 2)}\n`, 0o600);
     writeFileAtomic(files.settings, `${JSON.stringify(windowSettings(inputs), null, 2)}\n`, 0o600);
     writeFileAtomic(files.launcher, launcherScript(inputs, platform), 0o700);
+    const shim = installShim(shimScripts(files.launcher, platform, userProfile), {
+      claude,
+      home: ctx.homeDir,
+      fallbackDir: files.bin,
+      platform,
+    });
 
     ctx.stdout(
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`,
     );
-    printStart(ctx, { platform, dir, configDir });
+    printStart(ctx, { platform, dir, configDir, shim });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   },

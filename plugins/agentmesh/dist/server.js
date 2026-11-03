@@ -48919,9 +48919,7 @@ var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform2) => platform2 === "win32" ? "mesh-window.cmd" : "mesh-window";
-var launcherDisplay = (platform2) => `~/.agentmesh/${launcherName(platform2)}`;
-var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
-var launcherHint = (platform2) => platform2 === "win32" ? `${launcherDisplay(platform2)} (cmd: ${LAUNCHER_CMD})` : launcherDisplay(platform2);
+var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform2) {
   const dir = join5(home, ".agentmesh");
   return {
@@ -48929,7 +48927,8 @@ function windowFiles(home, platform2) {
     policy: join5(dir, "mesh-window.json"),
     settings: join5(dir, "mesh-window.settings.json"),
     launcher: join5(dir, launcherName(platform2)),
-    emptyHooks: join5(dir, "empty-git-hooks")
+    emptyHooks: join5(dir, "empty-git-hooks"),
+    bin: join5(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -49036,7 +49035,7 @@ var LISTEN_WAIT_MS = 3e3;
 var CHECK_SENT = `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag (Claude Desktop cannot pass that flag): call activate with pull: true and the description instead, and tell your human the session is pull-only. For instant pushes they can restart it with ${RESTART}.`;
 var PULL_ACTIVE = `Nothing is pushed to this pull-only session: new mesh messages are announced on each prompt, and the inbox tool reads them. Tell your human; for instant pushes, restart the session with ${RESTART}.`;
 var NOT_WINDOW = "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
-var LAUNCHER = launcherHint(process.platform);
+var LAUNCHER = START_COMMAND;
 var PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
 var WINDOW_CHECK_SENT = `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, call activate again with no arguments; if it still doesn't arrive, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}. Never use pull: true here.`;
 var GUARD_DOWN = "The mesh window's worktree guard did not run for this call, so this session can't take team work. Check that hooks are on (disableAllHooks) and that node is on PATH, then call activate again.";
@@ -49540,7 +49539,7 @@ Ask your human whether ${outcome.summary.hub} is your team's hub. Only if they s
     deleteInviteFile(file2);
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : "";
-    const joined = `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ${launcherHint(process.platform)} in their team's folder. This session stays private unless they activate it.`;
+    const joined = `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ${START_COMMAND} in their team's folder. This session stays private unless they activate it.`;
     return text2([joined, meshFacts(outcome.hello), AUTOUPDATE_OFFER].filter(Boolean).join("\n"));
   } catch (error63) {
     return text2(isMeshError(error63) ? error63.message : `join failed: ${String(error63)}`, true);

@@ -17,7 +17,8 @@ function windowFiles(home, platform) {
     policy: join(dir, "mesh-window.json"),
     settings: join(dir, "mesh-window.settings.json"),
     launcher: join(dir, launcherName(platform)),
-    emptyHooks: join(dir, "empty-git-hooks")
+    emptyHooks: join(dir, "empty-git-hooks"),
+    bin: join(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;

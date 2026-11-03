@@ -1275,10 +1275,19 @@ Task 12, with a fallback:
   4. `git status` shows the rebuilt dist files.
 - [ ] **Step 5: Hand Pratik the live checks** that Tasks 4, 6 and 9 couldn't run, in the commit body
   and the final report, each with its fallback:
-  - the slash command as the first prompt;
+  - the slash command as the first prompt (since Task 13: `claude-mesh` typed in PowerShell, Git
+    Bash and cmd, in a folder, starts the window there and it activates itself);
   - the worktree edit with no prompt;
-  - the PowerShell daily command;
+  - the PowerShell daily command (since Task 13: folded into the first check);
   - the planted `node.exe`;
   - the hint in the terminal;
   - the hook's `cwd` after `cd`.
 - [ ] **Step 6: Commit** `"Plugin 0.5.0: the mesh window"`.
+
+### Task 13 (added 2026-11-03, at Pratik's request): `claude-mesh`
+
+Added after the plan was complete. `window init` also writes `claude-mesh`, a forwarder to the launcher, next to the `claude` it found
+when that folder is under the home folder and holds no `claude-mesh` it didn't write, else to
+`~/.agentmesh/bin` with a printed PATH line. Every start text says `claude-mesh`. On Windows it is a
+`claude-mesh.cmd` plus a `claude-mesh` sh script, because Git Bash finds no `.cmd` by its bare
+name. Commit: "Launcher: claude-mesh starts the mesh window from any folder".

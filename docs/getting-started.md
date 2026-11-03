@@ -207,22 +207,38 @@ for:
   with none, every test run asks.
 
 The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
-`~/.agentmesh/`. Run `/agentmesh:window` again to change them, and restart the window to load them.
-If `CLAUDE_CONFIG_DIR` is set when it runs (a second Claude account), the launcher starts the
-window in that account; it must be an absolute path (no `~`). If it isn't set, the launcher
-clears one the terminal has, so the window starts your default account. `window init` prints
-which account the window uses.
+`~/.agentmesh/`, and the `claude-mesh` command that runs the launcher. Run `/agentmesh:window`
+again to change them, and restart the window to load them. If `CLAUDE_CONFIG_DIR` is set when it
+runs (a second Claude account), the launcher starts the window in that account; it must be an
+absolute path (no `~`). If it isn't set, the launcher clears one the terminal has, so the window
+starts your default account. `window init` prints which account the window uses.
 
-**Start it each day** in a terminal, with the line `window init` printed. It names your folder in
-full:
+**Start it each day** in a terminal, in your team's folder:
 
 ```bash
-~/.agentmesh/mesh-window "/home/alice/code/acme"    # or, in that folder, with no argument
+claude-mesh                        # starts the window in the current folder
+claude-mesh "/home/alice/code/acme"    # or names the folder, from anywhere
 ```
 
-On Windows the launcher is `mesh-window.cmd`, and `window init` prints two lines. Run the first in
-PowerShell or Git Bash as it is, with its absolute folder; a `~` in the folder doesn't work in
-PowerShell. Run the second in cmd, which doesn't know `~` at all:
+It works the same in cmd, PowerShell and Git Bash on Windows. `window init` puts `claude-mesh` in
+the folder `claude` was found in, which is on your PATH already, when that folder is under your
+home folder (the native installer's `~/.local/bin`, or npm's folder on Windows). On Windows that is
+a `claude-mesh.cmd` for cmd and PowerShell and a `claude-mesh` sh script for Git Bash. It never
+overwrites a `claude-mesh` it didn't write, and never changes PATH, the registry or your shell
+profile.
+
+When it can't put `claude-mesh` there (`claude` is outside your home folder, as with Homebrew; the
+folder can't be written; or it holds someone else's `claude-mesh`), it writes it to
+`~/.agentmesh/bin` and prints a line telling you to add that folder to your PATH. Until you have,
+start the window with the launcher line it prints instead:
+
+```bash
+~/.agentmesh/mesh-window "/home/alice/code/acme"
+```
+
+On Windows the launcher is `mesh-window.cmd`, and `window init` prints two lines: the first for
+PowerShell or Git Bash (with its absolute folder; a `~` in the folder doesn't work in PowerShell),
+the second for cmd, which doesn't know `~` at all:
 
 ```powershell
 ~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell or Git Bash
@@ -232,9 +248,10 @@ PowerShell. Run the second in cmd, which doesn't know `~` at all:
 "%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
 ```
 
-The Windows launcher writes paths under your user folder as `%USERPROFILE%\…`, because cmd reads
-it in the console's code page; so a user folder with non-ASCII letters works. `window init` refuses
-any other path with non-ASCII letters (Claude Code installed outside your user folder, say).
+The Windows launcher and `claude-mesh.cmd` write paths under your user folder as
+`%USERPROFILE%\…`, because cmd reads them in the console's code page; so a user folder with
+non-ASCII letters works. `window init` refuses any other path with non-ASCII letters (Claude Code
+installed outside your user folder, say).
 
 Confirm the development channel when Claude Code asks. The window then activates itself with
 `/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
@@ -316,7 +333,7 @@ To make another session receive mesh messages anyway, run `/agentmesh:activate` 
 sends the session a test message, and the session goes live once Claude confirms it arrived. If it
 does not arrive, the session was started without the channel flag: Claude activates it pull-only
 instead (see above), and you can restart it with the command above for instant pushes. (The mesh
-window never goes pull-only: Claude tries again, then asks you to restart it with the launcher.)
+window never goes pull-only: Claude tries again, then asks you to restart it with `claude-mesh`.)
 If Claude
 reports that the hub could not reach the session, try again in a few seconds. If it keeps failing,
 the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf and

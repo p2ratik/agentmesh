@@ -18,8 +18,7 @@ Join this laptop to an AgentMesh with the `join` tool of the AgentMesh plugin.
   `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" autoupdate` and show what it printed. Never add
   permission allow rules for it.
 - Then offer `/agentmesh:window`: team work goes to a mesh window, which the user sets up once with
-  that command and then starts each day with `~/.agentmesh/mesh-window` (`mesh-window.cmd` on
-  Windows) in their team's folder.
+  that command and then starts each day with `claude-mesh` in their team's folder.
   This session stays private unless they activate it.
 - If there is no `join` tool, the plugin is already configured for a mesh, or it is not running.
   Tell the user, and mention the terminal alternative:

@@ -29,7 +29,7 @@ export function renderJoinNote(i: {
     '5. Start `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.',
     `6. Run \`/agentmesh:join\` and confirm that the hub is \`${i.publicHost}:${NATS_PORT}\`.`,
     '7. Say yes when Claude offers automatic plugin updates, or turn them on later with `/agentmesh:autoupdate`.',
-    "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with the line it prints (`~/.agentmesh/mesh-window`; `~/.agentmesh/mesh-window.cmd` on Windows).",
+    "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with `claude-mesh` (`window init` says when a folder must go on PATH first).",
     '',
     'Install first: codes expire 24 hours after the invite.',
   ].join('\n');

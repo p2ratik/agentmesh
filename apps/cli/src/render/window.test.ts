@@ -1,6 +1,14 @@
 import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@agentmesh/common/window';
 import { describe, expect, it } from 'vitest';
-import { bakeable, bakedPath, launcherScript, sessionName, windowSettings } from './window';
+import {
+  bakeable,
+  bakedPath,
+  isOurShim,
+  launcherScript,
+  sessionName,
+  shimScripts,
+  windowSettings,
+} from './window';
 
 const token = '0123456789abcdef0123456789abcdef';
 const inputs = (platform: NodeJS.Platform, claude: string, home: string) => ({
@@ -165,6 +173,40 @@ describe('bakedPath', () => {
     expect(bakedPath('c:\\users\\bob\\x', 'win32', 'C:\\Users\\Bob')).toBe('%USERPROFILE%\\x');
     expect(bakedPath('C:\\Users\\Bobby\\x', 'win32', 'C:\\Users\\Bob')).toBe('C:\\Users\\Bobby\\x');
     expect(bakedPath('/home/bob/x', 'linux', '/home/bob')).toBe('/home/bob/x');
+  });
+});
+
+describe('shimScripts', () => {
+  it('writes claude-mesh on posix: the marker, then exec of the launcher', () => {
+    expect(shimScripts('/home/bob/.agentmesh/mesh-window', 'linux')).toEqual([
+      {
+        name: 'claude-mesh',
+        content:
+          '#!/bin/sh\n# agentmesh claude-mesh\nexec \'/home/bob/.agentmesh/mesh-window\' "$@"\n',
+      },
+    ]);
+  });
+
+  it('writes an ASCII claude-mesh.cmd on windows, and a sh claude-mesh for Git Bash', () => {
+    // Git Bash finds no .cmd by its bare name, so the sh one runs the .cmd beside it.
+    const home = 'C:\\Users\\hömé';
+    const scripts = shimScripts(`${home}\\.agentmesh\\mesh-window.cmd`, 'win32', home);
+    expect(scripts).toEqual([
+      {
+        name: 'claude-mesh.cmd',
+        content:
+          '@echo off\r\nrem agentmesh claude-mesh\r\ncall "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" %*\r\n',
+      },
+      { name: 'claude-mesh', content: '#!/bin/sh\n# agentmesh claude-mesh\nexec "$0.cmd" "$@"\n' },
+    ]);
+    for (const s of scripts) expect(s.content).toMatch(/^[\x20-\x7e\r\n]*$/);
+  });
+
+  it('knows its own files by the marker line', () => {
+    const ours = [...shimScripts('/x', 'linux'), ...shimScripts('C:\\x.cmd', 'win32')];
+    for (const s of ours) expect(isOurShim(s.content)).toBe(true);
+    expect(isOurShim('@echo off\r\ncall "C:\\other.exe" %*\r\n')).toBe(false);
+    expect(isOurShim('#!/bin/sh\n# not agentmesh claude-mesh\n')).toBe(false);
   });
 });
 

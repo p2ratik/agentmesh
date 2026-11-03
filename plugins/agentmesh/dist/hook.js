@@ -12,9 +12,7 @@ var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
-var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
-var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
-var launcherHint = (platform) => platform === "win32" ? `${launcherDisplay(platform)} (cmd: ${LAUNCHER_CMD})` : launcherDisplay(platform);
+var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform) {
   const dir = join(home, ".agentmesh");
   return {
@@ -22,7 +20,8 @@ function windowFiles(home, platform) {
     policy: join(dir, "mesh-window.json"),
     settings: join(dir, "mesh-window.settings.json"),
     launcher: join(dir, launcherName(platform)),
-    emptyHooks: join(dir, "empty-git-hooks")
+    emptyHooks: join(dir, "empty-git-hooks"),
+    bin: join(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -180,14 +179,14 @@ function windowRules(policy) {
 }
 
 // src/window/session-start.ts
-var hintStart = (platform) => `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${launcherHint(platform)} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
+var HINT_START = `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${START_COMMAND} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
 var HINT_SETUP = "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Run /agentmesh:window to set one up. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)";
 function sessionStartOutput(i) {
   if (i.marked) return { additionalContext: windowRules(i.policy), systemMessage: null };
   const hint = i.source === "startup" && i.enrolled && !i.hintOff && !i.listening;
   return {
     additionalContext: null,
-    systemMessage: hint ? i.launcherExists ? hintStart(i.platform) : HINT_SETUP : null
+    systemMessage: hint ? i.launcherExists ? HINT_START : HINT_SETUP : null
   };
 }
 
@@ -247,8 +246,7 @@ function sessionStart(source) {
     enrolled: existsSync(join3(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
-    launcherExists: existsSync(windowFiles(home, process.platform).launcher),
-    platform: process.platform
+    launcherExists: existsSync(windowFiles(home, process.platform).launcher)
   });
 }
 async function main() {

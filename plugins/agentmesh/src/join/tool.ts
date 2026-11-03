@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { expandHome, isMeshError } from '@agentmesh/common';
-import { launcherHint } from '@agentmesh/common/window';
+import { START_COMMAND } from '@agentmesh/common/window';
 import { z } from 'zod';
 import { meshFacts } from '../instructions';
 import { listTools, type ToolListing, type ToolResult } from '../tools/registry';
@@ -73,7 +73,7 @@ export async function callJoinTool(rawArgs: unknown, deps: JoinToolDeps): Promis
     deleteInviteFile(file);
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : '';
-    const joined = `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ${launcherHint(process.platform)} in their team's folder. This session stays private unless they activate it.`;
+    const joined = `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ${START_COMMAND} in their team's folder. This session stays private unless they activate it.`;
     return text([joined, meshFacts(outcome.hello), AUTOUPDATE_OFFER].filter(Boolean).join('\n'));
   } catch (error) {
     return text(isMeshError(error) ? error.message : `join failed: ${String(error)}`, true);

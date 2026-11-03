@@ -124,10 +124,10 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
    it into a chat.
 4. Start Claude Code with the channel flag (the third command above), then run `/agentmesh:join`,
    `/agentmesh:window` and `/agentmesh:autoupdate`.
-5. Each day, start your mesh window with the line `/agentmesh:window` printed
-   (`~/.agentmesh/mesh-window "<your team's folder>"`; on Windows
-   `~/.agentmesh/mesh-window.cmd "<folder>"` in PowerShell or Git Bash, and a second printed line
-   for cmd). It takes your team's work; your other sessions stay private.
+5. Each day, start your mesh window by typing `claude-mesh` in your team's folder (cmd, PowerShell
+   or any shell). If `/agentmesh:window` printed a line asking you to add `~/.agentmesh/bin` to
+   your PATH, do that, or until then use the launcher line it printed. The window takes your
+   team's work; your other sessions stay private.
 
 ## Commands
 
@@ -137,7 +137,7 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
 | --- | --- |
 | `/agentmesh:setup` | Stand up a new mesh: the hub, Discord and your own agent. For the admin. |
 | `/agentmesh:join` | Join a mesh with the invite code from your Discord DM. |
-| `/agentmesh:window` | Set up your mesh window, the one guarded session that takes your team's work. Start it each day with `~/.agentmesh/mesh-window` (`mesh-window.cmd` on Windows). |
+| `/agentmesh:window` | Set up your mesh window, the one guarded session that takes your team's work. Start it each day with `claude-mesh` in your team's folder. |
 | `/agentmesh:activate` | Turn this session on, so teammates' messages and tasks reach it. The mesh window does this itself. |
 | `/agentmesh:deactivate` | Turn this session off and hand back the work it owns. |
 | `/agentmesh:take <task or thread>` | Move work to the session you type it in. |
