@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@agentmesh/common';
+import type { RpcResult } from '@agentmesh/protocol';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { type PluginConfig, resolveConfig } from './config';
 import { buildInstructions } from './instructions';
@@ -92,7 +93,8 @@ async function runUnenrolled(logger: Logger): Promise<void> {
   });
   const server = createMcpServer(instructions, () => handler);
 
-  async function onJoined(agentId: string): Promise<void> {
+  /** Resolves the session's hello, which the join and connect results print. */
+  async function onJoined(agentId: string): Promise<RpcResult<'session.hello'> | null> {
     const resolved = resolveConfig();
     if (!resolved.ok)
       throw new Error(
@@ -104,6 +106,7 @@ async function runUnenrolled(logger: Logger): Promise<void> {
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => undefined);
     logger.info({ agent: agentId, version: VERSION }, 'joined the mesh');
+    return session.hello;
   }
 
   await server.connect(new StdioServerTransport());

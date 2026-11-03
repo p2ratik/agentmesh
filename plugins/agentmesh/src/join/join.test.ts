@@ -43,9 +43,23 @@ function inviteFile(dir: string, code = CODE): string {
   return file;
 }
 
+/** What the hub's hello carries that /agentmesh:window needs: agent, owner and the Git policy. */
+const HELLO = {
+  self: { id: 'dana-agent', displayName: "Dana's Claude", owner: 'dana' },
+  mesh: { name: 'acme' },
+  policy: {
+    git: {
+      integrationBranch: 'agents',
+      protectedBranches: ['main'],
+      branchTemplate: 'agent/{owner}/{task}-{slug}',
+      agentsMayMergeInto: ['agents'],
+    },
+  },
+};
+
 beforeEach(() => {
   enrollMock.mockReset();
-  enrollMock.mockResolvedValue({ self: { id: 'dana-agent' }, mesh: { name: 'acme' } });
+  enrollMock.mockResolvedValue(HELLO);
 });
 
 describe('invites', () => {
@@ -181,6 +195,31 @@ describe('join tool', () => {
     expect(text).not.toContain(payload.secret);
     expect(existsSync(file)).toBe(false);
     expect(onJoined).toHaveBeenCalledWith('dana-agent');
+  });
+
+  it('says who joined, for whom, and the Git rules, as the instructions do', async () => {
+    // The session's MCP instructions were fixed before the join; /agentmesh:window reads these.
+    const dir = home();
+    const deps = { clientVersion: 't', home: dir, onJoined: vi.fn(async () => undefined) };
+    const args = { invite_file: inviteFile(dir), confirm_hub: 'mesh.example.com:4222' };
+    const joined = (await callJoinTool(args, deps)).content[0]?.text ?? '';
+    const lines = joined.split('\n');
+    expect(lines).toContain(
+      `You are dana-agent (Dana's Claude) on the AgentMesh "acme", working for dana: your teammates' Claude Code agents and humans work together through it.`,
+    );
+    expect(lines).toContain(
+      'Git: integration branch `agents`; branches `agent/{owner}/{task}-{slug}`; agents may merge into agents; humans merge main.',
+    );
+  });
+
+  it('leaves the facts out when the hub said no hello', async () => {
+    enrollMock.mockResolvedValueOnce(null);
+    const dir = home();
+    const deps = { clientVersion: 't', home: dir, onJoined: vi.fn(async () => undefined) };
+    const args = { invite_file: inviteFile(dir), confirm_hub: 'mesh.example.com:4222' };
+    const joined = (await callJoinTool(args, deps)).content[0]?.text ?? '';
+    expect(joined).toContain('Joined the AgentMesh as dana-agent.');
+    expect(joined).not.toContain('Git:');
   });
 
   it('explains a missing invite file without touching the network', async () => {

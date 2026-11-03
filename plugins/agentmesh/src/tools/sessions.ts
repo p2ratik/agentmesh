@@ -20,6 +20,8 @@ const LAUNCHER = launcherDisplay(process.platform);
 
 const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
 
+const WINDOW_CHECK_SENT = `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, call activate again with no arguments; if it still doesn't arrive, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}. Never use pull: true here.`;
+
 const GUARD_DOWN =
   "The mesh window's worktree guard did not run for this call, so this session can't take team work. Check that hooks are on (disableAllHooks) and that node is on PATH, then call activate again.";
 
@@ -69,7 +71,7 @@ export const sessionTools = [
         // if that never changes, the hub's failure says why.
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
         await hub.call('session.check', {});
-        return CHECK_SENT;
+        return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
       const view = await hub.call('session.activate', {

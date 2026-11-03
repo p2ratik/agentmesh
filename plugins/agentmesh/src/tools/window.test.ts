@@ -96,6 +96,14 @@ describe('activate and the mesh window', () => {
     expect(calls).toEqual([]);
   });
 
+  it("the mesh window's test message never suggests pull-only or a plain restart", async () => {
+    const { deps } = fakeHub({ 'session.check': { ok: true } });
+    verified(deps);
+    expect(text(await callTool('activate', {}, deps))).toBe(
+      `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, call activate again with no arguments; if it still doesn't arrive, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}. Never use pull: true here.`,
+    );
+  });
+
   it('the mesh window activates and repeats its rules', async () => {
     const { deps } = fakeHub(answers('mesh window'));
     verified(deps);

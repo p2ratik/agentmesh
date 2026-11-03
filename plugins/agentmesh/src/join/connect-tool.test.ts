@@ -1,3 +1,4 @@
+import type { RpcResult } from '@agentmesh/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConfigResult } from '../config';
 import { CONNECT_TOOL, callConnectTool, connectToolListing } from './connect-tool';
@@ -34,13 +35,40 @@ describe('connect', () => {
   });
 
   it('connects the session as the saved agent', async () => {
-    const onConnected = vi.fn(async () => undefined);
+    const onConnected = vi.fn(async () => null);
     const result = await callConnectTool({ resolve: () => resolved, onConnected });
     expect(onConnected).toHaveBeenCalledTimes(1);
     expect(onConnected).toHaveBeenCalledWith('riya-agent');
     expect(result).toEqual({
       content: [{ type: 'text', text: 'Connected as riya-agent. Run /agentmesh:activate.' }],
     });
+  });
+
+  it('says who connected, for whom, and the Git rules, as the instructions do', async () => {
+    const hello = {
+      self: { id: 'riya-agent', displayName: "Riya's Claude", owner: null },
+      mesh: { name: 'acme' },
+      policy: {
+        git: {
+          integrationBranch: 'dev',
+          protectedBranches: [],
+          branchTemplate: 'mesh/{agent}/{task}',
+          agentsMayMergeInto: [],
+        },
+      },
+    } as unknown as RpcResult<'session.hello'>;
+    const result = await callConnectTool({
+      resolve: () => resolved,
+      onConnected: async () => hello,
+    });
+    expect(result.content[0]?.text).toBe(
+      [
+        'Connected as riya-agent.',
+        `You are riya-agent (Riya's Claude) on the AgentMesh "acme": your teammates' Claude Code agents and humans work together through it.`,
+        'Git: integration branch `dev`; branches `mesh/{agent}/{task}`; agents may merge into nothing; humans merge nothing.',
+        'Run /agentmesh:activate.',
+      ].join('\n'),
+    );
   });
 
   it('reports a failed connection', async () => {

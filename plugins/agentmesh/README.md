@@ -180,7 +180,9 @@ work will come to it while no mesh window is running. The hub sends a test messa
 the session over NATS, and the plugin pushes it into Claude Code; Claude reads it and confirms with
 the code and a one-line description of what the session is working on. If no test message arrives,
 the session was started without the channel flag: Claude activates it pull-only instead
-([Run](#run)), and you can restart it with the command above for instant pushes. If `activate` says
+([Run](#run)), and you can restart it with the command above for instant pushes. The mesh window
+never goes pull-only: Claude tries again, then asks you to restart it with the launcher. If
+`activate` says
 the hub could not reach the session, try again in a few seconds. If it keeps failing, the NATS
 permissions predate 0.2.0: ask your mesh admin, or restart Claude Code if the hub uses auth
 callout.

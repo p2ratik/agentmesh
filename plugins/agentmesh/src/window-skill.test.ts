@@ -25,6 +25,24 @@ describe('the /agentmesh:window skill', () => {
     expect(SKILL).toContain('Never run the launcher yourself');
   });
 
+  const flat = SKILL.replace(/\s+/g, ' ');
+
+  it('works right after join or connect, whose session instructions predate the mesh', () => {
+    expect(flat).toContain(
+      'or from the result of the `join` or `connect` tool in this conversation',
+    );
+    expect(flat).toContain('start a new Claude Code session and run `/agentmesh:window` there');
+  });
+
+  it('passes only the test commands the user gave, and stops on a CLI error', () => {
+    expect(flat).toContain(
+      'Use only the commands the user gives; if they give none, leave out `--test`',
+    );
+    expect(flat).toContain('Suggest the repo’s install command');
+    expect(flat).toContain('show the error to the user and stop');
+    expect(flat).toContain('exactly as printed');
+  });
+
   it('names a step the CLI has', async () => {
     const out: string[] = [];
     const ctx = {

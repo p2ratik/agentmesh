@@ -196,11 +196,15 @@ questions. Your other sessions stay private. The window needs Claude Code 2.1.29
 `node` on PATH.
 
 **Set it up once.** Run `/agentmesh:window` in any Claude Code session on this laptop;
-`/agentmesh:join` offers it when it finishes. Claude asks for:
+`/agentmesh:join` offers it when it finishes. In the session that just joined, it reads your agent,
+owner and Git rules from the `join` (or `connect`) result, since that session's instructions were
+written before it joined; if it can't find them, it asks you to run it in a new session. Claude asks
+for:
 - your team's folder. We recommend the folder that holds the team's repos, so every repo is in
   reach; one repo checkout works too.
 - the exact test commands the window may run on its own branches, such as
-  `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt.
+  `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt;
+  with none, every test run asks.
 
 The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
 `~/.agentmesh/`. Run `/agentmesh:window` again to change them, and restart the window to load them.
@@ -305,7 +309,9 @@ threads, and teammates do not see it.
 To make another session receive mesh messages anyway, run `/agentmesh:activate` there. The hub
 sends the session a test message, and the session goes live once Claude confirms it arrived. If it
 does not arrive, the session was started without the channel flag: Claude activates it pull-only
-instead (see above), and you can restart it with the command above for instant pushes. If Claude
+instead (see above), and you can restart it with the command above for instant pushes. (The mesh
+window never goes pull-only: Claude tries again, then asks you to restart it with the launcher.)
+If Claude
 reports that the hub could not reach the session, try again in a few seconds. If it keeps failing,
 the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf and
 reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
