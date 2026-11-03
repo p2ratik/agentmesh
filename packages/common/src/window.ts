@@ -1,7 +1,7 @@
 // The mesh window's files, policy and marker. Built-ins only (node:*): the plugin's hook and
 // guard bundles import this and must stay free of zod and other dependencies.
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 export const MESH_WINDOW_ENV = 'AGENTMESH_MESH_WINDOW';
 export const MESH_WINDOW_HINT_ENV = 'AGENTMESH_MESH_WINDOW_HINT';
@@ -32,6 +32,8 @@ export interface WindowFiles {
 }
 
 export function windowFiles(home: string, platform: NodeJS.Platform): WindowFiles {
+  // The given platform's separator, not the host's: a win32 launcher can be rendered on Linux (CI).
+  const { join } = platform === 'win32' ? win32 : posix;
   const dir = join(home, '.agentmesh');
   return {
     dir,

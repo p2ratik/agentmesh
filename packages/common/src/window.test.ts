@@ -113,12 +113,20 @@ describe('readMarker', () => {
 });
 
 describe('windowFiles', () => {
+  it("joins with the given platform's separator, whatever the host", () => {
+    // A win32 launcher rendered on a Linux host (CI) must still bake backslash paths.
+    expect(windowFiles('C:\\Users\\a', 'win32').settings).toBe(
+      'C:\\Users\\a\\.agentmesh\\mesh-window.settings.json',
+    );
+    expect(windowFiles('/home/a', 'linux').settings).toBe(
+      '/home/a/.agentmesh/mesh-window.settings.json',
+    );
+  });
+
   it('names the launcher by platform, and keeps the claude-mesh fallback in its bin folder', () => {
     expect(windowFiles('/h', 'win32').launcher.endsWith('mesh-window.cmd')).toBe(true);
-    expect(windowFiles('/h', 'linux').launcher.endsWith(join('.agentmesh', 'mesh-window'))).toBe(
-      true,
-    );
-    expect(windowFiles('/h', 'linux').bin).toBe(join('/h', '.agentmesh', 'bin'));
+    expect(windowFiles('/h', 'linux').launcher).toBe('/h/.agentmesh/mesh-window');
+    expect(windowFiles('/h', 'linux').bin).toBe('/h/.agentmesh/bin');
   });
 
   it('displays the launcher so PowerShell and Git Bash find it on windows', () => {

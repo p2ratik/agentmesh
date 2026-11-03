@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join20 } = __require("path");
+    var { join: join19 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join20(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join19(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync14 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join20, isAbsolute: isAbsolute4, sep } = __require("node:path");
+    var { join: join19, isAbsolute: isAbsolute4, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join20(__dirname, "..", "file.js");
+          return join19(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join20 = ",";
+            let join19 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join20 = `,
+                join19 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join20;
+                res += join19;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join20 = `,
+              join19 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join20;
+                separator = join19;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join20;
+              separator = join19;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join20 = ",";
+            let join19 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join20 = `,
+                join19 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join20;
+                res += join19;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join20 = `,
+              join19 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join20;
+                separator = join19;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join21 = `,
+              const join20 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join21;
+                res2 += join20;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join20 = `,
+            const join19 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join20, maximumBreadth);
+              res += stringifyTypedArray(value, join19, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join20;
+              separator = join19;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join20;
+                separator = join19;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join20;
+              separator = join19;
             }
             if (separator !== "") {
               res = `
@@ -50200,10 +50200,10 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
-import { isAbsolute as isAbsolute3, join as join19 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join18 } from "node:path";
 
 // ../../packages/common/src/window.ts
-import { join as join15 } from "node:path";
+import { posix, win32 } from "node:path";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var LAUNCH_PROMPT = "/agentmesh:activate mesh window";
@@ -50212,14 +50212,15 @@ var START_COMMAND = "claude-mesh";
 var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
 var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
 function windowFiles(home, platform) {
-  const dir = join15(home, ".agentmesh");
+  const { join: join19 } = platform === "win32" ? win32 : posix;
+  const dir = join19(home, ".agentmesh");
   return {
     dir,
-    policy: join15(dir, "mesh-window.json"),
-    settings: join15(dir, "mesh-window.settings.json"),
-    launcher: join15(dir, launcherName(platform)),
-    emptyHooks: join15(dir, "empty-git-hooks"),
-    bin: join15(dir, "bin")
+    policy: join19(dir, "mesh-window.json"),
+    settings: join19(dir, "mesh-window.settings.json"),
+    launcher: join19(dir, launcherName(platform)),
+    emptyHooks: join19(dir, "empty-git-hooks"),
+    bin: join19(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -50263,7 +50264,7 @@ function ownBranchPrefix(template, owner, agent) {
 
 // ../../apps/cli/src/lib/path-lookup.ts
 import { statSync as statSync5 } from "node:fs";
-import { join as join16, posix, win32 } from "node:path";
+import { join as join15, posix as posix2, win32 as win322 } from "node:path";
 var isRegularFile = (p) => {
   try {
     return statSync5(p).isFile();
@@ -50276,20 +50277,20 @@ function findOnPath(name, env, platform, isFile) {
   const exts = win ? (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean).map((e) => e.toLowerCase()) : [""];
   for (const dir of pathDirs(env.PATH ?? "", win)) {
     for (const ext of exts) {
-      const candidate = join16(dir, name + ext);
+      const candidate = join15(dir, name + ext);
       if (isFile(candidate)) return candidate;
     }
   }
   return null;
 }
 function pathDirs(path, win) {
-  const absolute = win ? win32.isAbsolute : posix.isAbsolute;
+  const absolute = win ? win322.isAbsolute : posix2.isAbsolute;
   return path.split(win ? ";" : ":").map((d) => win ? d.trim().replace(/^"(.*)"$/, "$1") : d).filter((d) => d !== "" && absolute(d));
 }
 
 // ../../apps/cli/src/lib/shim.ts
 import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync12, realpathSync } from "node:fs";
-import { dirname as dirname7, join as join17, posix as posix2, win32 as win322 } from "node:path";
+import { dirname as dirname7, join as join16, posix as posix3, win32 as win323 } from "node:path";
 
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
@@ -50400,7 +50401,7 @@ function shimScripts(launcher, platform, userProfile = null) {
 
 // ../../apps/cli/src/lib/shim.ts
 function isBelow(dir, home, platform) {
-  const path = platform === "win32" ? win322 : posix2;
+  const path = platform === "win32" ? win323 : posix3;
   const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
   if (path.dirname(fold(home)) === fold(home)) return false;
   const rel = path.relative(fold(home), fold(dir));
@@ -50429,12 +50430,12 @@ var realPath = (p) => {
 };
 function installShim(scripts, i) {
   const write = (dir2) => {
-    for (const s of scripts) writeFileAtomic(join17(dir2, s.name), s.content, 493);
+    for (const s of scripts) writeFileAtomic(join16(dir2, s.name), s.content, 493);
   };
   const dir = dirname7(i.claude);
   const [realDir, realHome] = [realPath(dir), realPath(i.home)];
   const below = realDir !== null && realHome !== null && isBelow(realDir, realHome, i.platform);
-  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter(foreignAt) : [];
+  const foreign = below ? scripts.map((s) => join16(dir, s.name)).filter(foreignAt) : [];
   if (below && foreign.length === 0) {
     try {
       write(dir);
@@ -50448,7 +50449,7 @@ function installShim(scripts, i) {
 }
 
 // ../../apps/cli/src/commands/window-start.ts
-import { isAbsolute as isAbsolute2, join as join18, relative as relative2 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join17, relative as relative2 } from "node:path";
 function gitBashCommand(dir, home) {
   const rel = relative2(home, dir);
   const inHome = rel !== "" && !rel.startsWith("..") && !isAbsolute2(rel);
@@ -50465,7 +50466,7 @@ function printStart(ctx, s) {
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
   );
   if (s.reachesOurs) return;
-  const ours = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
+  const ours = join17(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
   ctx.stdout(
     s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
   );
@@ -50490,19 +50491,19 @@ var read = (path) => {
   }
 };
 function checkouts(dir) {
-  const found = existsSync13(join19(dir, ".git")) ? [dir] : [];
+  const found = existsSync13(join18(dir, ".git")) ? [dir] : [];
   let names = [];
   try {
     names = readdirSync5(dir).sort();
   } catch {
   }
   for (const n of names) {
-    const sub = join19(dir, n);
-    if (existsSync13(join19(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
+    const sub = join18(dir, n);
+    if (existsSync13(join18(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
   }
   return found;
 }
-var ignoresWorktrees = (checkout) => (read(join19(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var ignoresWorktrees = (checkout) => (read(join18(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
 var isFolder = (p) => {
   try {
     return statSync6(p).isDirectory();

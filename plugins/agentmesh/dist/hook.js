@@ -3,25 +3,26 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 // src/hook.ts
 import { existsSync, readdirSync, readFileSync as readFileSync2 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join3 } from "node:path";
+import { join as join2 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform) {
-  const dir = join(home, ".agentmesh");
+  const { join: join3 } = platform === "win32" ? win32 : posix;
+  const dir = join3(home, ".agentmesh");
   return {
     dir,
-    policy: join(dir, "mesh-window.json"),
-    settings: join(dir, "mesh-window.settings.json"),
-    launcher: join(dir, launcherName(platform)),
-    emptyHooks: join(dir, "empty-git-hooks"),
-    bin: join(dir, "bin")
+    policy: join3(dir, "mesh-window.json"),
+    settings: join3(dir, "mesh-window.settings.json"),
+    launcher: join3(dir, launcherName(platform)),
+    emptyHooks: join3(dir, "empty-git-hooks"),
+    bin: join3(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -70,11 +71,11 @@ function readMarker(env, home, platform, agentId) {
 }
 
 // src/pull/state.ts
-import { join as join2 } from "node:path";
+import { join } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join2(home, ".agentmesh", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 var isStateFile = (name) => name.startsWith("pull-") && name.endsWith(".json");
@@ -228,7 +229,7 @@ function readJsonFiles(dir, filter) {
   }
   return names.map((name) => {
     try {
-      return parse(readFileSync2(join3(dir, name), "utf8"));
+      return parse(readFileSync2(join2(dir, name), "utf8"));
     } catch {
       return null;
     }
@@ -243,7 +244,7 @@ function sessionStart(source) {
     source: typeof source === "string" ? source : void 0,
     marked: !!env.AGENTMESH_MESH_WINDOW,
     policy,
-    enrolled: existsSync(join3(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
+    enrolled: existsSync(join2(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
     launcherExists: existsSync(windowFiles(home, process.platform).launcher)

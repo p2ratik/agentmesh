@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join11 } = __require("path");
+    var { join: join10 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join11(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join10(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync4 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join11, isAbsolute, sep: sep2 } = __require("node:path");
+    var { join: join10, isAbsolute, sep: sep2 } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
     var sleep3 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join11(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join10(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join11(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join10(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join11(__dirname, "..", "file.js");
+          return join10(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join11 = ",";
+            let join10 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join11 = `,
+                join10 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join11;
+                res += join10;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join11}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join11 = `,
+              join10 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join11;
+                separator = join10;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join11;
+              separator = join10;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join11 = ",";
+            let join10 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join11 = `,
+                join10 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join11;
+                res += join10;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join11}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join11 = `,
+              join10 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join11;
+                separator = join10;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join12 = `,
+              const join11 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join12;
+                res2 += join11;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join12}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join11}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join11 = `,
+            const join10 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join11, maximumBreadth);
+              res += stringifyTypedArray(value, join10, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join11;
+              separator = join10;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join11;
+                separator = join10;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join11;
+              separator = join10;
             }
             if (separator !== "") {
               res = `
@@ -48914,21 +48914,22 @@ var planningTools = [
 
 // ../../packages/common/src/window.ts
 import { readFileSync as readFileSync5 } from "node:fs";
-import { join as join5 } from "node:path";
+import { posix, win32 } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform2) => platform2 === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform2) {
-  const dir = join5(home, ".agentmesh");
+  const { join: join10 } = platform2 === "win32" ? win32 : posix;
+  const dir = join10(home, ".agentmesh");
   return {
     dir,
-    policy: join5(dir, "mesh-window.json"),
-    settings: join5(dir, "mesh-window.settings.json"),
-    launcher: join5(dir, launcherName(platform2)),
-    emptyHooks: join5(dir, "empty-git-hooks"),
-    bin: join5(dir, "bin")
+    policy: join10(dir, "mesh-window.json"),
+    settings: join10(dir, "mesh-window.settings.json"),
+    launcher: join10(dir, launcherName(platform2)),
+    emptyHooks: join10(dir, "empty-git-hooks"),
+    bin: join10(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -48978,12 +48979,12 @@ function readMarker(env, home, platform2, agentId) {
 
 // src/window/guard-stamp.ts
 import { mkdirSync as mkdirSync2, readFileSync as readFileSync6, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join6 } from "node:path";
+import { join as join5 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 var GUARD_STAMP_MAX_AGE_MS = 12e4;
 function guardAlive(dir, now) {
   try {
-    const at = JSON.parse(readFileSync6(join6(dir, GUARD_STAMP), "utf8")).at;
+    const at = JSON.parse(readFileSync6(join5(dir, GUARD_STAMP), "utf8")).at;
     const age = now - (typeof at === "string" ? Date.parse(at) : Number.NaN);
     return age >= 0 && age <= GUARD_STAMP_MAX_AGE_MS;
   } catch {
@@ -49135,7 +49136,7 @@ ${windowRules(window.policy)}` : `${active} ${NOT_WINDOW}`;
 
 // src/window/checkouts.ts
 import { lstatSync, readdirSync, readFileSync as readFileSync7 } from "node:fs";
-import { join as join7, sep } from "node:path";
+import { join as join6, sep } from "node:path";
 
 // src/git.ts
 import { execFile } from "node:child_process";
@@ -49195,9 +49196,9 @@ function originUrl(config2) {
 }
 function originRepo(dir) {
   try {
-    const dotGit = join7(dir, ".git");
+    const dotGit = join6(dir, ".git");
     if (!lstatSync(dotGit).isDirectory()) return null;
-    const url2 = originUrl(readFileSync7(join7(dotGit, "config"), "utf8"));
+    const url2 = originUrl(readFileSync7(join6(dotGit, "config"), "utf8"));
     return url2 && parseRemote(url2) || null;
   } catch {
     return null;
@@ -49209,7 +49210,7 @@ function findCheckout(repo, folder) {
   let dirs = [folder];
   try {
     dirs = dirs.concat(
-      readdirSync(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join7(folder, e.name))
+      readdirSync(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join6(folder, e.name))
     );
   } catch {
   }
@@ -49497,9 +49498,9 @@ function text(value, isError = false) {
 
 // src/join/tool.ts
 import { homedir as homedir6 } from "node:os";
-import { join as join8 } from "node:path";
+import { join as join7 } from "node:path";
 var JOIN_TOOL = "join";
-var CLI = join8(import.meta.dirname, "cli.js").replaceAll("\\", "/");
+var CLI = join7(import.meta.dirname, "cli.js").replaceAll("\\", "/");
 var AUTOUPDATE_OFFER = `Then ask your human whether to turn on automatic updates for the AgentMesh plugin. Only if they say yes, run \`node "${CLI}" autoupdate\` and show what it printed.`;
 var JoinInput = external_exports.object({
   invite_file: external_exports.string().optional().describe(
@@ -51586,13 +51587,13 @@ var Presence = class {
 // src/pull/watcher.ts
 import { rmSync as rmSync2 } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/pull/state.ts
-import { join as join9 } from "node:path";
+import { join as join8 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join9(home, ".agentmesh", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join8(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 var pullStateFile = (prefix, agentId, sessionId) => `pull-${prefix}-${agentId}-${sessionId}.json`;
@@ -51650,7 +51651,7 @@ var PullWatcher = class {
   }
   async #heartbeat(sessionId) {
     const { agentId, prefix, dir, meshWindow } = this.#deps;
-    const file2 = join10(dir, heartbeatFile(prefix, agentId, sessionId));
+    const file2 = join9(dir, heartbeatFile(prefix, agentId, sessionId));
     if (this.#beat !== file2) this.clear();
     const beat = { agentId, sessionId, meshWindow, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
     await this.#writeFile(file2, beat);
@@ -51679,7 +51680,7 @@ var PullWatcher = class {
       const peek = await hub.call("inbox.peek", {});
       if (!activation.pull || hub.sessionId !== sessionId) return;
       const { agentId, prefix, dir, projectDir } = this.#deps;
-      const file2 = join10(dir, pullStateFile(prefix, agentId, sessionId));
+      const file2 = join9(dir, pullStateFile(prefix, agentId, sessionId));
       if (this.#file !== file2) this.clear();
       const state = {
         agentId,

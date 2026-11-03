@@ -5,20 +5,21 @@ import { homedir } from "node:os";
 
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
-  const dir = join(home, ".agentmesh");
+  const { join: join3 } = platform === "win32" ? win32 : posix;
+  const dir = join3(home, ".agentmesh");
   return {
     dir,
-    policy: join(dir, "mesh-window.json"),
-    settings: join(dir, "mesh-window.settings.json"),
-    launcher: join(dir, launcherName(platform)),
-    emptyHooks: join(dir, "empty-git-hooks"),
-    bin: join(dir, "bin")
+    policy: join3(dir, "mesh-window.json"),
+    settings: join3(dir, "mesh-window.settings.json"),
+    launcher: join3(dir, launcherName(platform)),
+    emptyHooks: join3(dir, "empty-git-hooks"),
+    bin: join3(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -466,20 +467,20 @@ function hookOutput(d) {
 }
 
 // src/pull/state.ts
-import { join as join2 } from "node:path";
+import { join } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join2(home, ".agentmesh", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 
 // src/window/guard-stamp.ts
 import { mkdirSync, readFileSync as readFileSync4, renameSync, writeFileSync } from "node:fs";
-import { join as join3 } from "node:path";
+import { join as join2 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 function writeGuardStamp(dir, now) {
   mkdirSync(dir, { recursive: true, mode: 448 });
-  const file = join3(dir, GUARD_STAMP);
+  const file = join2(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
   writeFileSync(staged, JSON.stringify({ at: now.toISOString() }), { mode: 384 });
   renameSync(staged, file);
