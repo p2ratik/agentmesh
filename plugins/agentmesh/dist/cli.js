@@ -50366,7 +50366,8 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
     "#!/bin/sh",
     `export AGENTMESH_MESH_WINDOW='${i.token}'`,
     account ? `export CLAUDE_CONFIG_DIR='${account}'` : "unset CLAUDE_CONFIG_DIR",
-    'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+    // An exported CDPATH would send a relative folder elsewhere.
+    'if [ -n "$1" ]; then CDPATH= cd -- "$1" || exit 1; fi',
     `exec ${claude}`
   ];
   return `${lines.join(win ? "\r\n" : "\n")}${win ? "\r\n" : "\n"}`;
@@ -50381,8 +50382,10 @@ function shimScripts(launcher, platform, userProfile = null) {
   const run = `"${bakedPath(launcher, platform, userProfile)}" %*`;
   const gitBash = [
     ...head,
-    "self=$0; case $self in /*) ;; *) self=$PWD/$self ;; esac",
-    'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+    // `*\\*` in the file matches a literal backslash: a Windows-form $0.
+    'case $0 in */*|*\\\\*) ;; *) echo "run claude-mesh by name or by its path" >&2; exit 1 ;; esac',
+    "self=$0; case $self in /*|[A-Za-z]:*) ;; *) self=$PWD/$self ;; esac",
+    'if [ -n "$1" ]; then CDPATH= cd -- "$1" || exit 1; fi',
     'exec "$self.cmd"',
     ""
   ];

@@ -483,7 +483,8 @@ The design (§3 and §8) first claimed more than holds:
     to 64 characters.
   - A test command is plain: letters, digits, spaces and `. _ : / = @ -`, up to 200 characters,
     at most 10 of them.
-  - The folder argument is quoted (`cd /d "%~1"` on Windows, `cd -- "$1"` elsewhere).
+  - The folder argument is quoted: `cd /d "%~1"` on Windows, `CDPATH= cd -- "$1"` elsewhere (an
+    exported `CDPATH` can't send a relative folder somewhere else).
   - The paths baked into the launcher (`claude`, the settings file, and `CLAUDE_CONFIG_DIR` when
     it is set) are refused when they hold a line break, or `% ^ & " ! < > |` on Windows, or `'`
     elsewhere. A `CLAUDE_CONFIG_DIR` that isn't absolute (relative, or `~…`) is refused; without
@@ -504,10 +505,16 @@ The design (§3 and §8) first claimed more than holds:
     - `claude-mesh.cmd` ends with `"<launcher>" %*`. It has no `call`, which would expand `%`
       again and double `^` in the folder argument.
     - Elsewhere it is `exec '<launcher>' "$@"`.
-    - On Windows, Git Bash's sh script resolves its own path first, then does
-      `cd -- "$1" || exit 1` itself, then runs the `.cmd` beside it with no argument. Git Bash
-      can't pass a quoted folder to a `.cmd` whose own path has a space. Resolving the path before
-      the `cd` means a `claude-mesh.cmd` in the target folder is never the one run.
+    - On Windows, Git Bash's sh script works in three steps:
+      1. It resolves its own path; a drive-letter path counts as absolute.
+      2. It does `CDPATH= cd -- "$1" || exit 1` itself.
+      3. It runs the `.cmd` beside it with no argument.
+    - Git Bash can't pass a quoted folder to a `.cmd` whose own path has a space, which is why the
+      script does the `cd`. Resolving the path before the `cd` means a `claude-mesh.cmd` in the
+      target folder is never the one run.
+    - The script refuses a `$0` without a slash, which only `sh claude-mesh` gives (by name
+      through PATH, `$0` is the full path). Such a `$0` would run a `claude-mesh.cmd` in the
+      current folder.
     - The launcher path in it is baked and checked as the launcher's own paths are.
     - `window init` writes it next to `claude` only when that folder's real path (junctions and
       links resolved) is below the home folder's real path, compared without case on Windows and

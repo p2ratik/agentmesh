@@ -134,7 +134,8 @@ describe('launcherScript', () => {
         '#!/bin/sh',
         `export AGENTMESH_MESH_WINDOW='${token}'`,
         'unset CLAUDE_CONFIG_DIR',
-        'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+        // An exported CDPATH would send a relative folder elsewhere.
+        'if [ -n "$1" ]; then CDPATH= cd -- "$1" || exit 1; fi',
         `exec '/usr/bin/claude' ${CHANNEL_FLAG} -n 'mesh-bob-agent' --permission-mode default --settings '${i.files.settings}' '${LAUNCH_PROMPT}'`,
         '',
       ].join('\n'),
@@ -203,12 +204,16 @@ describe('shimScripts', () => {
         name: 'claude-mesh',
         // Git Bash hands cmd two quoted strings when this script's own path has a space, so the
         // folder is entered here and the .cmd gets no argument. $0 is resolved before the cd, so
-        // a claude-mesh.cmd in the target folder is never the one run.
+        // a claude-mesh.cmd in the target folder is never the one run. A bare $0 (sh claude-mesh)
+        // would run a claude-mesh.cmd in the current folder, so it is refused; a drive-letter $0
+        // is absolute; an exported CDPATH can't redirect the cd.
         content: [
           '#!/bin/sh',
           '# agentmesh claude-mesh',
-          'self=$0; case $self in /*) ;; *) self=$PWD/$self ;; esac',
-          'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+          // `*\\*` in the file: a literal backslash (a Windows-form $0); `*\*` would mean a literal *.
+          'case $0 in */*|*\\\\*) ;; *) echo "run claude-mesh by name or by its path" >&2; exit 1 ;; esac',
+          'self=$0; case $self in /*|[A-Za-z]:*) ;; *) self=$PWD/$self ;; esac',
+          'if [ -n "$1" ]; then CDPATH= cd -- "$1" || exit 1; fi',
           'exec "$self.cmd"',
           '',
         ].join('\n'),
