@@ -13,6 +13,13 @@ const launcherName = (platform: NodeJS.Platform) =>
 /** The launcher in a printed start line. PowerShell and Git Bash on Windows need the `.cmd`. */
 export const launcherDisplay = (platform: NodeJS.Platform): string =>
   `~/.agentmesh/${launcherName(platform)}`;
+/** The Windows launcher as cmd, which knows no `~`, runs it. */
+export const LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
+/** The launcher in a hint; on Windows with the cmd form too. */
+export const launcherHint = (platform: NodeJS.Platform): string =>
+  platform === 'win32'
+    ? `${launcherDisplay(platform)} (cmd: ${LAUNCHER_CMD})`
+    : launcherDisplay(platform);
 
 export interface WindowFiles {
   dir: string;

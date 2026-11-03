@@ -66,6 +66,7 @@ describe('launcherScript', () => {
         'setlocal',
         'set "NoDefaultCurrentDirectoryInExePath=1"',
         `set "AGENTMESH_MESH_WINDOW=${token}"`,
+        'set "CLAUDE_CONFIG_DIR="',
         'if not "%~1"=="" cd /d "%~1" || exit /b 1',
         `call "C:\\bin\\claude.cmd" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "${i.files.settings}" "${LAUNCH_PROMPT}"`,
         '',
@@ -75,16 +76,16 @@ describe('launcherScript', () => {
 
   it('leaves out the prompt when there is none', () => {
     const w = launcherScript(inputs('win32', 'C:\\c.cmd', 'C:\\h'), 'win32', null).split('\r\n');
-    expect(w[5]).toMatch(/^call "C:\\c\.cmd" .* --settings "[^"]*"$/);
+    expect(w[6]).toMatch(/^call "C:\\c\.cmd" .* --settings "[^"]*"$/);
     const p = launcherScript(inputs('linux', '/c', '/h'), 'linux', null).split('\n');
-    expect(p[3]).toMatch(/^exec '\/c' .* --settings '[^']*'$/);
+    expect(p[4]).toMatch(/^exec '\/c' .* --settings '[^']*'$/);
   });
 
   it('writes paths below %USERPROFILE% as %USERPROFILE%\\… on windows, so cmd reads them in any code page', () => {
     const home = 'C:\\Users\\hömé';
     const i = { ...inputs('win32', `${home}\\.local\\bin\\claude.exe`, home), userProfile: home };
     const lines = launcherScript(i, 'win32').split('\r\n');
-    expect(lines[5]).toBe(
+    expect(lines[6]).toBe(
       `call "%USERPROFILE%\\.local\\bin\\claude.exe" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "%USERPROFILE%\\.agentmesh\\mesh-window.settings.json" "${LAUNCH_PROMPT}"`,
     );
     expect(launcherScript(i, 'win32')).toMatch(/^[\x20-\x7e\r\n]*$/);
@@ -103,7 +104,19 @@ describe('launcherScript', () => {
     expect(launcherScript(p, 'linux').split('\n')[2]).toBe(
       "export CLAUDE_CONFIG_DIR='/home/bob/.claude-work'",
     );
-    expect(launcherScript(inputs('linux', '/c', '/h'), 'linux')).not.toContain('CLAUDE_CONFIG_DIR');
+  });
+
+  // window init printed "your default Claude account"; a terminal that has another set must not win.
+  it('clears an inherited CLAUDE_CONFIG_DIR when none is baked, on windows', () => {
+    const win = launcherScript(inputs('win32', 'C:\\c.cmd', 'C:\\h'), 'win32').split('\r\n');
+    expect(win[4]).toBe('set "CLAUDE_CONFIG_DIR="');
+    expect(win.filter((l) => l.includes('CLAUDE_CONFIG_DIR'))).toHaveLength(1);
+  });
+
+  it('clears an inherited CLAUDE_CONFIG_DIR when none is baked, on posix', () => {
+    const p = launcherScript(inputs('linux', '/c', '/h'), 'linux').split('\n');
+    expect(p[2]).toBe('unset CLAUDE_CONFIG_DIR');
+    expect(p.filter((l) => l.includes('CLAUDE_CONFIG_DIR'))).toHaveLength(1);
   });
 
   it('writes the posix launcher', () => {
@@ -112,6 +125,7 @@ describe('launcherScript', () => {
       [
         '#!/bin/sh',
         `export AGENTMESH_MESH_WINDOW='${token}'`,
+        'unset CLAUDE_CONFIG_DIR',
         'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
         `exec '/usr/bin/claude' ${CHANNEL_FLAG} -n 'mesh-bob-agent' --permission-mode default --settings '${i.files.settings}' '${LAUNCH_PROMPT}'`,
         '',

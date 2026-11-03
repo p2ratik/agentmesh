@@ -150,6 +150,18 @@ describe('agentmesh window init', () => {
     expect(() => statSync(files.dir)).toThrow();
   });
 
+  it('refuses a CLAUDE_CONFIG_DIR that is not an absolute path', async () => {
+    // Claude Code would resolve it from the team's folder, so it would name another account.
+    for (const relative of ['~/.claude-b', '~\\.claude-b', 'accounts/b']) {
+      const { run, err, files } = setup(true, 'home', 'bin', { CLAUDE_CONFIG_DIR: relative });
+      expect(await run('--agent', 'bob-agent')).toBe(2);
+      expect(err.join('\n')).toContain(
+        `CLAUDE_CONFIG_DIR is ${JSON.stringify(relative)}, not an absolute path. Set it to an absolute path (no ~) and run window init again.`,
+      );
+      expect(() => statSync(files.dir)).toThrow();
+    }
+  });
+
   it('refuses unsafe input', async () => {
     for (const bad of [
       ['--agent', 'Bob'],

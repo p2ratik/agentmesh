@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync14 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join18, isAbsolute: isAbsolute2, sep } = __require("node:path");
+    var { join: join18, isAbsolute: isAbsolute3, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute2(path) && !existsSync14(path);
+      return isAbsolute3(path) && !existsSync14(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2753,7 +2753,7 @@ var require_transport = __commonJS({
       return stream;
       function fixTarget(origin) {
         origin = bundlerOverrides[origin] || origin;
-        if (isAbsolute2(origin) || origin.indexOf("file://") === 0) {
+        if (isAbsolute3(origin) || origin.indexOf("file://") === 0) {
           return origin;
         }
         if (origin === "pino/file") {
@@ -50200,7 +50200,7 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync13, mkdirSync as mkdirSync4, readdirSync as readdirSync5, readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
-import { join as join17 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join17 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { join as join15 } from "node:path";
@@ -50209,6 +50209,7 @@ var RESTART = `claude ${CHANNEL_FLAG}`;
 var LAUNCH_PROMPT = "/agentmesh:activate mesh window";
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
+var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
 function windowFiles(home, platform) {
   const dir = join15(home, ".agentmesh");
   return {
@@ -50352,13 +50353,13 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
     "setlocal",
     'set "NoDefaultCurrentDirectoryInExePath=1"',
     `set "AGENTMESH_MESH_WINDOW=${i.token}"`,
-    ...account ? [`set "CLAUDE_CONFIG_DIR=${at(account)}"`] : [],
+    `set "CLAUDE_CONFIG_DIR=${account ? at(account) : ""}"`,
     'if not "%~1"=="" cd /d "%~1" || exit /b 1',
     `call ${claude}`
   ] : [
     "#!/bin/sh",
     `export AGENTMESH_MESH_WINDOW='${i.token}'`,
-    ...account ? [`export CLAUDE_CONFIG_DIR='${account}'`] : [],
+    account ? `export CLAUDE_CONFIG_DIR='${account}'` : "unset CLAUDE_CONFIG_DIR",
     'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
     `exec ${claude}`
   ];
@@ -50401,8 +50402,12 @@ var worktreeWarnings = (dir) => checkouts(dir).filter((c) => !ignoresWorktrees(c
 );
 function launcherEnv(ctx, platform, paths) {
   const userProfile = ctx.env.USERPROFILE ?? null;
-  const account = ctx.env.CLAUDE_CONFIG_DIR;
-  const configDir = account ? resolveFrom(ctx, account) : null;
+  const configDir = ctx.env.CLAUDE_CONFIG_DIR || null;
+  if (configDir && !isAbsolute2(configDir)) {
+    throw usageError(
+      `CLAUDE_CONFIG_DIR is ${JSON.stringify(configDir)}, not an absolute path. Set it to an absolute path (no ~) and run window init again.`
+    );
+  }
   for (const p of configDir ? [...paths, configDir] : paths) {
     if (!bakeable(p, platform, userProfile)) {
       throw usageError(
@@ -50422,7 +50427,7 @@ function printStart(ctx, s) {
     return;
   }
   ctx.stdout(`Start it each day in your team's folder (PowerShell or Git Bash): ${line}`);
-  ctx.stdout(`In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${s.dir}"`);
+  ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
 }
 function printNotes(ctx, n) {
   if (n.rerun) {

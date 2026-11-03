@@ -73,6 +73,7 @@ describe('the window rules, through the guard', () => {
         `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
         'pass',
       ],
+      ['gh pr diff asks here', `cd ${C} && gh pr diff 12`, 'ask'],
       [
         'cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>',
         `cd ${C} && git worktree add .claude/worktrees/mesh-review-task-9 refs/remotes/origin/agent/sagar/task-2-x`,

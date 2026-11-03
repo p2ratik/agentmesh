@@ -42,7 +42,7 @@ describe('sessionStartOutput', () => {
 
   it('names the launcher the way this platform runs it', () => {
     expect(sessionStartOutput({ ...base, platform: 'win32' }).systemMessage).toBe(
-      "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ~/.agentmesh/mesh-window.cmd in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)",
+      'No AgentMesh mesh window is running for this account, so teammates\' requests will wait. Start it with ~/.agentmesh/mesh-window.cmd (cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd") in your team\'s folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)',
     );
     expect(hintStart('linux')).toContain('Start it with ~/.agentmesh/mesh-window in');
   });

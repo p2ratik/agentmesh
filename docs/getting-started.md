@@ -209,7 +209,9 @@ for:
 The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
 `~/.agentmesh/`. Run `/agentmesh:window` again to change them, and restart the window to load them.
 If `CLAUDE_CONFIG_DIR` is set when it runs (a second Claude account), the launcher starts the
-window in that account; `window init` prints which account the window uses.
+window in that account; it must be an absolute path (no `~`). If it isn't set, the launcher
+clears one the terminal has, so the window starts your default account. `window init` prints
+which account the window uses.
 
 **Start it each day** in a terminal, with the line `window init` printed. It names your folder in
 full:
@@ -222,8 +224,11 @@ On Windows the launcher is `mesh-window.cmd`, and `window init` prints two lines
 PowerShell or Git Bash as it is, with its absolute folder; a `~` in the folder doesn't work in
 PowerShell. Run the second in cmd, which doesn't know `~` at all:
 
+```powershell
+~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell or Git Bash
+```
+
 ```bat
-~/.agentmesh/mesh-window.cmd "C:\code\acme"
 "%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
 ```
 

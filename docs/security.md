@@ -486,7 +486,9 @@ The design (§3 and §8) first claimed more than holds:
   - The folder argument is quoted (`cd /d "%~1"` on Windows, `cd -- "$1"` elsewhere).
   - The paths baked into the launcher (`claude`, the settings file, and `CLAUDE_CONFIG_DIR` when
     it is set) are refused when they hold a line break, or `% ^ & " ! < > |` on Windows, or `'`
-    elsewhere.
+    elsewhere. A `CLAUDE_CONFIG_DIR` that isn't absolute (relative, or `~…`) is refused; without
+    one, the launcher clears an inherited `CLAUDE_CONFIG_DIR`, so the window starts the account
+    `window init` named.
   - **Non-ASCII on Windows:** cmd reads a `.cmd` file in the console's code page (437, 850…), not
     UTF-8, so a non-ASCII path baked as UTF-8 names another file. The launcher writes paths under
     `%USERPROFILE%` as `%USERPROFILE%\…` and refuses any path that still holds a non-ASCII

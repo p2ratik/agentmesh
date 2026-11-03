@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import {
+  LAUNCHER_CMD,
   launcherDisplay,
   ownBranchPrefix,
   parseWindowPolicy,
@@ -67,8 +68,13 @@ function launcherEnv(
   paths: string[],
 ): { userProfile: string | null; configDir: string | null } {
   const userProfile = ctx.env.USERPROFILE ?? null;
-  const account = ctx.env.CLAUDE_CONFIG_DIR;
-  const configDir = account ? resolveFrom(ctx, account) : null;
+  const configDir = ctx.env.CLAUDE_CONFIG_DIR || null;
+  // Claude Code would resolve a relative one (or a literal ~) from the team's folder.
+  if (configDir && !isAbsolute(configDir)) {
+    throw usageError(
+      `CLAUDE_CONFIG_DIR is ${JSON.stringify(configDir)}, not an absolute path. Set it to an absolute path (no ~) and run window init again.`,
+    );
+  }
   for (const p of configDir ? [...paths, configDir] : paths) {
     if (!bakeable(p, platform, userProfile)) {
       throw usageError(
@@ -95,7 +101,7 @@ function printStart(
     return;
   }
   ctx.stdout(`Start it each day in your team's folder (PowerShell or Git Bash): ${line}`);
-  ctx.stdout(`In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${s.dir}"`);
+  ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
 }
 
 /** What follows the start line: a re-run note, then the warnings. */

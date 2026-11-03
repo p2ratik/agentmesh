@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   launcherDisplay,
+  launcherHint,
   MESH_WINDOW_ENV,
   ownBranchPrefix,
   parseWindowPolicy,
@@ -124,5 +125,12 @@ describe('windowFiles', () => {
     expect(launcherDisplay('win32')).toBe('~/.agentmesh/mesh-window.cmd');
     expect(launcherDisplay('linux')).toBe('~/.agentmesh/mesh-window');
     expect(launcherDisplay('darwin')).toBe('~/.agentmesh/mesh-window');
+  });
+
+  it('adds the cmd form to a hint on windows, as window init prints it', () => {
+    expect(launcherHint('win32')).toBe(
+      '~/.agentmesh/mesh-window.cmd (cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd")',
+    );
+    expect(launcherHint('linux')).toBe('~/.agentmesh/mesh-window');
   });
 });

@@ -1,9 +1,9 @@
 // Built-ins only: the hook bundle imports this (common/window imports nothing but node:*).
-import { launcherDisplay, type WindowPolicy } from '@agentmesh/common/window';
+import { launcherHint, type WindowPolicy } from '@agentmesh/common/window';
 import { windowRules } from './rules';
 
 export const hintStart = (platform: NodeJS.Platform): string =>
-  `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${launcherDisplay(platform)} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
+  `No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ${launcherHint(platform)} in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
 export const HINT_SETUP =
   "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Run /agentmesh:window to set one up. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)";
 

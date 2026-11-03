@@ -9,7 +9,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MeshError } from '@agentmesh/common';
-import { launcherDisplay } from '@agentmesh/common/window';
+import { launcherHint } from '@agentmesh/common/window';
 import { encodeInvite, type InvitePayload } from '@agentmesh/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveConfig } from '../config';
@@ -188,7 +188,7 @@ describe('join tool', () => {
     );
     expect(second.content[0]?.text).toContain('/agentmesh:window');
     expect(second.content[0]?.text).toContain(
-      `start it each day with ${launcherDisplay(process.platform)} in their team's folder`,
+      `start it each day with ${launcherHint(process.platform)} in their team's folder`,
     );
     expect(text).not.toContain(SEED);
     expect(text).not.toContain(CODE);

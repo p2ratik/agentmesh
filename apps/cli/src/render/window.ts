@@ -104,6 +104,7 @@ export function launcherScript(
     q(at(i.files.settings)),
     ...(prompt === null ? [] : [q(prompt)]),
   ].join(' ');
+  // No account baked: clear one the terminal has, so the window starts the default account.
   const account = i.configDir ?? null;
   const lines = win
     ? [
@@ -111,14 +112,14 @@ export function launcherScript(
         'setlocal',
         'set "NoDefaultCurrentDirectoryInExePath=1"',
         `set "AGENTMESH_MESH_WINDOW=${i.token}"`,
-        ...(account ? [`set "CLAUDE_CONFIG_DIR=${at(account)}"`] : []),
+        `set "CLAUDE_CONFIG_DIR=${account ? at(account) : ''}"`,
         'if not "%~1"=="" cd /d "%~1" || exit /b 1',
         `call ${claude}`,
       ]
     : [
         '#!/bin/sh',
         `export AGENTMESH_MESH_WINDOW='${i.token}'`,
-        ...(account ? [`export CLAUDE_CONFIG_DIR='${account}'`] : []),
+        account ? `export CLAUDE_CONFIG_DIR='${account}'` : 'unset CLAUDE_CONFIG_DIR',
         'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
         `exec ${claude}`,
       ];
