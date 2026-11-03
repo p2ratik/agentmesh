@@ -53,6 +53,8 @@ export class SessionsServiceImpl implements SessionsService {
       const mine = previous?.agent_id === agentId ? previous : undefined;
       if (mine && mine.liveness !== 'closed') {
         this.repo.touch(mine.id, at, git);
+        // A window started before the hub upgrade (migration 007) says so on its next hello.
+        if (input.meshWindow) this.repo.markMeshWindow(mine.id);
         if (this.repo.markLive(mine.id)) this.#ctx.outbox.kick();
         return { session: this.verify(agentId, mine.id), reclaimed: [] };
       }

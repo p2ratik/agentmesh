@@ -104,6 +104,11 @@ export class SessionsRepo {
     this.#db.run('UPDATE sessions SET description = $text WHERE id = $id', { id, text });
   }
 
+  /** Sets the mesh window flag; nothing clears it. */
+  markMeshWindow(id: string): void {
+    this.#db.run('UPDATE sessions SET mesh_window = 1 WHERE id = $id', { id });
+  }
+
   markAway(id: string, at: string): void {
     this.#db.run(
       "UPDATE sessions SET liveness = 'away', away_since = $at WHERE id = $id AND liveness = 'live'",

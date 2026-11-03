@@ -67,8 +67,9 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
   - The guard (below) is on whenever the variable is non-empty.
   - The plugin sends `meshWindow: true` in `session.hello` only when the value equals the policy's
     token and the policy's agent is the plugin's agent.
-  - The hub stores the flag when it creates the session (migration 007, `sessions.mesh_window`)
-    and never changes it. `peers` marks the session `[mesh window]`.
+  - The hub stores the flag when it creates the session (migration 007, `sessions.mesh_window`).
+    A hello that reuses the session can set it, never clear it. `peers` marks the session
+    `[mesh window]`.
   - A marked session whose token doesn't verify refuses to `activate`.
 - **Routing order:** owner chain → sender's pick → mesh window → repo → longest-active.
   - The mesh-window rule takes the longest-active ready window (reason `mesh window`).
@@ -166,6 +167,9 @@ Part 2:
   call, subagent and workflow call, and a broken install (no `node`, no `dist/guard.js`) blocks
   those calls in every session until it is fixed.
 - The hub needs migration 007. A 0.5.0 plugin works with an older hub, which ignores the flag, so
-  team work reaches the window by the old rules until the hub is upgraded.
+  team work reaches the window by the old rules until the hub is upgraded. A window started
+  before the upgrade keeps the session the old hub stored unflagged, and its plugin says hello
+  again only when the hub loses that session (the hello then flags it). So upgrade the hub first,
+  or restart such a window after the upgrade.
 - The threat notes are in [security.md](../security.md#sessions-and-per-session-delivery) and
   [security.md → The mesh window](../security.md#the-mesh-window).

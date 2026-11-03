@@ -271,8 +271,10 @@ ready. Threads an inactive session already owned stay held for it until it close
 
 **To 0.5.0 (the mesh window).** The hub adds migration 007 (`sessions.mesh_window`) and routes
 unowned work to a member's mesh window first. It still accepts plugins from 0.3.0 on, and a 0.5.0
-plugin works with an older hub, which ignores the window's flag, so the order doesn't matter. Each
-member then:
+plugin works with an older hub, which ignores the window's flag. Upgrade the hub first: a window
+started before the upgrade keeps the session the old hub stored unflagged, so team work doesn't
+prefer it until its plugin says hello again; restart any window started before the hub upgrade.
+Each member then:
 1. updates the plugin and Claude Code (2.1.295 or later), with `node` on PATH. The plugin's guard
    hook runs on every edit and shell call in every session, and blocks them if it can't start;
 2. runs `/agentmesh:window` once, and starts the window each day

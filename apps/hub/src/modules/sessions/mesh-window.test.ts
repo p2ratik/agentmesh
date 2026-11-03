@@ -32,4 +32,21 @@ describe('the mesh window session', () => {
       reason: 'mesh window',
     });
   });
+
+  // A window started before the hub upgrade has a session the old hub stored without the flag.
+  it('flags a reused session when its hello says it is the mesh window, and never unflags one', () => {
+    const { sessions } = withWindow();
+    const old = sessions.open('bob-agent', { clientVersion: '0.5.0' }).session.id;
+    sessions.activate('bob-agent', old, 'mesh window');
+    const again = (meshWindow?: boolean) =>
+      sessions.open('bob-agent', {
+        clientVersion: '0.5.0',
+        previousSessionId: old,
+        ...(meshWindow === undefined ? {} : { meshWindow }),
+      }).session.id;
+    expect(again(true)).toBe(old);
+    expect(sessions.activeSessions('bob-agent').map((s) => s.meshWindow)).toEqual([true]);
+    expect([again(false), again()]).toEqual([old, old]);
+    expect(sessions.activeSessions('bob-agent').map((s) => s.meshWindow)).toEqual([true]);
+  });
 });

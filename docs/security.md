@@ -499,7 +499,8 @@ The design (§3 and §8) first claimed more than holds:
     planted `node.exe`, hasn't been run yet.
 - **`meshWindow` in hello** is a client-asserted routing hint that grants nothing. An agent's key
   can already activate any of its own sessions; the flag only makes routing prefer that one. The
-  hub stores it when it creates the session and never changes it.
+  hub stores it when it creates the session; a hello that reuses a session (only the same agent's,
+  matched by `previousSessionId`) can set it, never clear it.
 
 ### Residual risks
 
