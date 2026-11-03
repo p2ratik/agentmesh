@@ -8,6 +8,8 @@ export interface RouteSession {
   delivery: 'push' | 'pull';
   repo: string | null;
   activatedAt: string | null;
+  /** Started by the mesh window launcher: team work goes here first. */
+  meshWindow: boolean;
 }
 
 export interface RouteInput {
@@ -44,18 +46,31 @@ const longestActive = (list: RouteSession[]): RouteSession | undefined =>
     undefined,
   );
 
+const ownerChain = (input: RouteInput) => [
+  { id: input.threadOwner, claim: false, reason: 'owns thread' },
+  { id: input.parentOwner, claim: true, reason: 'owns parent thread' },
+  { id: input.taskOwner, claim: true, reason: 'owns task' },
+];
+
+/** The first parent/task owner that is listed but inactive, so it does not hold the work. */
+function skippedOwner(input: RouteInput): string | undefined {
+  for (const o of ownerChain(input)) {
+    const session = input.sessions.find((s) => s.id === o.id);
+    if (session && o.claim && !session.active)
+      return `; skipped inactive ${session.id} (${o.reason})`;
+  }
+  return undefined;
+}
+
 /** The first open owner in the chain: the thread's, its parent's, then its task's. */
 export function chainOwner(
   input: RouteInput,
 ): { session: RouteSession; claim: boolean; reason: string } | undefined {
-  const owners = [
-    { id: input.threadOwner, claim: false, reason: 'owns thread' },
-    { id: input.parentOwner, claim: true, reason: 'owns parent thread' },
-    { id: input.taskOwner, claim: true, reason: 'owns task' },
-  ];
-  for (const o of owners) {
+  for (const o of ownerChain(input)) {
     const session = input.sessions.find((s) => s.id === o.id); // a closed owner is not listed
-    if (session) return { session, claim: o.claim, reason: o.reason };
+    // an inactive parent/task owner does not hold work (a private session owns only its conversations)
+    if (session && (!o.claim || session.active))
+      return { session, claim: o.claim, reason: o.reason };
   }
   return undefined;
 }
@@ -81,12 +96,17 @@ export function routeDelivery(input: RouteInput): Route {
     return { kind: 'wait', reason: `held for ${picked.id} (picked, pull)` };
   }
 
-  const candidates = input.sessions.filter(ready);
-  const inRepo = input.repo
-    ? longestActive(candidates.filter((s) => s.repo === input.repo))
-    : undefined;
+  const route = fallThrough(input.sessions.filter(ready), input.repo);
+  return { ...route, reason: route.reason + (skippedOwner(input) ?? '') };
+}
+
+/** Unowned work: the mesh window, then the task's repo, then the longest-active session. */
+function fallThrough(candidates: RouteSession[], repo: string | null): Route {
+  const win = longestActive(candidates.filter((s) => s.meshWindow));
+  if (win) return { kind: 'deliver', sessionId: win.id, claim: true, reason: 'mesh window' };
+  const inRepo = repo ? longestActive(candidates.filter((s) => s.repo === repo)) : undefined;
   if (inRepo) {
-    return { kind: 'deliver', sessionId: inRepo.id, claim: true, reason: `in repo ${input.repo}` };
+    return { kind: 'deliver', sessionId: inRepo.id, claim: true, reason: `in repo ${repo}` };
   }
   const any = longestActive(candidates);
   if (any) {

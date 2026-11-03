@@ -36,7 +36,7 @@ transitions:
 | `assign`, `handoff` | `to` (an agent) becomes the assignee. |
 | `decline` | The caller is remembered and never auto-assigned this task again. |
 | `submit` | Starts a new review round. |
-| any action with `prUrl` / `branch` | Stored on the task. |
+| any action with `prUrl` / `branch` | Stored on the task. Authors pass the PR's `branch` with `submit`: the review request shows it as `Branch:`, and a reviewer's mesh window diffs it with git (`gh pr diff` asks there). |
 | `review_submit` → `request_changes` | Fires the workflow's `request_changes` transition (if defined). |
 | approvals ≥ `review.requiredApprovals` | Fires the workflow's `approve` transition (if defined). |
 

@@ -1,7 +1,9 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { expandHome, isMeshError } from '@agentmesh/common';
+import { START_COMMAND } from '@agentmesh/common/window';
 import { z } from 'zod';
+import { meshFacts } from '../instructions';
 import { listTools, type ToolListing, type ToolResult } from '../tools/registry';
 import { defaultInviteFile, deleteInviteFile, readInviteFile } from './files';
 import { runJoin } from './flow';
@@ -44,7 +46,7 @@ export interface JoinToolDeps {
   clientVersion: string;
   home?: string;
   /** Called once the laptop is enrolled and agent.json is written. */
-  onJoined(agentId: string): Promise<void>;
+  onJoined(agentId: string): Promise<unknown>;
 }
 
 /** The only tool an unenrolled plugin offers. The code is read from a file, never from the model. */
@@ -71,9 +73,8 @@ export async function callJoinTool(rawArgs: unknown, deps: JoinToolDeps): Promis
     deleteInviteFile(file);
     await deps.onJoined(outcome.summary.payload.agentId);
     const mesh = outcome.hello ? ` "${outcome.hello.mesh.name}"` : '';
-    return text(
-      `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now; call inbox. Restart Claude Code with the channel flag later to receive pushed messages if you are not already. Claude Desktop cannot pass that flag: a Desktop session reads its messages with inbox.\n${AUTOUPDATE_OFFER}`,
-    );
+    const joined = `Joined the AgentMesh${mesh} as ${outcome.summary.payload.agentId}. Your key was generated on this laptop and saved to ${outcome.saved.seedFile}; settings are in ${outcome.saved.configFile}. The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ${START_COMMAND} in their team's folder. This session stays private unless they activate it.`;
+    return text([joined, meshFacts(outcome.hello), AUTOUPDATE_OFFER].filter(Boolean).join('\n'));
   } catch (error) {
     return text(isMeshError(error) ? error.message : `join failed: ${String(error)}`, true);
   }

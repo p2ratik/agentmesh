@@ -21,6 +21,8 @@ export const sessionMethods = {
       branch: GitRef.optional(),
       /** This process's session before a reconnect: reused if still open, else reclaimed from. */
       previousSessionId: SessionId.optional(),
+      /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
+      meshWindow: z.boolean().optional(),
     }),
     result: z.object({
       self: PeerInfo,

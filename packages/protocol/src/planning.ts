@@ -24,9 +24,10 @@ export const PlanTaskDraft = z.object({
   key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
   title: z.string().min(3).max(200),
   description: z.string().max(8000),
-  // Capped like task.create's params, which these drafts become.
+  // Capped like task.create's params, which these drafts become. The repo is only capped here:
+  // results must still read a plan stored before GitRef refused line breaks (PlanTaskDraftParams).
   area: IdRef.optional(),
-  repo: GitRef.optional(),
+  repo: z.string().max(300).optional(),
   assignee: IdRef.optional(),
   priority: Priority.optional(),
   labels: z.array(Label).max(20).optional(),
@@ -35,6 +36,9 @@ export const PlanTaskDraft = z.object({
   estimateHours: z.number().positive().optional(),
 });
 export type PlanTaskDraft = z.infer<typeof PlanTaskDraft>;
+
+/** A draft as a caller submits it: its repo is a strict GitRef. */
+export const PlanTaskDraftParams = PlanTaskDraft.extend({ repo: GitRef.optional() });
 
 export const Plan = z.object({
   id: z.string(),

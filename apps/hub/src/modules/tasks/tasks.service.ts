@@ -1,6 +1,6 @@
 import { MeshError, redactSecrets } from '@agentmesh/common';
 import type { WorkflowConfig } from '@agentmesh/config';
-import type { ReviewVerdict, Task, TaskDetail } from '@agentmesh/protocol';
+import { GitRef, type ReviewVerdict, type Task, type TaskDetail } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, TaskActInput, TaskCreateInput, TaskService } from '../../contracts';
 import { taskKey } from '../../core/ids';
@@ -65,6 +65,18 @@ export class TaskServiceImpl implements TaskService {
     const workflowId = input.workflow ?? index.config.tasks.defaultWorkflow;
     const workflow = index.workflow(workflowId);
     if (!workflow) throw new MeshError('invalid_request', `Unknown workflow "${workflowId}"`);
+    // Event rules render these from external payloads and call create past the RPC schema.
+    for (const [name, ref] of [
+      ['repo', input.repo],
+      ['base branch', input.baseBranch],
+    ] as const) {
+      if (ref !== undefined && !GitRef.safeParse(ref).success) {
+        throw new MeshError(
+          'invalid_request',
+          `The task's ${name} must be one line under 300 characters`,
+        );
+      }
+    }
     const area = resolveArea(index, input.area, input.repo);
     if (input.assignee && index.kindOf(input.assignee) !== 'agent') {
       throw new MeshError('invalid_request', `"${input.assignee}" is not a configured agent`);
@@ -103,7 +115,7 @@ export class TaskServiceImpl implements TaskService {
       repo: input.repo ?? null,
       area: plan.area,
       baseBranch: input.baseBranch ?? null,
-      branch: null,
+      branch: input.branch ?? null,
       prUrl: input.prUrl ?? null,
       doneWhen: input.doneWhen ?? null,
       assignee: directAssignee,

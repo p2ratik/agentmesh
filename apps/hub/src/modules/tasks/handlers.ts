@@ -79,6 +79,7 @@ export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
           title: redactSecrets(params.title ?? `Review ${params.prUrl}`),
           description: params.focus ?? '',
           repo: params.repo,
+          branch: params.branch,
           area: params.area,
           assignee: actor.kind === 'agent' ? actor.id : undefined,
           priority: 'normal',

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { checkoutLine } from '../window/checkouts';
 import { formatTask, formatTaskLine } from './format';
 import { defineTool, withKey } from './types';
 
@@ -73,18 +74,27 @@ export const taskTools = [
       'Full task details: state, branch, PR, reviews, history and the actions you can take now.',
     input: z.object({ task_id: z.string() }),
     mutating: false,
-    run: async (args, { hub }) => formatTask(await hub.call('task.get', { taskId: args.task_id })),
+    run: async (args, { hub, window }) => {
+      const task = await hub.call('task.get', { taskId: args.task_id });
+      const out = formatTask(task);
+      return window.state === 'verified'
+        ? `${out}\n${checkoutLine(task.repo, window.folder)}`
+        : out;
+    },
   }),
   defineTool({
     name: 'task_act',
     description:
-      'Move a task through its workflow: accept, decline (note), handoff (to, note), claim, block (note), unblock, submit (pr_url), complete, cancel… task_get lists what you can do.',
+      'Move a task through its workflow: accept, decline (note), handoff (to, note), claim, block (note), unblock, submit (pr_url, branch), complete, cancel… task_get lists what you can do.',
     input: z.object({
       task_id: z.string(),
       action: z.string().min(1),
       note: z.string().optional(),
       pr_url: z.string().optional(),
-      branch: z.string().optional(),
+      branch: z
+        .string()
+        .optional()
+        .describe("With submit: the PR's branch, so reviewers can diff it."),
       to: z.string().optional(),
     }),
     mutating: true,
@@ -114,6 +124,7 @@ export const taskTools = [
       focus: z.string().optional(),
       reviewers: z.array(z.string()).optional(),
       repo: z.string().optional(),
+      branch: z.string().optional().describe("The PR's branch, so reviewers can diff it."),
       area: z.string().optional(),
     }),
     mutating: true,
@@ -126,6 +137,7 @@ export const taskTools = [
           ...(args.focus ? { focus: args.focus } : {}),
           ...(args.reviewers ? { reviewers: args.reviewers } : {}),
           ...(args.repo ? { repo: args.repo } : {}),
+          ...(args.branch ? { branch: args.branch } : {}),
           ...(args.area ? { area: args.area } : {}),
         },
         withKey(key),

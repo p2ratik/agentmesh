@@ -11,6 +11,7 @@ import { createMessagingModule } from '../modules/messaging';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
 import { SessionDispatcher } from '../modules/sessions/dispatcher';
+import { ownerReader, takeUnownedReader } from '../modules/sessions/readers';
 import type { DeliveryPort } from '../ports';
 import { FakeLeases, FakeTransport } from './fakes';
 import { createTestHarness, type TestHarness } from './harness';
@@ -31,7 +32,11 @@ export interface ServiceHarness extends TestHarness {
  */
 export function createServiceHarness(
   loaded?: LoadedConfig,
-  options: { online?: string[]; delivery?: DeliveryPort } = {},
+  options: {
+    online?: string[];
+    delivery?: DeliveryPort;
+    mayTakeUnowned?: (agentId: string, sessionId: string) => boolean;
+  } = {},
 ): ServiceHarness {
   const base = createTestHarness(loaded, options.delivery);
   const control = createControlModule(base.ctx, {
@@ -44,6 +49,7 @@ export function createServiceHarness(
     control,
     presence,
     isActiveSessionOf: () => false,
+    mayTakeUnowned: options.mayTakeUnowned ?? (() => true),
   }).service;
   // Without sessions, the agents in `online` stand in for agents with an active session.
   const ready = new Set(options.online ?? []);
@@ -83,7 +89,9 @@ export function createDispatchHarness(): DispatchHarness {
   const transport = new FakeTransport();
   // Built once the services it routes with exist; the outbox only calls it on flush.
   let dispatcher: SessionDispatcher | null = null;
+  let sessionsService: SessionsService | undefined;
   const h = createServiceHarness(undefined, {
+    mayTakeUnowned: takeUnownedReader(() => sessionsService),
     delivery: {
       deliver: (agentId, messages) => {
         if (!dispatcher) throw new Error('dispatcher not built yet');
@@ -98,7 +106,9 @@ export function createDispatchHarness(): DispatchHarness {
     threadOf: () => null,
     transport,
   }).service;
+  sessionsService = sessions;
   h.presence.setReadyReader((id) => sessions.reach(id));
+  h.messaging.setOwnerReader(ownerReader(sessions));
   dispatcher = new SessionDispatcher({
     sessions,
     messaging: h.messaging,

@@ -30,7 +30,7 @@ import type { ThreadOwner } from './sessions.contracts';
 
 /** The sessions module's and the outbox's contracts have their own files, to keep this one small. */
 export type { Outbox } from './outbox.contracts';
-export type { SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
+export type { OpenInput, SessionRecord, SessionsService, ThreadOwner } from './sessions.contracts';
 
 /** Who is acting. For bridge calls with `actAs`, this is the human, not the bridge. */
 export interface Actor {
@@ -222,6 +222,8 @@ export interface TaskCreateInput {
   /** Internal task ids. */
   dependsOn: number[];
   baseBranch?: string | undefined;
+  /** The PR's branch (`review.request`). */
+  branch?: string | undefined;
   workflow?: string | undefined;
   parentThreadId?: number | undefined;
   planId?: number | undefined;

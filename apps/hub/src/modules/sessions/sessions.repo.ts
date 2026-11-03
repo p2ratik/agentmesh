@@ -14,6 +14,7 @@ export interface SessionRow {
   repo: string | null;
   branch: string | null;
   client_version: string;
+  mesh_window: number;
   created_at: string;
   activated_at: string | null;
   last_seen: string;
@@ -30,6 +31,7 @@ export interface NewSession {
   description?: string | null;
   repo?: string | null;
   branch?: string | null;
+  meshWindow?: boolean;
   at: string;
 }
 
@@ -47,8 +49,9 @@ export class SessionsRepo {
   insert(row: NewSession): void {
     this.#db.run(
       `INSERT INTO sessions (id, agent_id, active, liveness, description, repo, branch,
-         client_version, created_at, last_seen)
-       VALUES ($id, $agentId, 0, 'live', $description, $repo, $branch, $clientVersion, $at, $at)`,
+         client_version, mesh_window, created_at, last_seen)
+       VALUES ($id, $agentId, 0, 'live', $description, $repo, $branch, $clientVersion,
+         $meshWindow, $at, $at)`,
       {
         id: row.id,
         agentId: row.agentId,
@@ -56,6 +59,7 @@ export class SessionsRepo {
         repo: row.repo ?? null,
         branch: row.branch ?? null,
         clientVersion: row.clientVersion,
+        meshWindow: row.meshWindow ? 1 : 0,
         at: row.at,
       },
     );
@@ -68,7 +72,7 @@ export class SessionsRepo {
   /** The agent's non-closed sessions, oldest first. */
   listLive(agentId: string): SessionRow[] {
     return this.#db.all<SessionRow>(
-      `SELECT * FROM sessions WHERE agent_id = $agentId AND ${NOT_CLOSED} ORDER BY created_at, id`,
+      `SELECT * FROM sessions WHERE agent_id = $agentId AND ${NOT_CLOSED} ORDER BY created_at, rowid`,
       { agentId },
     );
   }
@@ -98,6 +102,11 @@ export class SessionsRepo {
 
   setDescription(id: string, text: string | null): void {
     this.#db.run('UPDATE sessions SET description = $text WHERE id = $id', { id, text });
+  }
+
+  /** Sets the mesh window flag; nothing clears it. */
+  markMeshWindow(id: string): void {
+    this.#db.run('UPDATE sessions SET mesh_window = 1 WHERE id = $id', { id });
   }
 
   markAway(id: string, at: string): void {

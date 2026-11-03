@@ -1,8 +1,9 @@
 # Getting started
 
-From nothing to a team where every developer's Claude Code session is on the mesh. Roles: one
-**mesh admin** runs `/agentmesh:setup`, which stands up the hub and the admin's own agent; every
-**developer** then joins by invite. To do it without setup, see [Set up by hand](#set-up-by-hand).
+From nothing to a team where every developer's agent is on the mesh, with a mesh window that takes
+its team work. Roles: one **mesh admin** runs `/agentmesh:setup`, which stands up the hub and the
+admin's own agent; every **developer** then joins by invite. To do it without setup, see
+[Set up by hand](#set-up-by-hand).
 
 ## 1. What the admin needs
 
@@ -118,6 +119,9 @@ machine.
 
 ### After setup
 
+- **Hand over to your mesh window.** The setup session holds the workspace's secrets, so it must
+  not take team work: run `/agentmesh:deactivate` there. Then set up your
+  [mesh window](#your-mesh-window) and start it in your team's folder, not in the workspace.
 - `agentmesh doctor --dir <workspace>` re-runs the checks at any time.
 - `agentmesh upgrade --dir <workspace>` moves the hub to another version
   ([deploy.md](deploy.md#upgrading-a-setup-deploy)).
@@ -185,6 +189,125 @@ away. They run `/mesh uninvite person:<your id>`, which stops the code working. 
 already joined, someone used the code, so they run `/mesh remove` first. Then they send a new
 invite ([discord.md](discord.md#if-a-code-leaks-or-is-lost)).
 
+### Your mesh window
+
+Team work goes to one session per teammate, your **mesh window**: tasks, reviews and teammates'
+questions. Your other sessions stay private. The window needs Claude Code 2.1.295 or later, and
+`node` on PATH.
+
+**Set it up once.** Run `/agentmesh:window` in any Claude Code session on this laptop;
+`/agentmesh:join` offers it when it finishes. In the session that just joined, it reads your agent,
+owner and Git rules from the `join` (or `connect`) result, since that session's instructions were
+written before it joined; if it can't find them, it asks you to run it in a new session. Claude asks
+for:
+- your team's folder. We recommend the folder that holds the team's repos, so every repo is in
+  reach; one repo checkout works too.
+- the exact test commands the window may run on its own branches, such as
+  `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt;
+  with none, every test run asks.
+
+The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
+`~/.agentmesh/`, and the `claude-mesh` command that runs the launcher. Run `/agentmesh:window`
+again to change them, and restart the window to load them. If `CLAUDE_CONFIG_DIR` is set when it
+runs (a second Claude account), the launcher starts the window in that account; it must be an
+absolute path (no `~`). If it isn't set, the launcher clears one the terminal has, so the window
+starts your default account. `window init` prints which account the window uses.
+
+**Start it each day** in a terminal, in your team's folder:
+
+```bash
+claude-mesh                        # starts the window in the current folder
+claude-mesh "/home/alice/code/acme"    # or names the folder, from anywhere
+```
+
+On Windows `claude-mesh` works in cmd, PowerShell and Git Bash. In PowerShell, type a bare
+`claude-mesh` inside the folder: PowerShell passes a folder argument without spaces to cmd
+unquoted, so a folder name with `&` or `^` would misbehave. In cmd and Git Bash a quoted folder
+argument is fine.
+
+`window init` puts `claude-mesh` in the folder `claude` was found in, which is on your PATH
+already, when that folder is really under your home folder (links resolved): the native
+installer's `~/.local/bin`, or npm's folder on Windows. On Windows that is a `claude-mesh.cmd` for
+cmd and PowerShell, and a `claude-mesh` sh script for Git Bash, which enters the folder itself. It
+never overwrites a `claude-mesh` it didn't write, and never changes PATH, the registry or your
+shell profile.
+
+When it can't put `claude-mesh` there (`claude` is outside your home folder, as with Homebrew; the
+folder can't be written; or it holds something else named `claude-mesh`), it writes it to
+`~/.agentmesh/bin` and prints a line telling you to add that folder to your PATH. It also warns,
+naming the file, when someone else's `claude-mesh` comes first on PATH. Until typing `claude-mesh`
+reaches one of its own, start the window with the line it prints instead:
+
+```bash
+~/.agentmesh/mesh-window "/home/alice/code/acme"
+```
+
+On Windows `window init` prints three lines. In PowerShell the launcher `mesh-window.cmd` (with
+its absolute folder; a `~` in the folder doesn't work in PowerShell). In Git Bash the sh
+`claude-mesh` by its path, because Git Bash can't pass a quoted folder to a `.cmd` whose own path
+has a space. In cmd the launcher by `%USERPROFILE%`, since cmd doesn't know `~` at all:
+
+```powershell
+~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell
+```
+
+```bash
+~/.agentmesh/bin/claude-mesh "C:\code\acme"    # Git Bash
+```
+
+```bat
+"%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
+```
+
+The Windows launcher and `claude-mesh.cmd` write paths under your user folder as
+`%USERPROFILE%\…`, because cmd reads them in the console's code page; so a user folder with
+non-ASCII letters works. `window init` refuses any other path with non-ASCII letters (Claude Code
+installed outside your user folder, say).
+
+Confirm the development channel when Claude Code asks. The window then activates itself with
+`/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
+sessions as usual. After a restart it lists its tasks and resumes those still in progress in their
+existing worktrees, and it reads a thread before it answers a reply meant for its earlier session.
+
+**What it does without asking, and what asks:**
+- **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live
+  check is pending, and if they prompt instead, that is safe); `git status`, `git fetch origin`,
+  and adding and removing those worktrees; reading diffs; and, on its own branches, your test
+  commands, `git add`, `git commit`, a push of that branch and `gh pr create` into the integration
+  branch.
+- **It asks you first:** before it runs the tests of a branch it didn't write (it tells the
+  author's agent that the verdict waits for you), and for merges, force pushes, other branches,
+  PowerShell commands and anything else not on its list.
+- **Refused outright:** edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git`
+  folder.
+- It never runs in auto or bypass mode. The details and their limits are in
+  [security.md](security.md#the-mesh-window).
+
+**Worktrees.** Every task and review gets its own worktree in the repo's `.claude/worktrees/`. Add
+that folder to each repo's `.gitignore`, so the worktrees don't show up as untracked files:
+
+```
+.claude/worktrees/
+```
+
+`window init` warns about each checkout in the folder that lacks it. Make sure each repo's test
+runner, typechecker and linter skip `.claude/worktrees/` too (vitest's default include does not).
+The window never clones a repo: if a task's repo has no checkout in the folder, it asks you for the
+path.
+
+**Private sessions.** Every other session is your own work. Its mesh tools still work: it can `ask`
+a teammate, and the answer waits for it (read it with `thread` or `inbox`). It doesn't take team
+work, and the mesh window follows up the tasks a private session hands out. You can still activate
+a private session; it then warns that team work will come to it while no mesh window is running.
+
+**The session-start line.** When no session of yours is active with pushes (normally that is your
+mesh window), a new session says so in one line at startup. Add `AGENTMESH_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
+hide it.
+
+**Claude Desktop users.** Desktop can't pass the channel flag, so it can't be a mesh window. Start
+the window in a terminal, and turn off any inbox poll you set up in Desktop. Your Desktop sessions
+become private sessions.
+
 ### Configure by hand (mesh.yaml)
 
 The admin runs `pnpm mesh agent-setup <agent-id> --config config --nats-url nats://<vm-tailnet-name>:4222`
@@ -201,8 +324,9 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 `claude --channels plugin:agentmesh@agentmesh`.)
 
 **Claude Desktop is pull-only.** Pushes need the channel flag, and Claude Code turns channels on
-only from the command line, so the Desktop app's Code tab cannot receive them. Run
-`/agentmesh:activate` there anyway: the test message never arrives, so Claude activates the session
+only from the command line, so the Desktop app's Code tab cannot receive them. Run your
+[mesh window](#your-mesh-window) in a terminal instead. Without one, you can run
+`/agentmesh:activate` in Desktop: the test message never arrives, so Claude activates the session
 in pull mode and says so. Teammates see you online (marked `pull`). Nothing is pushed: the hub keeps
 your messages unread, and each prompt you type starts with one AgentMesh line counting them, so
 Claude reads them with `inbox` and acts with `task_get`, `task_act`, `review_submit` or `reply`.
@@ -212,14 +336,19 @@ push session. To receive pushes, start a session from a terminal with the comman
 
 Check it: ask Claude to run `peers` — you should see your teammates and who is online.
 
-Then run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
-the session a test message, and the session goes live once Claude confirms it arrived. If it does
-not arrive, the session was started without the channel flag: Claude activates it pull-only
-instead (see above), and you can restart it with the command above for instant pushes. If Claude reports that the hub could not reach the session, try again in a few seconds. If it keeps
-failing, the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf
-and reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
-Sessions you do not activate stay inactive: the mesh tools still work, but nothing is pushed to
-them, and teammates do not see them.
+Your mesh window activates itself ([Your mesh window](#your-mesh-window)). Every other session
+stays inactive: the mesh tools still work, but nothing is pushed to it, it reads only its own
+threads, and teammates do not see it.
+
+To make another session receive mesh messages anyway, run `/agentmesh:activate` there. The hub
+sends the session a test message, and the session goes live once Claude confirms it arrived. If it
+does not arrive, the session was started without the channel flag: Claude activates it pull-only
+instead (see above), and you can restart it with the command above for instant pushes. (The mesh
+window never goes pull-only: Claude tries again, then asks you to restart it with `claude-mesh`.)
+If Claude
+reports that the hub could not reach the session, try again in a few seconds. If it keeps failing,
+the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf and
+reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
 `/agentmesh:deactivate` turns a session off again and releases the work it owns, and
 `/agentmesh:take <task or thread>` moves work to the session where you type it.
 

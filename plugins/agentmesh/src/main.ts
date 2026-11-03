@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@agentmesh/common';
+import type { RpcResult } from '@agentmesh/protocol';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { type PluginConfig, resolveConfig } from './config';
 import { buildInstructions } from './instructions';
@@ -50,6 +51,7 @@ async function runConfigured(config: PluginConfig, logger: Logger): Promise<void
     agentId: config.agentId,
     hello: session.hello,
     problems: [],
+    meshWindow: session.window.state === 'verified',
   });
   const server = createMcpServer(instructions, () => handler);
   const handler = meshTools(session, config.agentId);
@@ -91,7 +93,8 @@ async function runUnenrolled(logger: Logger): Promise<void> {
   });
   const server = createMcpServer(instructions, () => handler);
 
-  async function onJoined(agentId: string): Promise<void> {
+  /** Resolves the session's hello, which the join and connect results print. */
+  async function onJoined(agentId: string): Promise<RpcResult<'session.hello'> | null> {
     const resolved = resolveConfig();
     if (!resolved.ok)
       throw new Error(
@@ -103,6 +106,7 @@ async function runUnenrolled(logger: Logger): Promise<void> {
     cleanup = startSession(server, session, logger, 0);
     await server.sendToolListChanged().catch(() => undefined);
     logger.info({ agent: agentId, version: VERSION }, 'joined the mesh');
+    return session.hello;
   }
 
   await server.connect(new StdioServerTransport());
@@ -126,6 +130,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
     activation: session.activation,
     fyi: session.fyi,
     listening: session.listening.promise,
+    window: session.window,
   };
 }
 

@@ -71,6 +71,31 @@ describe('task RPC handlers', () => {
     ).toBe('done');
   });
 
+  it("names the PR's branch in the review request, from submit and from review.request", async () => {
+    // A mesh window reviews with git diff on that branch; gh pr diff asks there.
+    const { call, drain } = setup();
+    await call('discord-bridge', 'task.create', { title: 'Fix login', area: 'web' }, 'alice');
+    await call('bob-agent', 'task.act', { taskId: 'task-1', action: 'accept' });
+    await drain();
+    await call('bob-agent', 'task.act', {
+      taskId: 'task-1',
+      action: 'submit',
+      prUrl: 'https://github.com/acme/web/pull/3',
+      branch: 'agent/bob/task-1-fix-login',
+    });
+    const bodies = (d: Map<string, Array<{ body: string }>>) =>
+      [...d.values()].flat().map((m) => m.body);
+    expect(
+      bodies(await drain()).some((b) => b.includes('Branch: `agent/bob/task-1-fix-login`')),
+    ).toBe(true);
+    await call('alice-agent', 'review.request', {
+      prUrl: 'https://github.com/acme/api/pull/9',
+      branch: 'agent/alice/retry',
+      reviewers: ['bob-agent'],
+    });
+    expect((await drain()).get('bob-agent')?.[0]?.body).toContain('Branch: `agent/alice/retry`');
+  });
+
   it('an agent whose submit finds no reviewer gets a note, not a delivery', async () => {
     const { call, dispatch, drain, ctx } = setup();
     await call('discord-bridge', 'task.create', { title: 'Fix login', area: 'web' }, 'bob');

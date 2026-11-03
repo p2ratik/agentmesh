@@ -5,6 +5,7 @@ import type { Actor } from '../contracts';
 /**
  * Methods that create nothing and reach nobody else: reads, plus a session's own
  * read markers and goodbye. Every other method costs a token, new ones included.
+ * `inbox.get` now records ownership of the threads it returns, but stays free.
  */
 const FREE: ReadonlySet<RpcMethodName> = new Set<RpcMethodName>([
   'peers.list',

@@ -32,6 +32,17 @@ Request: `{ v: 1, params, actAs?, idempotencyKey?, session? }`. Response: `{ ok:
 Every string and array in `params` has a maximum (ids 64 characters, repos and branches 300,
 labels 60, bodies as listed in the schemas); a longer value is refused with `invalid_request`.
 
+Repos and branches (`GitRef`) are also one line: no control character and no U+2028 or U+2029.
+Plugins print them into tool output, where a line break could forge a line (a fake `checkout:`
+line, say). Event rules fill a task's `repo` from external payloads and create the task past the
+RPC schema, so task creation checks the repo and the base branch again. A forged one creates no
+task: the hub logs `rule action failed` and still keeps the event. A plan's task drafts keep a
+lenient `repo` in results, so a plan stored before this rule still reads. The plugin checks too:
+- it leaves a local repo or branch name that fails the rule out of hello and heartbeats, rather
+  than failing them;
+- `task_get` shows a repo or branch that fails it as `(invalid)`;
+- in the mesh window, `task_get` names a task's repo only when it is plain `owner/name`.
+
 Calls that change state are rate-limited per agent or human (`limits.rpcBurst` at once, then
 `limits.rpcPerMinute`); reads, `messages.seen` and `session.bye` are free. Past the limit the hub
 answers `rate_limited` with `details.retryAfterSeconds`.
@@ -61,7 +72,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
-| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300) and `previousSessionId` (a hub-issued id); the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
+| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300), `previousSessionId` (a hub-issued id) and `meshWindow` (optional; true when the launcher's marker matched, see [Routing](#routing)). The hub stores `meshWindow` when it creates the session. A hello that reuses its session can set the stored flag (a window started before the hub had migration 007) but never clears it. The result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
 | `session.activate` | agent | Turn this session on: `{ mode, code, description }`. `mode` is `push` (default) or `pull`. Push needs the code from the latest check; a wrong or stale code is refused with `invalid_request`. Pull needs no code (see [Pull mode](#pull-mode)). The result's `delivery` says which. |
 | `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
@@ -69,15 +80,15 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `session.bye` | agent, service | Close this session and release what it owns |
 | `presence.set` | agent | Declare online / busy / away with a note |
 | `peers.list` | any | Participants with presence and load |
-| `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
-| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. `thread.get` advances the caller's read cursor unless another of its sessions owns the thread (by the same owner chain as `inbox.get`). |
-| `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external }`: unread threads, how many need action, up to 5 sender ids (newest first) and whether any unread message is external. Marks nothing read. Free, like every read. |
+| `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` (a `GitRef`) names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
+| `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. An agent session's `thread.get` advances the agent's read cursor only for a thread that session owns, and never while the mesh is paused (the result then carries the note "The mesh is paused: nothing was marked read."). On any other thread it only looks. A call with no session (a human, a service) still marks read, paused or not. |
+| `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external, waiting }`: unread threads, how many need action, up to 5 sender ids (newest first), whether any unread message is external, and `waiting`, the unowned unread threads this session may not take (not counted in `threads`). Marks nothing read. Free, like every read. |
 | `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
-| `inbox.get` | agent | Unread messages; marks them read. Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own and unowned threads; threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. |
+| `inbox.get` | agent | Unread messages; marks them read (see [Reads](#reads)). Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own threads, plus the unowned ones only if it may take unowned work (see [Reads](#reads)); threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. `waiting` counts the unowned unread threads this session may not take; `paused` is true while the mesh is paused, when nothing is marked read or claimed (threads are still returned). The hub also says both in the call's `notes`, so every plugin version shows them (see [Reads](#reads)). |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
-| `task.act` | agent, human | Apply a workflow action |
-| `review.request` · `review.submit` | agent, human | Stand-alone review tasks and verdicts |
+| `task.act` | agent, human | Apply a workflow action. `prUrl` and `branch` (a `GitRef`; with `submit`, the PR's branch) are stored on the task, and the review request shows them. |
+| `review.request` · `review.submit` | agent, human | Stand-alone review tasks and verdicts. `review.request` takes the PR's `branch` (a `GitRef`), shown in the review request. |
 | `plan.start` · `plan.contribute` · `plan.submit` · `plan.cancel` | agent, human | Planning sessions |
 | `plan.get` · `plan.list` | any | |
 | `plan.approve` | human | Approve a plan awaiting approval |
@@ -203,7 +214,8 @@ Desktop app cannot pass it ([ADR 0008](adr/0008-pull-mode.md)). Such a session a
 
 - **Is never delivered to.** A delivery's ack marks action items read and claims the thread, so the
   hub never sends one to a pull session. Its messages wait unread in the hub, and it reads them
-  with `inbox.get`, which marks them read; the outbox then publishes them without a push.
+  with `inbox.get`, which marks them read; the outbox then publishes them without a push. It takes
+  unowned work that way only while the agent has no ready push session (see [Reads](#reads)).
 - **Keeps what it owns.** A thread a pull session owns (it replied, accepted, or `take`s it) is
   held for it (`held for s-… (pull)`), even when the agent also has a push session. So is a message
   whose sender picked it with `toSession` (`held for s-… (picked, pull)`).
@@ -232,8 +244,27 @@ quorum, ingest recipients and the `online` recipient token. Among online agents,
 and reviewer picks rank those with a live, active push session ahead of pull-only ones (they see
 work at once, not on their next prompt); a pull-only agent still beats an offline one, and with
 `assignment.preferOnline` off neither preference applies to assignment. `peers` shows heartbeat
-presence with each agent's active sessions beside it, each with its `delivery`. A review request
+presence with each agent's active sessions beside it, each with its `delivery` and `meshWindow`
+(`SessionSummary`; the plugin marks such a session `[mesh window]`). A review request
 to an agent that is not online says so in one line, so the humans watching notice.
+
+### Reads
+
+Who may read, and mark read, which threads ([ADR 0009](adr/0009-mesh-window.md)):
+
+- **Unowned threads** are read and marked read only by a session that may take unowned work: an
+  active push session, or an active pull session while the agent has no ready push session. Any
+  other session reads only the threads it owns (by the owner chain below). The rest are counted in
+  `waiting` on `inbox.get` and `inbox.peek`.
+- **`inbox.get`** by an active session claims the non-FYI threads it returns, in the same
+  transaction as the read.
+- **`thread.get`** by a session marks read only a thread that session owns. It claims nothing.
+- **Notes.** `inbox.get` adds the call note "N team thread(s) are waiting for an active session of this agent; this session can't take them right now." when `waiting > 0`, and "The mesh is paused: nothing was marked read." when `paused` is true. Plugins show notes, so even one older than 0.4.4 (which drops `waiting` and `paused`) tells the user.
+- **While paused,** a read by a caller with a session only looks: `inbox.get` returns `paused: true`
+  and advances and claims nothing. Callers without a session are unaffected.
+- **Inactive sessions claim only their own conversations and escalations:** `message.send` or
+  `escalate` on a `conversation` or `escalation` thread (`escalate` may carry a `threadId`). Their `task.*`, `review.*` and `plan.*` actions,
+  and replies into task, planning or event threads, claim nothing.
 
 ### Routing
 
@@ -243,18 +274,28 @@ The first rule that matches decides. Each decision is logged with its reason.
    its task's thread (`owns task`). If that session is live, active and push, the message goes
    there. If it is inactive, away or pull, the message waits (`held for s-… (inactive|away|pull)`)
    and is not rerouted, so an inactive session that asked a question still gets its answer. A
-   closed owner is ignored.
+   closed owner is ignored. An inactive owner reached through the parent thread or the task is
+   skipped too: it does not hold the work, and routing falls through to rule 2. Only the thread's
+   own owner holds it while inactive.
 2. **The session the sender picked** (`toSession`), if live, active and push (`picked by
    sender`). A live, active pull pick holds the message for that session (`held for s-… (picked,
    pull)`).
-3. **An active push session in the message's repo** (`in repo …`): the sender's `repo`, else the
+3. **The agent's mesh window** (`mesh window`): the longest-active live, active push session whose
+   hello reported `meshWindow`. It comes before the repo rule, because a window started in a folder
+   that holds the repos has no repo of its own ([ADR 0009](adr/0009-mesh-window.md)).
+4. **An active push session in the message's repo** (`in repo …`): the sender's `repo`, else the
    task's.
-4. **The longest-active push session** (`longest-active session`).
-5. **Otherwise it waits** in the hub (`no active push session`) for the next session the human
+5. **The longest-active push session** (`longest-active session`).
+6. **Otherwise it waits** in the hub (`no active push session`) for the next session the human
    activates, and `inbox` shows it (a pull session reads it there).
 
-Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits), and
-when a delivery lands by rules 1 (parent or task), 2, 3 or 4. The first owner keeps the work:
+When routing fell through rule 1 past an inactive parent or task owner, the reason of rules 3 to 6
+names the first one it skipped: `; skipped inactive <id> (<why>)`, where `<why>` is
+`owns parent thread` or `owns task`. For example
+`mesh window; skipped inactive s-4 (owns parent thread)`.
+
+Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits; an active session's `inbox` read also claims, and an inactive session claims only in its own conversation and escalation threads, see [Reads](#reads)), and
+when a delivery lands by rules 1 (parent or task), 2, 3, 4 or 5. The first owner keeps the work:
 another session's action goes through, with a note saying where replies will go. Ownership moves
 only through `session.take`, or is released when the owner deactivates or closes. `take`, `bye`,
 `deactivate` and an expiry that closes sessions kick the outbox, so freed work moves at once.

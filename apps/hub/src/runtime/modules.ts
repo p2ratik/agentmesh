@@ -22,6 +22,7 @@ import { createPlanningModule } from '../modules/planning';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
 import type { SessionTransport } from '../modules/sessions/dispatcher';
+import { ownerReader, takeUnownedReader } from '../modules/sessions/readers';
 import { createTaskModule } from '../modules/tasks';
 
 export interface HubServices {
@@ -84,6 +85,7 @@ export function buildModules(
     presence: presence.service,
     isActiveSessionOf: (agentId, sessionId) =>
       sessions?.activeSessions(agentId).some((s) => s.id === sessionId) ?? false,
+    mayTakeUnowned: takeUnownedReader(() => sessions),
   });
   const sessionsModule = createSessionsModule(ctx, {
     messaging: messaging.service,
@@ -93,13 +95,7 @@ export function buildModules(
     transport: nats.sessionTransport ?? null,
   });
   sessions = sessionsModule.service;
-  messaging.service.setOwnerReader((threadId, agentId) => {
-    const sessionId = sessionsModule.service.effectiveOwner(threadId, agentId);
-    if (sessionId === null) return null;
-    // Owners are never closed: closing a session releases what it owns.
-    const away = sessionsModule.service.verify(agentId, sessionId).liveness === 'away';
-    return { sessionId, liveness: away ? 'away' : 'live' };
-  });
+  messaging.service.setOwnerReader(ownerReader(sessionsModule.service));
   presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
   presence.service.setReadyReader((agentId) => sessionsModule.service.reach(agentId));
   const leases = createLeaseModule(ctx);

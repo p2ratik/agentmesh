@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MeshMessage, ReplyStatus, SendableKind, ThreadKind, ThreadSummary } from '../messages';
-import { IdRef } from '../primitives';
+import { GitRef, IdRef } from '../primitives';
 import { ANY_CALLER, defineMethod, PARTICIPANTS } from './define';
 
 /** Most sender ids an `inbox.peek` names. */
@@ -31,7 +31,7 @@ export const messagingMethods = {
         prUrl: z.string().max(500).optional(),
         taskId: IdRef.optional(),
         toSession: IdRef.optional(),
-        repo: z.string().max(200).optional(),
+        repo: GitRef.optional(),
       })
       .refine((p) => p.to !== undefined || p.threadId !== undefined, {
         message: 'Pass `to` to start a thread or `threadId` to reply in one.',
@@ -94,6 +94,10 @@ export const messagingMethods = {
           }),
         )
         .default([]),
+      /** Unread unowned threads this session may not take (not active, or a push session is ready). */
+      waiting: z.number().int().nonnegative().default(0),
+      /** True while the mesh is paused (the inbox is held). */
+      paused: z.boolean().default(false),
     }),
   }),
   'inbox.peek': defineMethod({
@@ -109,6 +113,8 @@ export const messagingMethods = {
       /** Distinct sender ids of the unread messages, newest first. */
       from: z.array(z.string()).max(MAX_PEEK_SENDERS),
       external: z.boolean(),
+      /** Unread unowned threads this session may not take; not counted in `threads`. */
+      waiting: z.number().int().nonnegative().default(0),
     }),
   }),
   'messages.seen': defineMethod({

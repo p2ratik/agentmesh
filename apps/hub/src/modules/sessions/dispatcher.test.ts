@@ -17,20 +17,19 @@ describe('SessionDispatcher', () => {
     expect(route).not.toHaveBeenCalled();
   });
 
-  it('messages read through inbox are published without a push', async () => {
+  it('an inactive session reading the inbox leaves the work for an active one', async () => {
     const { sessions, thread, ask, outbox, transport, pending, messaging } = setup();
     const s1 = sessions.open('bob-agent', { clientVersion: '0.2.0' }).session.id;
     const [t1, t2] = [thread(), thread()];
-    ask(t1);
-    ask(t2);
+    const [m1, m2] = [ask(t1), ask(t2)];
     await outbox.flush();
-    expect(pending()).toHaveLength(2);
     readInbox(messaging as MessagingServiceImpl, 'bob-agent', s1, 20, 5);
+    expect(pending()).toEqual([m1.id, m2.id]);
     sessions.activate('bob-agent', s1, 'web client');
     await outbox.flush();
-    expect(transport.sends).toEqual([]);
-    expect(pending()).toEqual([]);
-    expect(sessions.ownerOf(t1, 'bob-agent')).toBeNull();
+    const sent = transport.sends.flatMap((x) => (x.sessionId === s1 ? x.ids : []));
+    expect(sent.sort()).toEqual([m1.id, m2.id].sort());
+    expect(sessions.ownerOf(t1, 'bob-agent')).toBe(s1);
   });
 
   it('a new conversation sticks to the chosen session', async () => {

@@ -7,11 +7,16 @@ export const IsoDate = z.string().min(1);
  * Caps for what callers send, so no field carries megabytes into the hub's
  * rows, logs or error messages. `IdRef`: any id a caller names (`thr-12`,
  * `task-42`, `msg-01J…`, a session or participant id, `@all`). `GitRef`: a
- * repo (`owner/name`) or branch name; heartbeats use the same cap. `Label`:
- * a task label.
+ * repo (`owner/name`) or branch name; heartbeats use the same cap. It is
+ * always one line (no control character, no U+2028/U+2029): plugins print it
+ * into tool output, where a line break could forge a line. `Label`: a task
+ * label.
  */
 export const IdRef = z.string().max(64);
-export const GitRef = z.string().max(300);
+export const GitRef = z
+  .string()
+  .max(300)
+  .regex(/^[^\p{Cc}\p{Zl}\p{Zp}]*$/u, 'one line, with no control characters');
 export const Label = z.string().max(60);
 
 export const ParticipantId = z
@@ -55,6 +60,8 @@ export const SessionSummary = z.object({
   repo: z.string().nullable(),
   branch: z.string().nullable(),
   activeSince: IsoDate,
+  /** Started by the mesh window launcher; routing prefers it for team work. */
+  meshWindow: z.boolean().default(false),
   tasks: z.array(z.string()),
 });
 export type SessionSummary = z.infer<typeof SessionSummary>;

@@ -166,6 +166,9 @@ can approve a tool call on someone's laptop. Each person's own permission settin
 Allow `mcp__plugin_agentmesh_mesh__*` (the mesh tools); keep `gh pr merge` into protected
 branches, force-pushes, infrastructure CLIs and secrets on "ask".
 
+In the mesh window, test commands on a branch you didn't write ask before they run; on its own
+branches they run without a prompt ([The mesh window](#the-mesh-window)).
+
 ## Who can read the mesh in Discord
 
 - **Threat: someone in the Discord server who is not on the team.** The bridge provisions the mesh
@@ -238,10 +241,34 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own
-  session. A pull session is never delivered to, so it cannot swallow work: its messages stay unread
-  in the hub until it reads them with `inbox`. The worst a stray pull activation does is make the
-  agent count as online, so routing may pick it over an offline teammate; push sessions are still
-  preferred.
+  session. A pull session is never delivered to, but it can still take work by reading it, so a
+  read rule limits that (next bullets, [ADR 0009](adr/0009-mesh-window.md)). The worst a stray pull
+  activation does is make the agent count as online, so routing may pick it over an offline
+  teammate; push sessions are still preferred.
+- **Reads do not take team work away from where it belongs.** Before ADR 0009, `inbox.get` from any
+  session, in any project, marked unowned threads read and claimed nothing, so a poll in an
+  unrelated project could hide a request from everyone (Aheen's lost request, 2026-11-01). Now:
+  - Only a session that may take unowned work reads and marks read an unowned thread: an active
+    push session, or an active pull session while the agent has no ready push session. Every other
+    session reads only the threads it owns, and `inbox.get` and `inbox.peek` give it a `waiting`
+    count of the rest.
+  - `thread` marks read only a thread the calling session owns. On any other thread it only looks.
+    Callers without a session (humans, services) are unchanged.
+  - An active session's `inbox.get` claims the action threads it returns, so follow-ups go to the
+    session that has the context. FYI threads are not claimed.
+  - **Pause stops all consuming.** While `/mesh pause` is on, a read by a caller with a session
+    only looks: nothing is marked read or claimed, and the result says so (`paused`, or a note on
+    `thread`). Callers without a session are unaffected.
+  - **Inactive sessions claim only their own conversations.** They claim through `message.send` on
+    a conversation thread and `escalate` on an escalation thread. Their task, review and plan
+    actions, and replies into task, planning or event threads, claim nothing, so that work stays
+    unowned and routes to an active session. An inactive owner reached through the parent thread or
+    the task no longer holds work.
+  - **Still possible, by acting:** an inactive session can take unowned work with `take`, or by
+    replying into an unowned conversation thread. Both are deliberate.
+  - **Residual risk:** a pull session with no ready push session still takes unowned work, which is
+    what pull mode is for. Without a push session nothing reads the work until someone activates
+    one.
 - **The pull state file and hook carry counts and ids only.** While a session is active in pull
   mode, the plugin writes `pull-<prefix>-<agent>-<session>.json` (mode 600) to
   `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`. It holds the agent and session ids, the project
@@ -250,7 +277,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
   `SessionStart` hook reads only fresh files (under 2 minutes old) for its project. It drops any
   sender id that does not match the participant id pattern and adds one fixed-format line to the
   prompt, so a crafted file cannot inject more than an id-shaped token. Anyone who can write to
-  that directory can already edit the user's Claude Code settings.
+  that directory can already edit the user's Claude Code settings. An active push session also
+  writes a heartbeat there, `push-<prefix>-<agent>-<session>.json` (ids, its `meshWindow` flag and
+  a time, mode 600), for the session-start hint; a crafted one can only hide that hint.
 - **Descriptions are team-visible.** A session's one-line description and its id appear in `peers`
   for the whole team. Descriptions go through secret redaction; do not put anything private in one.
 - **Old plugins are refused.** `session.hello` rejects plugins older than 0.3.0: before 0.2.0 they
@@ -289,6 +318,289 @@ to its session, and `session.check` then fails (see the upgrade notes in
   which ids exist. It never moves a read cursor past an unread action, so a plugin that lies can
   only hide its own agent's FYIs from itself, never a question or a next step.
 
+## The mesh window
+
+The mesh window ([ADR 0009](adr/0009-mesh-window.md), part 2) is the one session per teammate that
+takes team work. By Pratik's
+[decision 3](specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01)
+it runs routine steps without asking. It is an ordinary interactive Claude Code session in
+`default` mode, started by `~/.agentmesh/mesh-window`. Two layers decide what it may do: the allow
+rules in its settings file, and the plugin's worktree guard. Both must agree before anything runs
+without a prompt.
+
+### What runs without asking
+
+`agentmesh window init` writes these allow rules into `~/.agentmesh/mesh-window.settings.json`:
+
+```
+Edit(**/.claude/worktrees/mesh-*/**)
+Bash(git status)
+Bash(git fetch origin)
+Bash(git worktree add .claude/worktrees/mesh-*)
+Bash(git worktree remove .claude/worktrees/mesh-*)
+Bash(<each test command given to window init>)
+Bash(git add *)
+Bash(git commit -m *)
+Bash(git push origin <own prefix>*)        only with an own-branch prefix
+Bash(git push -u origin <own prefix>*)     only with an own-branch prefix
+Bash(gh pr create --base <integration branch> *)
+```
+
+- Never the bundled CLI, `ssh`, `scp`, `gh pr merge`, `git push --force`, or a fetch from an
+  arbitrary URL.
+- The wildcards are wider than they look. The guard narrows each one to its exact form (below), and
+  asks for anything else.
+- Claude Code runs some read-only commands (`ls`, `cd`, `pwd`, read-only `git`) without an allow
+  rule. The guard lets them through only in its read forms.
+- Edits in a mesh worktree are expected to run without a prompt: Claude Code exempts "Claude's own
+  git worktrees under `.claude/worktrees/`" from its protected `.claude` paths, and allow rules never
+  pre-approve a protected path. That a `git worktree add` worktree counts is a live check still
+  pending. If it doesn't, those edits ask, which is safe.
+
+### The worktree guard
+
+`dist/guard.js` is the plugin's `PreToolUse` hook. Its matcher is exactly
+`Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|EnterWorktree|Agent|Workflow`, plus
+`mcp__plugin_agentmesh_mesh__activate`. It runs in every session. Without the marker it reads its
+input for at most a second and exits 0, whatever happens. With the marker set:
+
+- **It denies** (exit 2; no approval overrides it, except a mod; see
+  [Layered settings](#tampering-git-and-settings)):
+  - an edit, unless every path it names (`file_path`, `notebook_path`) is inside a registered
+    `.claude/worktrees/mesh-*` worktree, below its root. Registered means the worktree's `.git`
+    file points at a git folder whose back-pointer leads to that same file.
+    - Paths are resolved through links, segment by segment. The `.git` and `~/.agentmesh`
+      refusals ignore case and invisible format characters (`\p{Cf}`, as HFS+ does) on every
+      platform.
+    - Refused outright: relative paths, `.` and `..` segments, untrimmed paths, `\\?\`, `\\.\`,
+      UNC, alternate data streams, DOS device names, Windows names ending in a dot or space, a last
+      segment that is a link, a file with more than one hard link, any `.git` segment, and anything
+      in the real `~/.agentmesh`.
+    - The reason reads `mesh window: work only inside a task worktree (<why>)`.
+  - `EnterWorktree`: it would load a reviewed branch's project settings and hooks.
+  - an `Agent` call with any `isolation` key. A remote agent runs outside every local hook, and a
+    worktree agent gets a worktree that isn't a mesh one. Plain subagents pass, because their own
+    tool calls come back through the guard.
+  - a call it can't read, an edit that names no file, a tool it doesn't know, and any failure of
+    the guard itself.
+- **It asks** (your human answers a prompt):
+  - for any Bash command that isn't one of the forms below;
+  - for every PowerShell and Monitor command;
+  - for every `Workflow` call, whose script can ask for isolation the guard can't see;
+  - for every command, while `~/.agentmesh/mesh-window.json` is missing or invalid.
+- **It stamps `activate`.** On that call it writes `guard-alive.json` in the plugin data folder.
+  `activate` in a marked session refuses unless the stamp is under 2 minutes old, so a window whose
+  hooks don't run can't take team work.
+- **It never allows.** Silence hands the call to Claude Code's permission rules.
+- **It fails closed.** The first matcher group has `onFailure: "block"` (Claude Code 2.1.295+), so
+  a guard that crashes, can't start or runs past its 10 s timeout blocks the call. The `activate`
+  group has none, but a failed run there writes no stamp, so `activate` refuses.
+
+**The Bash forms it passes.** Everything else asks.
+- Exactly `pwd`, `git status`, `git fetch origin` and `git worktree list`; `cd <path>`.
+- Reads: `ls`, or `git diff|log|show` with plain arguments.
+  - No argument starts with `/`, `~`, a drive letter, `--output` or `--no-index`, or contains `//`
+    or a `..` segment.
+  - A git read with arguments passes only at a checkout's top (`checkoutTop`) or anywhere inside a
+    mesh worktree. Outside a repo, git compares two paths as `--no-index` and follows links out of
+    the tree.
+- Worktrees, run from the top of a real checkout (its `.git` a folder, its `.claude` and
+  `.claude/worktrees` not links), and for an add only when nothing exists at the path yet
+  (`freeSlot`):
+  - `git worktree add .claude/worktrees/mesh-<slug> -b <own branch> --track origin/<integration>`;
+  - `git worktree add .claude/worktrees/mesh-<slug> refs/remotes/origin/<branch>`, when the
+    checkout's own refs hold that branch, compared by its exact name on disk;
+  - `git worktree remove .claude/worktrees/mesh-<slug>`.
+
+  Review diffs and review worktrees use `refs/remotes/origin/…`, because a fetched tag named
+  `origin/<branch>` would win over the remote branch.
+- In a mesh worktree on the window's own branch only:
+  - each test command, compared as a whole string;
+  - `git add -A` or `git add -- <paths>`;
+  - `git commit -m '<message>'`;
+  - `git push [-u] origin <that branch>`;
+  - `gh pr create --base <integration> --head <that branch> [--title '…'] [--body '…']`.
+
+  Messages, titles and bodies are single-quoted printable ASCII with no `'` or `\`. There is no
+  form with `--force`, `--amend`, `--no-verify` or a refspec.
+- Any of these after `cd P && `, checked as if it ran in P.
+  - P must be absolute, or start with `./`, so bash never looks it up in `CDPATH`.
+  - `git -C`, a relative `cd` chain and a second `cd` ask.
+  - No path starts with `//`. Git Bash maps that to a UNC host, and the SMB connection can leak
+    NTLM.
+
+**A marker a repo spoofs only turns the guard on.** The guard acts on any non-empty
+`AGENTMESH_MESH_WINDOW`. Without the matching token the policy doesn't load, so every command asks,
+`activate` refuses, and hello doesn't report `meshWindow`.
+
+**`activate` is still guarded only by its description,** as in every session. A push or pull
+activation without the marker now warns: "This isn't your mesh window; team work will come here
+while no mesh window is running."
+
+### Tests ([decision 5](specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01))
+
+- **On a branch the window didn't write,** a test command asks: "mesh window: <branch> isn't your
+  branch, so running its tests needs your human's approval". Before that, the window's rules tell it
+  to reply in the task thread with status `working`, so the author's agent knows the verdict waits.
+  That reply is guidance, not enforcement. Reading the diff never asks.
+- **On the window's own branches,** tests run unprompted. **Accepted risk (Pratik, decision 5):**
+  they read **and write** as you, including persistence in `.git/hooks` (shared by every
+  worktree), `~/.agentmesh/` and the guard itself, and switching the guard off.
+- **Without an own-branch prefix** (a branch template that names neither the owner nor the agent,
+  or whose filled prefix doesn't end in `/`, `_` or `.`), every test asks, and so do task
+  worktree adds, commits, pushes and PRs.
+
+### Corrected claims
+
+The design (§3 and §8) first claimed more than holds:
+- "Bash writes prompt": not for allow-listed test commands.
+- "The window can't loosen its own rules": only Claude's own edits are stopped.
+- "No teammate text passes through the window's model": false. The window reads every ask and task,
+  and injection can make it act within its permissions. It can't approve prompts.
+
+### Tampering, git and settings
+
+- **Tampering:**
+  - Claude Code protects a file passed with `--settings`, and the guard denies edits in
+    `~/.agentmesh/`.
+  - The settings file sets `disableAllHooks: false`.
+  - Bypass and auto mode are disabled (`disableBypassPermissionsMode` and `disableAutoMode` are
+    `"disable"`), the default mode is `default`, and the launcher passes
+    `--permission-mode default`.
+  - The token is 32 random hex characters, in the policy (mode 600), the settings file (600) and
+    the launcher (700). Re-running `window init` keeps it.
+- **Git:** the settings file's `env` sets `core.hooksPath` to the empty
+  `~/.agentmesh/empty-git-hooks`, `core.fsmonitor=false` and `safe.bareRepository=explicit`
+  (`GIT_CONFIG_COUNT=3`). So git in the window runs no repo hooks and no fsmonitor, and refuses
+  implicit bare repos. `window init` warns when that folder isn't empty.
+- **Layered settings:** Claude Code merges the human's user and project settings into the window,
+  so the human's own allow rules for other tools (other MCP servers, WebFetch) apply there.
+  Without managed settings or a Team or Enterprise login, an installed mod (`tool.check`) can
+  approve a call the guard asked about or denied (permissions.md, "Precedence among rules, hooks,
+  and mods"). An API key or a long-lived `CLAUDE_CODE_OAUTH_TOKEN` isn't that login.
+- **Launcher input:**
+  - The agent id must match `^[a-z0-9][a-z0-9-]{0,62}$`. The session name is `mesh-<agent>`, cut
+    to 64 characters.
+  - A test command is plain: letters, digits, spaces and `. _ : / = @ -`, up to 200 characters,
+    at most 10 of them.
+  - The folder argument is quoted: `cd /d "%~1"` on Windows, `CDPATH= cd -- "$1"` elsewhere (an
+    exported `CDPATH` can't send a relative folder somewhere else).
+  - The paths baked into the launcher (`claude`, the settings file, and `CLAUDE_CONFIG_DIR` when
+    it is set) are refused when they hold a line break, or `% ^ & " ! < > |` on Windows, or `'`
+    elsewhere. A `CLAUDE_CONFIG_DIR` that isn't absolute (relative, or `~…`) is refused; without
+    one, the launcher clears an inherited `CLAUDE_CONFIG_DIR`, so the window starts the account
+    `window init` named.
+  - **Non-ASCII on Windows:** cmd reads a `.cmd` file in the console's code page (437, 850…), not
+    UTF-8, so a non-ASCII path baked as UTF-8 names another file. The launcher writes paths under
+    `%USERPROFILE%` as `%USERPROFILE%\…` and refuses any path that still holds a non-ASCII
+    character. The refused-character check runs on the expanded path: `call` expands `%` in
+    `%USERPROFILE%`'s value again and doubles its `^`.
+  - `claude` is found by a PATH walk over absolute entries only (with PATHEXT on Windows), never in
+    the current folder, which `where` and cmd search first. The Windows launcher runs it by that
+    absolute path with `call`.
+  - The Windows launcher sets `NoDefaultCurrentDirectoryInExePath=1` before it starts Claude Code,
+    so a bare `node` (the hooks) isn't looked up in the current folder. The live check, with a
+    planted `node.exe`, hasn't been run yet.
+  - **`claude-mesh`** only forwards to the launcher, so every check above still holds.
+    - `claude-mesh.cmd` ends with `"<launcher>" %*`. It has no `call`, which would expand `%`
+      again and double `^` in the folder argument.
+    - Elsewhere it is `exec '<launcher>' "$@"`.
+    - On Windows, Git Bash's sh script works in three steps:
+      1. It resolves its own path; a drive-letter path counts as absolute.
+      2. It does `CDPATH= cd -- "$1" || exit 1` itself.
+      3. It runs the `.cmd` beside it with no argument.
+    - Git Bash can't pass a quoted folder to a `.cmd` whose own path has a space, which is why the
+      script does the `cd`. Resolving the path before the `cd` means a `claude-mesh.cmd` in the
+      target folder is never the one run.
+    - The script refuses a `$0` without a slash, which only `sh claude-mesh` gives (by name
+      through PATH, `$0` is the full path). Such a `$0` would run a `claude-mesh.cmd` in the
+      current folder.
+    - The launcher path in it is baked and checked as the launcher's own paths are.
+    - `window init` writes it next to `claude` only when that folder's real path (junctions and
+      links resolved) is below the home folder's real path, compared without case on Windows and
+      macOS. Never when home is a filesystem root, so never into a system folder. Otherwise it
+      goes to `~/.agentmesh/bin`, which must be a folder or not exist; anything else there stops
+      `window init` before it writes a file.
+    - It never replaces anything named `claude-mesh` or `claude-mesh.cmd` beside `claude` but a
+      regular file carrying its marker line (`rem agentmesh claude-mesh` or
+      `# agentmesh claude-mesh`). Links, dangling links and folders count as foreign. It says it
+      left that file alone. A file that carries the marker is rewritten.
+    - It then looks `claude-mesh` up on PATH as cmd would (absolute entries, PATHEXT). It warns,
+      naming the file, when one without the marker comes first, or when the folder isn't on PATH.
+      It doesn't check Git Bash's lookup or the current folder.
+    - It never edits PATH, the registry or a shell profile.
+    - **cmd's current folder:** in cmd, Windows looks in the current folder first, so a repo
+      holding a planted `claude-mesh.cmd`, `.bat` or `.exe` would run it when you type
+      `claude-mesh` there. PowerShell and Git Bash don't do this. It's the same exposure as typing
+      `claude` in cmd. The launcher's `NoDefaultCurrentDirectoryInExePath=1` comes too late to stop
+      that lookup. Setting `NoDefaultCurrentDirectoryInExePath=1` as a user environment variable
+      closes it for every cmd command; with it set, a planted `.cmd` in the current folder is not
+      found.
+- **`meshWindow` in hello** is a client-asserted routing hint that grants nothing. An agent's key
+  can already activate any of its own sessions; the flag only makes routing prefer that one. The
+  hub stores it when it creates the session; a hello that reuses a session (only the same agent's,
+  matched by `previousSessionId`) can set it, never clear it.
+
+### Residual risks
+
+- **Guard paths:**
+  - A link swapped in between the guard's check and the write (TOCTOU).
+  - Linux bind mounts, which realpath doesn't see.
+  - Files that run code when a worktree is opened or built. Claude Code's protected paths already
+    make Claude's own edits to `.claude/`, `.mcp.json`, `.vscode`, `.envrc` and `.husky` prompt in
+    `default` mode. Still open: package scripts (`package.json` isn't protected), and anything a
+    test run or a package script writes.
+  - A committed link to a UNC target makes realpath contact that host, which can leak NTLM.
+  - Some checks depend on Claude Code writing files by temp-and-rename.
+  - Any registered mesh worktree on the machine is accepted, including a second Claude account's.
+  - Over-refusals: network drives, names ending in a dot or space, and nested non-mesh worktrees.
+- **Guard commands:**
+  - `CDPATH` is closed for chains, whose folder must be absolute or `./…`. A bare `cd` can still
+    follow it, but Claude Code then reports the real cwd, so the next command is checked where it
+    really runs (live check pending).
+  - Aliases and functions for `cd`, `git`, `gh` or `ls` in Claude Code's shell snapshot change what
+    a passing command does.
+  - zsh `EXTENDED_GLOB` gives `^` and `~` in read arguments a glob meaning.
+  - Over-refusal: a checkout whose path holds `(`, `'`, `&` or non-ASCII letters can't be named in a
+    `cd` chain, so every command there asks.
+  - git-lfs reads a reviewed branch's `.lfsconfig` in its review worktree.
+  - Commit messages and PR bodies are an outbound channel that nothing redacts.
+  - A tag that shadows the integration branch can make the `-b` form fail as ambiguous (a denial of
+    service, not a bypass).
+  - Empty or relative PATH entries let a `git` or `gh` in the current folder run.
+  - `gh pr create` may pick a base repo other than `origin`.
+  - `ls` with arguments follows committed links (it shows names only).
+  - A window folder that is itself inside a repo lets plain `git diff` and `git show` show that
+    repo's changes.
+  - On Windows and macOS, branch names that differ only in case can be confused when diffing by
+    name.
+- **Guard entry:**
+  - Liveness is checked only at activation, so hooks or the plugin turned off later leave an
+    active window unguarded.
+  - The matcher is an exact list. It never sees other servers' MCP tools, `SendMessage` (plan 3),
+    RemoteTrigger or scheduled cloud agents, or write tools Claude Code adds later.
+  - Another `PreToolUse` hook that returns allow with `updatedInput` changes the call after the
+    guard checked it.
+  - The stamp is one file per plugin data folder, not per process, so a second marked session with
+    hooks off could activate within 2 minutes of a real activation.
+  - A project's settings `env` can set the marker in a private session. That only blocks, and never
+    unblocks. Managed settings outrank the launcher's settings file.
+  - The stamp's folder and file modes apply only when they are created.
+  - If the hook and the MCP server got different `CLAUDE_PLUGIN_DATA` folders, activation would
+    refuse. That fails closed; the live check is pending.
+  - Edits in review worktrees pass without asking. That is approved: a review worktree is
+    detached, so its commits and pushes ask.
+- **Availability:**
+  - `onFailure: "block"` applies to every session. Each of these blocks edits and shell calls
+    everywhere until it is fixed: `node` missing from PATH, a broken `NODE_OPTIONS`,
+    `dist/guard.js` missing, the plugin root removed mid-update, and an EPIPE on a stalled stdin
+    write.
+  - Claude Code before 2.1.295 has no `onFailure`, so a failing guard doesn't block, and the stamp
+    is the only fail-closed layer. The mesh window needs Claude Code 2.1.295 or later.
+- **Bare `node` in `hooks.json`:** Claude Code sets `NoDefaultCurrentDirectoryInExePath=1` itself,
+  so a `node.exe` in the current folder shouldn't run. Whether its hook spawner honours that still
+  needs a live check.
+
 ## Loops and cost
 
 - Thread depth limit (`limits.maxThreadDepth`) stops A→B→C→D chains of agent-created threads.
@@ -325,8 +637,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Kill switch**: `/mesh pause` holds every delivery; `/mesh resume` releases them. The pause
   also holds deliveries queued before it, in the same transaction, so nothing is pushed while
   paused and no status item rides along either. A batch already being handed over when the pause
-  lands can still finish. The pause stops pushes, not pulls: an agent that calls `inbox` or
-  `thread` while paused still reads its messages, and they are not pushed again on resume.
+  lands can still finish. It also stops reads from consuming: while paused, a session's `inbox` and `thread` only look,
+  so nothing is marked read or claimed until `/mesh resume` (see the read rule above). A caller
+  without a session, such as a human, still reads normally.
 
 ## Secrets in messages
 
@@ -751,6 +1064,8 @@ run the bundled `agentmesh` CLI. The CLI writes a workspace folder on the admin'
   **Residual risk:** an admin who approves a prompt without reading it. Keep the deploy commands
   on "ask". Auto mode asks nothing, so the approval is gone: do not run the operator session (the
   setup session, or any session in the workspace) in auto mode while the mesh is activated in it.
+  The same goes for any session that has used the mesh: a teammate's message can reach it, and in
+  auto mode nothing asks before it acts.
 - **Files on the server.** Before copying, `setup deploy` closes the remote `deploy/` folder
   (`chmod 700`), because scp may create `.env` and the seeds readable by everyone. Afterwards
   `.env` and the seeds get mode 600 and the seeds belong to uid 1000 (the containers' user). It

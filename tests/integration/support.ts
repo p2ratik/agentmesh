@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RpcClient } from '@agentmesh/bus';
+import { MESH_WINDOW_ENV, MESH_WINDOW_HINT_ENV } from '@agentmesh/common/window';
 import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -21,6 +24,8 @@ export interface Agent {
   notifications: string[];
   /** Everything the plugin logged so far (it logs to stderr). */
   stderr(): string;
+  /** The temp CLAUDE_PLUGIN_DATA folder spawnAgent made; removed when the plugin closes. */
+  dataDir: string;
   /** The result's text parts, joined by newlines; throws on an error result. */
   call(name: string, args: Record<string, unknown>): Promise<string>;
   waitFor(match: (e: Channel) => boolean, timeoutMs?: number): Promise<Channel>;
@@ -34,21 +39,31 @@ export interface AgentEnv {
   nkeySeed?: string;
   /** Home directory holding `.agentmesh` (agent.json, keys, invite.txt). */
   home?: string;
+  /** Set last, e.g. the mesh window marker or a CLAUDE_PLUGIN_DATA of the test's own. */
+  extraEnv?: Record<string, string>;
 }
 
 /** Starts one plugin process over MCP stdio and records its channel events. */
 export async function spawnAgent(env: AgentEnv): Promise<Agent> {
+  const inherited = { ...process.env };
+  // A test runs in no mesh window unless it says so.
+  delete inherited[MESH_WINDOW_ENV];
+  delete inherited[MESH_WINDOW_HINT_ENV];
+  const dataDir = mkdtempSync(join(tmpdir(), 'am-e2e-data-'));
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [PLUGIN],
     env: {
-      ...process.env,
+      ...inherited,
       ...(env.home ? { HOME: env.home, USERPROFILE: env.home } : {}),
       AGENTMESH_AGENT_ID: env.agentId,
       AGENTMESH_NATS_URL: env.natsUrl,
       AGENTMESH_PREFIX: env.prefix,
       AGENTMESH_NKEY_SEED: env.nkeySeed ?? '',
       AGENTMESH_LOG_FILE: '',
+      // State and heartbeat files land here, never in the real ~/.agentmesh/run.
+      CLAUDE_PLUGIN_DATA: dataDir,
+      ...env.extraEnv,
     },
     stderr: 'pipe',
   });
@@ -62,11 +77,14 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
     if (n.method === 'notifications/claude/channel') events.push(n.params as unknown as Channel);
   };
   await client.connect(transport);
+  // Fires once the plugin process has exited, before client.close() resolves.
+  client.onclose = () => rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
   return {
     client,
     events,
     notifications,
     stderr: () => logged.join(''),
+    dataDir,
     async call(name, args) {
       const result = await client.callTool({ name, arguments: args });
       // Every part: hub notes and the FYI ride-along follow the tool's own text.
@@ -89,16 +107,16 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
 /**
  * Opts the session in the way Claude does after /agentmesh:activate: asks for
  * a check (retrying until the plugin listens on its session subject), reads the
- * code the hub pushed, and sends it back with a description.
+ * code the hub pushed, and sends it back with a description. Returns the final result's text.
  */
-export async function activate(agent: Agent, description: string): Promise<void> {
+export async function activate(agent: Agent, description: string): Promise<string> {
   const before = agent.events.length;
   await untilConnected(() => agent.call('activate', {}));
   const check = await agent.waitFor(
     (e) => agent.events.indexOf(e) >= before && e.content.includes('Code:'),
   );
   const code = /Code: (\w+)/.exec(check.content)?.[1] ?? '';
-  await agent.call('activate', { code, description });
+  return agent.call('activate', { code, description });
 }
 
 /** Calls the hub as a fresh session of the client's agent: the hub refuses agent calls without one. */
