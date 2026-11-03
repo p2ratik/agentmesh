@@ -1,5 +1,7 @@
+import type { RpcResult } from '@agentmesh/protocol';
 import { z } from 'zod';
 import type { ConfigResult } from '../config';
+import { meshFacts } from '../instructions';
 import { listTools, type ToolListing, type ToolResult } from '../tools/registry';
 
 export const CONNECT_TOOL = 'connect';
@@ -19,8 +21,9 @@ export const connectToolListing = listTools([
 export interface ConnectToolDeps {
   /** Reads the settings again; `agentmesh setup admin` wrote them after this session started. */
   resolve(): ConfigResult;
-  /** Opens the session and swaps in the mesh tools (the same switch `join` makes). */
-  onConnected(agentId: string): Promise<void>;
+  /** Opens the session and swaps in the mesh tools (the same switch `join` makes); resolves the
+   * hub's hello, or null when it did not answer in time. */
+  onConnected(agentId: string): Promise<RpcResult<'session.hello'> | null>;
 }
 
 /** Connects without a restart once `agentmesh setup admin` saved agent.json. */
@@ -32,12 +35,18 @@ export async function callConnectTool(deps: ConnectToolDeps): Promise<ToolResult
       true,
     );
   }
+  let hello: RpcResult<'session.hello'> | null;
   try {
-    await deps.onConnected(resolved.config.agentId);
+    hello = await deps.onConnected(resolved.config.agentId);
   } catch (error) {
     return text(`connect failed: ${error instanceof Error ? error.message : String(error)}`, true);
   }
-  return text(`Connected as ${resolved.config.agentId}. Run /agentmesh:activate.`);
+  const connected = `Connected as ${resolved.config.agentId}.`;
+  return text(
+    hello
+      ? `${connected}\n${meshFacts(hello)}\nRun /agentmesh:activate.`
+      : `${connected} Run /agentmesh:activate.`,
+  );
 }
 
 function text(value: string, isError = false): ToolResult {

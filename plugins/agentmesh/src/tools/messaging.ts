@@ -132,7 +132,8 @@ export const messagingTools = [
     run: async (args, { hub }) => {
       const r = await hub.call('inbox.get', { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
-      if (r.threads.length === 0 && others.length === 0) return 'Inbox zero — nothing unread.';
+      if (r.threads.length === 0 && others.length === 0 && !r.waiting)
+        return 'Inbox zero — nothing unread.';
       const needs = r.threads
         .filter((t) => !t.fyi)
         .map((t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`);
@@ -153,7 +154,8 @@ export const messagingTools = [
           `(${others.length} unread thread(s) belong to your other sessions: ${owned.join(', ')})`,
         );
       }
-      return parts.join('\n\n====\n\n');
+      // What `waiting` and `paused` mean arrives as hub notes, appended by the registry.
+      return parts.length > 0 ? parts.join('\n\n====\n\n') : 'Nothing for this session to read.';
     },
   }),
   defineTool({

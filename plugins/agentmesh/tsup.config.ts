@@ -2,12 +2,13 @@ import { defineConfig } from 'tsup';
 
 /**
  * Bundles the plugin and every dependency into dist/server.js, the
- * `agentmesh` CLI into dist/cli.js, and the pull-mode prompt hook into
- * dist/hook.js (Node built-ins only, so it starts fast), so developer laptops
- * need no `npm install`: Claude Code runs them with plain `node`.
+ * `agentmesh` CLI into dist/cli.js, the pull-mode prompt hook into
+ * dist/hook.js and the mesh window's worktree guard into dist/guard.js (both
+ * Node built-ins only, so they start fast), so developer laptops need no
+ * `npm install`: Claude Code runs them with plain `node`.
  */
 export default defineConfig({
-  entry: { server: 'src/main.ts', cli: 'src/cli.ts', hook: 'src/hook.ts' },
+  entry: { server: 'src/main.ts', cli: 'src/cli.ts', hook: 'src/hook.ts', guard: 'src/guard.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'node24',

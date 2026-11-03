@@ -55,7 +55,8 @@ export const taskMethods = {
       action: z.string().min(1).max(60),
       note: z.string().max(8000).optional(),
       prUrl: z.string().max(500).optional(),
-      branch: z.string().max(200).optional(),
+      /** The PR's branch, with `submit`: a reviewer's mesh window diffs it. */
+      branch: GitRef.optional(),
       /** Target participant for `handoff` / `assign`. */
       to: IdRef.optional(),
     }),
@@ -70,6 +71,8 @@ export const taskMethods = {
       focus: z.string().max(4000).optional(),
       reviewers: z.array(IdRef).max(5).optional(),
       repo: GitRef.optional(),
+      /** The PR's branch, shown to the reviewers. */
+      branch: GitRef.optional(),
       area: IdRef.optional(),
     }),
     result: TaskDetail,

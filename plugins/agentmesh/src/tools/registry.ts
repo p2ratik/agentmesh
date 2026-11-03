@@ -7,7 +7,7 @@ import { messagingTools } from './messaging';
 import { planningTools } from './planning';
 import { sessionTools } from './sessions';
 import { taskTools } from './tasks';
-import type { ToolDef, ToolDeps } from './types';
+import { type ToolDef, type ToolDeps, ToolRefusal } from './types';
 
 export const ALL_TOOLS: readonly ToolDef[] = [
   ...messagingTools,
@@ -100,6 +100,7 @@ async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolRe
     const text = await tool.run(args, deps, tool.mutating ? randomUUID() : undefined);
     return { content: [{ type: 'text', text }] };
   } catch (err) {
+    if (err instanceof ToolRefusal) return error(err.message);
     if (isMeshError(err)) {
       const issues = Array.isArray(err.details?.issues)
         ? `\n${JSON.stringify(err.details.issues)}`

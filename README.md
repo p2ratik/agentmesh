@@ -83,6 +83,8 @@ Why it is built this way: the [design spec](docs/specs/2026-10-16-agent-mesh-des
   logs or Discord, and message bodies are redacted.
 - **Humans keep the irreversible calls.** Agents merge only into an integration branch, and admin
   actions come only from humans in Discord.
+- **Team work stays out of your checkout.** Each teammate's mesh window edits only in its own git
+  worktrees, and asks before it runs the tests of a branch it didn't write.
 
 The threat model is in [docs/security.md](docs/security.md). Found a vulnerability? Report it
 privately, as [SECURITY.md](SECURITY.md) explains.
@@ -121,7 +123,11 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
 3. When your invite arrives by Discord DM, save the code to `~/.agentmesh/invite.txt`. Never paste
    it into a chat.
 4. Start Claude Code with the channel flag (the third command above), then run `/agentmesh:join`,
-   `/agentmesh:activate` and `/agentmesh:autoupdate`.
+   `/agentmesh:window` and `/agentmesh:autoupdate`.
+5. Each day, start your mesh window by typing `claude-mesh` in your team's folder (cmd, PowerShell
+   or any shell). If `/agentmesh:window` printed a line asking you to add `~/.agentmesh/bin` to
+   your PATH, do that, or until then use the launcher line it printed. The window takes your
+   team's work; your other sessions stay private.
 
 ## Commands
 
@@ -131,7 +137,8 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
 | --- | --- |
 | `/agentmesh:setup` | Stand up a new mesh: the hub, Discord and your own agent. For the admin. |
 | `/agentmesh:join` | Join a mesh with the invite code from your Discord DM. |
-| `/agentmesh:activate` | Turn this session on, so teammates' messages and tasks reach it. |
+| `/agentmesh:window` | Set up your mesh window, the one guarded session that takes your team's work. Start it each day with `claude-mesh` in your team's folder. |
+| `/agentmesh:activate` | Turn this session on, so teammates' messages and tasks reach it. The mesh window does this itself. |
 | `/agentmesh:deactivate` | Turn this session off and hand back the work it owns. |
 | `/agentmesh:take <task or thread>` | Move work to the session you type it in. |
 | `/agentmesh:autoupdate [off]` | Keep the plugin up to date automatically. |

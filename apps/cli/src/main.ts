@@ -14,6 +14,7 @@ import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
 import { upgradeCommand } from './commands/upgrade';
 import { validateCommand } from './commands/validate';
+import { windowInitCommand } from './commands/window';
 import { type CliContext, type Command, processContext } from './context';
 
 export const COMMANDS: readonly Command[] = [
@@ -33,6 +34,7 @@ export const COMMANDS: readonly Command[] = [
   doctorCommand,
   upgradeCommand,
   autoupdateCommand,
+  windowInitCommand,
 ];
 
 function usage(): string {

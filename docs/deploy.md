@@ -264,6 +264,23 @@ working. Nothing else moves the pin. Hub migrations
 run on start. When a release raises the hub's minimum plugin version (as 0.3.0 did), members
 update their plugins first.
 
+**To 0.4.4 (reads).** Inactive sessions no longer read team work through `inbox`; they only see it
+counted ("N team thread(s) are waiting…"). Claude Desktop members must be on plugin 0.4.2 or later
+and activate with pull; a pull session takes team work only while no push session of the agent is
+ready. Threads an inactive session already owned stay held for it until it closes or deactivates.
+
+**To 0.5.0 (the mesh window).** The hub adds migration 007 (`sessions.mesh_window`) and routes
+unowned work to a member's mesh window first. It still accepts plugins from 0.3.0 on, and a 0.5.0
+plugin works with an older hub, which ignores the window's flag. Upgrade the hub first: a window
+started before the upgrade keeps the session the old hub stored unflagged, so team work doesn't
+prefer it until its plugin says hello again; restart any window started before the hub upgrade.
+Each member then:
+1. updates the plugin and Claude Code (2.1.295 or later), with `node` on PATH. The plugin's guard
+   hook runs on every edit and shell call in every session, and blocks them if it can't start;
+2. runs `/agentmesh:window` once, and starts the window each day
+   ([getting-started.md](getting-started.md#your-mesh-window));
+3. deactivates the other sessions they had activated, and turns off any Desktop inbox poll.
+
 ## Checking and changing a setup deploy
 
 - **`agentmesh doctor --dir <workspace>`** prints a ✓ or ✗ line per check, with what to do for
@@ -430,7 +447,8 @@ version through its workspace instead ([above](#checking-and-changing-a-setup-de
     The hub refuses `session.hello` from older plugins, and their other calls with the same
     update instruction. On start the hub deletes the old `{P}_DELIVERY` stream; anything still
     queued there is not pushed, but it stays in the hub database and members read it with `inbox`.
-    Each session must then run `/agentmesh:activate` to receive messages.
+    A session receives messages only once it is activated. Since 0.5.0 that is each member's
+    [mesh window](getting-started.md#your-mesh-window), which activates itself.
     `limits.deliveryRetentionDays` is ignored now and can be dropped from `mesh.yaml`.
   - **To plugin 0.3.0 (delivery classes, FYI ride-along).** The new hub refuses plugins older than
     0.3.0, so update the plugins first, then the hub. A 0.3.0 plugin works against a 0.2.x hub

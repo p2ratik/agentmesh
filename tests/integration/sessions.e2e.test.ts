@@ -104,6 +104,26 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('per-session delivery end to end',
     expect(queued.meta.from).toBe('alice-agent');
   }, 60_000);
 
+  it('an inactive session does not consume team work through inbox; an activated session then receives it', async () => {
+    const [alice, idle, later] = await Promise.all([
+      spawn('alice-agent'),
+      spawn('bob-agent'),
+      spawn('bob-agent'),
+    ]);
+    const threadId = threadOf(
+      await alice.call('ask', { to: 'bob-agent', text: 'Is the 409 path covered?' }),
+    );
+    const out = await idle.call('inbox', {});
+    expect(out).toContain('1 team thread(s) are waiting for an active session of this agent');
+    expect(out).not.toContain('Is the 409 path covered?');
+    expect(out).not.toContain('Inbox zero');
+    // Nothing was consumed: a second read still counts it.
+    expect(await idle.call('inbox', {})).toContain('1 team thread(s) are waiting');
+    await activate(later, 'web client');
+    const asked = await later.waitFor((e) => e.meta.thread_id === threadId);
+    expect(asked.content).toBe('│ Is the 409 path covered?');
+  }, 60_000);
+
   it('pre-0.3.0 plugins are told to update', async () => {
     const nc = await connectBus({
       servers: [NATS],

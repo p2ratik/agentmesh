@@ -43,6 +43,7 @@ export function toSummary(row: SessionRow, tasks: string[]): SessionSummary {
     repo: row.repo,
     branch: row.branch,
     activeSince: row.activated_at ?? row.created_at,
+    meshWindow: row.mesh_window === 1,
     tasks,
   };
 }
@@ -56,5 +57,6 @@ export function toRouteSession(row: SessionRow): RouteSession {
     delivery: row.delivery,
     repo: row.repo,
     activatedAt: row.activated_at,
+    meshWindow: row.mesh_window === 1,
   };
 }

@@ -1,6 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { WindowPolicy } from '@agentmesh/common/window';
 import type { RpcResult } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import { buildInstructions, MAX_INSTRUCTIONS } from './instructions';
+import { windowRules } from './window/rules';
+
+const POLICY: WindowPolicy = {
+  version: 1,
+  agentId: 'bob-agent',
+  token: 'a'.repeat(32),
+  ownBranchPrefix: null,
+  integrationBranch: 'agents',
+  testCommands: [],
+};
 
 function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'> {
   return {
@@ -43,8 +56,8 @@ describe('buildInstructions', () => {
       problems: [],
     });
     expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
-    expect(text.slice(0, 450)).toContain(
-      '2 mesh thread(s) have unread messages; this session receives mesh work after your human runs /agentmesh:activate.',
+    expect(text.slice(0, 650)).toContain(
+      '2 mesh thread(s) have unread messages; your mesh window takes team work, and this session reads only its own threads.',
     );
     expect(text).toContain('policy truncated');
   });
@@ -61,7 +74,7 @@ describe('buildInstructions', () => {
 
   it('mentions /agentmesh:activate and stays under 4096', () => {
     const line =
-      'This session receives mesh messages only after your human runs /agentmesh:activate; until then the tools still work and answers wait for this session.';
+      'This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session.';
     for (const h of [hello('Escalate crucial decisions to aheen. '.repeat(300), 2), null]) {
       const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
       expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
@@ -89,5 +102,34 @@ describe('buildInstructions', () => {
     });
     expect(text).toContain('Team policy:\nBe kind.');
     expect(text).not.toContain('unread');
+  });
+  it('tells the mesh window it takes team work, within the limit', () => {
+    const base = { agentId: 'bob-agent', problems: [], meshWindow: true };
+    for (const h of [hello('Escalate crucial decisions to aheen. '.repeat(300), 2), null]) {
+      const text = buildInstructions({ ...base, hello: h });
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+      expect(text.split('\n\n')[1]).toBe(
+        "This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only.",
+      );
+    }
+    expect(buildInstructions({ ...base, hello: hello('Be kind.', 2) })).toContain(
+      '2 mesh thread(s) have unread messages; call inbox once this session is active.',
+    );
+  });
+
+  // A reviewer's mesh window diffs the PR's branch with git; only the author can name it.
+  it('has authors submit with the branch, here, in the skill and in the window rules', () => {
+    const long = hello('Escalate crucial decisions to aheen. '.repeat(300), 2);
+    for (const h of [long, null]) {
+      const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
+      expect(text).toContain('then task_act(action: "submit", pr_url, branch).');
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+    }
+    const skill = readFileSync(join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'));
+    expect(skill.toString()).toContain('| PR open | `task_act(submit, pr_url, branch)` |');
+    const policy = { ...POLICY, ownBranchPrefix: 'agent/bob/' };
+    expect(windowRules(policy)).toContain(
+      'Then task_act(action: "submit", pr_url, branch: <branch>)',
+    );
   });
 });

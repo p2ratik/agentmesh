@@ -76,6 +76,7 @@ describe('sessions service', () => {
   it('claims a plan contribution through the plan’s thread', async () => {
     const { sessions, rpc, call, open, owner } = setup();
     const s1 = open('carol-agent');
+    sessions.activate('carol-agent', s1, 'planning');
     const plan = await rpc('plan.start', { topic: 'Billing v2' }, call(null, 'carol-agent'));
     sessions.recordClaims(call(s1, 'carol-agent'), 'plan.contribute', { planId: plan.id }, {});
     expect(owner(internalId('thread', plan.threadId), 'carol-agent')).toBe(s1);
@@ -146,9 +147,11 @@ describe('sessions service', () => {
 
   // Reads follow routing's owner chain: a thread opened from owned work belongs to its owner.
   it("the inbox treats a thread whose parent another session owns as that session's", async () => {
-    const { messaging, thread, open, claim, rpc, call } = setup();
+    const { sessions, messaging, thread, open, claim, rpc, call } = setup();
     const parent = thread('bob-agent', ['alice-agent']);
     const [s1, s2] = [open(), open()];
+    sessions.activate('alice-agent', s1, 'one');
+    sessions.activate('alice-agent', s2, 'two');
     claim(s1, parent);
     const child = messaging.createThread({
       kind: 'conversation',
@@ -204,7 +207,6 @@ describe('sessions service', () => {
       actor,
     );
     const taskThread = internalId('thread', task.threadId);
-    claim(s2, taskThread, 'task.create');
     const listed = () => presence.peers('agent').find((p) => p.id === 'alice-agent')?.sessions;
     expect(listed()).toEqual([]);
 
@@ -212,6 +214,7 @@ describe('sessions service', () => {
     sessions.activate('alice-agent', s2, `checkout redesign ${secret}`);
     expect(sessions.view(s2).description).not.toContain('hunter2');
     sessions.describe('alice-agent', s2, 'checkout redesign');
+    claim(s2, taskThread, 'task.create'); // an active session owns the task it creates
     expect(listed()).toEqual([
       {
         id: s2,
@@ -220,6 +223,7 @@ describe('sessions service', () => {
         repo: null,
         branch: null,
         activeSince: clock.now().toISOString(),
+        meshWindow: false,
         tasks: [task.id],
       },
     ]);

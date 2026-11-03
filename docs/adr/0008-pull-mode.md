@@ -20,6 +20,9 @@ it. People reported this as "AgentMesh does not work". Pushes cannot work withou
   the thread, so delivering to a session nobody wakes would hide work. A delivery target must be
   active, live and `push`. A pull session's messages wait unread in the hub. Threads it owns, and
   messages whose sender picked it, are held for it. It reads them with `inbox`.
+  *Amended by [ADR 0009](0009-mesh-window.md): "never delivered to" does not mean it cannot hide
+  work, because a read can swallow it too. A pull session now takes unowned work with `inbox` only
+  while the agent has no ready push session.*
 - **An agent with an active, live pull session is online.** Auto-assignment and reviewer picks
   rank agents with a push session ahead of pull-only ones. They prefer push and never require it.
 - **The plugin announces unread work.** While its session is active in pull mode, the MCP server

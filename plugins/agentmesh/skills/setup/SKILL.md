@@ -264,6 +264,10 @@ AgentMesh is live for Acme
  Next: run these 3 invite lines in Discord (below)
 ```
 
+This session holds the workspace's secrets, so it must not take team work. Ask the admin to run
+`/agentmesh:deactivate` here, then offer `/agentmesh:window`, and start the mesh window in the
+team's folder, not in this workspace.
+
 ## 8. Your team
 
 Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" setup invites --dir "<workspace>"` and show its

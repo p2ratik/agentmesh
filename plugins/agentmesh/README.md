@@ -4,8 +4,12 @@ Connects your local Claude Code session to your team's AgentMesh. Teammates' age
 Discord) can ask you questions, assign tasks, request reviews and invite you to planning sessions;
 their messages arrive inside your running session as `<channel source="plugin:agentmesh:mesh">`
 events. It ships as bundled files run with `node`, so there is nothing else to install:
-`dist/server.js` (the MCP server) and `dist/cli.js` (the `agentmesh` CLI that `/agentmesh:setup`
-runs).
+`dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI that `/agentmesh:setup` and
+`/agentmesh:window` run), `dist/hook.js` (the prompt and session-start hook) and `dist/guard.js`
+(the mesh window's worktree guard).
+
+It needs Claude Code 2.1.295 or later and `node` on PATH: Claude Code runs the hooks with plain
+`node`.
 
 ## Install
 
@@ -50,6 +54,7 @@ If your team uses invites (`/mesh invite` in Discord), leave every option empty:
 3. Claude shows which hub the invite points at. Confirm it, and the plugin generates your key on
    this laptop, enrolls, writes `~/.agentmesh/agent.json` and switches to the mesh tools in the
    same session.
+4. Set up your [mesh window](#your-mesh-window) with `/agentmesh:window`.
 
 From a terminal instead (nothing goes through the model):
 
@@ -105,26 +110,149 @@ The `UserPromptSubmit` / `SessionStart` hook (`dist/hook.js`) reads the files un
 old for the project. The file is removed on deactivate and on exit. Without the hook, a pull
 session still works: ask Claude to call `inbox`.
 
-## Activate a session
+## Your mesh window
 
-Every session starts inactive: the tools work, but nothing is pushed to it, and teammates do not
-see it. Run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
-a test message with a code to the session over NATS, and the plugin pushes it into Claude Code;
-Claude reads it and confirms with the code and a one-line description of what the session is
-working on. If no test message arrives, the session was started without the channel flag: Claude
-activates it pull-only instead ([Run](#run)), and you can restart it with the command above for
-instant pushes. If `activate` says the hub could not reach the session, try
-again in a few seconds. If it keeps failing, the NATS permissions predate 0.2.0: ask your mesh
-admin, or restart Claude Code if the hub uses auth callout.
+Team work (tasks, reviews and teammates' questions) goes to one session per teammate, the **mesh
+window**. Every other session is private.
+
+**Set it up once** with `/agentmesh:window`; `/agentmesh:join` and `/agentmesh:setup` offer it.
+Claude asks for your team's folder and the exact test commands, and the bundled CLI
+(`agentmesh window init`) writes the launcher, its settings and its policy into `~/.agentmesh/`
+([files](#settings-and-files)). Run it again to change them; the window keeps its token. With
+`CLAUDE_CONFIG_DIR` set (an absolute path), the window starts in that Claude account; without it,
+the launcher clears one the terminal has. `window init` prints which account it uses.
+
+**Start it each day** in a terminal, in the folder that holds your team's repos:
+
+```bash
+claude-mesh                        # in the current folder
+claude-mesh "/home/alice/code/acme"    # or in the folder it names, from anywhere
+```
+
+`claude-mesh` only runs the launcher. On Windows it works in cmd, PowerShell and Git Bash; in
+PowerShell, type a bare `claude-mesh` inside the folder, because PowerShell passes a folder
+argument without spaces to cmd unquoted, and a name with `&` or `^` would misbehave.
+
+`window init` writes it next to `claude`, whose folder is on PATH already, when that folder is
+really under your home folder (links resolved) and holds nothing named `claude-mesh` that it
+didn't write. On Windows that is `claude-mesh.cmd` plus a `claude-mesh` sh script for Git Bash,
+which enters the folder itself. Otherwise it writes it to `~/.agentmesh/bin` and prints a line
+telling you to add that folder to your PATH; it never changes PATH itself. It also warns, naming
+the file, when someone else's `claude-mesh` comes first on PATH. Until typing `claude-mesh`
+reaches one of its own, use the line it prints:
+
+```bash
+~/.agentmesh/mesh-window "/home/alice/code/acme"
+```
+
+On Windows that is three lines:
+- PowerShell gets the launcher `mesh-window.cmd`, with its absolute folder (a `~` in the folder
+  doesn't work in PowerShell).
+- Git Bash gets the sh `claude-mesh` by its path, because Git Bash can't pass a quoted folder to a
+  `.cmd` whose own path has a space.
+- cmd gets the launcher by `%USERPROFILE%`, since cmd doesn't know `~`.
+
+```powershell
+~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell
+```
+
+```bash
+~/.agentmesh/bin/claude-mesh "C:\code\acme"    # Git Bash
+```
+
+```bat
+"%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
+```
+
+The Windows launcher and `claude-mesh.cmd` write paths under your user folder as `%USERPROFILE%\…`,
+so a non-ASCII user folder works; any other non-ASCII path is refused.
+
+The launcher marks the session and starts Claude Code with the channel flag, the name
+`mesh-<agent>`, `--permission-mode default` and its settings file. The window then activates itself
+with `/agentmesh:activate mesh window`; if it doesn't, type that.
+
+**How it works.** Its rules come from the plugin: the `SessionStart` hook adds them at startup,
+after `/clear` and after compaction, and `activate` repeats them.
+- Each task and review gets its own `.claude/worktrees/mesh-*` worktree, made from the checkout
+  `task_get` names (the one git checkout in the folder whose `origin` matches the task's repo).
+- Routine steps run without asking. Tests on a branch the window didn't write, merges, force
+  pushes, other branches and anything off its list ask
+  ([security](../../docs/security.md#the-mesh-window)).
+- It runs commands with the Bash tool; PowerShell commands always ask.
+- After a restart it resumes its in-progress tasks (`task_list`) in their existing worktrees, and
+  reads a thread (`thread`) before answering a reply meant for its earlier session.
+- It never activates with `pull: true`.
+
+**The worktree guard** is `dist/guard.js`, a `PreToolUse` hook on edits, Bash, PowerShell, Monitor,
+`EnterWorktree`, `Agent`, `Workflow` and `activate`.
+- Claude Code runs it in every session, which costs a `node` start (about 50–100 ms) per edit,
+  shell call, subagent or workflow call. Outside the mesh window it does nothing else.
+- In the window it refuses edits outside its mesh worktrees and asks before commands that aren't on
+  its list. `activate` there refuses unless the guard stamped an `activate` call in the last 2
+  minutes (`guard-alive.json`).
+- It fails closed (`onFailure: "block"`, Claude Code 2.1.295+). If `node` or `dist/guard.js` is
+  missing, edits and shell calls are blocked in every session until it is fixed.
+
+**The session-start line.** In any other session, when no session of this account is active with
+pushes (normally that is the mesh window), the hook shows one line at startup: "No AgentMesh mesh
+window is running for this account, so teammates' requests will wait. …". Set `AGENTMESH_MESH_WINDOW_HINT=off` in the `env` of your Claude Code
+`settings.json` to hide it.
+
+## Other sessions
+
+Every other session starts inactive: the tools work, but nothing is pushed to it, and teammates do
+not see it. It can `ask` a teammate, and the answer waits for it (read it with `thread` or
+`inbox`). The mesh window follows up the tasks a private session hands out.
+
+To make one receive mesh messages anyway, run `/agentmesh:activate` there; Claude warns that team
+work will come to it while no mesh window is running. The hub sends a test message with a code to
+the session over NATS, and the plugin pushes it into Claude Code; Claude reads it and confirms with
+the code and a one-line description of what the session is working on. If no test message arrives,
+the session was started without the channel flag: Claude activates it pull-only instead
+([Run](#run)), and you can restart it with the command above for instant pushes. The mesh window
+never goes pull-only: Claude tries again, then asks you to restart it with `claude-mesh`. If
+`activate` says
+the hub could not reach the session, try again in a few seconds. If it keeps failing, the NATS
+permissions predate 0.2.0: ask your mesh admin, or restart Claude Code if the hub uses auth
+callout.
 
 - `/agentmesh:deactivate` turns the session off again and releases the work it owns; the next
   message about that work goes to another active session.
 - `/agentmesh:take <task or thread>` moves that work to this session. Work belongs to the session
   that first acted on it, and its messages go there until it deactivates or closes, or you take
   the work. `inbox` lists the unread threads your other sessions own, with their session ids.
+  An inactive session's `inbox` reads only the threads it owns; other team work is only counted
+  ("N team thread(s) are waiting…") until a session is activated.
 
 The slash commands are user-only. Claude updates the description with `describe_session` when the
 session's focus changes.
+
+## Settings and files
+
+The plugin options are in [Configure by hand](#configure-by-hand). Environment knobs go in the
+`env` of your Claude Code `settings.json`, or the shell that starts Claude Code:
+
+| Variable | Meaning |
+| --- | --- |
+| `AGENTMESH_MESH_WINDOW` | Marks the mesh window with the token from `mesh-window.json`. Only the launcher and its settings file set it; never set it by hand. Any value turns the guard on, and only the matching token makes the session your mesh window. |
+| `AGENTMESH_MESH_WINDOW_HINT` | `off` hides the session-start line about a missing mesh window. |
+| `AGENTMESH_LOG_FILE` | A file for the plugin's own log. |
+| `AGENTMESH_HEARTBEAT_SECONDS` | The presence heartbeat, default 20, at least 5. |
+
+Files in `~/.agentmesh/`:
+
+| File | Written by | Holds |
+| --- | --- | --- |
+| `agent.json` and your `.nk` key | `/agentmesh:join`, `setup admin` or `agent-setup --write` | Your agent's settings and its key |
+| `mesh-window.json` | `window init` | The window's policy: agent, token, own-branch prefix, integration branch, test commands (mode 600) |
+| `mesh-window.settings.json` | `window init` | The settings file the launcher passes with `--settings`: the marker, the git environment and the allow rules (mode 600) |
+| `mesh-window` (`mesh-window.cmd` on Windows) | `window init` | The launcher (mode 700) |
+| `empty-git-hooks/` | `window init` | An empty folder; the window's git uses it as `core.hooksPath` |
+| `bin/claude-mesh` (plus `claude-mesh.cmd` on Windows) | `window init` | `claude-mesh`, only when it can't go next to `claude` (mode 755); add `bin/` to your PATH |
+
+State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`: `pull-…json` for a pull
+session ([Run](#run)), a `push-…json` heartbeat from each active push session (the session-start
+line checks it), and `guard-alive.json`, the guard's stamp for `activate`.
 
 ## FYI (status items)
 
@@ -161,19 +289,30 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 ## Troubleshooting
 
 - **Nothing arrives**: the session must be started with the channel flag above and activated
-  (`/agentmesh:activate`); without the flag Claude Code drops channel events silently. Ask Claude
-  to call `inbox` — the hub keeps everything. In Claude Desktop nothing is ever pushed: activate
+  (`/agentmesh:activate`; the mesh window launcher does both); without the flag Claude Code drops
+  channel events silently. Ask Claude
+  to call `inbox` — the hub keeps everything (an inactive session's `inbox` only counts team work and reads just its own threads). In Claude Desktop nothing is ever pushed: activate
   it pull-only, and new work is announced on each prompt.
 - **"hub is unreachable"**: check Tailscale and `nats_url`; the plugin reconnects by itself.
 - **"This session isn't registered with the hub"**: the plugin is older than 0.3.0. Run
   `claude plugin update agentmesh@agentmesh` and restart Claude Code.
 - **"not configured"**: set the options in `/plugin` or write `~/.agentmesh/agent.json`.
+- **Edits and shell calls are blocked in every session**: the guard couldn't start. Check that
+  `node` is on PATH and that the plugin's `dist/guard.js` exists (update the plugin).
+- **The mesh window won't activate**:
+  - "The mesh window's worktree guard did not run for this call…": hooks are off
+    (`disableAllHooks`) or `node` isn't on PATH.
+  - "AGENTMESH_MESH_WINDOW is set, but it doesn't match…": start the window with `claude-mesh`, or
+    run `/agentmesh:window` again.
+- **`claude-mesh` not found after switching Node versions**: if `claude` lives in a
+  version-managed folder (nvm and the like), `claude-mesh` went there too; re-run
+  `/agentmesh:window` after switching versions.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set
   `AGENTMESH_LOG_FILE` for the plugin's own log.
 
 ## Develop
 
 ```bash
-pnpm --filter @agentmesh/plugin build      # dist/server.js and dist/cli.js
+pnpm --filter @agentmesh/plugin build      # dist/server.js, cli.js, hook.js and guard.js
 node plugins/agentmesh/scripts/smoke.mjs   # MCP handshake + tools, no hub needed
 ```

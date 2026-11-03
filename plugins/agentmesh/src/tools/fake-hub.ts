@@ -1,5 +1,6 @@
 import type { HubClient } from '../hub';
 import { FyiBuffer } from '../inbox/fyi';
+import { NO_WINDOW } from '../window/context';
 import { newActivationState } from './activation';
 import type { ToolDeps } from './types';
 
@@ -27,6 +28,7 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
     activation: newActivationState(),
     fyi: new FyiBuffer(),
     listening: Promise.resolve(),
+    window: NO_WINDOW,
   };
   return { deps, calls };
 }

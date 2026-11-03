@@ -10,11 +10,12 @@ import type { HubContext } from '../../context';
 import type {
   CallContext,
   MessagingService,
+  OpenInput,
   SessionRecord,
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { claimTargets } from './claims';
+import { claimsWhenInactive, claimTargets } from './claims';
 import { evictStalest, expireSessions, releaseAndClose } from './liveness';
 import { toRecord, toRouteSession, toSummary, toView } from './mappers';
 import { claimedThread, claimThread, reclaimReleased } from './ownership';
@@ -44,10 +45,7 @@ export class SessionsServiceImpl implements SessionsService {
   }
 
   /** Reuses an open previous session; after a closed one, reclaims what nobody took since. */
-  open(
-    agentId: string,
-    input: { clientVersion: string; repo?: string; branch?: string; previousSessionId?: string },
-  ): { session: SessionRecord; reclaimed: number[] } {
+  open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] } {
     const at = this.#now();
     const git = { repo: input.repo ?? null, branch: input.branch ?? null };
     const result = this.#ctx.db.transaction(() => {
@@ -55,12 +53,15 @@ export class SessionsServiceImpl implements SessionsService {
       const mine = previous?.agent_id === agentId ? previous : undefined;
       if (mine && mine.liveness !== 'closed') {
         this.repo.touch(mine.id, at, git);
+        // A window started before the hub upgrade (migration 007) says so on its next hello.
+        if (input.meshWindow) this.repo.markMeshWindow(mine.id);
         if (this.repo.markLive(mine.id)) this.#ctx.outbox.kick();
         return { session: this.verify(agentId, mine.id), reclaimed: [] };
       }
       const id = newSessionId();
       const evicted = evictStalest(this.#ctx, this.repo, agentId, at);
-      this.repo.insert({ id, agentId, clientVersion: input.clientVersion, ...git, at });
+      const { clientVersion, meshWindow } = input;
+      this.repo.insert({ id, agentId, clientVersion, meshWindow, ...git, at });
       const reclaimed = mine ? reclaimReleased(this.repo, mine, id, at) : [];
       return { session: this.verify(agentId, id), reclaimed, evicted };
     });
@@ -193,9 +194,12 @@ export class SessionsServiceImpl implements SessionsService {
   recordClaims(call: CallContext, method: RpcMethodName, params: unknown, result: unknown): void {
     const { session: sessionId } = call;
     if (call.caller.kind !== 'agent' || !sessionId) return;
+    const inactive = this.repo.get(sessionId)?.active !== 1;
     for (const target of claimTargets(method, params, result)) {
       const threadId = claimedThread(target, this.#deps);
       if (threadId === null) continue;
+      if (inactive && !claimsWhenInactive(method, this.#deps.messaging.thread(threadId).kind))
+        continue;
       const claim = { agentId: call.caller.id, sessionId, threadId, at: this.#now() };
       const note = claimThread(this.repo, claim);
       if (note) call.notes.push(note);

@@ -52,7 +52,9 @@ describe('renderJoinNote', () => {
     expect(note).toContain('`/agentmesh:join` and confirm that the hub is `mesh.acme.dev:4222`');
     expect(note).toContain('7. Say yes when Claude offers automatic plugin updates');
     expect(note).toContain('turn them on later with `/agentmesh:autoupdate`');
-    expect(note).toContain('8. Run `/agentmesh:activate`.');
+    expect(note).toContain(
+      "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with `claude-mesh` (`window init` says when a folder must go on PATH first).",
+    );
     expect(note.trimEnd().endsWith('Install first: codes expire 24 hours after the invite.')).toBe(
       true,
     );

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CallContext, ThreadOwner } from '../../contracts';
 import { createServiceHarness } from '../../testing/services';
+import { peekInbox } from './inbox';
 import type { MessagingServiceImpl } from './messaging.service';
 import { threadHandlers } from './thread.handlers';
 
 describe('read state with sessions', () => {
-  const setup = () => {
-    const h = createServiceHarness();
+  const setup = (mayTakeUnowned: () => boolean = () => true) => {
+    const h = createServiceHarness(undefined, { mayTakeUnowned });
     const owners = new Map<number, ThreadOwner>();
     h.messaging.setOwnerReader((threadId) => owners.get(threadId) ?? null);
     const handlers = threadHandlers(h.messaging as MessagingServiceImpl);
@@ -30,6 +31,39 @@ describe('read state with sessions', () => {
     return { h, owners, handlers, call, thread, ask };
   };
 
+  it("an inactive session's inbox leaves unowned threads unread and counts them as waiting", async () => {
+    const { h, handlers, call, thread, ask } = setup(() => false);
+    for (let i = 0; i < 3; i++) ask(thread().id, 'hi');
+    const c = call('ses_1');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, c);
+    expect(inbox.threads).toEqual([]);
+    expect(inbox.waiting).toBe(3);
+    expect(c.notes).toEqual([
+      "3 team thread(s) are waiting for an active session of this agent; this session can't take them right now.",
+    ]);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(3);
+  });
+
+  it('an inactive session still reads the threads it owns', async () => {
+    const { h, owners, handlers, call, thread, ask } = setup(() => false);
+    const t = thread();
+    ask(t.id, 'hi');
+    owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
+    const c = call('ses_1');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, c);
+    expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
+    expect(c.notes).toEqual([]);
+  });
+
+  it('peek counts only what this session may take and reports the rest as waiting', () => {
+    const { h, owners, thread, ask } = setup(() => false);
+    const [mine, a, b] = [thread(), thread(), thread()] as const;
+    for (const t of [mine, a, b]) ask(t.id, 'hi');
+    owners.set(mine.id, { sessionId: 'ses_1', liveness: 'live' });
+    const peeked = peekInbox(h.messaging as MessagingServiceImpl, 'bob-agent', 'ses_1');
+    expect([peeked.threads, peeked.waiting]).toEqual([1, 2]);
+  });
+
   it('a reply does not mark earlier unseen messages read', () => {
     const { h, thread, ask } = setup();
     const t = thread();
@@ -49,6 +83,73 @@ describe('read state with sessions', () => {
     await handlers['thread.get'](params, call('ses_2'));
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
     await handlers['thread.get'](params, call('ses_1'));
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('a session that does not own an unowned thread only looks at it', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    await handlers['thread.get'](
+      { threadId: h.messaging.summary(t.id).id, limit: 30 },
+      call('ses_2'),
+    );
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+  });
+
+  it('a caller without a session still marks what it reads', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, call(null));
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('while paused, inbox and thread only look', async () => {
+    const { h, owners, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    owners.set(t.id, { sessionId: 'ses_1', liveness: 'live' });
+    h.control.pause('aheen', null);
+    const pausedCall = call('ses_1');
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, pausedCall);
+    expect(inbox.paused).toBe(true);
+    expect(pausedCall.notes).toEqual(['The mesh is paused: nothing was marked read.']);
+    expect(inbox.threads.map((x) => x.thread.id)).toEqual([h.messaging.summary(t.id).id]);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    const looking = call('ses_1');
+    await handlers['thread.get']({ threadId: h.messaging.summary(t.id).id, limit: 30 }, looking);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(1);
+    expect(looking.notes).toContain('The mesh is paused: nothing was marked read.');
+    h.control.resume('aheen');
+    const after = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call('ses_1'));
+    expect(after.paused).toBe(false);
+    expect(after.threads).toHaveLength(1);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('while paused, an inbox read without a session still marks what it reads', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    h.control.pause('aheen', null);
+    const inbox = await handlers['inbox.get']({ limit: 20, perThread: 5 }, call(null));
+    expect(inbox.paused).toBe(false);
+    expect(inbox.threads).toHaveLength(1);
+    expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
+  });
+
+  it('while paused, a caller without a session still marks what it reads', async () => {
+    const { h, handlers, call, thread, ask } = setup();
+    const t = thread();
+    ask(t.id, 'one');
+    h.control.pause('aheen', null);
+    const sessionless = call(null);
+    await handlers['thread.get'](
+      { threadId: h.messaging.summary(t.id).id, limit: 30 },
+      sessionless,
+    );
+    expect(sessionless.notes).toEqual([]);
     expect(h.messaging.unreadThreadCount('bob-agent')).toBe(0);
   });
 

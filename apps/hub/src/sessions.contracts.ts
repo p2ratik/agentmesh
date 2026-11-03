@@ -29,12 +29,19 @@ export interface ThreadOwner {
   liveness: 'live' | 'away';
 }
 
+/** What `session.hello` hands `open`. */
+export interface OpenInput {
+  clientVersion: string;
+  repo?: string;
+  branch?: string;
+  previousSessionId?: string;
+  /** Set at insert only: a process keeps its marker. */
+  meshWindow?: boolean;
+}
+
 /** One Claude Code session per plugin process; each thread is owned per agent by one session. */
 export interface SessionsService {
-  open(
-    agentId: string,
-    input: { clientVersion: string; repo?: string; branch?: string; previousSessionId?: string },
-  ): { session: SessionRecord; reclaimed: number[] };
+  open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] };
   /** The agent's non-closed session, else not_found "Unknown or closed session <id>; reconnect". */
   verify(agentId: string, sessionId: string): SessionRecord;
   /** `pull`: active, but never delivered to; it reads with `inbox` (ADR 0008). Default push. */

@@ -1,6 +1,6 @@
 import { RPC_METHODS, type RpcMethodName } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
-import { claimTargets, isClaiming } from './claims';
+import { claimsWhenInactive, claimTargets, isClaiming } from './claims';
 
 describe('claimTargets', () => {
   it('claims the thread of a sent message', () => {
@@ -26,7 +26,26 @@ describe('claimTargets', () => {
     expect(claimTargets('thread.get', {}, { threadId: 'thr-1' })).toEqual([]);
   });
 
+  it('claims the action threads an inbox read returns, not the FYI ones', () => {
+    const result = {
+      threads: [
+        { thread: { id: 'thr-1' }, fyi: false },
+        { thread: { id: 'thr-2' }, fyi: true },
+      ],
+      paused: false,
+    };
+    expect(claimTargets('inbox.get', {}, result)).toEqual([{ kind: 'thread', key: 'thr-1' }]);
+  });
+
+  it('claims nothing for a paused inbox read', () => {
+    const result = { threads: [{ thread: { id: 'thr-1' }, fyi: false }], paused: true };
+    expect(claimTargets('inbox.get', {}, result)).toEqual([]);
+  });
+
   it('claims nothing for malformed input', () => {
+    expect(claimTargets('inbox.get', {}, { threads: 'x' })).toEqual([]);
+    expect(claimTargets('inbox.get', {}, { threads: [{ fyi: false }] })).toEqual([]);
+    expect(claimTargets('inbox.get', {}, null)).toEqual([]);
     expect(claimTargets('message.send', {}, { seq: 1 })).toEqual([]);
     expect(claimTargets('message.send', null, null)).toEqual([]);
     expect(claimTargets('message.send', undefined, 'x')).toEqual([]);
@@ -36,8 +55,30 @@ describe('claimTargets', () => {
 
   it('isClaiming covers exactly the methods that can claim', () => {
     for (const method of Object.keys(RPC_METHODS) as RpcMethodName[]) {
-      const claims = claimTargets(method, { planId: 'plan-1' }, { threadId: 'thr-1' });
+      const claims = claimTargets(
+        method,
+        { planId: 'plan-1' },
+        { threadId: 'thr-1', threads: [{ thread: { id: 'thr-1' }, fyi: false }] },
+      );
       expect(isClaiming(method), method).toBe(claims.length > 0);
+    }
+  });
+});
+
+describe('claimsWhenInactive', () => {
+  const kinds = ['conversation', 'task', 'planning', 'escalation', 'event'] as const;
+  it('lets an inactive session claim only conversations it sends in', () => {
+    for (const m of ['message.send', 'escalate'] as const) {
+      expect(claimsWhenInactive(m, 'conversation')).toBe(true);
+      expect(claimsWhenInactive(m, 'escalation')).toBe(true);
+    }
+    for (const k of ['task', 'planning', 'event'] as const) {
+      expect(claimsWhenInactive('message.send', k)).toBe(false);
+      expect(claimsWhenInactive('escalate', k)).toBe(false);
+    }
+    for (const m of Object.keys(RPC_METHODS) as RpcMethodName[]) {
+      if (m === 'message.send' || m === 'escalate') continue;
+      for (const k of kinds) expect(claimsWhenInactive(m, k)).toBe(false);
     }
   });
 });

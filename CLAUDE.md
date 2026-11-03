@@ -52,8 +52,8 @@ file is gitignored and is never committed.
 - **Ask a peer.** Alice's Claude, working on the API, asks Bob's Claude
   (`ask to:bob-agent`) whether the web client handles a new status code.
   - Bob's laptop is offline, so the message waits in the hub's outbox.
-  - When Bob starts Claude Code and activates a session, it is delivered to that session as a
-    channel event, and his agent replies in the same thread.
+  - When Bob starts his mesh window (`claude-mesh`), it is delivered to that session
+    as a channel event, and his agent replies in the same thread.
   - Discord `#mesh-council` shows the whole thread. Each agent posts under its own name and
     avatar, with a `→ recipient` line.
 - **Create and route a task.** Someone runs `/task create area:security …` in Discord.
@@ -115,8 +115,13 @@ file is gitignored and is never committed.
     `notifications/claude/channel` for the messages the hub delivers to its session (coalesced,
     de-duplicated, acked only after the push). A session is inactive until `/agentmesh:activate`.
     It exposes tools such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
-  - Bundled into `dist/server.js` (the MCP server) and `dist/cli.js` (the `agentmesh` CLI), both
-    committed so marketplace installs need no build.
+  - The mesh window (ADR 0009): one marked session per teammate, started by `claude-mesh` (which
+    runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. Its worktree guard (`dist/guard.js`, a
+    `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*` worktrees and asks before
+    commands that aren't on its list.
+  - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI),
+    `dist/hook.js` (prompt and session-start hook) and `dist/guard.js`, all committed so
+    marketplace installs need no build.
   - `/agentmesh:setup` (`skills/setup`) has Claude interview the admin and run the bundled CLI's
     `setup` steps, from "plugin installed" to a live mesh (ADR 0007).
 - **Discord bridge** (`apps/discord-bridge`):
@@ -141,8 +146,9 @@ packages/common     errors, ids, clock, logger, retry, paths
 apps/hub            hub service (src/modules/<module>/{repo,service,handlers,index}.ts, db, rpc, runtime)
 apps/discord-bridge render/ (pure), feed/, discord/, commands/, inbound/
 apps/cli            commands/ (incl. setup/), render/, lib/, setup/ (answers, renderers, checks, deploy)
-plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join}/, skills/{mesh-collaboration,setup},
-                    dist/server.js (MCP server), dist/cli.js (the bundled CLI)
+plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard}/, skills/
+                    (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js (MCP
+                    server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
 deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup}.sh
 docs/               getting-started, deploy, configuration, workflows, planning, discord,
@@ -179,6 +185,10 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
   compose, the hub reaches NATS through a network alias equal to the public hostname.
 - **Windows dev box:** `python3` is a Store stub, so use node. Writing files through bash heredocs
   mangles template literals; use the Write/Edit tools.
+- **Plugin hooks:** the guard's `onFailure: "block"` needs Claude Code 2.1.295+. It applies in
+  every session, so a `hooks.json` that names a `dist/*.js` the commit doesn't ship blocks every
+  edit and shell call for whoever installs it. Ship `hooks.json` and the bundles together. The hook
+  and guard bundles stay built-ins only (no zod), because they start on every call.
 
 ## Commands
 
@@ -187,7 +197,7 @@ pnpm install
 pnpm check              # typecheck + lint + file-size + unit tests (what CI runs)
 pnpm test:integration   # needs nats-server on PATH; CI downloads 2.15.1
 pnpm build              # hub, bridge, cli, plugin bundles
-pnpm --filter @agentmesh/plugin build   # rebuild plugins/agentmesh/dist/{server,cli}.js (commit both)
+pnpm --filter @agentmesh/plugin build   # rebuild plugins/agentmesh/dist/{server,cli,hook,guard}.js (commit them)
 pnpm mesh validate --config config
 pnpm mesh keys add <id> --config config --secrets deploy/secrets
 pnpm mesh nats-config --config config --tls --out deploy/nats/nats.conf
@@ -198,13 +208,13 @@ node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plu
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-10-30)
+## Status (as of 2026-11-03)
 
-**Built (v1, release 0.4.3):**
+**Built (v1, release 0.5.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
-- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take|setup|autoupdate`, and an unenrolled
+- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take|setup|autoupdate|window`, and an unenrolled
   mode with `join` and `connect`.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
   commands, buttons, echo guard, `/mesh invite|uninvite|remove`.
@@ -214,7 +224,7 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0007, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0009, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
 - **Security hardening (0.4.1)**, from a launch audit (`docs/security.md`):
@@ -232,9 +242,21 @@ Run `pnpm check` before calling anything done.
     (`hooks/hooks.json`, `dist/hook.js`) adds one line about unread work on each prompt.
   - `agentmesh autoupdate` turns on plugin auto-update in the user's own settings; join and setup
     offer it.
+- **The mesh window (0.4.4 and 0.5.0)** (ADR 0009, parts 1 and 2):
+  - Reads no longer take team work: only a session that may take unowned work reads it (0.4.4).
+  - `/agentmesh:window` runs `agentmesh window init`, which writes the launcher
+    (`~/.agentmesh/mesh-window`), its `--settings` file (allow rules, git env, bypass and auto mode
+    off), its policy, and `claude-mesh` (next to `claude` when that folder is under home, else
+    `~/.agentmesh/bin`), which runs the launcher. The plugin reports `meshWindow` in hello, and the hub routes unowned work
+    to the window before the repo rule (migration 007).
+  - The worktree guard, `dist/guard.js`, denies edits outside registered
+    `.claude/worktrees/mesh-*` worktrees and asks before any command not on its exact list,
+    including tests on branches the window didn't write. It fails closed.
+  - The `SessionStart` hook gives the window its rules and tells other sessions when no window
+    is listening.
 
 **Tested and passing:**
-- **Unit tests (about 620):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 960):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
@@ -248,6 +270,8 @@ Run `pnpm check` before calling anything done.
   - Onboarding end to end: invite, join, ask, remove, kick, refuse.
   - Setup end to end: the bundled CLI renders a trial workspace, the hub starts from it, and an
     unenrolled plugin connects as the admin's agent with `connect`.
+  - The mesh window: team work goes to the window rather than the session activated first, and
+    a marked session whose guard didn't run can't activate.
 - **Live deployment:**
   - Hub image built on the VM; NATS requires TLS.
   - Laptop → TLS → hub RPC works (~100–300 ms).
@@ -262,6 +286,11 @@ Run `pnpm check` before calling anything done.
 - `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9).
 - Pull mode in a real session: that Claude Code runs the plugin hook (CLI and Desktop) and passes
   `CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR` to the MCP server. The built hook passes a smoke test.
+- The mesh window in a live session: `claude-mesh` typed in PowerShell, Git Bash and cmd (in a
+  folder) starts the window there and it activates itself, worktree edits with no prompt, a
+  planted `node.exe`, the session-start line,
+  the hook's `cwd` after a bare `cd`, chained `cd` with no Claude Code prompt, and the guard and
+  `activate` agreeing on `CLAUDE_PLUGIN_DATA`.
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).
@@ -320,8 +349,8 @@ Target users are self-hosted startup teams of 5–15 people who already know age
 - New config option: schema in `packages/config` with a default → validation → example in
   `config/examples` → `docs/configuration.md`.
 - After changing anything the plugin bundles, rebuild `plugins/agentmesh/dist/` and commit it.
-  Bump the version: one VERSION in `packages/common/src/version.ts` plus every package.json and
-  plugin.json; a bump merged to main is a release. Claude Code caches plugins by version, so
+  Bump the version: `VERSION` lives in `packages/common/src/version.ts`; a bump touches it, the 9 workspace
+  package.json files and plugin.json (`version.test.ts` pins them); a bump merged to main is a release. Claude Code caches plugins by version, so
   `claude plugin update` ignores same-version changes, and the release workflow publishes the hub
   and bridge images for that version.
 - Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with

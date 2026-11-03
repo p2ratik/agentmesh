@@ -32,13 +32,38 @@ function setup() {
     prefix: 'mesh',
     dir,
     projectDir: '/work/api',
+    meshWindow: false,
     logger: createLogger('test', { level: 'silent', destination: 'stderr' }),
   });
   const file = join(dir, 'pull-mesh-alice-agent-s-aaaaaaaaaaaa.json');
-  return { dir, hub, activation, watcher, calls, file };
+  const beat = join(dir, 'push-mesh-alice-agent-s-aaaaaaaaaaaa.json');
+  return { beat, dir, hub, activation, watcher, calls, file };
 }
 
 describe('PullWatcher', () => {
+  it('an active push session keeps a heartbeat file and drops it when it stops', async () => {
+    const { activation, watcher, calls, beat } = setup();
+    activation.lastDescription = 'api work';
+    await watcher.refresh();
+    expect(calls).toEqual([]);
+    expect(JSON.parse(readFileSync(beat, 'utf8'))).toMatchObject({
+      agentId: 'alice-agent',
+      sessionId: 's-aaaaaaaaaaaa',
+      meshWindow: false,
+    });
+    activation.lastDescription = null;
+    await watcher.refresh();
+    expect(existsSync(beat)).toBe(false);
+  });
+
+  it('writes no heartbeat while it waits for its re-check', async () => {
+    const { activation, watcher, beat } = setup();
+    activation.lastDescription = 'api work';
+    activation.renewedFrom = 'api work';
+    await watcher.refresh();
+    expect(existsSync(beat)).toBe(false);
+  });
+
   it('writes counts and ids only while the session is active in pull mode', async () => {
     const { activation, watcher, calls, file } = setup();
     await watcher.refresh();

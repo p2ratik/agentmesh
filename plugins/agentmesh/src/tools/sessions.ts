@@ -1,16 +1,29 @@
 import { MeshError } from '@agentmesh/common';
+import { RESTART, START_COMMAND } from '@agentmesh/common/window';
 import { z } from 'zod';
-import { defineTool } from './types';
+import { guardAlive } from '../window/guard-stamp';
+import { windowRules } from '../window/rules';
+import { defineTool, ToolRefusal } from './types';
 
 const Description = z.string().min(1).max(200);
 /** How long `activate` waits for the session to listen before asking for the check anyway. */
 const LISTEN_WAIT_MS = 3000;
 
-const RESTART = 'claude --dangerously-load-development-channels plugin:agentmesh@agentmesh';
-
 const CHECK_SENT = `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, this session was started without the channel flag (Claude Desktop cannot pass that flag): call activate with pull: true and the description instead, and tell your human the session is pull-only. For instant pushes they can restart it with ${RESTART}.`;
 
 const PULL_ACTIVE = `Nothing is pushed to this pull-only session: new mesh messages are announced on each prompt, and the inbox tool reads them. Tell your human; for instant pushes, restart the session with ${RESTART}.`;
+
+const NOT_WINDOW =
+  "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
+
+const LAUNCHER = START_COMMAND;
+
+const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
+
+const WINDOW_CHECK_SENT = `Sent a test message to this session. If it arrives, call activate again with its code and a one-line description. If nothing arrives within a few seconds, call activate again with no arguments; if it still doesn't arrive, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}. Never use pull: true here.`;
+
+const GUARD_DOWN =
+  "The mesh window's worktree guard did not run for this call, so this session can't take team work. Check that hooks are on (disableAllHooks) and that node is on PATH, then call activate again.";
 
 const needDescription = () =>
   new MeshError(
@@ -30,8 +43,18 @@ export const sessionTools = [
       pull: z.boolean().optional(),
     }),
     mutating: false,
-    run: async (args, { hub, activation, listening }) => {
+    run: async (args, { hub, activation, listening, window, agentId }) => {
+      // Before any hub call: a marker that does not verify must not take team work.
+      if (window.state === 'marked') {
+        throw new ToolRefusal(
+          `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`,
+        );
+      }
+      const isWindow = window.state === 'verified';
+      // The guard stamps this very call; without it, edits and commands here go unchecked.
+      if (isWindow && !guardAlive(window.dataDir, Date.now())) throw new ToolRefusal(GUARD_DOWN);
       if (args.pull) {
+        if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
         const view = await hub.call('session.activate', {
           mode: 'pull',
@@ -40,7 +63,7 @@ export const sessionTools = [
         activation.lastDescription = view.description ?? args.description;
         activation.renewedFrom = null;
         activation.pull = true;
-        return `This session is active on the mesh as “${activation.lastDescription}”, pull-only. ${PULL_ACTIVE}`;
+        return `This session is active on the mesh as “${activation.lastDescription}”, pull-only. ${PULL_ACTIVE} ${NOT_WINDOW}`;
       }
       if (args.code === undefined) {
         // The hub sends the code over this session's subject; only the push shows it to Claude,
@@ -48,7 +71,7 @@ export const sessionTools = [
         // if that never changes, the hub's failure says why.
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
         await hub.call('session.check', {});
-        return CHECK_SENT;
+        return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
       const view = await hub.call('session.activate', {
@@ -58,7 +81,10 @@ export const sessionTools = [
       activation.lastDescription = view.description ?? args.description;
       activation.renewedFrom = null;
       activation.pull = false;
-      return `This session is active on the mesh as “${activation.lastDescription}”.`;
+      const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
+      return isWindow
+        ? `${active} It is your mesh window.\n\n${windowRules(window.policy)}`
+        : `${active} ${NOT_WINDOW}`;
     },
   }),
   defineTool({
