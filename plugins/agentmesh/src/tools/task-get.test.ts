@@ -65,3 +65,14 @@ describe('task_get in the mesh window', () => {
     expect(await run('acme/web', 'none')).toBe(plain);
   });
 });
+
+describe("the PR's branch, for reviewers who diff it", () => {
+  it('task_act submit and request_review pass it to the hub', async () => {
+    const detail = { ...task('acme/web'), reviewers: ['bob-agent'] };
+    const { deps, calls } = fakeHub({ 'task.act': detail, 'review.request': detail });
+    const branch = 'agent/alice/task-3-fix-it';
+    await callTool('task_act', { task_id: 'task-3', action: 'submit', pr_url: 'u', branch }, deps);
+    await callTool('request_review', { pr_url: 'u', branch }, deps);
+    expect(calls.map((c) => (c.params as { branch?: string }).branch)).toEqual([branch, branch]);
+  });
+});

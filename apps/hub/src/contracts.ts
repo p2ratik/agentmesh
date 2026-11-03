@@ -222,6 +222,8 @@ export interface TaskCreateInput {
   /** Internal task ids. */
   dependsOn: number[];
   baseBranch?: string | undefined;
+  /** The PR's branch (`review.request`). */
+  branch?: string | undefined;
   workflow?: string | undefined;
   parentThreadId?: number | undefined;
   planId?: number | undefined;

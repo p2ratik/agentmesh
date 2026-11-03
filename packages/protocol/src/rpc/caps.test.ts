@@ -53,4 +53,25 @@ describe('RPC params caps', () => {
     expect(hello.safeParse({ ...ok, branch: 'b'.repeat(301) }).success).toBe(false);
     expect(hello.safeParse({ ...ok, previousSessionId: 'x'.repeat(65) }).success).toBe(false);
   });
+
+  it('takes every branch and repo a caller names as a one-line GitRef', () => {
+    const act = RPC_METHODS['task.act'].params;
+    const review = RPC_METHODS['review.request'].params;
+    const send = RPC_METHODS['message.send'].params;
+    const cases: Array<[z.ZodType, Record<string, unknown>, string]> = [
+      [act, { taskId: 'task-1', action: 'submit' }, 'branch'],
+      [review, { prUrl: 'https://x/pr/1' }, 'branch'],
+      [send, { kind: 'ask', body: 'hi', to: ['bob-agent'] }, 'repo'],
+    ];
+    for (const [schema, base, field] of cases) {
+      const ok = (v: string) => schema.safeParse({ ...base, [field]: v }).success;
+      expect([field, ok('agent/bob/task-1-x'), ok('a'.repeat(300))]).toEqual([field, true, true]);
+      expect([field, ok('a\nb'), ok('a b'), ok('a'.repeat(301))]).toEqual([
+        field,
+        false,
+        false,
+        false,
+      ]);
+    }
+  });
 });

@@ -1,6 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { WindowPolicy } from '@agentmesh/common/window';
 import type { RpcResult } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import { buildInstructions, MAX_INSTRUCTIONS } from './instructions';
+import { windowRules } from './window/rules';
+
+const POLICY: WindowPolicy = {
+  version: 1,
+  agentId: 'bob-agent',
+  token: 'a'.repeat(32),
+  ownBranchPrefix: null,
+  integrationBranch: 'agents',
+  testCommands: [],
+};
 
 function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'> {
   return {
@@ -101,6 +114,22 @@ describe('buildInstructions', () => {
     }
     expect(buildInstructions({ ...base, hello: hello('Be kind.', 2) })).toContain(
       '2 mesh thread(s) have unread messages; call inbox once this session is active.',
+    );
+  });
+
+  // A reviewer's mesh window diffs the PR's branch with git; only the author can name it.
+  it('has authors submit with the branch, here, in the skill and in the window rules', () => {
+    const long = hello('Escalate crucial decisions to aheen. '.repeat(300), 2);
+    for (const h of [long, null]) {
+      const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
+      expect(text).toContain('then task_act(action: "submit", pr_url, branch).');
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+    }
+    const skill = readFileSync(join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'));
+    expect(skill.toString()).toContain('| PR open | `task_act(submit, pr_url, branch)` |');
+    const policy = { ...POLICY, ownBranchPrefix: 'agent/bob/' };
+    expect(windowRules(policy)).toContain(
+      'Then task_act(action: "submit", pr_url, branch: <branch>)',
     );
   });
 });

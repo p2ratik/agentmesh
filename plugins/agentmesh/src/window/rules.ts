@@ -16,7 +16,7 @@ function ownBranchLines(policy: WindowPolicy | null): string[] {
     tests.length > 0
       ? `- In a worktree on your own branch (${prefix}…), run without asking: ${tests.join(', ')} (as cd "<worktree>" && <test>, exactly as written). Any other test command asks.`
       : '- Every test run asks your human: the window lists no test commands.',
-    `- From your own task worktree these run without asking, each as cd "<worktree>" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base ${policy.integrationBranch} --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask.`,
+    `- From your own task worktree these run without asking, each as cd "<worktree>" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base ${policy.integrationBranch} --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask. Then task_act(action: "submit", pr_url, branch: <branch>), so reviewers can diff it.`,
   ];
 }
 
@@ -38,7 +38,7 @@ export function windowRules(policy: WindowPolicy | null): string {
     "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
     `- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/${base}. Edits anywhere else are refused.`,
     // Full ref spellings: a fetched tag named origin/<branch> outranks the remote branch.
-    `- Reviews: read the diff${freely}: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn't yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human's approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.`,
+    `- Reviews: read the diff${freely}: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. <branch> is the review request's Branch: line (task_get's branch:), <base> task_get's base: or else ${base}; if no branch is named, ask the author in the task thread (gh pr diff asks here). Before you run the tests of a branch that isn't yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human's approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.`,
     '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
     ...ownBranchLines(policy),
     '- Merging and anything not named here ask your human. Escalate before anything risky.',

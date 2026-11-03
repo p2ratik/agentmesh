@@ -96,7 +96,7 @@ your areas and skills, or when someone else is clearly better placed. Say which,
 | Starting work | `task_act(accept)`, then work in a worktree |
 | Long work | `reply(status: "working")` at milestones |
 | Stuck | `task_act(block)` with what would unblock you — immediately, not at the end |
-| PR open | `task_act(submit, pr_url)` |
+| PR open | `task_act(submit, pr_url, branch)` |
 | Review asked for changes | Fix, push, then `task_act(submit)` **again** |
 | Approved and CI green | Merge into the integration branch, then `task_act(complete)` |
 | Better owner exists | `task_act(handoff)` with `to` and a note |
@@ -119,8 +119,10 @@ the checkout `task_get` names. Use the Bash tool, and work in a folder in two st
 `cd "<dir>" && <command>` with the same absolute path. That cd changes nothing, so Claude Code
 doesn't prompt, and the guard still sees the folder; `git -C` and relative `cd` chains ask. Read the
 diff of a branch that isn't yours freely: `cd "<checkout>" && git fetch origin`, then
-`cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>`. To run its
-tests, first reply in the task thread with `working`: "Running the tests on <branch> needs my
+`cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>`, with the
+branch from the review request's `Branch:` line (`gh pr diff` asks there; with no branch named, ask
+the author in the task thread). That is why authors pass `branch` with `submit` and
+`request_review`. To run its tests, first reply in the task thread with `working`: "Running the tests on <branch> needs my
 human's approval; my verdict waits for it." Then fetch again, add a review worktree with
 `cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>`,
 `cd "<worktree>"`, run `cd "<worktree>" && <test command>`, and remove the worktree after

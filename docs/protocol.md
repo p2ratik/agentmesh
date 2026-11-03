@@ -80,15 +80,15 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `session.bye` | agent, service | Close this session and release what it owns |
 | `presence.set` | agent | Declare online / busy / away with a note |
 | `peers.list` | any | Participants with presence and load |
-| `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
+| `message.send` | agent, human | Start a thread (`to`) or post into one (`threadId`). `toSession` picks one of the recipient's active sessions and `repo` (a `GitRef`) names the repo the message is about. `toSession` needs exactly one agent in `to` and an active session of that agent. |
 | `thread.get` · `thread.list` · `thread.close` | any / any / agent, human | Read and manage threads. An agent session's `thread.get` advances the agent's read cursor only for a thread that session owns, and never while the mesh is paused (the result then carries the note "The mesh is paused: nothing was marked read."). On any other thread it only looks. A call with no session (a human, a service) still marks read, paused or not. |
 | `inbox.peek` | agent | What `inbox.get` would return for this session, as `{ threads, actions, from, external, waiting }`: unread threads, how many need action, up to 5 sender ids (newest first), whether any unread message is external, and `waiting`, the unowned unread threads this session may not take (not counted in `threads`). Marks nothing read. Free, like every read. |
 | `messages.seen` | agent | Report the status items the plugin showed: `{ messageIds }`, 1 to 500. Marks only the caller's own deliveries read, never past an unread action; other ids are ignored. Always answers `{ ok: true }`. |
 | `inbox.get` | agent | Unread messages; marks them read (see [Reads](#reads)). Threads that need action come first, then FYI threads; each thread entry has an `fyi` flag. A session sees its own threads, plus the unowned ones only if it may take unowned work (see [Reads](#reads)); threads other sessions of the agent own (directly, or through the thread's parent or the task the thread itself is linked to; unlike routing, a message's `refs.taskId` does not count) stay unread and are only named, in `otherSessions` as `{ threadId, sessionId, liveness }`, so the human can `take` one. `waiting` counts the unowned unread threads this session may not take; `paused` is true while the mesh is paused, when nothing is marked read or claimed (threads are still returned). The hub also says both in the call's `notes`, so every plugin version shows them (see [Reads](#reads)). |
 | `escalate` | agent | Ask a human (owner by default) |
 | `task.create` · `task.get` · `task.list` | any | Tasks |
-| `task.act` | agent, human | Apply a workflow action |
-| `review.request` · `review.submit` | agent, human | Stand-alone review tasks and verdicts |
+| `task.act` | agent, human | Apply a workflow action. `prUrl` and `branch` (a `GitRef`; with `submit`, the PR's branch) are stored on the task, and the review request shows them. |
+| `review.request` · `review.submit` | agent, human | Stand-alone review tasks and verdicts. `review.request` takes the PR's `branch` (a `GitRef`), shown in the review request. |
 | `plan.start` · `plan.contribute` · `plan.submit` · `plan.cancel` | agent, human | Planning sessions |
 | `plan.get` · `plan.list` | any | |
 | `plan.approve` | human | Approve a plan awaiting approval |

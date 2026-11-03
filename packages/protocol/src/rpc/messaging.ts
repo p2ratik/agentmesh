@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MeshMessage, ReplyStatus, SendableKind, ThreadKind, ThreadSummary } from '../messages';
-import { IdRef } from '../primitives';
+import { GitRef, IdRef } from '../primitives';
 import { ANY_CALLER, defineMethod, PARTICIPANTS } from './define';
 
 /** Most sender ids an `inbox.peek` names. */
@@ -31,7 +31,7 @@ export const messagingMethods = {
         prUrl: z.string().max(500).optional(),
         taskId: IdRef.optional(),
         toSession: IdRef.optional(),
-        repo: z.string().max(200).optional(),
+        repo: GitRef.optional(),
       })
       .refine((p) => p.to !== undefined || p.threadId !== undefined, {
         message: 'Pass `to` to start a thread or `threadId` to reply in one.',

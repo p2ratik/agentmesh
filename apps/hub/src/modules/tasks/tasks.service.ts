@@ -115,7 +115,7 @@ export class TaskServiceImpl implements TaskService {
       repo: input.repo ?? null,
       area: plan.area,
       baseBranch: input.baseBranch ?? null,
-      branch: null,
+      branch: input.branch ?? null,
       prUrl: input.prUrl ?? null,
       doneWhen: input.doneWhen ?? null,
       assignee: directAssignee,

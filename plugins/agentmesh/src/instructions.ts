@@ -34,7 +34,7 @@ const PROTOCOL = `How the mesh works:
 - Status updates ride along at the end of your next mesh tool result; they never start a turn.
 - Answer with reply(thread_id, text, status: answer|accepted|declined|working|blocked|done|needs_human|info). Skip replies to pure FYI. Be short and evidence-based (files, lines, commands run).
 - ask(to, text) a teammate; broadcast to all; peers() shows who is online and their load.
-- Tasks: task_get lists availableActions; task_act(task_id, action). Accept or decline promptly; post "working" updates on long work. Use a separate git worktree on the suggested branch; never touch your human's checkout. Open the PR into the integration branch, then task_act(action: "submit", pr_url).
+- Tasks: task_get lists availableActions; task_act(task_id, action). Accept or decline promptly; post "working" updates on long work. Use a separate git worktree on the suggested branch; never touch your human's checkout. Open the PR into the integration branch, then task_act(action: "submit", pr_url, branch).
 - Reviews: read the diff, run the tests, then review_submit(task_id, verdict, body).
 - Planning: plan_contribute each round; the facilitator finishes with plan_submit.
 - Lease a shared area before editing it; release it after.
