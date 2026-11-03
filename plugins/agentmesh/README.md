@@ -129,24 +129,35 @@ claude-mesh                        # in the current folder
 claude-mesh "/home/alice/code/acme"    # or in the folder it names, from anywhere
 ```
 
-`claude-mesh` only runs the launcher, and works the same in cmd, PowerShell and Git Bash. `window
-init` writes it next to `claude`, whose folder is on PATH already, when that folder is under your
-home folder and holds no `claude-mesh` it didn't write (on Windows, `claude-mesh.cmd` plus a
-`claude-mesh` sh script for Git Bash). Otherwise it writes it to `~/.agentmesh/bin` and prints a
-line telling you to add that folder to your PATH; it never changes PATH itself. It also warns,
-naming the file, when another `claude-mesh` comes first on PATH. Until typing `claude-mesh`
-reaches its own, use the launcher line it prints:
+`claude-mesh` only runs the launcher. On Windows it works in cmd, PowerShell and Git Bash; in
+PowerShell, type a bare `claude-mesh` inside the folder, because PowerShell passes a folder
+argument without spaces to cmd unquoted, and a name with `&` or `^` would misbehave.
+
+`window init` writes it next to `claude`, whose folder is on PATH already, when that folder is
+really under your home folder (links resolved) and holds nothing named `claude-mesh` that it
+didn't write. On Windows that is `claude-mesh.cmd` plus a `claude-mesh` sh script for Git Bash,
+which enters the folder itself. Otherwise it writes it to `~/.agentmesh/bin` and prints a line
+telling you to add that folder to your PATH; it never changes PATH itself. It also warns, naming
+the file, when someone else's `claude-mesh` comes first on PATH. Until typing `claude-mesh`
+reaches one of its own, use the line it prints:
 
 ```bash
 ~/.agentmesh/mesh-window "/home/alice/code/acme"
 ```
 
-On Windows that is two lines: the first for PowerShell or Git Bash (as it is, with its absolute
-folder; a `~` in the folder doesn't work in PowerShell), the second for cmd, which doesn't know `~`
-at all:
+On Windows that is three lines:
+- PowerShell gets the launcher `mesh-window.cmd`, with its absolute folder (a `~` in the folder
+  doesn't work in PowerShell).
+- Git Bash gets the sh `claude-mesh` by its path, because Git Bash can't pass a quoted folder to a
+  `.cmd` whose own path has a space.
+- cmd gets the launcher by `%USERPROFILE%`, since cmd doesn't know `~`.
 
 ```powershell
-~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell or Git Bash
+~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell
+```
+
+```bash
+~/.agentmesh/bin/claude-mesh "C:\code\acme"    # Git Bash
 ```
 
 ```bat

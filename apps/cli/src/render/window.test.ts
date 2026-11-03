@@ -199,7 +199,20 @@ describe('shimScripts', () => {
         content:
           '@echo off\r\nrem agentmesh claude-mesh\r\n"%USERPROFILE%\\.agentmesh\\mesh-window.cmd" %*\r\n',
       },
-      { name: 'claude-mesh', content: '#!/bin/sh\n# agentmesh claude-mesh\nexec "$0.cmd" "$@"\n' },
+      {
+        name: 'claude-mesh',
+        // Git Bash hands cmd two quoted strings when this script's own path has a space, so the
+        // folder is entered here and the .cmd gets no argument. $0 is resolved before the cd, so
+        // a claude-mesh.cmd in the target folder is never the one run.
+        content: [
+          '#!/bin/sh',
+          '# agentmesh claude-mesh',
+          'self=$0; case $self in /*) ;; *) self=$PWD/$self ;; esac',
+          'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+          'exec "$self.cmd"',
+          '',
+        ].join('\n'),
+      },
     ]);
     for (const s of scripts) expect(s.content).toMatch(/^[\x20-\x7e\r\n]*$/);
   });

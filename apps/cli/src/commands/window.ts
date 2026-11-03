@@ -1,9 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import {
-  LAUNCHER_CMD,
-  launcherDisplay,
   ownBranchPrefix,
   parseWindowPolicy,
   START_COMMAND,
@@ -14,8 +12,9 @@ import { parseCommandArgs, usageError } from '../args';
 import { type CliContext, type Command, resolveFrom } from '../context';
 import { writeFileAtomic } from '../lib/files';
 import { findOnPath, isRegularFile } from '../lib/path-lookup';
-import { installShim, type ShimPlace, samePath } from '../lib/shim';
+import { installShim, isOwnShim } from '../lib/shim';
 import { bakeable, launcherScript, shimScripts, windowSettings } from '../render/window';
+import { printStart } from './window-start';
 
 const DEFAULT_TEMPLATE = 'agent/{owner}/{task}-{slug}';
 const IGNORES = new Set(['.claude/worktrees/', '.claude/worktrees', '.claude/', '.claude']);
@@ -87,47 +86,15 @@ function launcherEnv(
   return { userProfile, configDir };
 }
 
-/**
- * Which Claude account the window uses, where claude-mesh went and the start line. While typing
- * claude-mesh doesn't reach ours (shadowed, or its folder isn't on PATH), also which one it does
- * reach and the launcher's own start line (two forms on Windows).
- */
-function printStart(
-  ctx: CliContext,
-  s: {
-    platform: NodeJS.Platform;
-    dir: string;
-    configDir: string | null;
-    shim: ShimPlace;
-    reached: string | null;
-  },
-): void {
-  ctx.stdout(
-    s.configDir
-      ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).`
-      : 'The window uses your default Claude account (~/.claude).',
-  );
-  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: AgentMesh didn't write it.`);
-  ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
-  ctx.stdout(
-    `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`,
-  );
-  // cmd and PowerShell look up the .cmd, so that is the file PATH must reach on Windows.
-  const ours = join(s.shim.dir, `${START_COMMAND}${s.platform === 'win32' ? '.cmd' : ''}`);
-  if (s.reached && samePath(s.reached, ours, s.platform)) return;
-  ctx.stdout(
-    s.reached
-      ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.`
-      : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`,
-  );
-  const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
-  if (s.platform !== 'win32') {
-    ctx.stdout(`Until then: ${line}`);
-    return;
+/** Whether anything, even a dangling link, is at `p`. */
+const present = (p: string): boolean => {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
   }
-  ctx.stdout(`Until then (PowerShell or Git Bash): ${line}`);
-  ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
-}
+};
 
 /** What follows the start line: a re-run note, then the warnings. */
 function printNotes(
@@ -221,6 +188,12 @@ that Claude account.
     ]);
     const dir = resolveFrom(ctx, values.dir ?? '.');
     if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
+    // Checked before anything is written: claude-mesh may have to go into ~/.agentmesh/bin.
+    for (const p of [files.dir, files.bin]) {
+      if (present(p) && !isFolder(p)) {
+        throw usageError(`${p} is not a folder. Move it away and run window init again.`);
+      }
+    }
     const inputs = {
       agentId,
       claude,
@@ -250,7 +223,15 @@ that Claude account.
     );
     // What typing claude-mesh runs now, on the PATH this command was started with.
     const reached = findOnPath(START_COMMAND, ctx.env, platform, isRegularFile);
-    printStart(ctx, { platform, dir, configDir, shim, reached });
+    printStart(ctx, {
+      platform,
+      home: ctx.homeDir,
+      dir,
+      configDir,
+      shim,
+      reached,
+      reachesOurs: reached !== null && isOwnShim(reached),
+    });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   },

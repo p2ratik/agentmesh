@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { delimiter, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isBelow } from '../lib/shim';
@@ -56,12 +65,12 @@ describe('window init writes claude-mesh', () => {
         chmodSync(platform === 'win32' ? join(s.bin, 'claude-mesh.cmd') : s.bin, 0o755);
       }
       expect(files(s.files.bin)).toEqual([...SHIMS].sort());
-      // On Windows the read-only claude-mesh.cmd left beside claude still comes first on PATH.
-      expect(s.out).toContain(
-        platform === 'win32'
-          ? `Warning: claude-mesh runs ${join(s.bin, 'claude-mesh.cmd')}, which comes first on PATH, not ${join(s.files.bin, 'claude-mesh.cmd')}.`
-          : fallbackLines(s.files.bin, s.work)[0],
-      );
+      if (platform === 'win32') {
+        // The read-only claude-mesh.cmd left beside claude wins on PATH, and it is ours.
+        expect(s.out.join('\n')).not.toMatch(/Warning|not on your PATH|Until then/);
+      } else {
+        expect(s.out).toContain(fallbackLines(s.files.bin, s.work)[0]);
+      }
     },
   );
 
@@ -93,8 +102,53 @@ describe('window init writes claude-mesh', () => {
     expect(s.out.slice(3, 5 + launcherLines('').length)).toEqual([
       startLine(s.work),
       `Warning: claude-mesh runs ${other}, which comes first on PATH, not ${join(s.bin, SHIMS[0] as string)}.`,
-      ...launcherLines(s.work),
+      ...launcherLines(s.work, '~/.local/bin/claude-mesh'),
     ]);
+  });
+
+  it("doesn't warn when the claude-mesh that comes first on PATH is ours too", async () => {
+    const s = setup(true, 'home', HOME_BIN);
+    const early = join(s.root, 'early');
+    mkdirSync(early);
+    writeFileSync(join(early, SHIMS[0] as string), OLD_SHIM);
+    s.ctx.env.PATH = [early, s.bin].join(delimiter);
+    expect(await s.run('--agent', 'bob-agent')).toBe(0);
+    expect(s.out.join('\n')).not.toMatch(/Warning|not on your PATH|Until then/);
+  });
+
+  it('treats a link or folder named claude-mesh as foreign, dangling links too', async () => {
+    for (const name of SHIMS) {
+      const s = setup(true, 'home', HOME_BIN);
+      const link = join(s.bin, name);
+      symlinkSync(join(s.root, 'nowhere'), link, 'junction');
+      expect(await s.run('--agent', 'bob-agent')).toBe(0);
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(files(s.files.bin)).toEqual([...SHIMS].sort());
+      expect(s.out[2]).toBe(`Left ${link} alone: AgentMesh didn't write it.`);
+    }
+  });
+
+  it('judges "under home" by the real path, so a junction out of home falls back', async () => {
+    const s = setup(true, 'home', 'outside');
+    const link = join(s.home, '.local', 'bin');
+    mkdirSync(join(s.home, '.local'));
+    symlinkSync(s.bin, link, 'junction');
+    s.ctx.env.PATH = link;
+    expect(await s.run('--agent', 'bob-agent')).toBe(0);
+    expect(files(s.bin)).toEqual([CLAUDE]);
+    expect(files(s.files.bin)).toEqual([...SHIMS].sort());
+  });
+
+  it('refuses, writing nothing, when ~/.agentmesh/bin is not a folder', async () => {
+    const s = setup(true, 'home', HOME_BIN);
+    mkdirSync(s.files.dir);
+    writeFileSync(s.files.bin, '');
+    expect(await s.run('--agent', 'bob-agent')).toBe(2);
+    expect(s.err.join('\n')).toContain(
+      `${s.files.bin} is not a folder. Move it away and run window init again.`,
+    );
+    expect(files(s.files.dir)).toEqual(['bin']);
+    expect(files(s.bin)).toEqual([CLAUDE]);
   });
 
   it('says nothing more from ~/.agentmesh/bin once that folder is on PATH', async () => {
@@ -146,5 +200,11 @@ describe('isBelow', () => {
     expect(isBelow('/usr/local/bin', '/home/bob', 'linux')).toBe(false);
     expect(isBelow('D:\\tools', 'C:\\Users\\bob', 'win32')).toBe(false);
     expect(isBelow('/home/bob/..foo', '/home/bob', 'linux')).toBe(true);
+  });
+
+  it('is never true when home is a filesystem root', () => {
+    expect(isBelow('/usr/local/bin', '/', 'linux')).toBe(false);
+    expect(isBelow('C:\\tools', 'C:\\', 'win32')).toBe(false);
+    expect(isBelow('C:\\tools', 'c:\\', 'win32')).toBe(false);
   });
 });

@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join19 } = __require("path");
+    var { join: join20 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join19(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join20(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2552,9 +2552,9 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync15 } = __require("node:fs");
+    var { existsSync: existsSync14 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join19, isAbsolute: isAbsolute3, sep } = __require("node:path");
+    var { join: join20, isAbsolute: isAbsolute4, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute3(path) && !existsSync15(path);
+      return isAbsolute4(path) && !existsSync14(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2753,11 +2753,11 @@ var require_transport = __commonJS({
       return stream;
       function fixTarget(origin) {
         origin = bundlerOverrides[origin] || origin;
-        if (isAbsolute3(origin) || origin.indexOf("file://") === 0) {
+        if (isAbsolute4(origin) || origin.indexOf("file://") === 0) {
           return origin;
         }
         if (origin === "pino/file") {
-          return join19(__dirname, "..", "file.js");
+          return join20(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join19 = ",";
+            let join20 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join19 = `,
+                join20 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join19;
+                res += join20;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join19 = `,
+              join20 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join19;
+                separator = join20;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join19;
+              separator = join20;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join19 = ",";
+            let join20 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join19 = `,
+                join20 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join19;
+                res += join20;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join19 = `,
+              join20 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join19;
+                separator = join20;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join20 = `,
+              const join21 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join20;
+                res2 += join21;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join19 = `,
+            const join20 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join19, maximumBreadth);
+              res += stringifyTypedArray(value, join20, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join19;
+              separator = join20;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join19;
+                separator = join20;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join19;
+              separator = join20;
             }
             if (separator !== "") {
               res = `
@@ -50199,8 +50199,8 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
 
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync14, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join18 } from "node:path";
+import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join19 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { join as join15 } from "node:path";
@@ -50288,7 +50288,7 @@ function pathDirs(path, win) {
 }
 
 // ../../apps/cli/src/lib/shim.ts
-import { existsSync as existsSync13, mkdirSync as mkdirSync4, readFileSync as readFileSync12 } from "node:fs";
+import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync12, realpathSync } from "node:fs";
 import { dirname as dirname7, join as join17, posix as posix2, win32 as win322 } from "node:path";
 
 // ../../apps/cli/src/render/window.ts
@@ -50374,37 +50374,54 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
 var SHIM_MARK = `agentmesh ${START_COMMAND}`;
 var isOurShim = (text) => text.split(/\r?\n/).some((l) => l === `rem ${SHIM_MARK}` || l === `# ${SHIM_MARK}`);
 function shimScripts(launcher, platform, userProfile = null) {
-  const sh = (target) => `#!/bin/sh
-# ${SHIM_MARK}
-exec ${target} "$@"
-`;
-  if (platform !== "win32") return [{ name: START_COMMAND, content: sh(`'${launcher}'`) }];
+  const head = ["#!/bin/sh", `# ${SHIM_MARK}`];
+  if (platform !== "win32") {
+    return [{ name: START_COMMAND, content: [...head, `exec '${launcher}' "$@"`, ""].join("\n") }];
+  }
   const run = `"${bakedPath(launcher, platform, userProfile)}" %*`;
+  const gitBash = [
+    ...head,
+    "self=$0; case $self in /*) ;; *) self=$PWD/$self ;; esac",
+    'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+    'exec "$self.cmd"',
+    ""
+  ];
   return [
     {
       name: `${START_COMMAND}.cmd`,
       content: ["@echo off", `rem ${SHIM_MARK}`, run, ""].join("\r\n")
     },
-    { name: START_COMMAND, content: sh('"$0.cmd"') }
+    { name: START_COMMAND, content: gitBash.join("\n") }
   ];
 }
 
 // ../../apps/cli/src/lib/shim.ts
-function relativeTo(from, to, platform) {
-  const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
-  return (platform === "win32" ? win322 : posix2).relative(fold(from), fold(to));
-}
 function isBelow(dir, home, platform) {
   const path = platform === "win32" ? win322 : posix2;
-  const rel = relativeTo(home, dir, platform);
+  const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
+  if (path.dirname(fold(home)) === fold(home)) return false;
+  const rel = path.relative(fold(home), fold(dir));
   return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
-var samePath = (a, b, platform) => relativeTo(a, b, platform) === "";
-var ours = (p) => {
+var isOwnShim = (p) => {
   try {
     return isOurShim(readFileSync12(p, "utf8"));
   } catch {
     return false;
+  }
+};
+function foreignAt(p) {
+  try {
+    return !lstatSync(p).isFile() || !isOwnShim(p);
+  } catch (error62) {
+    return error62.code !== "ENOENT";
+  }
+}
+var realPath = (p) => {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return null;
   }
 };
 function installShim(scripts, i) {
@@ -50412,8 +50429,9 @@ function installShim(scripts, i) {
     for (const s of scripts) writeFileAtomic(join17(dir2, s.name), s.content, 493);
   };
   const dir = dirname7(i.claude);
-  const below = isBelow(dir, i.home, i.platform);
-  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter((p) => existsSync13(p) && !ours(p)) : [];
+  const [realDir, realHome] = [realPath(dir), realPath(i.home)];
+  const below = realDir !== null && realHome !== null && isBelow(realDir, realHome, i.platform);
+  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter(foreignAt) : [];
   if (below && foreign.length === 0) {
     try {
       write(dir);
@@ -50424,6 +50442,38 @@ function installShim(scripts, i) {
   mkdirSync4(i.fallbackDir, { recursive: true, mode: 448 });
   write(i.fallbackDir);
   return { dir: i.fallbackDir, foreign };
+}
+
+// ../../apps/cli/src/commands/window-start.ts
+import { isAbsolute as isAbsolute2, join as join18, relative as relative2 } from "node:path";
+function gitBashCommand(dir, home) {
+  const rel = relative2(home, dir);
+  const inHome = rel !== "" && !rel.startsWith("..") && !isAbsolute2(rel);
+  const path = (inHome ? rel : dir.replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`)).split("\\").join("/");
+  return `${inHome ? "~/" : ""}${/^[\w./-]+$/.test(path) ? path : `'${path}'`}/${START_COMMAND}`;
+}
+function printStart(ctx, s) {
+  ctx.stdout(
+    s.configDir ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).` : "The window uses your default Claude account (~/.claude)."
+  );
+  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: AgentMesh didn't write it.`);
+  ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
+  ctx.stdout(
+    `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
+  );
+  if (s.reachesOurs) return;
+  const ours = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
+  ctx.stdout(
+    s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
+  );
+  const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
+  if (s.platform !== "win32") {
+    ctx.stdout(`Until then: ${line}`);
+    return;
+  }
+  ctx.stdout(`Until then, in PowerShell: ${line}`);
+  ctx.stdout(`In Git Bash: ${gitBashCommand(s.shim.dir, s.home)} "${s.dir}"`);
+  ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
 }
 
 // ../../apps/cli/src/commands/window.ts
@@ -50437,19 +50487,19 @@ var read = (path) => {
   }
 };
 function checkouts(dir) {
-  const found = existsSync14(join18(dir, ".git")) ? [dir] : [];
+  const found = existsSync13(join19(dir, ".git")) ? [dir] : [];
   let names = [];
   try {
     names = readdirSync5(dir).sort();
   } catch {
   }
   for (const n of names) {
-    const sub = join18(dir, n);
-    if (existsSync14(join18(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
+    const sub = join19(dir, n);
+    if (existsSync13(join19(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
   }
   return found;
 }
-var ignoresWorktrees = (checkout) => (read(join18(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var ignoresWorktrees = (checkout) => (read(join19(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
 var isFolder = (p) => {
   try {
     return statSync6(p).isDirectory();
@@ -50463,7 +50513,7 @@ var worktreeWarnings = (dir) => checkouts(dir).filter((c) => !ignoresWorktrees(c
 function launcherEnv(ctx, platform, paths) {
   const userProfile = ctx.env.USERPROFILE ?? null;
   const configDir = ctx.env.CLAUDE_CONFIG_DIR || null;
-  if (configDir && !isAbsolute2(configDir)) {
+  if (configDir && !isAbsolute3(configDir)) {
     throw usageError(
       `CLAUDE_CONFIG_DIR is ${JSON.stringify(configDir)}, not an absolute path. Set it to an absolute path (no ~) and run window init again.`
     );
@@ -50477,28 +50527,14 @@ function launcherEnv(ctx, platform, paths) {
   }
   return { userProfile, configDir };
 }
-function printStart(ctx, s) {
-  ctx.stdout(
-    s.configDir ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).` : "The window uses your default Claude account (~/.claude)."
-  );
-  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: AgentMesh didn't write it.`);
-  ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
-  ctx.stdout(
-    `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
-  );
-  const ours2 = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
-  if (s.reached && samePath(s.reached, ours2, s.platform)) return;
-  ctx.stdout(
-    s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours2}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
-  );
-  const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
-  if (s.platform !== "win32") {
-    ctx.stdout(`Until then: ${line}`);
-    return;
+var present = (p) => {
+  try {
+    lstatSync2(p);
+    return true;
+  } catch {
+    return false;
   }
-  ctx.stdout(`Until then (PowerShell or Git Bash): ${line}`);
-  ctx.stdout(`In cmd: ${LAUNCHER_CMD} "${s.dir}"`);
-}
+};
 function printNotes(ctx, n) {
   if (n.rerun) {
     ctx.stdout(
@@ -50585,6 +50621,11 @@ that Claude account.
     ]);
     const dir = resolveFrom(ctx, values.dir ?? ".");
     if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
+    for (const p of [files.dir, files.bin]) {
+      if (present(p) && !isFolder(p)) {
+        throw usageError(`${p} is not a folder. Move it away and run window init again.`);
+      }
+    }
     const inputs = {
       agentId,
       claude,
@@ -50613,7 +50654,15 @@ that Claude account.
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`
     );
     const reached = findOnPath(START_COMMAND, ctx.env, platform, isRegularFile);
-    printStart(ctx, { platform, dir, configDir, shim, reached });
+    printStart(ctx, {
+      platform,
+      home: ctx.homeDir,
+      dir,
+      configDir,
+      shim,
+      reached,
+      reachesOurs: reached !== null && isOwnShim(reached)
+    });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   }

@@ -37,11 +37,15 @@ export function setup(
   return { work, out, err, run, files, policy, home, root, bin, ctx };
 }
 
-/** The launcher's own start lines, printed while typing claude-mesh doesn't reach ours. */
-export const launcherLines = (work: string) =>
+/**
+ * The start lines printed while typing claude-mesh doesn't reach ours. Git Bash on Windows runs
+ * the sh claude-mesh by its path (`bash`, `~/…` form).
+ */
+export const launcherLines = (work: string, bash = '~/.agentmesh/bin/claude-mesh') =>
   platform === 'win32'
     ? [
-        `Until then (PowerShell or Git Bash): ~/.agentmesh/mesh-window.cmd "${work}"`,
+        `Until then, in PowerShell: ~/.agentmesh/mesh-window.cmd "${work}"`,
+        `In Git Bash: ${bash} "${work}"`,
         `In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${work}"`,
       ]
     : [`Until then: ~/.agentmesh/mesh-window "${work}"`];

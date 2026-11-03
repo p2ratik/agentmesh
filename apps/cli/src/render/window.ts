@@ -140,23 +140,35 @@ export const isOurShim = (text: string): boolean =>
 /**
  * `claude-mesh`, which only forwards to the launcher, so the launcher's checks all still hold.
  * Windows gets a `.cmd` for cmd and PowerShell, and a sh script for Git Bash, which finds no `.cmd`
- * by its bare name; it runs the `.cmd` beside it (`$0` is its own path). The `.cmd` runs the
- * launcher without `call`, which would expand `%` again and double `^` in the folder argument; as
- * the last line, control passes to the launcher and its exit code comes back.
+ * by its bare name.
+ * - The `.cmd` runs the launcher without `call`, which would expand `%` again and double `^` in the
+ *   folder argument; as the last line, control passes to the launcher and its exit code comes back.
+ * - The sh one enters the folder itself and runs the `.cmd` beside it with no argument: Git Bash
+ *   hands cmd two quoted strings when this script's own path has a space. `$0` is made absolute
+ *   before the `cd`, so a `claude-mesh.cmd` in the target folder is never the one run.
  */
 export function shimScripts(
   launcher: string,
   platform: NodeJS.Platform,
   userProfile: string | null = null,
 ): { name: string; content: string }[] {
-  const sh = (target: string) => `#!/bin/sh\n# ${SHIM_MARK}\nexec ${target} "$@"\n`;
-  if (platform !== 'win32') return [{ name: START_COMMAND, content: sh(`'${launcher}'`) }];
+  const head = ['#!/bin/sh', `# ${SHIM_MARK}`];
+  if (platform !== 'win32') {
+    return [{ name: START_COMMAND, content: [...head, `exec '${launcher}' "$@"`, ''].join('\n') }];
+  }
   const run = `"${bakedPath(launcher, platform, userProfile)}" %*`;
+  const gitBash = [
+    ...head,
+    'self=$0; case $self in /*) ;; *) self=$PWD/$self ;; esac',
+    'if [ -n "$1" ]; then cd -- "$1" || exit 1; fi',
+    'exec "$self.cmd"',
+    '',
+  ];
   return [
     {
       name: `${START_COMMAND}.cmd`,
       content: ['@echo off', `rem ${SHIM_MARK}`, run, ''].join('\r\n'),
     },
-    { name: START_COMMAND, content: sh('"$0.cmd"') },
+    { name: START_COMMAND, content: gitBash.join('\n') },
   ];
 }
