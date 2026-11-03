@@ -96,7 +96,9 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
     edits outside a registered `.claude/worktrees/mesh-*` worktree, and inside `~/.agentmesh` or
     any `.git`. It asks before any Bash command that isn't one of its exact forms. It never allows.
   - A hook's deny or ask outranks every allow rule and mode, so both layers must agree before
-    anything runs without a prompt.
+    anything runs without a prompt. The one exception is an installed mod: without managed settings
+    or a Team or Enterprise login, a mod can approve a call the guard denied or asked about
+    ([security.md](../security.md#tampering-git-and-settings)).
   - It fails closed. The hook has `onFailure: "block"` (Claude Code 2.1.295+). A call it can't read
     or a tool it doesn't know is refused, and a command it can't check asks. `activate` in a marked
     session refuses unless the guard stamped an `activate` call in the last 2 minutes
