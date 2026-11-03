@@ -1,24 +1,43 @@
 // Built-ins only (type-only imports): the guard and hook bundles may import this.
 import type { WindowPolicy } from '@agentmesh/common/window';
 
+const NO_POLICY =
+  "- The window's policy (~/.agentmesh/mesh-window.json) is missing or invalid, so every command asks your human.";
+const NULL_PREFIX =
+  "- Your branch template doesn't name you, so task worktrees, tests, commits, pushes and PRs all ask your human.";
+
+/** What runs without asking on the window's own branches, in exactly the forms the guard passes
+ * (rules.guard.test.ts runs each through it). */
+function ownBranchLines(policy: WindowPolicy | null): string[] {
+  const prefix = policy?.ownBranchPrefix ?? null;
+  if (!policy || prefix === null) return [NULL_PREFIX];
+  const tests = policy.testCommands;
+  return [
+    tests.length > 0
+      ? `- In a worktree on your own branch (${prefix}…), run without asking: ${tests.join(', ')} (as cd "<worktree>" && <test>, exactly as written). Any other test command asks.`
+      : '- Every test run asks your human: the window lists no test commands.',
+    `- From your own task worktree these run without asking, each as cd "<worktree>" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base ${policy.integrationBranch} --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask.`,
+  ];
+}
+
 /** What the mesh window's session is told at session start and on every activation. */
 export function windowRules(policy: WindowPolicy | null): string {
   const who = policy ? `${policy.agentId}'s` : "your agent's";
-  const prefix = policy?.ownBranchPrefix ?? null;
   const base = policy ? policy.integrationBranch : '<integration branch>';
   return [
     `AgentMesh: this session is ${who} mesh window. It takes the team's work: tasks, reviews and teammates' questions.`,
+    ...(policy ? [] : [NO_POLICY]),
     "- One task at a time, in order. Answer teammates' questions between steps.",
-    `- Every piece of work gets its own worktree in the repo's checkout under this folder: cd to the checkout, run git fetch origin, then git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/${base}. Edits anywhere else are refused.`,
-    // Full ref spellings: a fetched tag named origin/<branch> outranks the remote branch.
-    '- Reviews: read the diff without asking (git fetch origin, then git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>). Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then run them in a review worktree (from the checkout, git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>) as cd <worktree> && <test command>; your human approves the prompt. Remove the review worktree after review_submit.',
+    '- Run commands with the Bash tool; PowerShell commands always ask your human here.',
+    "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo. Below, <checkout> is that absolute path and <worktree> a worktree's absolute path.",
+    '- Chain a command after cd to an absolute path, one cd per call: cd "<checkout>" && <command>. git -C, a relative cd chain and a second cd ask.',
     "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
-    '- From the checkout, remove a worktree with git worktree remove .claude/worktrees/mesh-<name> once its PR is merged.',
-    "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo.",
-    prefix
-      ? `- Tests on your own branches (${prefix}…) run without asking.`
-      : "- Every test run asks your human: the branch template doesn't name you.",
-    `- From your own task worktree, commits, pushes to its branch and gh pr create --base ${base} run without asking; merging and anything else ask your human. Escalate before anything risky.`,
+    `- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/${base}. Edits anywhere else are refused.`,
+    // Full ref spellings: a fetched tag named origin/<branch> outranks the remote branch.
+    '- Reviews: read the diff without asking: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, and run cd "<worktree>" && <test command>; your human approves the prompt.',
+    '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
+    ...ownBranchLines(policy),
+    '- Merging and anything not named here ask your human. Escalate before anything risky.',
     "- Never activate with pull: true here. If the test message doesn't arrive, call activate again.",
   ].join('\n');
 }

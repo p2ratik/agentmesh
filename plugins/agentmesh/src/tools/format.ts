@@ -1,17 +1,22 @@
-import type {
-  Lease,
-  MeshMessage,
-  PeerInfo,
-  Plan,
-  PlanContribution,
-  SessionSummary,
-  Task,
-  TaskDetail,
-  ThreadSummary,
+import {
+  GitRef,
+  type Lease,
+  type MeshMessage,
+  type PeerInfo,
+  type Plan,
+  type PlanContribution,
+  type SessionSummary,
+  type Task,
+  type TaskDetail,
+  type ThreadSummary,
 } from '@agentmesh/protocol';
 import { EXTERNAL_TAG, oneLine, quoteBody } from '../inbox/render';
 
 /** Compact text renderings of hub results, written for Claude to read. */
+
+/** A repo or branch as the hub sent it, or `(invalid)`: an older hub may hold a value with a line
+ * break, which would forge a line in this output. */
+const ref = (v: string) => (GitRef.safeParse(v).success ? v : '(invalid)');
 
 export function formatPeers(peers: readonly PeerInfo[]): string {
   if (peers.length === 0) return 'Nobody is configured on this mesh.';
@@ -74,10 +79,10 @@ export function formatTask(t: TaskDetail): string {
     `state: ${t.state}${t.terminal ? ' (final)' : ''} · workflow: ${t.workflow} · priority: ${t.priority}`,
     `assignee: ${t.assignee ?? 'none'} · creator: ${t.createdBy} · reviewers: ${t.reviewers.join(', ') || 'none'} (round ${t.reviewRound})`,
     [
-      t.repo && `repo: ${t.repo}`,
+      t.repo && `repo: ${ref(t.repo)}`,
       t.area && `area: ${t.area}`,
-      t.baseBranch && `base: ${t.baseBranch}`,
-      t.branch && `branch: ${t.branch}`,
+      t.baseBranch && `base: ${ref(t.baseBranch)}`,
+      t.branch && `branch: ${ref(t.branch)}`,
     ]
       .filter(Boolean)
       .join(' · '),

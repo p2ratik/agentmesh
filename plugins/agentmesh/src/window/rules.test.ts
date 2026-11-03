@@ -6,47 +6,62 @@ const policy: WindowPolicy = {
   version: 1,
   agentId: 'bob-agent',
   token: 'a'.repeat(32),
-  ownBranchPrefix: null,
+  ownBranchPrefix: 'agent/bob/',
   integrationBranch: 'agents',
-  testCommands: [],
+  testCommands: ['pnpm install --frozen-lockfile', 'pnpm check'],
 };
 
+const NULL_PREFIX =
+  "- Your branch template doesn't name you, so task worktrees, tests, commits, pushes and PRs all ask your human.";
+
 describe('windowRules', () => {
-  it('gives the mesh window its rules', () => {
-    const text = windowRules(policy);
-    for (const line of [
+  it('gives the mesh window its rules, in the forms the guard passes', () => {
+    const lines = windowRules(policy).split('\n');
+    expect(lines).toEqual([
       "AgentMesh: this session is bob-agent's mesh window. It takes the team's work: tasks, reviews and teammates' questions.",
       "- One task at a time, in order. Answer teammates' questions between steps.",
-      "- Every piece of work gets its own worktree in the repo's checkout under this folder: cd to the checkout, run git fetch origin, then git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/agents. Edits anywhere else are refused.",
-      '- Reviews: read the diff without asking (git fetch origin, then git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>). Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then run them in a review worktree (from the checkout, git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>) as cd <worktree> && <test command>; your human approves the prompt. Remove the review worktree after review_submit.',
+      '- Run commands with the Bash tool; PowerShell commands always ask your human here.',
+      "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo. Below, <checkout> is that absolute path and <worktree> a worktree's absolute path.",
+      '- Chain a command after cd to an absolute path, one cd per call: cd "<checkout>" && <command>. git -C, a relative cd chain and a second cd ask.',
       "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
-      '- From the checkout, remove a worktree with git worktree remove .claude/worktrees/mesh-<name> once its PR is merged.',
-      '- From your own task worktree, commits, pushes to its branch and gh pr create --base agents run without asking; merging and anything else ask your human. Escalate before anything risky.',
+      '- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/agents. Edits anywhere else are refused.',
+      '- Reviews: read the diff without asking: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, and run cd "<worktree>" && <test command>; your human approves the prompt.',
+      '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
+      '- In a worktree on your own branch (agent/bob/…), run without asking: pnpm install --frozen-lockfile, pnpm check (as cd "<worktree>" && <test>, exactly as written). Any other test command asks.',
+      "- From your own task worktree these run without asking, each as cd \"<worktree>\" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base agents --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask.",
+      '- Merging and anything not named here ask your human. Escalate before anything risky.',
       "- Never activate with pull: true here. If the test message doesn't arrive, call activate again.",
-    ]) {
-      expect(text).toContain(line);
-    }
-    // A fetched tag named origin/<branch> outranks the remote branch in that short spelling.
-    expect(text).not.toMatch(/ origin\/<(branch|base)>/);
+    ]);
   });
 
-  it('names the checkout line and the own-branch tests rule', () => {
-    const line =
-      "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo.";
-    const own = windowRules({ ...policy, ownBranchPrefix: 'agent/bob/' });
-    expect(own).toContain(line);
-    expect(own).toContain('- Tests on your own branches (agent/bob/…) run without asking.');
-    const none = "- Every test run asks your human: the branch template doesn't name you.";
-    expect(windowRules(policy)).toContain(none);
-    expect(windowRules(null)).toContain(none);
-    expect(own.indexOf(line)).toBeGreaterThan(own.indexOf('remove a worktree'));
+  it('says every test asks when the window lists no test commands', () => {
+    const text = windowRules({ ...policy, testCommands: [] });
+    expect(text).toContain('- Every test run asks your human: the window lists no test commands.');
+    expect(text).not.toContain('run without asking: ');
+    expect(text).toContain('From your own task worktree these run without asking');
+  });
+
+  it('says everything of your own asks with a null prefix, and claims nothing runs freely', () => {
+    const text = windowRules({ ...policy, ownBranchPrefix: null });
+    expect(text).toContain(NULL_PREFIX);
+    expect(text).not.toContain('From your own task worktree');
+    expect(text).not.toContain('run without asking: ');
   });
 
   it('falls back without a policy', () => {
     const text = windowRules(null);
     expect(text).toContain("your agent's mesh window");
+    expect(text).toContain(
+      "- The window's policy (~/.agentmesh/mesh-window.json) is missing or invalid, so every command asks your human.",
+    );
     expect(text).toContain('--track origin/<integration branch>');
-    expect(text).toContain('gh pr create --base <integration branch> run without asking');
-    expect(text).not.toContain('Commits, pushes and PRs ask your human');
+    expect(text).toContain(NULL_PREFIX);
+    expect(text).not.toContain('From your own task worktree');
+  });
+
+  it('never names a short ref spelling a fetched tag could shadow', () => {
+    for (const p of [policy, null]) {
+      expect(windowRules(p)).not.toMatch(/ origin\/<(branch|base)>/);
+    }
   });
 });
