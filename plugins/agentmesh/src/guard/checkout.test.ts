@@ -2,8 +2,8 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
-import { type CommandContext, classifyCommand } from './commands';
-import { asksAll, PASS, policy, UNLISTED } from './commands.fixture';
+import { classifyCommand } from './commands';
+import { asksAll, PASS, realContext, UNLISTED } from './commands.fixture';
 import { meshWorktreeOf, type PathOptions } from './paths';
 import { fixture, link, mesh, OUTSIDE, put } from './paths.fixture';
 
@@ -18,20 +18,7 @@ beforeEach(() => {
 
 afterEach(() => rmSync(base, { recursive: true, force: true }));
 
-/** The guard's command context as production builds it, from the real readers. */
-function real(cwd: string): CommandContext {
-  return {
-    policy,
-    cwd,
-    worktreeOf: (dir) => {
-      const w = meshWorktreeOf(dir, o);
-      return 'refused' in w ? null : w;
-    },
-    checkoutTop: (dir) => checkoutTop(dir, o),
-    remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
-    freeSlot: (top, name) => freeSlot(top, name, o),
-  };
-}
+const real = (cwd: string) => realContext(o, cwd);
 
 /** A loose ref (or tag) in the checkout's git folder. */
 const ref = (name: string, text = `${OID}\n`) => put(join(repo, '.git', ...name.split('/')), text);

@@ -120,11 +120,15 @@ describe('classifyCommand', () => {
     );
     expect(classifyCommand('pnpm check', ctx('C:/t'))).toEqual(OUTSIDE);
 
-    // `cd` resolves against cwd, and the folder named decides, not the one the window is in
+    // `cd` resolves against cwd, and the folder named decides, not the one the window is in; a
+    // relative chained cd must start with ./ (bash would look the bare name up in CDPATH)
     const web = resolve('/t/John Smith/web');
     expect(
-      classifyCommand('cd .claude/worktrees/mesh-task-3-login && pnpm check', ctx(web)),
+      classifyCommand('cd ./.claude/worktrees/mesh-task-3-login && pnpm check', ctx(web)),
     ).toEqual(PASS);
+    expect(
+      classifyCommand('cd .claude/worktrees/mesh-task-3-login && pnpm check', ctx(web)),
+    ).toEqual(UNLISTED);
     expect(classifyCommand(`cd "${OWN}" && pnpm check`, ctx(theirs.root))).toEqual(PASS);
     expect(classifyCommand(`cd ${THEIRS} && pnpm check`, ctx(own.root))).toEqual(
       foreign('agent/sagar/task-2-x'),

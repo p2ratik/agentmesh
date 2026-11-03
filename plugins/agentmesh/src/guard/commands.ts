@@ -113,15 +113,21 @@ function worktreeChange(command: string, c: CommandContext, p: WindowPolicy): bo
   return own !== null && ownStart(own[2] ?? '', own[3], p);
 }
 
-/** The folder a command runs in and the command itself: `cd PATH && rest`, or `cwd`. Null for a
- * `..` segment (node folds it as text, bash after following a link) and, on Windows, a leading `/`
- * (Git Bash's own root, not this drive's). */
+/** A cd target bash never looks up in CDPATH: absolute in this platform's spelling (`/…`, or
+ * `X:/…` on Windows, where a leading `/` is Git Bash's own root, not this drive's) or `./…`. */
+const anchored = (path: string) =>
+  path.startsWith('./') || (sep === '\\' ? /^[A-Za-z]:\//.test(path) : path.startsWith('/'));
+
+/** The folder a command runs in and the command itself: `cd PATH && rest`, or `cwd`. Null for an
+ * unanchored PATH, a `..` segment (node folds it as text, bash after following a link) or a rest
+ * that is another cd. */
 function placed(command: string, cwd: string): { dir: string; rest: string } | null {
   const m = CD_AND.exec(command);
   if (!m) return { dir: cwd, rest: command };
   const path = m[1] ?? m[2] ?? '';
-  if (path.split('/').includes('..') || (sep === '\\' && path.startsWith('/'))) return null;
-  return { dir: resolve(cwd, path), rest: m[3] ?? '' };
+  const rest = m[3] ?? '';
+  if (!anchored(path) || path.split('/').includes('..') || rest.startsWith('cd ')) return null;
+  return { dir: resolve(cwd, path), rest };
 }
 
 /** A delivery form for this worktree's own `branch`: stage, commit, push it, open its PR. */
@@ -135,28 +141,34 @@ function delivers(rest: string, branch: string, p: WindowPolicy): boolean {
 
 const isDelivery = (rest: string) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(rest));
 
-/** A test or delivery command, bare or after `cd PATH &&`: it passes only in a mesh worktree on
- * the window's own branch. Test commands are compared by string equality, never by pattern. */
+/** A test or delivery command: it passes only in a mesh worktree on the window's own branch. Test
+ * commands are compared by string equality, never by pattern. */
 function inWorktree(command: string, c: CommandContext, p: WindowPolicy): CommandDecision {
-  const at = placed(command, c.cwd);
-  if (at === null) return ask(UNLISTED);
-  const test = p.testCommands.includes(at.rest);
-  if (!test && !isDelivery(at.rest)) return ask(UNLISTED);
-  const wt = c.worktreeOf(at.dir);
+  const test = p.testCommands.includes(command);
+  if (!test && !isDelivery(command)) return ask(UNLISTED);
+  const wt = c.worktreeOf(c.cwd);
   const branch = wt?.branch ?? null;
   const prefix = p.ownBranchPrefix;
   const own = branch !== null && prefix !== null && branch.startsWith(prefix);
   if (test) return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE);
-  return own && delivers(at.rest, branch, p) ? pass() : ask(UNLISTED);
+  return own && delivers(command, branch, p) ? pass() : ask(UNLISTED);
 }
 
-/** Whether `command` may go on to Claude Code's permission flow, or must ask the human. */
+/** A listed command, run in `c.cwd`. */
+function listed(command: string, c: CommandContext, p: WindowPolicy): CommandDecision {
+  if (EXACT.has(command) || reads(command, c)) return pass();
+  const change = worktreeChange(command, c, p);
+  if (change !== null) return change ? pass() : ask(UNLISTED);
+  return inWorktree(command, c, p);
+}
+
+/** Whether `command` may go on to Claude Code's permission flow, or must ask the human. A listed
+ * command may follow `cd PATH && `, and is classified as if it ran in PATH. */
 export function classifyCommand(command: string, c: CommandContext): CommandDecision {
   const p = c.policy;
   if (!p) return ask(NO_POLICY);
   if (typeof command !== 'string' || typeof c.cwd !== 'string') return ask(UNLISTED);
-  if (EXACT.has(command) || reads(command, c) || CD.test(command)) return pass();
-  const change = worktreeChange(command, c, p);
-  if (change !== null) return change ? pass() : ask(UNLISTED);
-  return inWorktree(command, c, p);
+  if (CD.test(command)) return pass();
+  const at = placed(command, c.cwd);
+  return at === null ? ask(UNLISTED) : listed(at.rest, { ...c, cwd: at.dir }, p);
 }

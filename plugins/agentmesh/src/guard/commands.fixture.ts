@@ -3,10 +3,27 @@
 import { resolve } from 'node:path';
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { expect } from 'vitest';
+import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
 import { type CommandContext, classifyCommand } from './commands';
-import type { MeshWorktree } from './paths';
+import { type MeshWorktree, meshWorktreeOf, type PathOptions } from './paths';
 
 export const win32 = process.platform === 'win32';
+
+/** The command context as production (decide.ts) builds it, from the real readers. */
+export function realContext(o: PathOptions, cwd: string, over: Partial<CommandContext> = {}) {
+  return {
+    policy,
+    cwd,
+    worktreeOf: (dir: string) => {
+      const w = meshWorktreeOf(dir, o);
+      return 'refused' in w ? null : w;
+    },
+    checkoutTop: (dir: string) => checkoutTop(dir, o),
+    remoteRefExists: (top: string, branch: string) => remoteRefExists(top, branch, o),
+    freeSlot: (top: string, name: string) => freeSlot(top, name, o),
+    ...over,
+  } satisfies CommandContext;
+}
 
 export const policy: WindowPolicy = {
   version: 1,

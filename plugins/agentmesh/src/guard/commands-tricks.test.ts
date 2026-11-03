@@ -218,7 +218,7 @@ describe('classifyCommand tricks', () => {
     ]);
   });
 
-  it('runs a test or delivery after cd only in that exact compound', () => {
+  it('runs a listed command after cd only in that exact compound', () => {
     asksAll([
       'cd - && pnpm check',
       `cd "-${OWN}" && pnpm check`,
@@ -236,7 +236,7 @@ describe('classifyCommand tricks', () => {
       `cd "${OWN}" && pnpm check; rm -rf .`,
       `cd "${OWN}" && pnpm check\nrm -rf /`,
       `cd "${OWN}" && pnpm check --watch`,
-      `cd "${OWN}" && git status`,
+      `cd "${OWN}" && git status --porcelain`,
       `cd "${OWN}" && git push --force origin ${B}`,
       `pushd "${OWN}" && pnpm check`,
       `cd ${OWN.replace(' ', '\\ ')} && pnpm check`,
@@ -245,7 +245,7 @@ describe('classifyCommand tricks', () => {
     expect(classifyCommand(`cd "${OWN}/x/.." && pnpm check`, ctx('C:/t'))).toEqual(UNLISTED);
     expect(classifyCommand(`cd ${THEIRS}/x/.. && pnpm check`, ctx('C:/t'))).toEqual(UNLISTED);
     // a test in a folder that isn't a worktree still gets the test reason
-    expect(classifyCommand('cd web && pnpm check', ctx(resolve('/t')))).toEqual(OUTSIDE);
+    expect(classifyCommand('cd ./web && pnpm check', ctx(resolve('/t')))).toEqual(OUTSIDE);
   });
 
   it("reads a leading / as Git Bash's root on Windows, not as this drive", () => {
