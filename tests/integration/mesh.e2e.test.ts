@@ -82,4 +82,12 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('mesh end to end over NATS', () =>
     });
     expect(accepted).toContain('in_progress');
   }, 60_000);
+
+  it('leaves no plugin data folder behind once a plugin closes', async () => {
+    const carol = agents[2];
+    if (!carol) throw new Error('the queue test must run');
+    expect(existsSync(carol.dataDir)).toBe(true);
+    await carol.client.close();
+    expect(existsSync(carol.dataDir)).toBe(false);
+  });
 });

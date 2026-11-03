@@ -233,7 +233,8 @@ any other path with non-ASCII letters (Claude Code installed outside your user f
 
 Confirm the development channel when Claude Code asks. The window then activates itself with
 `/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
-sessions as usual.
+sessions as usual. After a restart it lists its tasks and resumes those still in progress in their
+existing worktrees, and it reads a thread before it answers a reply meant for its earlier session.
 
 **What it does without asking, and what asks:**
 - **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live

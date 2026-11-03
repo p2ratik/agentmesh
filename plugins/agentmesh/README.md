@@ -152,6 +152,8 @@ after `/clear` and after compaction, and `activate` repeats them.
   pushes, other branches and anything off its list ask
   ([security](../../docs/security.md#the-mesh-window)).
 - It runs commands with the Bash tool; PowerShell commands always ask.
+- After a restart it resumes its in-progress tasks (`task_list`) in their existing worktrees, and
+  reads a thread (`thread`) before answering a reply meant for its earlier session.
 - It never activates with `pull: true`.
 
 **The worktree guard** is `dist/guard.js`, a `PreToolUse` hook on edits, Bash, PowerShell, Monitor,

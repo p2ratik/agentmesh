@@ -370,7 +370,8 @@ input for at most a second and exits 0, whatever happens. With the marker set:
     `.claude/worktrees/mesh-*` worktree, below its root. Registered means the worktree's `.git`
     file points at a git folder whose back-pointer leads to that same file.
     - Paths are resolved through links, segment by segment. The `.git` and `~/.agentmesh`
-      refusals ignore case on every platform.
+      refusals ignore case and invisible format characters (`\p{Cf}`, as HFS+ does) on every
+      platform.
     - Refused outright: relative paths, `.` and `..` segments, untrimmed paths, `\\?\`, `\\.\`,
       UNC, alternate data streams, DOS device names, Windows names ending in a dot or space, a last
       segment that is a link, a file with more than one hard link, any `.git` segment, and anything

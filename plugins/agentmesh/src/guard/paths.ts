@@ -55,11 +55,18 @@ const keys = (file: string, o: PathOptions) => {
   return [key(top, o), ...segments.map((s) => key(s, o))];
 };
 
-/** `inner` is `outer` or below it. A refusal check, so it folds case on every platform: a
- * case-insensitive folder can sit on any OS. */
+/** A key for the `.git` and `~/.agentmesh` refusals: `key` as HFS+ sees it, on every platform,
+ * since a case-insensitive or HFS+ volume can sit on any OS. */
+const refusalKey = (k: string) =>
+  k
+    .normalize('NFC')
+    .replace(/\p{Cf}/gu, '')
+    .toUpperCase();
+
+/** `inner` is `outer` or below it, compared with `refusalKey`. */
 function within(inner: string, outer: string, o: PathOptions): boolean {
-  const a = keys(inner, o).map((k) => k.toUpperCase());
-  const b = keys(outer, o).map((k) => k.toUpperCase());
+  const a = keys(inner, o).map(refusalKey);
+  const b = keys(outer, o).map(refusalKey);
   return b.length <= a.length && b.every((k, i) => k === a[i]);
 }
 
@@ -185,6 +192,6 @@ export function editTarget(file: string, o: PathOptions): { ok: true } | Refusal
   const found = registered(resolved, o);
   if ('refused' in found) return found;
   if (found.below.length === 0) return OUTSIDE;
-  if (found.below.some((k) => k.toUpperCase() === '.GIT')) return DOT_GIT;
+  if (found.below.some((k) => refusalKey(k) === '.GIT')) return DOT_GIT;
   return escapes(file, resolved, o) ? OUTSIDE : { ok: true };
 }

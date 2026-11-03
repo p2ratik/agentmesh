@@ -160,4 +160,13 @@ describe('what the write would really touch', () => {
     expect(editTarget(join(o.home, '.AgentMesh', 'agent.json'), linux)).toEqual(AGENTMESH);
     expect(editTarget(join(wt, 'a.ts'), linux)).toEqual({ ok: true });
   });
+
+  // HFS+ ignores invisible format characters (git's protectHFS), and such a volume can be mounted
+  // on any OS, so the refusals strip them on every platform, like they fold case.
+  it('refuses .git and ~/.agentmesh spelled with an invisible format character', () => {
+    expect(editTarget(join(wt, 'sub', '.g​it', 'config'), o)).toEqual(DOT_GIT);
+    expect(editTarget(join(wt, '.git‍'), o)).toEqual(DOT_GIT);
+    expect(editTarget(join(o.home, '.agent​mesh', 'agent.json'), o)).toEqual(AGENTMESH);
+    expect(editTarget(join(wt, 'a​.ts'), o)).toEqual({ ok: true });
+  });
 });

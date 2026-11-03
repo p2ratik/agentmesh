@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RpcClient } from '@agentmesh/bus';
@@ -24,6 +24,8 @@ export interface Agent {
   notifications: string[];
   /** Everything the plugin logged so far (it logs to stderr). */
   stderr(): string;
+  /** The temp CLAUDE_PLUGIN_DATA folder spawnAgent made; removed when the plugin closes. */
+  dataDir: string;
   /** The result's text parts, joined by newlines; throws on an error result. */
   call(name: string, args: Record<string, unknown>): Promise<string>;
   waitFor(match: (e: Channel) => boolean, timeoutMs?: number): Promise<Channel>;
@@ -47,6 +49,7 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
   // A test runs in no mesh window unless it says so.
   delete inherited[MESH_WINDOW_ENV];
   delete inherited[MESH_WINDOW_HINT_ENV];
+  const dataDir = mkdtempSync(join(tmpdir(), 'am-e2e-data-'));
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [PLUGIN],
@@ -59,7 +62,7 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
       AGENTMESH_NKEY_SEED: env.nkeySeed ?? '',
       AGENTMESH_LOG_FILE: '',
       // State and heartbeat files land here, never in the real ~/.agentmesh/run.
-      CLAUDE_PLUGIN_DATA: mkdtempSync(join(tmpdir(), 'am-e2e-data-')),
+      CLAUDE_PLUGIN_DATA: dataDir,
       ...env.extraEnv,
     },
     stderr: 'pipe',
@@ -74,11 +77,14 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
     if (n.method === 'notifications/claude/channel') events.push(n.params as unknown as Channel);
   };
   await client.connect(transport);
+  // Fires once the plugin process has exited, before client.close() resolves.
+  client.onclose = () => rmSync(dataDir, { recursive: true, force: true, maxRetries: 3 });
   return {
     client,
     events,
     notifications,
     stderr: () => logged.join(''),
+    dataDir,
     async call(name, args) {
       const result = await client.callTool({ name, arguments: args });
       // Every part: hub notes and the FYI ride-along follow the tool's own text.

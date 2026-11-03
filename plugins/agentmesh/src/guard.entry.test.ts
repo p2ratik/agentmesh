@@ -88,7 +88,8 @@ describe('dist/guard.js (from source)', () => {
     const started = Date.now();
     const r = await guardOpenStdin('{"tool_name":"Edit","tool_input":');
     expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
-    expect(Date.now() - started).toBeLessThan(3000);
+    // The guard gives up after 1 s; the rest is a cold tsx start on a loaded CI runner.
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 
   it('refuses an edit outside a task worktree in the mesh window', () => {

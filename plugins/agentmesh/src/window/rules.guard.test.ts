@@ -62,6 +62,7 @@ describe('the window rules, through the guard', () => {
       ['run cd "<dir>" alone first', `cd ${W}`, 'pass'],
       ['cd "<worktree>", and run cd "<worktree>" && <test command>', `cd ${R}`, 'pass'],
       ['cd "<checkout>" && git fetch origin', `cd ${C} && git fetch origin`, 'pass'],
+      ['cd "<checkout>" && git worktree list shows them', `cd ${C} && git worktree list`, 'pass'],
       [
         'cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/agents',
         `cd ${C} && git worktree add .claude/worktrees/mesh-task-3-x -b agent/bob/task-3-x --track origin/agents`,
