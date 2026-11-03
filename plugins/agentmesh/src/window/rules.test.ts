@@ -21,7 +21,7 @@ describe('windowRules', () => {
       '- Reviews: read the diff without asking (git fetch origin, then git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>). Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then run them in a review worktree (from the checkout, git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>) as cd <worktree> && <test command>; your human approves the prompt. Remove the review worktree after review_submit.',
       "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
       '- From the checkout, remove a worktree with git worktree remove .claude/worktrees/mesh-<name> once its PR is merged.',
-      '- Commits, pushes and PRs ask your human; that is expected. Escalate before anything risky.',
+      '- From your own task worktree, commits, pushes to its branch and gh pr create --base agents run without asking; merging and anything else ask your human. Escalate before anything risky.',
       "- Never activate with pull: true here. If the test message doesn't arrive, call activate again.",
     ]) {
       expect(text).toContain(line);
@@ -34,5 +34,7 @@ describe('windowRules', () => {
     const text = windowRules(null);
     expect(text).toContain("your agent's mesh window");
     expect(text).toContain('--track origin/<integration branch>');
+    expect(text).toContain('gh pr create --base <integration branch> run without asking');
+    expect(text).not.toContain('Commits, pushes and PRs ask your human');
   });
 });

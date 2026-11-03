@@ -15,6 +15,8 @@ export interface CommandContext {
   checkoutTop: (dir: string) => string | null;
   /** Whether that checkout has fetched `refs/remotes/origin/<branch>` (`./checkout`). */
   remoteRefExists: (top: string, branch: string) => boolean;
+  /** Whether nothing is at `<top>/.claude/worktrees/<name>` yet (`./checkout`). */
+  freeSlot: (top: string, name: string) => boolean;
 }
 
 export type CommandDecision = { pass: true } | { ask: string };
@@ -39,7 +41,7 @@ const PATH = `(?:${PATH_RAW}|"${PATH_QUOTED}")`;
  * PowerShell reads curly quotes) ends it early. */
 const MESSAGE = String.raw`'[\x20-\x26\x28-\x5b\x5d-\x7e]*'`;
 const BRANCH = '([A-Za-z0-9][A-Za-z0-9._/-]*)';
-const MESH = String.raw`\.claude/worktrees/mesh-[a-z0-9][a-z0-9-]{0,62}`;
+const MESH = String.raw`\.claude/worktrees/(mesh-[a-z0-9][a-z0-9-]{0,62})`;
 
 const EXACT = new Set(['pwd', 'git status', 'git fetch origin', 'git worktree list']);
 /** `ls` or `git diff|log|show` and its arguments, each of which must be `safe`. */
@@ -67,27 +69,19 @@ function safe(arg: string): boolean {
   return !arg.includes('//') && !arg.split('/').includes('..');
 }
 
-function reads(command: string): boolean {
+/** `ls`, or a git read. A git read with arguments passes only inside a checkout or a worktree:
+ * outside a repo `git diff a b` runs as --no-index, and follows links out of the tree. */
+function reads(command: string, c: CommandContext): boolean {
   const m = READ.exec(command);
-  return m !== null && (m[1] ?? '').split(' ').slice(1).every(safe);
+  if (m === null) return false;
+  const args = (m[1] ?? '').split(' ').slice(1);
+  if (!args.every(safe)) return false;
+  if (args.length === 0 || !command.startsWith('git ')) return true;
+  return c.worktreeOf(c.cwd) !== null || c.checkoutTop(c.cwd) !== null;
 }
 
-/** `git worktree add|remove` of a mesh worktree, run from the top of a real checkout: never from a
- * folder a branch could have committed, with `.claude/worktrees` as a link git would write through.
- * A review worktree checks out a remote branch the checkout has fetched; a task worktree starts an
- * own branch from the integration branch. */
-function worktreeChange(command: string, c: CommandContext, p: WindowPolicy): boolean | null {
-  const own = WORKTREE_OWN.exec(command);
-  const review = WORKTREE_REVIEW.exec(command);
-  if (!own && !review && !WORKTREE_REMOVE.test(command)) return null;
-  const top = c.checkoutTop(c.cwd);
-  if (top === null) return false;
-  if (review) {
-    const branch = review[1] ?? '';
-    return isBranchName(branch) && c.remoteRefExists(top, branch);
-  }
-  if (!own) return true;
-  const [, branch = '', start] = own;
+/** `-b <branch> --track origin/<start>`: a new own branch from the integration branch. */
+function ownStart(branch: string, start: string | undefined, p: WindowPolicy): boolean {
   const prefix = p.ownBranchPrefix;
   return (
     prefix !== null &&
@@ -96,6 +90,26 @@ function worktreeChange(command: string, c: CommandContext, p: WindowPolicy): bo
     isBranchName(branch) &&
     start === p.integrationBranch
   );
+}
+
+/** `git worktree add|remove` of a mesh worktree, run from the top of a real checkout: never from a
+ * folder a branch could have committed, with `.claude/worktrees` as a link git would write through.
+ * An add needs its slot empty. A review worktree checks out a remote branch the checkout has
+ * fetched; a task worktree starts an own branch from the integration branch. */
+function worktreeChange(command: string, c: CommandContext, p: WindowPolicy): boolean | null {
+  const own = WORKTREE_OWN.exec(command);
+  const review = WORKTREE_REVIEW.exec(command);
+  if (!own && !review && !WORKTREE_REMOVE.test(command)) return null;
+  const top = c.checkoutTop(c.cwd);
+  if (top === null) return false;
+  const add = own ?? review;
+  if (!add) return true;
+  if (!c.freeSlot(top, add[1] ?? '')) return false;
+  if (review) {
+    const branch = review[2] ?? '';
+    return isBranchName(branch) && c.remoteRefExists(top, branch);
+  }
+  return own !== null && ownStart(own[2] ?? '', own[3], p);
 }
 
 /** The folder a command runs in and the command itself: `cd PATH && rest`, or `cwd`. Null for a
@@ -140,7 +154,7 @@ export function classifyCommand(command: string, c: CommandContext): CommandDeci
   const p = c.policy;
   if (!p) return ask(NO_POLICY);
   if (typeof command !== 'string' || typeof c.cwd !== 'string') return ask(UNLISTED);
-  if (EXACT.has(command) || reads(command) || CD.test(command)) return pass();
+  if (EXACT.has(command) || reads(command, c) || CD.test(command)) return pass();
   const change = worktreeChange(command, c, p);
   if (change !== null) return change ? pass() : ask(UNLISTED);
   return inWorktree(command, c, p);

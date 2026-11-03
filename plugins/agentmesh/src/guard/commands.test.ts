@@ -7,6 +7,7 @@ import {
   ctx,
   decide,
   detached,
+  ELSEWHERE,
   every,
   foreign,
   NO_POLICY,
@@ -15,6 +16,7 @@ import {
   own,
   PASS,
   policy,
+  TAKEN,
   THEIRS,
   theirs,
   UNLISTED,
@@ -75,9 +77,20 @@ describe('classifyCommand', () => {
     ];
     expect(decide(resolve('/t/web'), changes)).toEqual(every(changes, PASS));
     // not a checkout top: a worktree, a subfolder, or no checkout at all
-    for (const cwd of [own.root, theirs.root, resolve('/t/web/src'), resolve('/t')]) {
+    for (const cwd of [own.root, theirs.root, resolve('/t/web/src'), ELSEWHERE]) {
       asksAll(changes, cwd);
     }
+    // an add needs its slot free: a link already there would take git's writes elsewhere
+    const top = resolve('/t/web');
+    asksAll(
+      [
+        `git worktree add .claude/worktrees/${TAKEN} -b agent/pratik/x --track origin/agents`,
+        `git worktree add .claude/worktrees/${TAKEN} refs/remotes/origin/agent/sagar/y`,
+      ],
+      top,
+    );
+    const remove = `git worktree remove .claude/worktrees/${TAKEN}`;
+    expect(classifyCommand(remove, ctx(top))).toEqual(PASS);
     // the existence check gets the checkout top and the branch
     const seen: string[] = [];
     const remoteRefExists = (top: string, branch: string) => {
@@ -86,6 +99,17 @@ describe('classifyCommand', () => {
     };
     classifyCommand(changes[1] ?? '', ctx(resolve('/t/web'), { remoteRefExists }));
     expect(seen).toEqual([`${resolve('/t/web')}|agent/sagar/y`]);
+  });
+
+  it('reads with arguments only inside a checkout or a worktree', () => {
+    // outside a repo git diff a b runs as --no-index, and follows links out of the tree
+    const withArgs = ['git diff a b', 'git log -5', 'git show HEAD', 'git diff HEAD -- src'];
+    asksAll(withArgs, ELSEWHERE);
+    const bare = ['git status', 'git diff', 'git log', 'git show', 'ls', 'ls -la src'];
+    expect(decide(ELSEWHERE, bare)).toEqual(every(bare, PASS));
+    for (const cwd of [own.root, theirs.root, resolve('/t/web')]) {
+      expect(decide(cwd, withArgs)).toEqual(every(withArgs, PASS));
+    }
   });
 
   it('runs tests without asking only on its own branch', () => {

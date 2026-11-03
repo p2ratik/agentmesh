@@ -47,6 +47,10 @@ export function isBranchName(v: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(v) && !v.includes('..');
 }
 
+/** An own-branch prefix ends in `/`, `_` or `.`: ids may contain `-`, so `pratik-` would also
+ * prefix teammate `pratik-2`'s branches. */
+const endsAsPrefix = (v: string) => /[/_.]$/.test(v);
+
 export function isTestCommand(v: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes('  ') && !v.endsWith(' ');
 }
@@ -64,7 +68,8 @@ export function parseWindowPolicy(text: string): WindowPolicy | null {
   if (p.version !== 1) return null;
   if (typeof agentId !== 'string' || !PARTICIPANT_PATTERN.test(agentId)) return null;
   if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) return null;
-  if (prefix !== null && !(typeof prefix === 'string' && isBranchName(prefix))) return null;
+  const prefixOk = typeof prefix === 'string' && isBranchName(prefix) && endsAsPrefix(prefix);
+  if (prefix !== null && !prefixOk) return null;
   if (typeof integrationBranch !== 'string' || !isBranchName(integrationBranch)) return null;
   if (
     !Array.isArray(testCommands) ||
@@ -78,15 +83,15 @@ export function parseWindowPolicy(text: string): WindowPolicy | null {
 
 /**
  * The branch template up to its first placeholder other than {owner} and {agent}, with those
- * filled in. Null when that head names neither the owner nor the agent, or doesn't end in `/`,
- * `_` or `.`: ids may contain `-`, so `pratik-` would also prefix teammate `pratik-2`'s branches.
+ * filled in. Null when that head names neither the owner nor the agent, or doesn't end as a
+ * prefix must (`endsAsPrefix`).
  */
 export function ownBranchPrefix(template: string, owner: string, agent: string): string | null {
   const cut = template.search(/{(?!owner}|agent})[^}]*}/);
   const head = cut < 0 ? template : template.slice(0, cut);
   if (!/{(owner|agent)}/.test(head)) return null;
   const filled = head.replaceAll('{owner}', owner).replaceAll('{agent}', agent);
-  return /[/_.]$/.test(filled) ? filled : null;
+  return endsAsPrefix(filled) ? filled : null;
 }
 
 export type MarkerState = 'none' | 'marked' | 'verified';

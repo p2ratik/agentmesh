@@ -32,9 +32,13 @@ export const slash = (p: string) => p.replaceAll('\\', '/');
 export const OWN = slash(own.root);
 export const THEIRS = slash(theirs.root);
 
-/** Checkout tops (a real `.git` folder) and the remote branches they have fetched. */
+/** Checkout tops (a real `.git` folder), the remote branches they have fetched, a worktree slot
+ * already taken in each, and a folder that is neither a checkout nor a worktree on any drive
+ * (`resolve('/t')` is `C:\t`, a top, when the tests run from drive C:). */
 export const TOPS = ['C:/t', '/t/web', '/t/John Smith/web'].map((d) => resolve(d));
 export const REMOTES = ['agents', 'agent/sagar/task-2-x', 'agent/sagar/y'];
+export const TAKEN = 'mesh-taken';
+export const ELSEWHERE = resolve('/t/elsewhere');
 
 export function ctx(cwd: string, over: Partial<CommandContext> = {}): CommandContext {
   const known = new Map([own, theirs, detached].map((w) => [resolve(w.root), w]));
@@ -44,6 +48,7 @@ export function ctx(cwd: string, over: Partial<CommandContext> = {}): CommandCon
     worktreeOf: (dir) => known.get(resolve(dir)) ?? null,
     checkoutTop: (dir) => (TOPS.includes(resolve(dir)) ? resolve(dir) : null),
     remoteRefExists: (top, branch) => TOPS.includes(top) && REMOTES.includes(branch),
+    freeSlot: (top, name) => TOPS.includes(top) && name !== TAKEN,
     ...over,
   };
 }

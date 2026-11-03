@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutTop, remoteRefExists } from './checkout';
+import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
 import { type CommandContext, classifyCommand } from './commands';
 import { asksAll, PASS, policy, UNLISTED } from './commands.fixture';
 import { meshWorktreeOf, type PathOptions } from './paths';
@@ -29,6 +29,7 @@ function real(cwd: string): CommandContext {
     },
     checkoutTop: (dir) => checkoutTop(dir, o),
     remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
+    freeSlot: (top, name) => freeSlot(top, name, o),
   };
 }
 
@@ -125,6 +126,28 @@ describe('remoteRefExists', () => {
     mkdirSync(join(repo, '.git', 'reftable'));
     expect(remoteRefExists(repo, 'fine', o)).toBe(false);
   });
+
+  it('matches each loose segment by its exact name on disk (case twins)', () => {
+    // on win32 and darwin git opens .../case as the file Case, another branch's ref
+    ref('refs/remotes/origin/agent/sagar/Case');
+    ref('refs/remotes/origin/Team/x');
+    packed(`${OID} refs/remotes/origin/agent/sagar/case`);
+    expect(remoteRefExists(repo, 'agent/sagar/Case', o)).toBe(true);
+    expect(remoteRefExists(repo, 'Team/x', o)).toBe(true);
+    expect(remoteRefExists(repo, 'agent/sagar/case', o)).toBe(false);
+    expect(remoteRefExists(repo, 'agent/sagar/CASE', o)).toBe(false);
+    expect(remoteRefExists(repo, 'team/x', o)).toBe(false);
+  });
+});
+
+describe('freeSlot', () => {
+  it('is true only when nothing is at the worktree path', () => {
+    expect(freeSlot(repo, 'mesh-y', o)).toBe(true);
+    mkdirSync(join(repo, '.claude', 'worktrees', 'mesh-empty'), { recursive: true });
+    expect(freeSlot(repo, 'mesh-empty', o)).toBe(false);
+    put(join(repo, '.claude', 'worktrees', 'mesh-file'));
+    expect(freeSlot(repo, 'mesh-file', o)).toBe(false);
+  });
 });
 
 describe('worktree changes with the real readers', () => {
@@ -140,6 +163,37 @@ describe('worktree changes with the real readers', () => {
   it('asks when only a tag carries the remote branch name (tag shadowing)', () => {
     ref('refs/tags/refs/remotes/origin/agent/sagar/evil');
     expect(classifyCommand(review, real(repo))).toEqual(UNLISTED);
+  });
+
+  it('asks when the slot is already a link to an empty folder, or anything else', () => {
+    ref('refs/remotes/origin/agent/sagar/evil');
+    const empty = join(base, 'home', '.claude', 'skills', 'mesh-y');
+    mkdirSync(empty, { recursive: true });
+    mkdirSync(join(repo, '.claude', 'worktrees'), { recursive: true });
+    link(empty, join(repo, '.claude', 'worktrees', 'mesh-y'));
+    expect(classifyCommand(review, real(repo))).toEqual(UNLISTED);
+    mkdirSync(join(repo, '.claude', 'worktrees', 'mesh-z'));
+    expect(classifyCommand(own, real(repo))).toEqual(UNLISTED);
+    const remove = 'git worktree remove .claude/worktrees/mesh-z';
+    expect(classifyCommand(remove, real(repo))).toEqual(PASS);
+  });
+
+  it('reads with arguments only from inside a checkout or worktree (I2b)', () => {
+    // a review branch commits k -> ~/.ssh; outside a repo git diff runs as --no-index through it
+    const wt = mesh(repo, 'mesh-fake', 'agent/sagar/evil');
+    const ssh = join(base, 'home', '.ssh');
+    put(join(ssh, 'id_ed25519'), 'PRIVATE KEY');
+    put(join(repo, 'f'), 'a');
+    mkdirSync(join(wt, '.claude', 'worktrees', 'x'), { recursive: true });
+    link(ssh, join(wt, '.claude', 'worktrees', 'x', 'k'));
+    const key = '.claude/worktrees/mesh-fake/.claude/worktrees/x/k/id_ed25519';
+    expect(classifyCommand(`git diff repo/${key} repo/f`, real(base))).toEqual(UNLISTED);
+    expect(classifyCommand(`git log -p repo/${key}`, real(base))).toEqual(UNLISTED);
+    expect(classifyCommand('git diff', real(base))).toEqual(PASS);
+    // inside a repo git keeps relative paths in its tree
+    expect(classifyCommand(`git diff ${key} f`, real(repo))).toEqual(PASS);
+    const inner = '.claude/worktrees/x/k/id_ed25519';
+    expect(classifyCommand(`git diff ${inner} f`, real(wt))).toEqual(PASS);
   });
 
   it('asks inside a review worktree whose branch fakes a checkout with a linked folder (C1)', () => {

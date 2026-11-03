@@ -47,10 +47,16 @@ describe('ownBranchPrefix', () => {
 describe('parseWindowPolicy', () => {
   it('parses a valid policy and refuses every malformed one', () => {
     expect(parseWindowPolicy(JSON.stringify(policy))).toEqual(policy);
+    for (const ownBranchPrefix of [null, 'pratik_', 'agent/pratik.']) {
+      const ok = { ...policy, ownBranchPrefix };
+      expect(parseWindowPolicy(JSON.stringify(ok))).toEqual(ok);
+    }
     const bad: unknown[] = [
       { ...policy, token: 'XYZ' },
       { ...policy, agentId: 'Bob' },
       { ...policy, ownBranchPrefix: '../x' },
+      { ...policy, ownBranchPrefix: 'agent/pratik-' }, // also prefixes teammate pratik-2
+      { ...policy, ownBranchPrefix: 'agent/pratik' },
       { ...policy, testCommands: ['pnpm test; rm -rf ~'] },
       { ...policy, testCommands: Array.from({ length: 11 }, () => 'pnpm test') },
       { ...policy, version: 2 },

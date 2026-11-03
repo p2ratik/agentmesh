@@ -35,7 +35,7 @@ function attempt<T>(fn: () => T): T | undefined {
 
 /** What the file system treats as the same name: case folded on win32 and darwin (to upper case,
  * as NTFS does). HFS+ also ignores invisible format characters (git's protectHFS). */
-function key(segment: string, o: PathOptions): string {
+export function key(segment: string, o: PathOptions): string {
   if (o.platform === 'win32') return segment.toUpperCase();
   if (o.platform === 'darwin') {
     const visible = segment.normalize('NFC').replace(/\p{Cf}/gu, '');
@@ -64,7 +64,7 @@ function within(inner: string, outer: string, o: PathOptions): boolean {
 }
 
 /** A name Win32 opens as a device, with any extension (`nul`, `com1.ts`, `conout$`). */
-export const DOS_DEVICE =
+const DOS_DEVICE =
   /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
 
 /** Why a path is refused before the disk is touched (no UNC host is ever contacted), or null.
