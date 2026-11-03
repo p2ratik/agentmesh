@@ -45,6 +45,11 @@ describe('originRepo', () => {
       // the subsection name is case-sensitive in git
       ['[remote "Origin"]\n\turl = git@github.com:Acme/Web.git\n', null],
       ['[remote "origin"]\n\tpushurl = git@github.com:Acme/Web.git\n', null],
+      // any section header ends origin's, even one this parser can't read (an escaped quote)
+      [
+        '[remote "origin"]\n\tfetch = x\n[remote "ev\\"il"]\n\turl = git@github.com:Evil/Other.git\n',
+        null,
+      ],
     ];
     for (const [text, repo] of cases) {
       config(dir, text);

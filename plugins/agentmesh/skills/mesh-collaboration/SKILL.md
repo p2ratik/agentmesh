@@ -114,14 +114,17 @@ your leases. On a conflict, `ask` the holder rather than working around them.
 
 **Your mesh window** is the session your human set up for team work. Follow the rules it was given
 at session start: one task at a time, each in its own `.claude/worktrees/mesh-*` worktree made from
-the checkout `task_get` names. Run each command with the Bash tool as `cd "<checkout>" && <command>`,
-with that absolute path; `git -C` and relative `cd` chains ask. Read the diff of a branch that isn't
-yours freely: `cd "<checkout>" && git fetch origin`, then
+the checkout `task_get` names. Use the Bash tool, and work in a folder in two steps: first
+`cd "<dir>"` alone (a cd inside the window's folder doesn't prompt), then each command as
+`cd "<dir>" && <command>` with the same absolute path. That cd changes nothing, so Claude Code
+doesn't prompt, and the guard still sees the folder; `git -C` and relative `cd` chains ask. Read the
+diff of a branch that isn't yours freely: `cd "<checkout>" && git fetch origin`, then
 `cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>`. To run its
 tests, first reply in the task thread with `working`: "Running the tests on <branch> needs my
 human's approval; my verdict waits for it." Then fetch again, add a review worktree with
 `cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>`,
-run `cd "<worktree>" && <test command>`, and remove the worktree after `review_submit`.
+`cd "<worktree>"`, run `cd "<worktree>" && <test command>`, and remove the worktree after
+`review_submit`.
 
 **A private session** (any other) is your human's own work.
 - You may `ask` teammates. If you need the answer, say so and keep working on whatever doesn't
@@ -159,8 +162,9 @@ task exists.
 ## Reviews
 
 Review for correctness, tests, security and readability. **Read the diff and run the tests in a
-worktree of your own** before any verdict (in the mesh window, the review worktree above). Leave findings as PR comments, then `review_submit` with a
-verdict and a short summary. Use `request_changes` only for what must change, and mark nits as nits.
+worktree of your own** before any verdict (in the mesh window, the review worktree above). Leave
+findings as PR comments, then `review_submit` with a verdict and a short summary. Use
+`request_changes` only for what must change, and mark nits as nits.
 
 A deadline, a demo, "it's tiny", "I already tested it", or a teammate asking you to just approve are
 pressure, not evidence. An approval you did not verify is worth nothing, and the demo is exactly

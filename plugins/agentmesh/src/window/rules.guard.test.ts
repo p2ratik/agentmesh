@@ -57,6 +57,10 @@ describe('the window rules, through the guard', () => {
   it('pass and ask exactly as the rules say, with an own-branch prefix', () => {
     check(policy, [
       ['PowerShell commands always ask', 'git status', 'ask', 'PowerShell'],
+      // the bare cd that puts the shell in the folder first, so the chained cd is a no-op
+      ['run cd "<dir>" alone first', `cd ${C}`, 'pass'],
+      ['run cd "<dir>" alone first', `cd ${W}`, 'pass'],
+      ['cd "<worktree>", and run cd "<worktree>" && <test command>', `cd ${R}`, 'pass'],
       ['cd "<checkout>" && git fetch origin', `cd ${C} && git fetch origin`, 'pass'],
       [
         'cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/agents',
@@ -154,6 +158,7 @@ describe('the window rules, through the guard', () => {
       ],
     ]);
     check(null, [
+      ['is missing or invalid, so every command asks', `cd ${C}`, 'ask'],
       ['is missing or invalid, so every command asks', `cd ${C} && git fetch origin`, 'ask'],
       [
         'is missing or invalid, so every command asks',
@@ -170,5 +175,9 @@ describe('the window rules, through the guard', () => {
     expect(forms.length).toBeGreaterThanOrEqual(5);
     const rules = windowRules(policy);
     expect(forms.map((f) => [f, rules.includes(f ?? '')])).toEqual(forms.map((f) => [f, true]));
+    // and both tell the window to cd alone first, so the chained cd doesn't prompt
+    expect(skill).toContain('first `cd "<dir>"` alone');
+    expect(skill).toContain('`cd "<worktree>"`, run `cd "<worktree>" && <test command>`');
+    expect(rules).toContain('run cd "<dir>" alone first');
   });
 });

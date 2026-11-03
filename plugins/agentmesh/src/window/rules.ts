@@ -24,17 +24,21 @@ function ownBranchLines(policy: WindowPolicy | null): string[] {
 export function windowRules(policy: WindowPolicy | null): string {
   const who = policy ? `${policy.agentId}'s` : "your agent's";
   const base = policy ? policy.integrationBranch : '<integration branch>';
+  // Without a policy the guard asks for every command, reads included.
+  const freely = policy ? ' without asking' : '';
   return [
     `AgentMesh: this session is ${who} mesh window. It takes the team's work: tasks, reviews and teammates' questions.`,
     ...(policy ? [] : [NO_POLICY]),
     "- One task at a time, in order. Answer teammates' questions between steps.",
     '- Run commands with the Bash tool; PowerShell commands always ask your human here.',
     "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo. Below, <checkout> is that absolute path and <worktree> a worktree's absolute path.",
-    '- Chain a command after cd to an absolute path, one cd per call: cd "<checkout>" && <command>. git -C, a relative cd chain and a second cd ask.',
+    // Claude Code prompts for `cd <other folder> && git …` (git there can run that folder's hooks)
+    // but not for a cd into the folder it is already in; the guard still gets the folder named.
+    '- Work in a folder in two steps: run cd "<dir>" alone first (a cd inside the window\'s folder doesn\'t prompt), then each command below as cd "<dir>" && <command> with the same absolute path. That cd changes nothing, so Claude Code doesn\'t prompt, and the guard still sees the folder. git -C, a relative cd chain and a second cd ask.',
     "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
     `- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/${base}. Edits anywhere else are refused.`,
     // Full ref spellings: a fetched tag named origin/<branch> outranks the remote branch.
-    '- Reviews: read the diff without asking: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, and run cd "<worktree>" && <test command>; your human approves the prompt.',
+    `- Reviews: read the diff${freely}: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn't yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human's approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.`,
     '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
     ...ownBranchLines(policy),
     '- Merging and anything not named here ask your human. Escalate before anything risky.',

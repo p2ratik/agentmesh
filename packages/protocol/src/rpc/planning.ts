@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Plan, PlanContribution, PlanState, PlanTaskDraft } from '../planning';
+import { Plan, PlanContribution, PlanState, PlanTaskDraftParams } from '../planning';
 import { IdRef } from '../primitives';
 import { ANY_CALLER, defineMethod, PARTICIPANTS } from './define';
 
@@ -49,7 +49,7 @@ export const planningMethods = {
     params: z.object({
       planId: IdRef,
       summary: z.string().min(1).max(32_000),
-      tasks: z.array(PlanTaskDraft).min(1).max(100),
+      tasks: z.array(PlanTaskDraftParams).min(1).max(100),
     }),
     result: Plan,
   }),

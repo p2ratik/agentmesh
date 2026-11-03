@@ -1,4 +1,4 @@
-// Node built-ins only; never spawns git.
+// The server bundle's (task_get): reads git's files and never spawns git.
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { parseRemote } from '../git';
@@ -25,14 +25,15 @@ function configValue(raw: string): string {
 }
 
 /** The first `url` of `[remote "origin"]`. Section and key names match in any case; the
- * subsection name is case-sensitive, as in git. */
+ * subsection name is case-sensitive, as in git. Any other header ends the section, even one this
+ * doesn't parse (an escaped quote in its name). */
 function originUrl(config: string): string | null {
   let origin = false;
   for (const raw of config.split(/\r?\n/)) {
     const line = raw.trim();
-    const section = /^\[\s*([A-Za-z0-9.-]+)(?:\s+"([^"]*)")?\s*\]/.exec(line);
-    if (section) {
-      origin = section[1]?.toLowerCase() === 'remote' && section[2] === 'origin';
+    if (line.startsWith('[')) {
+      const section = /^\[\s*([A-Za-z0-9.-]+)(?:\s+"([^"\\]*)")?\s*\]/.exec(line);
+      origin = section?.[1]?.toLowerCase() === 'remote' && section[2] === 'origin';
       continue;
     }
     const entry = origin ? /^([A-Za-z][A-Za-z0-9-]*)\s*=(.*)$/.exec(line) : null;

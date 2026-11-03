@@ -22,10 +22,10 @@ describe('windowRules', () => {
       "- One task at a time, in order. Answer teammates' questions between steps.",
       '- Run commands with the Bash tool; PowerShell commands always ask your human here.',
       "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo. Below, <checkout> is that absolute path and <worktree> a worktree's absolute path.",
-      '- Chain a command after cd to an absolute path, one cd per call: cd "<checkout>" && <command>. git -C, a relative cd chain and a second cd ask.',
+      '- Work in a folder in two steps: run cd "<dir>" alone first (a cd inside the window\'s folder doesn\'t prompt), then each command below as cd "<dir>" && <command> with the same absolute path. That cd changes nothing, so Claude Code doesn\'t prompt, and the guard still sees the folder. git -C, a relative cd chain and a second cd ask.',
       "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
       '- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/agents. Edits anywhere else are refused.',
-      '- Reviews: read the diff without asking: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, and run cd "<worktree>" && <test command>; your human approves the prompt.',
+      '- Reviews: read the diff without asking: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.',
       '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
       '- In a worktree on your own branch (agent/bob/…), run without asking: pnpm install --frozen-lockfile, pnpm check (as cd "<worktree>" && <test>, exactly as written). Any other test command asks.',
       "- From your own task worktree these run without asking, each as cd \"<worktree>\" && <command>: git add -A; git commit -m '<message without apostrophes>'; git push -u origin <branch>; gh pr create --base agents --head <branch> --title '<title>' --body '<body>'. Messages, titles and bodies are one line of plain ASCII with no apostrophe or backslash; heredoc or double-quoted commit messages ask.",
@@ -57,6 +57,9 @@ describe('windowRules', () => {
     expect(text).toContain('--track origin/<integration branch>');
     expect(text).toContain(NULL_PREFIX);
     expect(text).not.toContain('From your own task worktree');
+    // without a policy the guard asks for everything, reads included
+    expect(text).not.toContain('without asking');
+    expect(text).toContain('- Reviews: read the diff: cd "<checkout>" && git fetch origin');
   });
 
   it('never names a short ref spelling a fetched tag could shadow', () => {
