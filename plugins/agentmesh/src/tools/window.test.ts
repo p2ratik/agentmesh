@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { WindowPolicy } from '@agentmesh/common/window';
+import { launcherDisplay, type WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
@@ -10,8 +10,9 @@ import { callTool } from './registry';
 
 const NOT_WINDOW =
   "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
-const PULL_REFUSED =
-  'This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ~/.agentmesh/mesh-window.';
+/** The launcher as this platform runs it (`mesh-window.cmd` on Windows, see launcherDisplay). */
+const LAUNCHER = launcherDisplay(process.platform);
+const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
 
 const policy: WindowPolicy = {
   version: 1,
@@ -90,7 +91,7 @@ describe('activate and the mesh window', () => {
     const result = await callTool('activate', { code: 'c-1', description: 'x' }, deps);
     expect(result.isError).toBe(true);
     expect(text(result)).toBe(
-      "AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for alice-agent, so this session can't be your mesh window. Start it with ~/.agentmesh/mesh-window, or run /agentmesh:window again.",
+      `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for alice-agent, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`,
     );
     expect(calls).toEqual([]);
   });

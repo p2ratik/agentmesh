@@ -8,7 +8,11 @@ export const MESH_WINDOW_HINT_ENV = 'AGENTMESH_MESH_WINDOW_HINT';
 export const CHANNEL_FLAG = '--dangerously-load-development-channels plugin:agentmesh@agentmesh';
 export const RESTART = `claude ${CHANNEL_FLAG}`;
 export const LAUNCH_PROMPT: string | null = '/agentmesh:activate mesh window';
-export const LAUNCHER_DISPLAY = '~/.agentmesh/mesh-window';
+const launcherName = (platform: NodeJS.Platform) =>
+  platform === 'win32' ? 'mesh-window.cmd' : 'mesh-window';
+/** The launcher in a printed start line. PowerShell and Git Bash on Windows need the `.cmd`. */
+export const launcherDisplay = (platform: NodeJS.Platform): string =>
+  `~/.agentmesh/${launcherName(platform)}`;
 
 export interface WindowFiles {
   dir: string;
@@ -24,7 +28,7 @@ export function windowFiles(home: string, platform: NodeJS.Platform): WindowFile
     dir,
     policy: join(dir, 'mesh-window.json'),
     settings: join(dir, 'mesh-window.settings.json'),
-    launcher: join(dir, platform === 'win32' ? 'mesh-window.cmd' : 'mesh-window'),
+    launcher: join(dir, launcherName(platform)),
     emptyHooks: join(dir, 'empty-git-hooks'),
   };
 }

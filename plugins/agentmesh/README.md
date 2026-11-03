@@ -118,7 +118,8 @@ window**. Every other session is private.
 **Set it up once** with `/agentmesh:window`; `/agentmesh:join` and `/agentmesh:setup` offer it.
 Claude asks for your team's folder and the exact test commands, and the bundled CLI
 (`agentmesh window init`) writes the launcher, its settings and its policy into `~/.agentmesh/`
-([files](#settings-and-files)). Run it again to change them; the window keeps its token.
+([files](#settings-and-files)). Run it again to change them; the window keeps its token. With
+`CLAUDE_CONFIG_DIR` set, the window starts in that Claude account; `window init` prints which one.
 
 **Start it each day** in a terminal, with the line `window init` printed. It names your folder in
 full:
@@ -127,12 +128,17 @@ full:
 ~/.agentmesh/mesh-window "/home/alice/code/acme"    # the folder that holds your team's repos
 ```
 
-On Windows, run the printed line in PowerShell as it is, with its absolute folder; a `~` in the
-folder doesn't work there. cmd doesn't know `~` at all:
+On Windows `window init` prints two lines: the first for PowerShell or Git Bash (as it is, with its
+absolute folder; a `~` in the folder doesn't work in PowerShell), the second for cmd, which doesn't
+know `~` at all:
 
 ```bat
+~/.agentmesh/mesh-window.cmd "C:\code\acme"
 "%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
 ```
+
+The Windows launcher writes paths under your user folder as `%USERPROFILE%\…`, so a non-ASCII user
+folder works; any other non-ASCII path is refused.
 
 The launcher marks the session and starts Claude Code with the channel flag, the name
 `mesh-<agent>`, `--permission-mode default` and its settings file. The window then activates itself

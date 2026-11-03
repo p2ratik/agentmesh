@@ -1,6 +1,6 @@
 import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@agentmesh/common/window';
 import { describe, expect, it } from 'vitest';
-import { bakeable, launcherScript, sessionName, windowSettings } from './window';
+import { bakeable, bakedPath, launcherScript, sessionName, windowSettings } from './window';
 
 const token = '0123456789abcdef0123456789abcdef';
 const inputs = (platform: NodeJS.Platform, claude: string, home: string) => ({
@@ -80,6 +80,32 @@ describe('launcherScript', () => {
     expect(p[3]).toMatch(/^exec '\/c' .* --settings '[^']*'$/);
   });
 
+  it('writes paths below %USERPROFILE% as %USERPROFILE%\\… on windows, so cmd reads them in any code page', () => {
+    const home = 'C:\\Users\\hömé';
+    const i = { ...inputs('win32', `${home}\\.local\\bin\\claude.exe`, home), userProfile: home };
+    const lines = launcherScript(i, 'win32').split('\r\n');
+    expect(lines[5]).toBe(
+      `call "%USERPROFILE%\\.local\\bin\\claude.exe" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "%USERPROFILE%\\.agentmesh\\mesh-window.settings.json" "${LAUNCH_PROMPT}"`,
+    );
+    expect(launcherScript(i, 'win32')).toMatch(/^[\x20-\x7e\r\n]*$/);
+  });
+
+  it('starts Claude Code in the account CLAUDE_CONFIG_DIR named', () => {
+    const home = 'C:\\Users\\bob';
+    const w = { ...inputs('win32', 'C:\\c.cmd', home), userProfile: home };
+    const win = launcherScript({ ...w, configDir: `${home}\\.claude-work` }, 'win32').split('\r\n');
+    expect(win.slice(3, 6)).toEqual([
+      `set "AGENTMESH_MESH_WINDOW=${token}"`,
+      'set "CLAUDE_CONFIG_DIR=%USERPROFILE%\\.claude-work"',
+      'if not "%~1"=="" cd /d "%~1" || exit /b 1',
+    ]);
+    const p = { ...inputs('linux', '/c', '/home/bob'), configDir: '/home/bob/.claude-work' };
+    expect(launcherScript(p, 'linux').split('\n')[2]).toBe(
+      "export CLAUDE_CONFIG_DIR='/home/bob/.claude-work'",
+    );
+    expect(launcherScript(inputs('linux', '/c', '/h'), 'linux')).not.toContain('CLAUDE_CONFIG_DIR');
+  });
+
   it('writes the posix launcher', () => {
     const i = inputs('linux', '/usr/bin/claude', '/home/bob');
     expect(launcherScript(i, 'linux')).toBe(
@@ -103,6 +129,28 @@ describe('bakeable', () => {
     expect(bakeable('/home/a\nb', 'linux')).toBe(false);
     expect(bakeable('C:/Users/ok/x', 'win32')).toBe(true);
     expect(bakeable('/home/o b', 'linux')).toBe(true);
+  });
+
+  it('refuses non-ASCII left in a windows path once %USERPROFILE% stands in for the home', () => {
+    const home = 'C:\\Users\\hömé';
+    expect(bakeable(`${home}\\.agentmesh\\x`, 'win32', home)).toBe(true);
+    expect(bakeable(`${home}\\.agentmesh\\x`, 'win32', null)).toBe(false);
+    expect(bakeable('D:\\tööls\\claude.cmd', 'win32', home)).toBe(false);
+    expect(bakeable('/home/hömé/x', 'linux', null)).toBe(true);
+  });
+
+  it('checks the expanded path for what call re-expands', () => {
+    // `call` expands %USERPROFILE% again and doubles carets, so its value must be plain too.
+    expect(bakeable('C:\\Users\\a%b\\x', 'win32', 'C:\\Users\\a%b')).toBe(false);
+    expect(bakeable('C:\\Users\\a^b\\x', 'win32', 'C:\\Users\\a^b')).toBe(false);
+  });
+});
+
+describe('bakedPath', () => {
+  it('replaces the user profile folder, in any case, only on windows', () => {
+    expect(bakedPath('c:\\users\\bob\\x', 'win32', 'C:\\Users\\Bob')).toBe('%USERPROFILE%\\x');
+    expect(bakedPath('C:\\Users\\Bobby\\x', 'win32', 'C:\\Users\\Bob')).toBe('C:\\Users\\Bobby\\x');
+    expect(bakedPath('/home/bob/x', 'linux', '/home/bob')).toBe('/home/bob/x');
   });
 });
 

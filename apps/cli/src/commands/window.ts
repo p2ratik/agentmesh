@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  LAUNCHER_DISPLAY,
+  launcherDisplay,
   ownBranchPrefix,
   parseWindowPolicy,
   type WindowPolicy,
@@ -60,7 +60,45 @@ const worktreeWarnings = (dir: string): string[] =>
         `Warning: ${c} doesn't ignore .claude/worktrees/; add it to .gitignore so the window's worktrees don't show up as untracked files.`,
     );
 
-/** What follows the "Wrote …" lines: a re-run note, then the warnings. */
+/** The environment the launcher bakes in, with every path it bakes checked. */
+function launcherEnv(
+  ctx: CliContext,
+  platform: NodeJS.Platform,
+  paths: string[],
+): { userProfile: string | null; configDir: string | null } {
+  const userProfile = ctx.env.USERPROFILE ?? null;
+  const account = ctx.env.CLAUDE_CONFIG_DIR;
+  const configDir = account ? resolveFrom(ctx, account) : null;
+  for (const p of configDir ? [...paths, configDir] : paths) {
+    if (!bakeable(p, platform, userProfile)) {
+      throw usageError(
+        `Cannot bake the path ${JSON.stringify(p)} into the launcher: it has characters a shell script would misread. Move it or use another home folder.`,
+      );
+    }
+  }
+  return { userProfile, configDir };
+}
+
+/** Which Claude account the window uses, and the line that starts it (two forms on Windows). */
+function printStart(
+  ctx: CliContext,
+  s: { platform: NodeJS.Platform; dir: string; configDir: string | null },
+): void {
+  ctx.stdout(
+    s.configDir
+      ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).`
+      : 'The window uses your default Claude account (~/.claude).',
+  );
+  const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
+  if (s.platform !== 'win32') {
+    ctx.stdout(`Start it each day in your team's folder: ${line}`);
+    return;
+  }
+  ctx.stdout(`Start it each day in your team's folder (PowerShell or Git Bash): ${line}`);
+  ctx.stdout(`In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${s.dir}"`);
+}
+
+/** What follows the start line: a re-run note, then the warnings. */
 function printNotes(
   ctx: CliContext,
   n: { rerun: boolean; prefix: string | null; dir: string; emptyHooks: string },
@@ -72,7 +110,7 @@ function printNotes(
   }
   if (n.prefix === null) {
     ctx.stdout(
-      "Warning: the branch template names neither the owner nor the agent, so the window can't tell its own branches: every test run will ask.",
+      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask.",
     );
   }
   for (const line of worktreeWarnings(n.dir)) ctx.stdout(line);
@@ -95,7 +133,8 @@ export const windowInitCommand: Command = {
 Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
 empty empty-git-hooks/ folder. Start the window each day with the launcher, in your team's folder.
-Running it again keeps the window's token.
+Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in that
+Claude account.
 
 --agent               your agent id (required)
 --owner               your id in branch names (default: the agent id)
@@ -142,13 +181,7 @@ Running it again keeps the window's token.
       ctx.stderr('error: claude is not on PATH. Install Claude Code first.');
       return 1;
     }
-    for (const p of [claude, files.settings]) {
-      if (!bakeable(p, platform)) {
-        throw usageError(
-          `Cannot bake the path ${JSON.stringify(p)} into the launcher: it has characters a shell script would misread. Move it or use another home folder.`,
-        );
-      }
-    }
+    const { userProfile, configDir } = launcherEnv(ctx, platform, [claude, files.settings]);
     const dir = resolveFrom(ctx, values.dir ?? '.');
     if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
     const inputs = {
@@ -159,6 +192,8 @@ Running it again keeps the window's token.
       testCommands: policy.testCommands,
       ownBranchPrefix: prefix,
       integrationBranch: policy.integrationBranch,
+      userProfile,
+      configDir,
     };
 
     mkdirSync(files.dir, { recursive: true, mode: 0o700 });
@@ -170,7 +205,7 @@ Running it again keeps the window's token.
     ctx.stdout(
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`,
     );
-    ctx.stdout(`Start it each day in your team's folder: ${LAUNCHER_DISPLAY} "${dir}"`);
+    printStart(ctx, { platform, dir, configDir });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   },

@@ -483,8 +483,14 @@ The design (§3 and §8) first claimed more than holds:
   - A test command is plain: letters, digits, spaces and `. _ : / = @ -`, up to 200 characters,
     at most 10 of them.
   - The folder argument is quoted (`cd /d "%~1"` on Windows, `cd -- "$1"` elsewhere).
-  - The paths baked into the launcher (`claude` and the settings file) are refused when they hold
-    a line break, or `% ^ & " ! < > |` on Windows, or `'` elsewhere.
+  - The paths baked into the launcher (`claude`, the settings file, and `CLAUDE_CONFIG_DIR` when
+    it is set) are refused when they hold a line break, or `% ^ & " ! < > |` on Windows, or `'`
+    elsewhere.
+  - **Non-ASCII on Windows:** cmd reads a `.cmd` file in the console's code page (437, 850…), not
+    UTF-8, so a non-ASCII path baked as UTF-8 names another file. The launcher writes paths under
+    `%USERPROFILE%` as `%USERPROFILE%\…` and refuses any path that still holds a non-ASCII
+    character. The refused-character check runs on the expanded path: `call` expands `%` in
+    `%USERPROFILE%`'s value again and doubles its `^`.
   - `claude` is found by a PATH walk over absolute entries only (with PATHEXT on Windows), never in
     the current folder, which `where` and cmd search first. The Windows launcher runs it by that
     absolute path with `call`.

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  launcherDisplay,
   MESH_WINDOW_ENV,
   ownBranchPrefix,
   parseWindowPolicy,
@@ -117,5 +118,11 @@ describe('windowFiles', () => {
     expect(windowFiles('/h', 'linux').launcher.endsWith(join('.agentmesh', 'mesh-window'))).toBe(
       true,
     );
+  });
+
+  it('displays the launcher so PowerShell and Git Bash find it on windows', () => {
+    expect(launcherDisplay('win32')).toBe('~/.agentmesh/mesh-window.cmd');
+    expect(launcherDisplay('linux')).toBe('~/.agentmesh/mesh-window');
+    expect(launcherDisplay('darwin')).toBe('~/.agentmesh/mesh-window');
   });
 });

@@ -53,7 +53,7 @@ describe('renderJoinNote', () => {
     expect(note).toContain('7. Say yes when Claude offers automatic plugin updates');
     expect(note).toContain('turn them on later with `/agentmesh:autoupdate`');
     expect(note).toContain(
-      "8. Run `/agentmesh:window`, then start your mesh window each day with `~/.agentmesh/mesh-window` in your team's folder.",
+      "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with the line it prints (`~/.agentmesh/mesh-window`; `~/.agentmesh/mesh-window.cmd` on Windows).",
     );
     expect(note.trimEnd().endsWith('Install first: codes expire 24 hours after the invite.')).toBe(
       true,

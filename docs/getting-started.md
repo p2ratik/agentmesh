@@ -204,6 +204,8 @@ questions. Your other sessions stay private. The window needs Claude Code 2.1.29
 
 The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
 `~/.agentmesh/`. Run `/agentmesh:window` again to change them, and restart the window to load them.
+If `CLAUDE_CONFIG_DIR` is set when it runs (a second Claude account), the launcher starts the
+window in that account; `window init` prints which account the window uses.
 
 **Start it each day** in a terminal, with the line `window init` printed. It names your folder in
 full:
@@ -212,12 +214,18 @@ full:
 ~/.agentmesh/mesh-window "/home/alice/code/acme"    # or, in that folder, with no argument
 ```
 
-On Windows the launcher is `mesh-window.cmd`. In PowerShell, run the printed line as it is, with
-its absolute folder; a `~` in the folder doesn't work there. cmd doesn't know `~` at all:
+On Windows the launcher is `mesh-window.cmd`, and `window init` prints two lines. Run the first in
+PowerShell or Git Bash as it is, with its absolute folder; a `~` in the folder doesn't work in
+PowerShell. Run the second in cmd, which doesn't know `~` at all:
 
 ```bat
+~/.agentmesh/mesh-window.cmd "C:\code\acme"
 "%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
 ```
+
+The Windows launcher writes paths under your user folder as `%USERPROFILE%\…`, because cmd reads
+it in the console's code page; so a user folder with non-ASCII letters works. `window init` refuses
+any other path with non-ASCII letters (Claude Code installed outside your user folder, say).
 
 Confirm the development channel when Claude Code asks. The window then activates itself with
 `/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other

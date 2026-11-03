@@ -15,10 +15,10 @@ import { runCli } from '../main';
 
 const platform = process.platform;
 
-function setup(withClaude = true, homeName = 'home') {
+function setup(withClaude = true, homeName = 'home', binName = 'bin', env: CliContext['env'] = {}) {
   const root = mkdtempSync(join(tmpdir(), 'agentmesh-window-'));
   const home = join(root, homeName);
-  const bin = join(root, 'bin');
+  const bin = join(root, binName);
   const work = join(root, 'work');
   for (const d of [home, bin, work]) mkdirSync(d);
   if (withClaude) writeFileSync(join(bin, platform === 'win32' ? 'claude.cmd' : 'claude'), '');
@@ -26,7 +26,7 @@ function setup(withClaude = true, homeName = 'home') {
   const err: string[] = [];
   const ctx: CliContext = {
     cwd: work,
-    env: { PATH: withClaude ? bin : '', PATHEXT: '.CMD' },
+    env: { PATH: withClaude ? bin : '', PATHEXT: '.CMD', USERPROFILE: home, ...env },
     homeDir: home,
     stdout: (t) => out.push(t),
     stderr: (t) => err.push(t),
@@ -35,7 +35,7 @@ function setup(withClaude = true, homeName = 'home') {
   const files = windowFiles(home, platform);
   const run = (...argv: string[]) => runCli(['window', 'init', ...argv], ctx);
   const policy = () => parseWindowPolicy(readFileSync(files.policy, 'utf8'));
-  return { work, out, err, run, files, policy, home };
+  return { work, out, err, run, files, policy, home, root };
 }
 
 const mode = (p: string) => statSync(p).mode & 0o777;
@@ -75,7 +75,7 @@ describe('agentmesh window init', () => {
     out.length = 0;
     expect(await run('--agent', 'bob-agent')).toBe(0);
     expect(policy()?.token).toBe(first);
-    expect(out[2]).toBe(
+    expect(out).toContain(
       'A mesh window that is already running keeps working; restart it to load the new settings.',
     );
   });
@@ -83,7 +83,71 @@ describe('agentmesh window init', () => {
   it('warns when the branch template cannot tell its own branches', async () => {
     const { out, run } = setup();
     await run('--agent', 'bob-agent', '--branch-template', 'feature/{task}');
-    expect(out.some((l) => l.startsWith('Warning: the branch template names neither'))).toBe(true);
+    expect(out).toContain(
+      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask.",
+    );
+  });
+
+  it('prints the start line for this platform', async () => {
+    const { out, run, work } = setup();
+    await run('--agent', 'bob-agent');
+    const lines =
+      platform === 'win32'
+        ? [
+            `Start it each day in your team's folder (PowerShell or Git Bash): ~/.agentmesh/mesh-window.cmd "${work}"`,
+            `In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${work}"`,
+          ]
+        : [`Start it each day in your team's folder: ~/.agentmesh/mesh-window "${work}"`];
+    expect(out.slice(2, 2 + lines.length)).toEqual(lines);
+  });
+
+  it('bakes a non-ASCII home folder so the launcher still finds its files', async () => {
+    const { run, files } = setup(true, 'hömé');
+    expect(await run('--agent', 'bob-agent')).toBe(0);
+    const launcher = readFileSync(files.launcher, 'utf8');
+    if (platform === 'win32') {
+      // cmd reads a .cmd file in the console's code page, not UTF-8.
+      expect(launcher).toContain(
+        '--settings "%USERPROFILE%\\.agentmesh\\mesh-window.settings.json"',
+      );
+      expect(launcher).toMatch(/^[\x20-\x7e\r\n]*$/);
+    } else {
+      expect(launcher).toContain(`--settings '${files.settings}'`);
+    }
+  });
+
+  it.skipIf(platform !== 'win32')(
+    'refuses a claude outside the home folder whose path is not ASCII',
+    async () => {
+      const { run, err, files } = setup(true, 'home', 'tööls');
+      expect(await run('--agent', 'bob-agent')).toBe(2);
+      expect(err.join('\n')).toContain('Cannot bake the path');
+      expect(() => statSync(files.dir)).toThrow();
+    },
+  );
+
+  it('starts the window in the Claude account CLAUDE_CONFIG_DIR names, and says which', async () => {
+    const other = setup();
+    await other.run('--agent', 'bob-agent');
+    expect(other.out[1]).toBe('The window uses your default Claude account (~/.claude).');
+    const root = mkdtempSync(join(tmpdir(), 'agentmesh-account-'));
+    const account = join(root, 'claude-work');
+    const { out, run, files } = setup(true, 'home', 'bin', { CLAUDE_CONFIG_DIR: account });
+    expect(await run('--agent', 'bob-agent')).toBe(0);
+    expect(out[1]).toBe(`The window uses the Claude account in ${account} (CLAUDE_CONFIG_DIR).`);
+    expect(readFileSync(files.launcher, 'utf8')).toContain(
+      platform === 'win32'
+        ? `set "CLAUDE_CONFIG_DIR=${account}"`
+        : `export CLAUDE_CONFIG_DIR='${account}'`,
+    );
+  });
+
+  it('refuses a CLAUDE_CONFIG_DIR it cannot bake', async () => {
+    const bad = platform === 'win32' ? 'C:\\R&D\\claude' : "/home/o'b/claude";
+    const { run, err, files } = setup(true, 'home', 'bin', { CLAUDE_CONFIG_DIR: bad });
+    expect(await run('--agent', 'bob-agent')).toBe(2);
+    expect(err.join('\n')).toContain('Cannot bake the path');
+    expect(() => statSync(files.dir)).toThrow();
   });
 
   it('refuses unsafe input', async () => {

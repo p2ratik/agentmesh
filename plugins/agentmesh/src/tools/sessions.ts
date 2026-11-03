@@ -1,5 +1,5 @@
 import { MeshError } from '@agentmesh/common';
-import { LAUNCHER_DISPLAY, RESTART } from '@agentmesh/common/window';
+import { launcherDisplay, RESTART } from '@agentmesh/common/window';
 import { z } from 'zod';
 import { guardAlive } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
@@ -16,7 +16,9 @@ const PULL_ACTIVE = `Nothing is pushed to this pull-only session: new mesh messa
 const NOT_WINDOW =
   "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
 
-const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER_DISPLAY}.`;
+const LAUNCHER = launcherDisplay(process.platform);
+
+const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
 
 const GUARD_DOWN =
   "The mesh window's worktree guard did not run for this call, so this session can't take team work. Check that hooks are on (disableAllHooks) and that node is on PATH, then call activate again.";
@@ -43,7 +45,7 @@ export const sessionTools = [
       // Before any hub call: a marker that does not verify must not take team work.
       if (window.state === 'marked') {
         throw new ToolRefusal(
-          `AGENTMESH_MESH_WINDOW is set, but it doesn't match ${LAUNCHER_DISPLAY}.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER_DISPLAY}, or run /agentmesh:window again.`,
+          `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`,
         );
       }
       const isWindow = window.state === 'verified';
