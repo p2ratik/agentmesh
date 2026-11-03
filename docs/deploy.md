@@ -279,8 +279,6 @@ member then:
    ([getting-started.md](getting-started.md#your-mesh-window));
 3. deactivates the other sessions they had activated, and turns off any Desktop inbox poll.
 
-Routing prefers the window only once the hub runs 0.5.0.
-
 ## Checking and changing a setup deploy
 
 - **`agentmesh doctor --dir <workspace>`** prints a ✓ or ✗ line per check, with what to do for

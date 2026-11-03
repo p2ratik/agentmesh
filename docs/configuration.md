@@ -188,7 +188,8 @@ Each laptop's settings live outside `mesh.yaml`. The plugin options, the environ
 files in `~/.agentmesh/` are listed in the
 [plugin README](../plugins/agentmesh/README.md#settings-and-files). Two knobs belong to the mesh
 window:
-- `AGENTMESH_MESH_WINDOW` marks the mesh window. Only its launcher sets it; never set it by hand.
+- `AGENTMESH_MESH_WINDOW` marks the mesh window. Only its launcher and its settings file set it;
+  never set it by hand.
 - `AGENTMESH_MESH_WINDOW_HINT=off`, in the `env` of your Claude Code `settings.json`, hides the
   session-start line that says no mesh window is running.
 
@@ -197,5 +198,6 @@ instructions, into the window's policy: `git.integrationBranch`, and the own-bra
 `git.branchTemplate`. Run it again after either changes. The prefix is the
 template with `{owner}` and `{agent}` filled in, cut at the first other placeholder, so
 `agent/{owner}/{task}-{slug}` gives `agent/alice/`. It counts only when it names the owner or the
-agent and ends in `/`, `_` or `.`. Otherwise the window can't tell its own branches, and every test
-run asks ([security.md](security.md#the-mesh-window)).
+agent and ends in `/`, `_` or `.`. Otherwise the window can't tell its own branches, so every test
+run asks, and so do task worktree adds, commits, pushes and PRs
+([security.md](security.md#the-mesh-window)).

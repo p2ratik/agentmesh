@@ -124,8 +124,9 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
    it into a chat.
 4. Start Claude Code with the channel flag (the third command above), then run `/agentmesh:join`,
    `/agentmesh:window` and `/agentmesh:autoupdate`.
-5. Each day, start your mesh window in your team's folder with `~/.agentmesh/mesh-window`. It takes
-   your team's work; your other sessions stay private.
+5. Each day, start your mesh window with the line `/agentmesh:window` printed
+   (`~/.agentmesh/mesh-window "<your team's folder>"`; on Windows, in PowerShell). It takes your
+   team's work; your other sessions stay private.
 
 ## Commands
 

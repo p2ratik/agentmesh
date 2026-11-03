@@ -120,10 +120,18 @@ Claude asks for your team's folder and the exact test commands, and the bundled 
 (`agentmesh window init`) writes the launcher, its settings and its policy into `~/.agentmesh/`
 ([files](#settings-and-files)). Run it again to change them; the window keeps its token.
 
-**Start it each day** in a terminal:
+**Start it each day** in a terminal, with the line `window init` printed. It names your folder in
+full:
 
 ```bash
-~/.agentmesh/mesh-window ~/code/acme    # the folder that holds your team's repos
+~/.agentmesh/mesh-window "/home/alice/code/acme"    # the folder that holds your team's repos
+```
+
+On Windows, run the printed line in PowerShell as it is, with its absolute folder; a `~` in the
+folder doesn't work there. cmd doesn't know `~` at all:
+
+```bat
+"%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
 ```
 
 The launcher marks the session and starts Claude Code with the channel flag, the name
@@ -142,23 +150,24 @@ after `/clear` and after compaction, and `activate` repeats them.
 
 **The worktree guard** is `dist/guard.js`, a `PreToolUse` hook on edits, Bash, PowerShell, Monitor,
 `EnterWorktree`, `Agent`, `Workflow` and `activate`.
-- Claude Code runs it in every session, which costs a `node` start (about 50 ms) per edit, shell
-  call, subagent or workflow call. Outside the mesh window it does nothing else.
+- Claude Code runs it in every session, which costs a `node` start (about 50–100 ms) per edit,
+  shell call, subagent or workflow call. Outside the mesh window it does nothing else.
 - In the window it refuses edits outside its mesh worktrees and asks before commands that aren't on
-  its list. `activate` there refuses unless the guard ran for that same call.
+  its list. `activate` there refuses unless the guard stamped an `activate` call in the last 2
+  minutes (`guard-alive.json`).
 - It fails closed (`onFailure: "block"`, Claude Code 2.1.295+). If `node` or `dist/guard.js` is
   missing, edits and shell calls are blocked in every session until it is fixed.
 
-**The session-start line.** In any other session, when no mesh window is running, the hook shows
-one line at startup: "No AgentMesh mesh window is running for this account, so teammates' requests
-will wait. …". Set `AGENTMESH_MESH_WINDOW_HINT=off` in the `env` of your Claude Code
+**The session-start line.** In any other session, when no session of this account is active with
+pushes (normally that is the mesh window), the hook shows one line at startup: "No AgentMesh mesh
+window is running for this account, so teammates' requests will wait. …". Set `AGENTMESH_MESH_WINDOW_HINT=off` in the `env` of your Claude Code
 `settings.json` to hide it.
 
 ## Other sessions
 
 Every other session starts inactive: the tools work, but nothing is pushed to it, and teammates do
 not see it. It can `ask` a teammate, and the answer waits for it (read it with `thread` or
-`inbox`). The mesh window follows up the tasks it hands out.
+`inbox`). The mesh window follows up the tasks a private session hands out.
 
 To make one receive mesh messages anyway, run `/agentmesh:activate` there; Claude warns that team
 work will come to it while no mesh window is running. The hub sends a test message with a code to

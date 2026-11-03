@@ -99,9 +99,11 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
     anything runs without a prompt.
   - It fails closed. The hook has `onFailure: "block"` (Claude Code 2.1.295+). A call it can't read
     or a tool it doesn't know is refused, and a command it can't check asks. `activate` in a marked
-    session refuses unless the guard stamped that same call (`guard-alive.json`, under 2 minutes
-    old).
-- **Tests (Pratik's decision 5) and the `working` reply.**
+    session refuses unless the guard stamped an `activate` call in the last 2 minutes
+    (`guard-alive.json`).
+- **Tests (Pratik's
+  [decision 5](../specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01))
+  and the `working` reply.**
   - A test command runs without a prompt only in a mesh worktree on the window's own branch. The
     own-branch prefix is the branch template with `{owner}` and `{agent}` filled in, cut at the
     first other placeholder; it counts only when it ends in `/`, `_` or `.`. Anywhere else tests
@@ -148,16 +150,17 @@ Part 1:
 Part 2:
 
 - Team work goes to the mesh window even when another active session is in the task's repo.
-- Private sessions stay private. Activating a push session without the marker still works, with a
-  warning: "This isn't your mesh window; team work will come here while no mesh window is running."
+- Private sessions stay private. Activating a session (push or pull) without the marker still
+  works, with a warning: "This isn't your mesh window; team work will come here while no mesh
+  window is running."
 - The window's own delivery runs without asking, from its own task worktree only: `git add`,
   `git commit -m '…'`, `git push [-u] origin <that branch>` and
   `gh pr create --base <integration> --head <that branch>`. Merges, force pushes, other branches
   and anything off the list prompt. Branch protection still gates every merge.
 - PowerShell commands always ask in the window, so the window works through the Bash tool.
-- Read-only shell commands other than `ls` and `git diff|log|show` ask, so the window reads files
-  with Read, Grep and Glob.
-- The guard runs in every session. It costs a `node` start (about 50 ms) on every edit, shell
+- Read-only shell commands other than `pwd`, `cd`, `ls`, `git status`, `git worktree list` and
+  `git diff|log|show` ask, so the window reads files with Read, Grep and Glob.
+- The guard runs in every session. It costs a `node` start (about 50–100 ms) on every edit, shell
   call, subagent and workflow call, and a broken install (no `node`, no `dist/guard.js`) blocks
   those calls in every session until it is fixed.
 - The hub needs migration 007. A 0.5.0 plugin works with an older hub, which ignores the flag, so

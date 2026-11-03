@@ -1,9 +1,9 @@
 # Getting started
 
 From nothing to a team where every developer's agent is on the mesh, with a mesh window that takes
-its team work. Roles: one
-**mesh admin** runs `/agentmesh:setup`, which stands up the hub and the admin's own agent; every
-**developer** then joins by invite. To do it without setup, see [Set up by hand](#set-up-by-hand).
+its team work. Roles: one **mesh admin** runs `/agentmesh:setup`, which stands up the hub and the
+admin's own agent; every **developer** then joins by invite. To do it without setup, see
+[Set up by hand](#set-up-by-hand).
 
 ## 1. What the admin needs
 
@@ -205,22 +205,30 @@ questions. Your other sessions stay private. The window needs Claude Code 2.1.29
 The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
 `~/.agentmesh/`. Run `/agentmesh:window` again to change them, and restart the window to load them.
 
-**Start it each day** in a terminal, with the command `window init` printed:
+**Start it each day** in a terminal, with the line `window init` printed. It names your folder in
+full:
 
 ```bash
-~/.agentmesh/mesh-window ~/code/acme     # or, in that folder, with no argument
+~/.agentmesh/mesh-window "/home/alice/code/acme"    # or, in that folder, with no argument
 ```
 
-On Windows the launcher is `mesh-window.cmd`; cmd and PowerShell both run it. Confirm the
-development channel when Claude Code asks. The window then activates itself with
+On Windows the launcher is `mesh-window.cmd`. In PowerShell, run the printed line as it is, with
+its absolute folder; a `~` in the folder doesn't work there. cmd doesn't know `~` at all:
+
+```bat
+"%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
+```
+
+Confirm the development channel when Claude Code asks. The window then activates itself with
 `/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
 sessions as usual.
 
 **What it does without asking, and what asks:**
-- **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees; `git status`,
-  `git fetch origin`, and adding and removing those worktrees; reading diffs; and, on its own
-  branches, your test commands, `git add`, `git commit`, a push of that branch and
-  `gh pr create` into the integration branch.
+- **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live
+  check is pending, and if they prompt instead, that is safe); `git status`, `git fetch origin`,
+  and adding and removing those worktrees; reading diffs; and, on its own branches, your test
+  commands, `git add`, `git commit`, a push of that branch and `gh pr create` into the integration
+  branch.
 - **It asks you first:** before it runs the tests of a branch it didn't write (it tells the
   author's agent that the verdict waits for you), and for merges, force pushes, other branches,
   PowerShell commands and anything else not on its list.
@@ -243,11 +251,11 @@ path.
 
 **Private sessions.** Every other session is your own work. Its mesh tools still work: it can `ask`
 a teammate, and the answer waits for it (read it with `thread` or `inbox`). It doesn't take team
-work, and the mesh window follows up the tasks it hands out. You can still activate a private
-session; it then warns that team work will come to it while no mesh window is running.
+work, and the mesh window follows up the tasks a private session hands out. You can still activate
+a private session; it then warns that team work will come to it while no mesh window is running.
 
-**The session-start line.** When no mesh window is running, a new session says so in one line at
-startup. Add `AGENTMESH_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
+**The session-start line.** When no session of yours is active with pushes (normally that is your
+mesh window), a new session says so in one line at startup. Add `AGENTMESH_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
 hide it.
 
 **Claude Desktop users.** Desktop can't pass the channel flag, so it can't be a mesh window. Start

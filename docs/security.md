@@ -321,10 +321,12 @@ to its session, and `session.check` then fails (see the upgrade notes in
 ## The mesh window
 
 The mesh window ([ADR 0009](adr/0009-mesh-window.md), part 2) is the one session per teammate that
-takes team work. By Pratik's decision 3 it runs routine steps without asking. It is an ordinary
-interactive Claude Code session in `default` mode, started by `~/.agentmesh/mesh-window`. Two of
-Claude Code's own layers decide what it may do: the allow rules in its settings file, and the
-plugin's worktree guard. Both must agree before anything runs without a prompt.
+takes team work. By Pratik's
+[decision 3](specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01)
+it runs routine steps without asking. It is an ordinary interactive Claude Code session in
+`default` mode, started by `~/.agentmesh/mesh-window`. Two layers decide what it may do: the allow
+rules in its settings file, and the plugin's worktree guard. Both must agree before anything runs
+without a prompt.
 
 ### What runs without asking
 
@@ -350,6 +352,10 @@ Bash(gh pr create --base <integration branch> *)
   asks for anything else.
 - Claude Code runs some read-only commands (`ls`, `cd`, `pwd`, read-only `git`) without an allow
   rule. The guard lets them through only in its read forms.
+- Edits in a mesh worktree are expected to run without a prompt: Claude Code exempts "Claude's own
+  git worktrees under `.claude/worktrees/`" from its protected `.claude` paths, and allow rules never
+  pre-approve a protected path. That a `git worktree add` worktree counts is a live check still
+  pending. If it doesn't, those edits ask, which is safe.
 
 ### The worktree guard
 
@@ -358,7 +364,8 @@ Bash(gh pr create --base <integration branch> *)
 `mcp__plugin_agentmesh_mesh__activate`. It runs in every session. Without the marker it reads its
 input for at most a second and exits 0, whatever happens. With the marker set:
 
-- **It denies** (exit 2; no approval overrides it):
+- **It denies** (exit 2; no approval overrides it, except a mod; see
+  [Layered settings](#tampering-git-and-settings)):
   - an edit, unless every path it names (`file_path`, `notebook_path`) is inside a registered
     `.claude/worktrees/mesh-*` worktree, below its root. Registered means the worktree's `.git`
     file points at a git folder whose back-pointer leads to that same file.
@@ -391,12 +398,14 @@ input for at most a second and exits 0, whatever happens. With the marker set:
 **The Bash forms it passes.** Everything else asks.
 - Exactly `pwd`, `git status`, `git fetch origin` and `git worktree list`; `cd <path>`.
 - Reads: `ls`, or `git diff|log|show` with plain arguments.
-  - No argument starts with `/`, `~` or a drive letter, contains `//` or a `..` segment, or is
-    `--no-index` or `--output`.
-  - A git read with arguments passes only inside a checkout or a mesh worktree. Outside one, git
-    compares two paths as `--no-index` and follows links out of the tree.
+  - No argument starts with `/`, `~`, a drive letter, `--output` or `--no-index`, or contains `//`
+    or a `..` segment.
+  - A git read with arguments passes only at a checkout's top (`checkoutTop`) or anywhere inside a
+    mesh worktree. Outside a repo, git compares two paths as `--no-index` and follows links out of
+    the tree.
 - Worktrees, run from the top of a real checkout (its `.git` a folder, its `.claude` and
-  `.claude/worktrees` not links), and for an add only into an empty slot:
+  `.claude/worktrees` not links), and for an add only when nothing exists at the path yet
+  (`freeSlot`):
   - `git worktree add .claude/worktrees/mesh-<slug> -b <own branch> --track origin/<integration>`;
   - `git worktree add .claude/worktrees/mesh-<slug> refs/remotes/origin/<branch>`, when the
     checkout's own refs hold that branch, compared by its exact name on disk;
@@ -423,11 +432,11 @@ input for at most a second and exits 0, whatever happens. With the marker set:
 `AGENTMESH_MESH_WINDOW`. Without the matching token the policy doesn't load, so every command asks,
 `activate` refuses, and hello doesn't report `meshWindow`.
 
-**`activate` is still guarded only by its description,** as in every session. A push activation
-without the marker now warns: "This isn't your mesh window; team work will come here while no mesh
-window is running."
+**`activate` is still guarded only by its description,** as in every session. A push or pull
+activation without the marker now warns: "This isn't your mesh window; team work will come here
+while no mesh window is running."
 
-### Tests (decision 5)
+### Tests ([decision 5](specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01))
 
 - **On a branch the window didn't write,** a test command asks: "mesh window: <branch> isn't your
   branch, so running its tests needs your human's approval". Before that, the window's rules tell it
@@ -437,7 +446,8 @@ window is running."
   they read **and write** as you, including persistence in `.git/hooks` (shared by every
   worktree), `~/.agentmesh/` and the guard itself, and switching the guard off.
 - **Without an own-branch prefix** (a branch template that names neither the owner nor the agent,
-  or whose filled prefix doesn't end in `/`, `_` or `.`), every test asks.
+  or whose filled prefix doesn't end in `/`, `_` or `.`), every test asks, and so do task
+  worktree adds, commits, pushes and PRs.
 
 ### Corrected claims
 
@@ -463,9 +473,10 @@ The design (§3 and §8) first claimed more than holds:
   (`GIT_CONFIG_COUNT=3`). So git in the window runs no repo hooks and no fsmonitor, and refuses
   implicit bare repos. `window init` warns when that folder isn't empty.
 - **Layered settings:** Claude Code merges the human's user and project settings into the window,
-  so the human's own allow rules for other tools (other MCP servers, WebFetch) apply there. An
-  installed mod can approve what the guard asked about under API-key auth (permissions.md,
-  "Precedence among rules, hooks, and mods").
+  so the human's own allow rules for other tools (other MCP servers, WebFetch) apply there.
+  Without managed settings or a Team or Enterprise login, an installed mod (`tool.check`) can
+  approve a call the guard asked about or denied (permissions.md, "Precedence among rules, hooks,
+  and mods"). An API key or a long-lived `CLAUDE_CODE_OAUTH_TOKEN` isn't that login.
 - **Launcher input:**
   - The agent id must match `^[a-z0-9][a-z0-9-]{0,62}$`. The session name is `mesh-<agent>`, cut
     to 64 characters.
@@ -489,21 +500,23 @@ The design (§3 and §8) first claimed more than holds:
 - **Guard paths:**
   - A link swapped in between the guard's check and the write (TOCTOU).
   - Linux bind mounts, which realpath doesn't see.
-  - Files that run code on open can be written in a worktree: `.claude/settings*` hooks,
-    `.mcp.json`, `.vscode/tasks.json`, `.envrc`, package scripts, `.husky`.
+  - Files that run code when a worktree is opened or built. Claude Code's protected paths already
+    make Claude's own edits to `.claude/`, `.mcp.json`, `.vscode`, `.envrc` and `.husky` prompt in
+    `default` mode. Still open: package scripts (`package.json` isn't protected), and anything a
+    test run or a package script writes.
   - A committed link to a UNC target makes realpath contact that host, which can leak NTLM.
   - Some checks depend on Claude Code writing files by temp-and-rename.
   - Any registered mesh worktree on the machine is accepted, including a second Claude account's.
-  - Over-refusals: network drives, names ending in a dot or space, nested non-mesh worktrees, and
-    checkouts whose path holds `(`, `'`, `&` or non-ASCII letters (they can't be chained, so every
-    command there asks).
+  - Over-refusals: network drives, names ending in a dot or space, and nested non-mesh worktrees.
 - **Guard commands:**
   - `CDPATH` is closed for chains, whose folder must be absolute or `./…`. A bare `cd` can still
     follow it, but Claude Code then reports the real cwd, so the next command is checked where it
-    really runs.
+    really runs (live check pending).
   - Aliases and functions for `cd`, `git`, `gh` or `ls` in Claude Code's shell snapshot change what
     a passing command does.
-  - zsh `EXTENDED_GLOB` gives `^`, `~` and `#` in read arguments a glob meaning.
+  - zsh `EXTENDED_GLOB` gives `^` and `~` in read arguments a glob meaning.
+  - Over-refusal: a checkout whose path holds `(`, `'`, `&` or non-ASCII letters can't be named in a
+    `cd` chain, so every command there asks.
   - git-lfs reads a reviewed branch's `.lfsconfig` in its review worktree.
   - Commit messages and PR bodies are an outbound channel that nothing redacts.
   - A tag that shadows the integration branch can make the `-b` form fail as ambiguous (a denial of
