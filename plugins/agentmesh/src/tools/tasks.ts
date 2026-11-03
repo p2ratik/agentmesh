@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { checkoutLine } from '../window/checkouts';
 import { formatTask, formatTaskLine } from './format';
 import { defineTool, withKey } from './types';
 
@@ -73,7 +74,13 @@ export const taskTools = [
       'Full task details: state, branch, PR, reviews, history and the actions you can take now.',
     input: z.object({ task_id: z.string() }),
     mutating: false,
-    run: async (args, { hub }) => formatTask(await hub.call('task.get', { taskId: args.task_id })),
+    run: async (args, { hub, window }) => {
+      const task = await hub.call('task.get', { taskId: args.task_id });
+      const out = formatTask(task);
+      return window.state === 'verified'
+        ? `${out}\n${checkoutLine(task.repo, window.folder)}`
+        : out;
+    },
   }),
   defineTool({
     name: 'task_act',

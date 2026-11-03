@@ -30,6 +30,18 @@ describe('windowRules', () => {
     expect(text).not.toMatch(/ origin\/<(branch|base)>/);
   });
 
+  it('names the checkout line and the own-branch tests rule', () => {
+    const line =
+      "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo.";
+    const own = windowRules({ ...policy, ownBranchPrefix: 'agent/bob/' });
+    expect(own).toContain(line);
+    expect(own).toContain('- Tests on your own branches (agent/bob/…) run without asking.');
+    const none = "- Every test run asks your human: the branch template doesn't name you.";
+    expect(windowRules(policy)).toContain(none);
+    expect(windowRules(null)).toContain(none);
+    expect(own.indexOf(line)).toBeGreaterThan(own.indexOf('remove a worktree'));
+  });
+
   it('falls back without a policy', () => {
     const text = windowRules(null);
     expect(text).toContain("your agent's mesh window");
