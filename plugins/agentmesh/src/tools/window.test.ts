@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { WindowPolicy } from '@agentmesh/common/window';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { writeGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
 import { fakeHub, text } from './fake-hub';
 import { callTool } from './registry';
@@ -31,7 +35,37 @@ const answers = (description: string) => ({
   'session.activate': { ...view(description), delivery: 'push' },
 });
 
+const GUARD_DOWN =
+  "The mesh window's worktree guard did not run for this call, so this session can't take team work. Check that hooks are on (disableAllHooks) and that node is on PATH, then call activate again.";
+
+let dataDir: string;
+
+beforeEach(() => {
+  dataDir = mkdtempSync(join(tmpdir(), 'am-window-'));
+});
+
+afterEach(() => rmSync(dataDir, { recursive: true, force: true }));
+
+/** The verified mesh window, with the guard's stamp as fresh as the guard writes it. */
+function verified(deps: ReturnType<typeof fakeHub>['deps'], stamp = true) {
+  if (stamp) writeGuardStamp(dataDir, new Date());
+  deps.window = { ...deps.window, state: 'verified', policy, dataDir };
+}
+
 describe('activate and the mesh window', () => {
+  it('the mesh window refuses to activate while the guard is down', async () => {
+    const { deps, calls } = fakeHub(answers('mesh window'));
+    verified(deps, false);
+    for (const args of [{}, { code: 'c-1', description: 'mesh window' }]) {
+      const result = await callTool('activate', args, deps);
+      expect(result.isError).toBe(true);
+      expect(text(result)).toBe(GUARD_DOWN);
+    }
+    writeGuardStamp(dataDir, new Date(Date.now() - 121_000));
+    expect(text(await callTool('activate', {}, deps))).toBe(GUARD_DOWN);
+    expect(calls).toEqual([]);
+  });
+
   it('activating an ordinary session warns that team work will come here', async () => {
     const { deps } = fakeHub(answers('web client'));
     const result = await callTool('activate', { code: 'c-1', description: 'web client' }, deps);
@@ -43,7 +77,7 @@ describe('activate and the mesh window', () => {
 
   it('the mesh window never activates pull-only', async () => {
     const { deps, calls } = fakeHub(answers('x'));
-    deps.window = { ...deps.window, state: 'verified', policy };
+    verified(deps);
     const result = await callTool('activate', { pull: true, description: 'x' }, deps);
     expect(result.isError).toBe(true);
     expect(text(result)).toBe(PULL_REFUSED);
@@ -63,7 +97,7 @@ describe('activate and the mesh window', () => {
 
   it('the mesh window activates and repeats its rules', async () => {
     const { deps } = fakeHub(answers('mesh window'));
-    deps.window = { ...deps.window, state: 'verified', policy };
+    verified(deps);
     const result = await callTool('activate', { code: 'c-1', description: 'mesh window' }, deps);
     expect(text(result)).toBe(
       `This session is active on the mesh as “mesh window”. It is your mesh window.\n\n${windowRules(policy)}`,

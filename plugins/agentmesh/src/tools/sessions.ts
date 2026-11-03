@@ -1,6 +1,7 @@
 import { MeshError } from '@agentmesh/common';
 import { LAUNCHER_DISPLAY, RESTART } from '@agentmesh/common/window';
 import { z } from 'zod';
+import { guardAlive } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
 import { defineTool, ToolRefusal } from './types';
 
@@ -16,6 +17,9 @@ const NOT_WINDOW =
   "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
 
 const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER_DISPLAY}.`;
+
+const GUARD_DOWN =
+  "The mesh window's worktree guard did not run for this call, so this session can't take team work. Check that hooks are on (disableAllHooks) and that node is on PATH, then call activate again.";
 
 const needDescription = () =>
   new MeshError(
@@ -43,6 +47,8 @@ export const sessionTools = [
         );
       }
       const isWindow = window.state === 'verified';
+      // The guard stamps this very call; without it, edits and commands here go unchecked.
+      if (isWindow && !guardAlive(window.dataDir, Date.now())) throw new ToolRefusal(GUARD_DOWN);
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
