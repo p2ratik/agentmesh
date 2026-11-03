@@ -14,7 +14,7 @@ import { parseCommandArgs, usageError } from '../args';
 import { type CliContext, type Command, resolveFrom } from '../context';
 import { writeFileAtomic } from '../lib/files';
 import { findOnPath, isRegularFile } from '../lib/path-lookup';
-import { installShim, type ShimPlace } from '../lib/shim';
+import { installShim, type ShimPlace, samePath } from '../lib/shim';
 import { bakeable, launcherScript, shimScripts, windowSettings } from '../render/window';
 
 const DEFAULT_TEMPLATE = 'agent/{owner}/{task}-{slug}';
@@ -88,30 +88,37 @@ function launcherEnv(
 }
 
 /**
- * Which Claude account the window uses, where claude-mesh went and the start line. From the
- * fallback folder, also the PATH line and the launcher's own start line (two forms on Windows).
+ * Which Claude account the window uses, where claude-mesh went and the start line. While typing
+ * claude-mesh doesn't reach ours (shadowed, or its folder isn't on PATH), also which one it does
+ * reach and the launcher's own start line (two forms on Windows).
  */
 function printStart(
   ctx: CliContext,
-  s: { platform: NodeJS.Platform; dir: string; configDir: string | null; shim: ShimPlace },
+  s: {
+    platform: NodeJS.Platform;
+    dir: string;
+    configDir: string | null;
+    shim: ShimPlace;
+    reached: string | null;
+  },
 ): void {
   ctx.stdout(
     s.configDir
       ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).`
       : 'The window uses your default Claude account (~/.claude).',
   );
-  for (const p of s.shim.foreign) {
-    ctx.stdout(
-      `Left ${p} alone: AgentMesh didn't write it, and ${START_COMMAND} runs it while its folder comes first on PATH.`,
-    );
-  }
+  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: AgentMesh didn't write it.`);
   ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
   ctx.stdout(
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`,
   );
-  if (!s.shim.fallback) return;
+  // cmd and PowerShell look up the .cmd, so that is the file PATH must reach on Windows.
+  const ours = join(s.shim.dir, `${START_COMMAND}${s.platform === 'win32' ? '.cmd' : ''}`);
+  if (s.reached && samePath(s.reached, ours, s.platform)) return;
   ctx.stdout(
-    `Add ${s.shim.dir} to your PATH to use ${START_COMMAND}; window init never changes PATH.`,
+    s.reached
+      ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.`
+      : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`,
   );
   const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
   if (s.platform !== 'win32') {
@@ -241,7 +248,9 @@ that Claude account.
     ctx.stdout(
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`,
     );
-    printStart(ctx, { platform, dir, configDir, shim });
+    // What typing claude-mesh runs now, on the PATH this command was started with.
+    const reached = findOnPath(START_COMMAND, ctx.env, platform, isRegularFile);
+    printStart(ctx, { platform, dir, configDir, shim, reached });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   },

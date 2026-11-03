@@ -133,8 +133,9 @@ claude-mesh "/home/alice/code/acme"    # or in the folder it names, from anywher
 init` writes it next to `claude`, whose folder is on PATH already, when that folder is under your
 home folder and holds no `claude-mesh` it didn't write (on Windows, `claude-mesh.cmd` plus a
 `claude-mesh` sh script for Git Bash). Otherwise it writes it to `~/.agentmesh/bin` and prints a
-line telling you to add that folder to your PATH; it never changes PATH itself. Until you do, use
-the launcher line it prints:
+line telling you to add that folder to your PATH; it never changes PATH itself. It also warns,
+naming the file, when another `claude-mesh` comes first on PATH. Until typing `claude-mesh`
+reaches its own, use the launcher line it prints:
 
 ```bash
 ~/.agentmesh/mesh-window "/home/alice/code/acme"
@@ -292,6 +293,9 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
     (`disableAllHooks`) or `node` isn't on PATH.
   - "AGENTMESH_MESH_WINDOW is set, but it doesn't match…": start the window with `claude-mesh`, or
     run `/agentmesh:window` again.
+- **`claude-mesh` not found after switching Node versions**: if `claude` lives in a
+  version-managed folder (nvm and the like), `claude-mesh` went there too; re-run
+  `/agentmesh:window` after switching versions.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set
   `AGENTMESH_LOG_FILE` for the plugin's own log.
 

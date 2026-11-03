@@ -50379,23 +50379,27 @@ function shimScripts(launcher, platform, userProfile = null) {
 exec ${target} "$@"
 `;
   if (platform !== "win32") return [{ name: START_COMMAND, content: sh(`'${launcher}'`) }];
-  const call = `call "${bakedPath(launcher, platform, userProfile)}" %*`;
+  const run = `"${bakedPath(launcher, platform, userProfile)}" %*`;
   return [
     {
       name: `${START_COMMAND}.cmd`,
-      content: ["@echo off", `rem ${SHIM_MARK}`, call, ""].join("\r\n")
+      content: ["@echo off", `rem ${SHIM_MARK}`, run, ""].join("\r\n")
     },
     { name: START_COMMAND, content: sh('"$0.cmd"') }
   ];
 }
 
 // ../../apps/cli/src/lib/shim.ts
+function relativeTo(from, to, platform) {
+  const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
+  return (platform === "win32" ? win322 : posix2).relative(fold(from), fold(to));
+}
 function isBelow(dir, home, platform) {
   const path = platform === "win32" ? win322 : posix2;
-  const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
-  const rel = path.relative(fold(home), fold(dir));
+  const rel = relativeTo(home, dir, platform);
   return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
+var samePath = (a, b, platform) => relativeTo(a, b, platform) === "";
 var ours = (p) => {
   try {
     return isOurShim(readFileSync12(p, "utf8"));
@@ -50413,13 +50417,13 @@ function installShim(scripts, i) {
   if (below && foreign.length === 0) {
     try {
       write(dir);
-      return { dir, fallback: false, foreign };
+      return { dir, foreign };
     } catch {
     }
   }
   mkdirSync4(i.fallbackDir, { recursive: true, mode: 448 });
   write(i.fallbackDir);
-  return { dir: i.fallbackDir, fallback: true, foreign };
+  return { dir: i.fallbackDir, foreign };
 }
 
 // ../../apps/cli/src/commands/window.ts
@@ -50477,18 +50481,15 @@ function printStart(ctx, s) {
   ctx.stdout(
     s.configDir ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).` : "The window uses your default Claude account (~/.claude)."
   );
-  for (const p of s.shim.foreign) {
-    ctx.stdout(
-      `Left ${p} alone: AgentMesh didn't write it, and ${START_COMMAND} runs it while its folder comes first on PATH.`
-    );
-  }
+  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: AgentMesh didn't write it.`);
   ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
   ctx.stdout(
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
   );
-  if (!s.shim.fallback) return;
+  const ours2 = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
+  if (s.reached && samePath(s.reached, ours2, s.platform)) return;
   ctx.stdout(
-    `Add ${s.shim.dir} to your PATH to use ${START_COMMAND}; window init never changes PATH.`
+    s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours2}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
   );
   const line = `${launcherDisplay(s.platform)} "${s.dir}"`;
   if (s.platform !== "win32") {
@@ -50611,7 +50612,8 @@ that Claude account.
     ctx.stdout(
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`
     );
-    printStart(ctx, { platform, dir, configDir, shim });
+    const reached = findOnPath(START_COMMAND, ctx.env, platform, isRegularFile);
+    printStart(ctx, { platform, dir, configDir, shim, reached });
     printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   }

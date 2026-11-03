@@ -194,8 +194,10 @@ describe('shimScripts', () => {
     expect(scripts).toEqual([
       {
         name: 'claude-mesh.cmd',
+        // No `call`: it would expand % again and double ^ in the folder argument. As the last
+        // line, control passes to the launcher and its exit code comes back.
         content:
-          '@echo off\r\nrem agentmesh claude-mesh\r\ncall "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" %*\r\n',
+          '@echo off\r\nrem agentmesh claude-mesh\r\n"%USERPROFILE%\\.agentmesh\\mesh-window.cmd" %*\r\n',
       },
       { name: 'claude-mesh', content: '#!/bin/sh\n# agentmesh claude-mesh\nexec "$0.cmd" "$@"\n' },
     ]);

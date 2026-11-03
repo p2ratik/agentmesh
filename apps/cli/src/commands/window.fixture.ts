@@ -34,18 +34,22 @@ export function setup(
   const files = windowFiles(home, platform);
   const run = (...argv: string[]) => runCli(['window', 'init', ...argv], ctx);
   const policy = () => parseWindowPolicy(readFileSync(files.policy, 'utf8'));
-  return { work, out, err, run, files, policy, home, root, bin };
+  return { work, out, err, run, files, policy, home, root, bin, ctx };
 }
 
-/** What window init prints when claude-mesh had to go to ~/.agentmesh/bin. */
-export const fallbackLines = (bin: string, work: string) => [
-  `Add ${bin} to your PATH to use claude-mesh; window init never changes PATH.`,
-  ...(platform === 'win32'
+/** The launcher's own start lines, printed while typing claude-mesh doesn't reach ours. */
+export const launcherLines = (work: string) =>
+  platform === 'win32'
     ? [
         `Until then (PowerShell or Git Bash): ~/.agentmesh/mesh-window.cmd "${work}"`,
         `In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${work}"`,
       ]
-    : [`Until then: ~/.agentmesh/mesh-window "${work}"`]),
+    : [`Until then: ~/.agentmesh/mesh-window "${work}"`];
+
+/** What window init prints when claude-mesh went to ~/.agentmesh/bin, which isn't on PATH. */
+export const fallbackLines = (bin: string, work: string) => [
+  `${bin} is not on your PATH: add it to use claude-mesh (window init never changes PATH).`,
+  ...launcherLines(work),
 ];
 
 export const startLine = (work: string) =>

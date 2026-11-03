@@ -1,9 +1,9 @@
-import { chmodSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { delimiter, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isBelow } from '../lib/shim';
 import { shimScripts } from '../render/window';
-import { CLAUDE, fallbackLines, platform, setup, startLine } from './window.fixture';
+import { CLAUDE, fallbackLines, launcherLines, platform, setup, startLine } from './window.fixture';
 
 const SHIMS = platform === 'win32' ? ['claude-mesh.cmd', 'claude-mesh'] : ['claude-mesh'];
 /** A claude installed under the home folder, as the native installer does. */
@@ -56,7 +56,12 @@ describe('window init writes claude-mesh', () => {
         chmodSync(platform === 'win32' ? join(s.bin, 'claude-mesh.cmd') : s.bin, 0o755);
       }
       expect(files(s.files.bin)).toEqual([...SHIMS].sort());
-      expect(s.out).toContain(fallbackLines(s.files.bin, s.work)[0]);
+      // On Windows the read-only claude-mesh.cmd left beside claude still comes first on PATH.
+      expect(s.out).toContain(
+        platform === 'win32'
+          ? `Warning: claude-mesh runs ${join(s.bin, 'claude-mesh.cmd')}, which comes first on PATH, not ${join(s.files.bin, 'claude-mesh.cmd')}.`
+          : fallbackLines(s.files.bin, s.work)[0],
+      );
     },
   );
 
@@ -70,11 +75,34 @@ describe('window init writes claude-mesh', () => {
       expect(files(s.bin)).toEqual([CLAUDE, name].sort());
       expect(files(s.files.bin)).toEqual([...SHIMS].sort());
       expect(s.out.slice(2, 5)).toEqual([
-        `Left ${foreign} alone: AgentMesh didn't write it, and claude-mesh runs it while its folder comes first on PATH.`,
+        `Left ${foreign} alone: AgentMesh didn't write it.`,
         `Wrote claude-mesh to ${s.files.bin}.`,
         startLine(s.work),
       ]);
     }
+  });
+
+  it('says which claude-mesh wins when another comes first on PATH', async () => {
+    const s = setup(true, 'home', HOME_BIN);
+    const early = join(s.root, 'early');
+    mkdirSync(early);
+    const other = join(early, SHIMS[0] as string);
+    writeFileSync(other, 'echo not ours\n');
+    s.ctx.env.PATH = [early, s.bin].join(delimiter);
+    expect(await s.run('--agent', 'bob-agent')).toBe(0);
+    expect(s.out.slice(3, 5 + launcherLines('').length)).toEqual([
+      startLine(s.work),
+      `Warning: claude-mesh runs ${other}, which comes first on PATH, not ${join(s.bin, SHIMS[0] as string)}.`,
+      ...launcherLines(s.work),
+    ]);
+  });
+
+  it('says nothing more from ~/.agentmesh/bin once that folder is on PATH', async () => {
+    const s = setup();
+    s.ctx.env.PATH = [s.bin, s.files.bin].join(delimiter);
+    expect(await s.run('--agent', 'bob-agent')).toBe(0);
+    expect(s.out.slice(2, 4)).toEqual([`Wrote claude-mesh to ${s.files.bin}.`, startLine(s.work)]);
+    expect(s.out.join('\n')).not.toMatch(/PATH|Until then/);
   });
 
   it('rewrites its own claude-mesh, by the marker line', async () => {

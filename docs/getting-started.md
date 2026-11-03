@@ -229,8 +229,9 @@ profile.
 
 When it can't put `claude-mesh` there (`claude` is outside your home folder, as with Homebrew; the
 folder can't be written; or it holds someone else's `claude-mesh`), it writes it to
-`~/.agentmesh/bin` and prints a line telling you to add that folder to your PATH. Until you have,
-start the window with the launcher line it prints instead:
+`~/.agentmesh/bin` and prints a line telling you to add that folder to your PATH. It also warns,
+naming the file, when another `claude-mesh` comes first on PATH. Until typing `claude-mesh` reaches
+its own, start the window with the launcher line it prints instead:
 
 ```bash
 ~/.agentmesh/mesh-window "/home/alice/code/acme"

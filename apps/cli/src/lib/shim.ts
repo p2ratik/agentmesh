@@ -3,13 +3,21 @@ import { dirname, join, posix, win32 } from 'node:path';
 import { isOurShim } from '../render/window';
 import { writeFileAtomic } from './files';
 
-/** Whether `dir` is strictly below `home`; without case on Windows and macOS. */
+/** `to` relative to `from`; without case on Windows and macOS. */
+function relativeTo(from: string, to: string, platform: NodeJS.Platform): string {
+  const fold = (p: string) => (platform === 'win32' || platform === 'darwin' ? p.toLowerCase() : p);
+  return (platform === 'win32' ? win32 : posix).relative(fold(from), fold(to));
+}
+
+/** Whether `dir` is strictly below `home`. */
 export function isBelow(dir: string, home: string, platform: NodeJS.Platform): boolean {
   const path = platform === 'win32' ? win32 : posix;
-  const fold = (p: string) => (platform === 'win32' || platform === 'darwin' ? p.toLowerCase() : p);
-  const rel = path.relative(fold(home), fold(dir));
+  const rel = relativeTo(home, dir, platform);
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
+
+export const samePath = (a: string, b: string, platform: NodeJS.Platform): boolean =>
+  relativeTo(a, b, platform) === '';
 
 const ours = (p: string): boolean => {
   try {
@@ -21,7 +29,6 @@ const ours = (p: string): boolean => {
 
 export interface ShimPlace {
   dir: string;
-  fallback: boolean;
   /** `claude-mesh` files beside `claude` that `window init` didn't write and left alone. */
   foreign: string[];
 }
@@ -46,12 +53,12 @@ export function installShim(
   if (below && foreign.length === 0) {
     try {
       write(dir);
-      return { dir, fallback: false, foreign };
+      return { dir, foreign };
     } catch {
       // that folder takes no write (permissions, a read-only file): use the fallback
     }
   }
   mkdirSync(i.fallbackDir, { recursive: true, mode: 0o700 });
   write(i.fallbackDir);
-  return { dir: i.fallbackDir, fallback: true, foreign };
+  return { dir: i.fallbackDir, foreign };
 }
