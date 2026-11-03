@@ -32,6 +32,17 @@ Request: `{ v: 1, params, actAs?, idempotencyKey?, session? }`. Response: `{ ok:
 Every string and array in `params` has a maximum (ids 64 characters, repos and branches 300,
 labels 60, bodies as listed in the schemas); a longer value is refused with `invalid_request`.
 
+Repos and branches (`GitRef`) are also one line: no control character and no U+2028 or U+2029.
+Plugins print them into tool output, where a line break could forge a line (a fake `checkout:`
+line, say). Event rules fill a task's `repo` from external payloads and create the task past the
+RPC schema, so task creation checks the repo and the base branch again. A forged one creates no
+task: the hub logs `rule action failed` and still keeps the event. A plan's task drafts keep a
+lenient `repo` in results, so a plan stored before this rule still reads. The plugin checks too:
+- it leaves a local repo or branch name that fails the rule out of hello and heartbeats, rather
+  than failing them;
+- `task_get` shows a repo or branch that fails it as `(invalid)`;
+- in the mesh window, `task_get` names a task's repo only when it is plain `owner/name`.
+
 Calls that change state are rate-limited per agent or human (`limits.rpcBurst` at once, then
 `limits.rpcPerMinute`); reads, `messages.seen` and `session.bye` are free. Past the limit the hub
 answers `rate_limited` with `details.retryAfterSeconds`.
@@ -61,7 +72,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
-| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300) and `previousSessionId` (a hub-issued id); the result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
+| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300), `previousSessionId` (a hub-issued id) and `meshWindow` (optional; true when the launcher's marker matched, see [Routing](#routing)). The hub stores `meshWindow` when it creates the session and never changes it, so a reconnect that reuses its session keeps the stored flag. The result has self, git policy, team policy, `unreadThreads`, `sessionId` and `reclaimed`. Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
 | `session.activate` | agent | Turn this session on: `{ mode, code, description }`. `mode` is `push` (default) or `pull`. Push needs the code from the latest check; a wrong or stale code is refused with `invalid_request`. Pull needs no code (see [Pull mode](#pull-mode)). The result's `delivery` says which. |
 | `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
@@ -233,7 +244,8 @@ quorum, ingest recipients and the `online` recipient token. Among online agents,
 and reviewer picks rank those with a live, active push session ahead of pull-only ones (they see
 work at once, not on their next prompt); a pull-only agent still beats an offline one, and with
 `assignment.preferOnline` off neither preference applies to assignment. `peers` shows heartbeat
-presence with each agent's active sessions beside it, each with its `delivery`. A review request
+presence with each agent's active sessions beside it, each with its `delivery` and `meshWindow`
+(`SessionSummary`; the plugin marks such a session `[mesh window]`). A review request
 to an agent that is not online says so in one line, so the humans watching notice.
 
 ### Reads
@@ -268,14 +280,22 @@ The first rule that matches decides. Each decision is logged with its reason.
 2. **The session the sender picked** (`toSession`), if live, active and push (`picked by
    sender`). A live, active pull pick holds the message for that session (`held for s-… (picked,
    pull)`).
-3. **An active push session in the message's repo** (`in repo …`): the sender's `repo`, else the
+3. **The agent's mesh window** (`mesh window`): the longest-active live, active push session whose
+   hello reported `meshWindow`. It comes before the repo rule, because a window started in a folder
+   that holds the repos has no repo of its own ([ADR 0009](adr/0009-mesh-window.md)).
+4. **An active push session in the message's repo** (`in repo …`): the sender's `repo`, else the
    task's.
-4. **The longest-active push session** (`longest-active session`).
-5. **Otherwise it waits** in the hub (`no active push session`) for the next session the human
+5. **The longest-active push session** (`longest-active session`).
+6. **Otherwise it waits** in the hub (`no active push session`) for the next session the human
    activates, and `inbox` shows it (a pull session reads it there).
 
+When routing fell through rule 1 past an inactive parent or task owner, the reason of rules 3 to 6
+names the first one it skipped: `; skipped inactive <id> (<why>)`, where `<why>` is
+`owns parent thread` or `owns task`. For example
+`mesh window; skipped inactive s-4 (owns parent thread)`.
+
 Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits; an active session's `inbox` read also claims, and an inactive session claims only in its own conversation and escalation threads, see [Reads](#reads)), and
-when a delivery lands by rules 1 (parent or task), 2, 3 or 4. The first owner keeps the work:
+when a delivery lands by rules 1 (parent or task), 2, 3, 4 or 5. The first owner keeps the work:
 another session's action goes through, with a note saying where replies will go. Ownership moves
 only through `session.take`, or is released when the owner deactivates or closes. `take`, `bye`,
 `deactivate` and an expiry that closes sessions kick the outbox, so freed work moves at once.

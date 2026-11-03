@@ -1,6 +1,8 @@
 # The mesh window — design
 
-Date: 2026-11-01 · Status: Plan 1 built (reads and ownership). The direction is Pratik's, from conversation, and the calls
+Date: 2026-11-01 · Status: Plans 1 and 2 built (reads and ownership; the mesh window). Where the
+build differs from §3 and §8, [ADR 0009](../adr/0009-mesh-window.md) and
+[security.md](../security.md#the-mesh-window) describe what was built. The direction is Pratik's, from conversation, and the calls
 marked "my call" are mine. The cross-session messaging spike is done (§9). Every code reference was
 checked against `origin/agents` 61f393d by a verified code map. An independent builder check,
 security review and requirements check have been folded in. Pratik answered the three open

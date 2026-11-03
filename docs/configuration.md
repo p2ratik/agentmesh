@@ -181,3 +181,21 @@ references and the compose settings. Never commit it or paste its values into a 
 | `NATS_MEM_LIMIT`, `HUB_MEM_LIMIT`, `BRIDGE_MEM_LIMIT` | `256m`, `512m`, `384m` | Memory caps of the three containers, in Docker units (`256m`, `1g`), sized for a 1–2 GB server. A container that reaches its cap is restarted. Both compose files use the same defaults when a key is missing ([deploy.md](deploy.md#containers)). |
 | `PIDS_LIMIT` | `256` | The most processes and threads each container may run. |
 | `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |
+
+## Laptop (plugin)
+
+Each laptop's settings live outside `mesh.yaml`. The plugin options, the environment knobs and the
+files in `~/.agentmesh/` are listed in the
+[plugin README](../plugins/agentmesh/README.md#settings-and-files). Two knobs belong to the mesh
+window:
+- `AGENTMESH_MESH_WINDOW` marks the mesh window. Only its launcher sets it; never set it by hand.
+- `AGENTMESH_MESH_WINDOW_HINT=off`, in the `env` of your Claude Code `settings.json`, hides the
+  session-start line that says no mesh window is running.
+
+`/agentmesh:window` copies two values from this file, through the `Git:` line of the agent's
+instructions, into the window's policy: `git.integrationBranch`, and the own-branch prefix from
+`git.branchTemplate`. Run it again after either changes. The prefix is the
+template with `{owner}` and `{agent}` filled in, cut at the first other placeholder, so
+`agent/{owner}/{task}-{slug}` gives `agent/alice/`. It counts only when it names the owner or the
+agent and ends in `/`, `_` or `.`. Otherwise the window can't tell its own branches, and every test
+run asks ([security.md](security.md#the-mesh-window)).

@@ -1,6 +1,7 @@
 # Getting started
 
-From nothing to a team where every developer's Claude Code session is on the mesh. Roles: one
+From nothing to a team where every developer's agent is on the mesh, with a mesh window that takes
+its team work. Roles: one
 **mesh admin** runs `/agentmesh:setup`, which stands up the hub and the admin's own agent; every
 **developer** then joins by invite. To do it without setup, see [Set up by hand](#set-up-by-hand).
 
@@ -118,6 +119,9 @@ machine.
 
 ### After setup
 
+- **Hand over to your mesh window.** The setup session holds the workspace's secrets, so it must
+  not take team work: run `/agentmesh:deactivate` there. Then set up your
+  [mesh window](#your-mesh-window) and start it in your team's folder, not in the workspace.
 - `agentmesh doctor --dir <workspace>` re-runs the checks at any time.
 - `agentmesh upgrade --dir <workspace>` moves the hub to another version
   ([deploy.md](deploy.md#upgrading-a-setup-deploy)).
@@ -185,6 +189,71 @@ away. They run `/mesh uninvite person:<your id>`, which stops the code working. 
 already joined, someone used the code, so they run `/mesh remove` first. Then they send a new
 invite ([discord.md](discord.md#if-a-code-leaks-or-is-lost)).
 
+### Your mesh window
+
+Team work goes to one session per teammate, your **mesh window**: tasks, reviews and teammates'
+questions. Your other sessions stay private. The window needs Claude Code 2.1.295 or later, and
+`node` on PATH.
+
+**Set it up once.** Run `/agentmesh:window` in any Claude Code session on this laptop;
+`/agentmesh:join` offers it when it finishes. Claude asks for:
+- your team's folder. We recommend the folder that holds the team's repos, so every repo is in
+  reach; one repo checkout works too.
+- the exact test commands the window may run on its own branches, such as
+  `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt.
+
+The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
+`~/.agentmesh/`. Run `/agentmesh:window` again to change them, and restart the window to load them.
+
+**Start it each day** in a terminal, with the command `window init` printed:
+
+```bash
+~/.agentmesh/mesh-window ~/code/acme     # or, in that folder, with no argument
+```
+
+On Windows the launcher is `mesh-window.cmd`; cmd and PowerShell both run it. Confirm the
+development channel when Claude Code asks. The window then activates itself with
+`/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
+sessions as usual.
+
+**What it does without asking, and what asks:**
+- **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees; `git status`,
+  `git fetch origin`, and adding and removing those worktrees; reading diffs; and, on its own
+  branches, your test commands, `git add`, `git commit`, a push of that branch and
+  `gh pr create` into the integration branch.
+- **It asks you first:** before it runs the tests of a branch it didn't write (it tells the
+  author's agent that the verdict waits for you), and for merges, force pushes, other branches,
+  PowerShell commands and anything else not on its list.
+- **Refused outright:** edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git`
+  folder.
+- It never runs in auto or bypass mode. The details and their limits are in
+  [security.md](security.md#the-mesh-window).
+
+**Worktrees.** Every task and review gets its own worktree in the repo's `.claude/worktrees/`. Add
+that folder to each repo's `.gitignore`, so the worktrees don't show up as untracked files:
+
+```
+.claude/worktrees/
+```
+
+`window init` warns about each checkout in the folder that lacks it. Make sure each repo's test
+runner, typechecker and linter skip `.claude/worktrees/` too (vitest's default include does not).
+The window never clones a repo: if a task's repo has no checkout in the folder, it asks you for the
+path.
+
+**Private sessions.** Every other session is your own work. Its mesh tools still work: it can `ask`
+a teammate, and the answer waits for it (read it with `thread` or `inbox`). It doesn't take team
+work, and the mesh window follows up the tasks it hands out. You can still activate a private
+session; it then warns that team work will come to it while no mesh window is running.
+
+**The session-start line.** When no mesh window is running, a new session says so in one line at
+startup. Add `AGENTMESH_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
+hide it.
+
+**Claude Desktop users.** Desktop can't pass the channel flag, so it can't be a mesh window. Start
+the window in a terminal, and turn off any inbox poll you set up in Desktop. Your Desktop sessions
+become private sessions.
+
 ### Configure by hand (mesh.yaml)
 
 The admin runs `pnpm mesh agent-setup <agent-id> --config config --nats-url nats://<vm-tailnet-name>:4222`
@@ -201,8 +270,9 @@ claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
 `claude --channels plugin:agentmesh@agentmesh`.)
 
 **Claude Desktop is pull-only.** Pushes need the channel flag, and Claude Code turns channels on
-only from the command line, so the Desktop app's Code tab cannot receive them. Run
-`/agentmesh:activate` there anyway: the test message never arrives, so Claude activates the session
+only from the command line, so the Desktop app's Code tab cannot receive them. Run your
+[mesh window](#your-mesh-window) in a terminal instead. Without one, you can run
+`/agentmesh:activate` in Desktop: the test message never arrives, so Claude activates the session
 in pull mode and says so. Teammates see you online (marked `pull`). Nothing is pushed: the hub keeps
 your messages unread, and each prompt you type starts with one AgentMesh line counting them, so
 Claude reads them with `inbox` and acts with `task_get`, `task_act`, `review_submit` or `reply`.
@@ -212,14 +282,17 @@ push session. To receive pushes, start a session from a terminal with the comman
 
 Check it: ask Claude to run `peers` — you should see your teammates and who is online.
 
-Then run `/agentmesh:activate` in each session that should receive mesh messages. The hub sends
-the session a test message, and the session goes live once Claude confirms it arrived. If it does
-not arrive, the session was started without the channel flag: Claude activates it pull-only
-instead (see above), and you can restart it with the command above for instant pushes. If Claude reports that the hub could not reach the session, try again in a few seconds. If it keeps
-failing, the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf
-and reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
-Sessions you do not activate stay inactive: the mesh tools still work, but nothing is pushed to
-them, and teammates do not see them.
+Your mesh window activates itself ([Your mesh window](#your-mesh-window)). Every other session
+stays inactive: the mesh tools still work, but nothing is pushed to it, it reads only its own
+threads, and teammates do not see it.
+
+To make another session receive mesh messages anyway, run `/agentmesh:activate` there. The hub
+sends the session a test message, and the session goes live once Claude confirms it arrived. If it
+does not arrive, the session was started without the channel flag: Claude activates it pull-only
+instead (see above), and you can restart it with the command above for instant pushes. If Claude
+reports that the hub could not reach the session, try again in a few seconds. If it keeps failing,
+the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf and
+reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
 `/agentmesh:deactivate` turns a session off again and releases the work it owns, and
 `/agentmesh:take <task or thread>` moves work to the session where you type it.
 

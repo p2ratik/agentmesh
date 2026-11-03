@@ -1,6 +1,7 @@
 # ADR 0009 — Team work belongs to a session that can take it
 
-**Status:** accepted · 2026-11-02; part 1 of 3 built (reads and ownership). It amends
+**Status:** accepted · 2026-11-02; part 2 of 3 built (the mesh window), after part 1 (reads and
+ownership, plugin 0.4.4). Part 2 ships in plugin 0.5.0. It amends
 [ADR 0006](0006-per-session-delivery.md) ("reads claim nothing") and
 [ADR 0008](0008-pull-mode.md) ("a pull session cannot hide work"). The design is
 [the mesh window](../specs/2026-11-01-mesh-window-design.md).
@@ -22,9 +23,13 @@ Three gaps made it easy:
 ADR 0008 said a pull session "cannot hide work" because it is never delivered to. That holds for
 deliveries, not for reads.
 
-## Decision
+A teammate's request also had nowhere safe to land. Unowned work went to the agent's longest-active
+session, usually the busiest one, and "work in a separate worktree" was only text in a skill, so a
+plain `ask` such as "fix this bug" could end up in the human's own checkout.
 
-Part 1 changes who may take unowned work. The relay and the mesh window itself come in plans 2 and 3.
+## Decision, part 1: reads and ownership
+
+Part 1 changes who may take unowned work.
 
 - **Only a session that may take unowned work reads it, and marks it read.** That is an active push
   session, or an active pull session while the agent has no ready push session. Any other session
@@ -51,12 +56,80 @@ Part 1 changes who may take unowned work. The relay and the mesh window itself c
   the repo and the longest-active rules. A thread's direct owner (in any state) still holds its
   conversation, and so do away or pull owners reached through the chain.
 
-Still to come:
+## Decision, part 2: the mesh window
 
-- Plan 2: the mesh window, the one activated push session per teammate that takes team work.
-- Plan 3: the relay, which carries an answer to the private session that asked.
+Each teammate runs one **mesh window**: an activated push session, started by a launcher, that takes
+the agent's team work (tasks, reviews, teammates' questions). Every other session is private.
+
+- **The marker and the hello flag.** `agentmesh window init` writes a random token (32 hex
+  characters) into `~/.agentmesh/mesh-window.json`. The launcher and the settings file's `env` set
+  `AGENTMESH_MESH_WINDOW=<token>`.
+  - The guard (below) is on whenever the variable is non-empty.
+  - The plugin sends `meshWindow: true` in `session.hello` only when the value equals the policy's
+    token and the policy's agent is the plugin's agent.
+  - The hub stores the flag when it creates the session (migration 007, `sessions.mesh_window`)
+    and never changes it. `peers` marks the session `[mesh window]`.
+  - A marked session whose token doesn't verify refuses to `activate`.
+- **Routing order:** owner chain → sender's pick → mesh window → repo → longest-active.
+  - The mesh-window rule takes the longest-active ready window (reason `mesh window`).
+  - It comes before the repo rule. A window started in a folder that holds the repos has no repo,
+    so otherwise a session activated out of habit in the task's repo would collect the task,
+    without the guard.
+  - A fall-through past an inactive parent or task owner adds `; skipped inactive <id> (<why>)` to
+    the reason.
+- **The launcher and its settings file.** `/agentmesh:window` (user-only) asks for the team folder
+  and the test commands, then runs the bundled CLI's `window init`. It writes, in `~/.agentmesh/`:
+  - `mesh-window.json`, the policy: agent, token, own-branch prefix, integration branch, up to 10
+    test commands;
+  - `mesh-window.settings.json`, passed with `--settings`: the marker, the git environment, the
+    allow rules, `disableAllHooks: false`, `defaultMode: "default"`, and bypass and auto mode
+    disabled;
+  - the launcher, `mesh-window.cmd` on Windows or `mesh-window` elsewhere;
+  - an empty `empty-git-hooks/` folder.
+
+  The launcher sets the marker, changes to the folder it is given, and runs
+  `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh -n mesh-<agent> --permission-mode default --settings <file> "/agentmesh:activate mesh window"`.
+  Re-running `window init` keeps the token, so a running window stays verified.
+- **Two layers, and the guard fails closed.**
+  - The settings file's allow rules approve routine work.
+  - The plugin's `PreToolUse` hook, `dist/guard.js`, acts only when the marker is set. It denies
+    edits outside a registered `.claude/worktrees/mesh-*` worktree, and inside `~/.agentmesh` or
+    any `.git`. It asks before any Bash command that isn't one of its exact forms. It never allows.
+  - A hook's deny or ask outranks every allow rule and mode, so both layers must agree before
+    anything runs without a prompt.
+  - It fails closed. The hook has `onFailure: "block"` (Claude Code 2.1.295+). A call it can't read
+    or a tool it doesn't know is refused, and a command it can't check asks. `activate` in a marked
+    session refuses unless the guard stamped that same call (`guard-alive.json`, under 2 minutes
+    old).
+- **Tests (Pratik's decision 5) and the `working` reply.**
+  - A test command runs without a prompt only in a mesh worktree on the window's own branch. The
+    own-branch prefix is the branch template with `{owner}` and `{agent}` filled in, cut at the
+    first other placeholder; it counts only when it ends in `/`, `_` or `.`. Anywhere else tests
+    ask.
+  - Reading another branch's diff never asks.
+  - Before running another branch's tests, the window replies in the task thread with status
+    `working`: "Running the tests on <branch> needs my human's approval; my verdict waits for it."
+    `working` is a status item, so it never starts a turn for the author's agent. `needs_human`
+    would interrupt the wrong person.
+- **Rules from the plugin.** The window has no folder or rules file of its own. The `SessionStart`
+  hook adds its rules at startup, after `/clear` and after compaction. The activation result repeats
+  them, and the `mesh-collaboration` skill has a section on it. None of it uses the 4096-character
+  MCP instructions.
+- **The session-start hint.** In any other session, at startup only, on an enrolled laptop with no
+  fresh heartbeat from an active push session, the hook shows one line saying nothing is listening.
+  `AGENTMESH_MESH_WINDOW_HINT=off` hides it.
+- **Layered settings are accepted.** Claude Code merges the human's user and project settings into
+  the window. Cutting them with `--setting-sources` would drop the user settings that enable the
+  plugin. The guard's deny and ask still outrank every allow rule.
+- **The sandbox is deferred.** Decision 5 lets Claude Code's macOS and Linux sandbox stand in for
+  the test prompt. It couldn't be tested on the Windows dev box, and a wrong sandbox config would run
+  a foreign branch's tests unprompted. The prompt applies on every OS.
+
+Still to come: plan 3, the relay, which carries an answer to the private session that asked.
 
 ## Consequences
+
+Part 1:
 
 - Inactive sessions only count team work. They cannot swallow it, so a private session no longer
   hides a teammate's request from the session that can act on it.
@@ -71,4 +144,23 @@ Still to come:
   until someone activates a session. `waiting` and the plugin's `inbox` text tell the human.
 - Tests that pinned the old behaviour (an inactive read of an unowned thread, "claims nothing for
   reads", the dispatcher's read-then-publish case) changed on purpose.
-- The threat note is in [security.md](../security.md#sessions-and-per-session-delivery).
+
+Part 2:
+
+- Team work goes to the mesh window even when another active session is in the task's repo.
+- Private sessions stay private. Activating a push session without the marker still works, with a
+  warning: "This isn't your mesh window; team work will come here while no mesh window is running."
+- The window's own delivery runs without asking, from its own task worktree only: `git add`,
+  `git commit -m '…'`, `git push [-u] origin <that branch>` and
+  `gh pr create --base <integration> --head <that branch>`. Merges, force pushes, other branches
+  and anything off the list prompt. Branch protection still gates every merge.
+- PowerShell commands always ask in the window, so the window works through the Bash tool.
+- Read-only shell commands other than `ls` and `git diff|log|show` ask, so the window reads files
+  with Read, Grep and Glob.
+- The guard runs in every session. It costs a `node` start (about 50 ms) on every edit, shell
+  call, subagent and workflow call, and a broken install (no `node`, no `dist/guard.js`) blocks
+  those calls in every session until it is fixed.
+- The hub needs migration 007. A 0.5.0 plugin works with an older hub, which ignores the flag, so
+  team work reaches the window by the old rules until the hub is upgraded.
+- The threat notes are in [security.md](../security.md#sessions-and-per-session-delivery) and
+  [security.md → The mesh window](../security.md#the-mesh-window).
