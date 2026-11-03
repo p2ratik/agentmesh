@@ -4,7 +4,7 @@
 // silence hands the call to Claude Code's permission rules.
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
-import { classifyCommand } from './commands';
+import { classifyCommand, UNLISTED } from './commands';
 import { editTarget, meshWorktreeOf, type PathOptions } from './paths';
 
 export const ACTIVATE_TOOL = 'mcp__plugin_agentmesh_mesh__activate';
@@ -31,7 +31,9 @@ const UNREADABLE = 'mesh window: the guard could not read this tool call, so it 
 const NO_FILE = 'mesh window: this edit names no file, so it is refused';
 const ENTER =
   'mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-…';
-const UNCHECKED = "mesh window: this command isn't on the window's list, so your human decides";
+const ISOLATED =
+  'mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-…';
+const WORKFLOW = "mesh window: workflows need your human's approval here";
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -66,7 +68,7 @@ function bash(command: unknown, cwd: unknown, ctx: GuardContext, o: PathOptions)
     });
     return 'ask' in d ? ask(d.ask) : PASS;
   } catch {
-    return ask(UNCHECKED);
+    return ask(UNLISTED);
   }
 }
 
@@ -82,6 +84,10 @@ export function decide(input: unknown, ctx: GuardContext): GuardDecision {
     return ask(`mesh window: ${tool} commands need your human's approval here`);
   }
   if (tool === 'EnterWorktree') return deny(ENTER);
+  // A plain subagent's own tool calls come back through this guard; an isolated one runs as a cloud
+  // agent outside every local hook, or in a worktree Claude Code makes without asking.
+  if (tool === 'Agent') return 'isolation' in args ? deny(ISOLATED) : PASS;
+  if (tool === 'Workflow') return ask(WORKFLOW);
   if (tool === ACTIVATE_TOOL) return { kind: 'stamp' };
   return deny(`mesh window: the guard does not know ${tool}, so it is refused`);
 }

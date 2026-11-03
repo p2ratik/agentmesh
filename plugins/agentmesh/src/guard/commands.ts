@@ -24,7 +24,8 @@ export type CommandDecision = { pass: true } | { ask: string };
 const NO_POLICY =
   "mesh window: ~/.agentmesh/mesh-window.json is missing or invalid, so every command needs your human's approval";
 const TEST_OUTSIDE = 'mesh window: run tests inside a task worktree (cd <worktree> && <test>)';
-const UNLISTED = "mesh window: this command isn't on the window's list, so your human decides";
+export const UNLISTED =
+  "mesh window: this command isn't on the window's list, so your human decides";
 const foreign = (branch: string | null) =>
   `mesh window: ${branch ?? 'a detached checkout'} isn't your branch, so running its tests needs your human's approval`;
 

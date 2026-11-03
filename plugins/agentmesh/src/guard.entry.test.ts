@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, mkdtempSync, openSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,20 +25,46 @@ beforeEach(() => {
 
 afterEach(() => rmSync(base, { recursive: true, force: true }));
 
-/** Runs the guard with `input` on stdin, or with `stdin` (a file descriptor) in its place. */
-function guard(input: unknown, env: Record<string, string>, stdin?: number) {
+const ARGS = ['--import', 'tsx', 'plugins/agentmesh/src/guard.ts'];
+
+/** The test's environment without any mesh window or plugin data of its own, over a temp home. */
+function environment(env: Record<string, string>): NodeJS.ProcessEnv {
   const clean = { ...process.env };
   for (const k of ['AGENTMESH_MESH_WINDOW', 'CLAUDE_PLUGIN_DATA']) delete clean[k];
   const home = join(base, 'home');
-  return spawnSync(process.execPath, ['--import', 'tsx', 'plugins/agentmesh/src/guard.ts'], {
+  return { ...clean, HOME: home, USERPROFILE: home, ...env };
+}
+
+/** Runs the guard with `input` on stdin, or with `stdin` (a file descriptor) in its place. */
+function guard(input: unknown, env: Record<string, string>, stdin?: number) {
+  return spawnSync(process.execPath, ARGS, {
     cwd: ROOT,
     ...(stdin === undefined
       ? { input: JSON.stringify(input) }
       : { stdio: [stdin, 'pipe', 'pipe'] }),
-    env: { ...clean, HOME: home, USERPROFILE: home, ...env },
+    env: environment(env),
     encoding: 'utf8',
     timeout: 15_000,
   });
+}
+
+/** Runs the guard with `partial` written to a stdin that is never closed; killed after 10 s. */
+async function guardOpenStdin(partial: string) {
+  const child = spawn(process.execPath, ARGS, { cwd: ROOT, env: environment({}) });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (c) => {
+    stdout += c;
+  });
+  child.stderr.on('data', (c) => {
+    stderr += c;
+  });
+  child.stdin.write(partial);
+  const kill = setTimeout(() => child.kill(), 10_000);
+  const status = await new Promise<number | null>((r) => child.on('close', (code) => r(code)));
+  clearTimeout(kill);
+  child.stdin.destroy();
+  return { status, stdout, stderr };
 }
 
 /** A stdin the guard can't read: a file opened only for writing. */
@@ -56,6 +82,13 @@ describe('dist/guard.js (from source)', () => {
     const r = guard(edit, {});
     expect(r.status).toBe(0);
     expect(r.stdout).toBe('');
+  });
+
+  it('stops waiting for stdin after a second outside the mesh window', async () => {
+    const started = Date.now();
+    const r = await guardOpenStdin('{"tool_name":"Edit","tool_input":');
+    expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
+    expect(Date.now() - started).toBeLessThan(3000);
   });
 
   it('refuses an edit outside a task worktree in the mesh window', () => {

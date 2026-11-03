@@ -17,7 +17,7 @@ const GUARD = { type: 'command', command: 'node', args: [`${ROOT}/dist/guard.js`
 describe('hooks.json', () => {
   it('runs the worktree guard before the tools it checks, blocking when it fails', () => {
     expect(pre.map((g) => g.matcher)).toEqual([
-      'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|EnterWorktree',
+      'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|EnterWorktree|Agent|Workflow',
       'mcp__plugin_agentmesh_mesh__activate',
     ]);
     expect(pre[0]?.hooks).toEqual([{ ...GUARD, timeout: 10, onFailure: 'block' }]);

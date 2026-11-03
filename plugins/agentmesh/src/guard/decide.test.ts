@@ -50,6 +50,25 @@ describe('decide', () => {
     expect(decide(null, unmarked)).toEqual(PASS);
     expect(decide(call('Edit', { file_path: 'C:/x.ts' }), unmarked)).toEqual(PASS);
     expect(decide(call('Glob', {}), unmarked)).toEqual(PASS);
+    expect(decide(call('Agent', { prompt: 'x', isolation: 'remote' }), unmarked)).toEqual(PASS);
+    expect(decide(call('Workflow', { script: 'x' }), unmarked)).toEqual(PASS);
+  });
+
+  it('lets plain subagents run, and refuses isolated ones', () => {
+    // a plain subagent's own tool calls come back through the guard
+    expect(decide(call('Agent', { prompt: 'x', description: 'y' }), ctx)).toEqual(PASS);
+    const isolated = deny(
+      'mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-…',
+    );
+    for (const isolation of ['remote', 'worktree', null, '']) {
+      expect(decide(call('Agent', { prompt: 'x', isolation }), ctx)).toEqual(isolated);
+    }
+  });
+
+  it('asks before a workflow', () => {
+    expect(decide(call('Workflow', { script: 'x' }), ctx)).toEqual(
+      ask("mesh window: workflows need your human's approval here"),
+    );
   });
 
   it('fails closed on a call it cannot read', () => {
