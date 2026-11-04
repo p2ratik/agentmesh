@@ -129,14 +129,14 @@ export const messagingTools = [
       'Unread messages from every thread you are in: threads that need you first, then FYI (status only); marks them read. Once this session is active, call it at session start and after compaction.',
     input: z.object({ limit: z.number().int().min(1).max(50).optional() }),
     mutating: false,
-    run: async (args, { hub }) => {
+    run: async (args, { hub, agentId }) => {
       const r = await hub.call('inbox.get', { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
       if (r.threads.length === 0 && others.length === 0 && !r.waiting)
         return 'Inbox zero — nothing unread.';
       const needs = r.threads
         .filter((t) => !t.fyi)
-        .map((t) => `${t.unread} unread · ${formatThread(t.thread, t.messages)}`);
+        .map((t) => `${t.unread} unread · ${formatThread(t.thread, t.messages, agentId)}`);
       const fyi = r.threads
         .filter((t) => t.fyi)
         .map((t) => {
@@ -164,9 +164,9 @@ export const messagingTools = [
       'Read a thread (most recent messages). Use it instead of re-asking after a compaction.',
     input: z.object({ thread_id: z.string(), limit: z.number().int().min(1).max(200).optional() }),
     mutating: false,
-    run: async (args, { hub }) => {
+    run: async (args, { hub, agentId }) => {
       const r = await hub.call('thread.get', { threadId: args.thread_id, limit: args.limit ?? 30 });
-      return formatThread(r.thread, r.messages);
+      return formatThread(r.thread, r.messages, agentId);
     },
   }),
   defineTool({

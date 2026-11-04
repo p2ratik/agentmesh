@@ -160,6 +160,18 @@ describe('agentmesh CLI', () => {
     expect(await h.run('frobnicate')).toBe(2);
     expect(await h.run('--help')).toBe(0);
   });
+
+  it('validate warns, and passes, when another service can act as humans', async () => {
+    const h = harness();
+    const services =
+      'services:\n  - { id: discord-bridge, role: bridge, canActAsHumans: true }\n' +
+      '  - { id: hermes, role: ingest, canActAsHumans: true }\n';
+    const yaml = `version: 1\nmesh: { name: x }\nhumans: [{ id: alice, displayName: Alice }]\n${services}`;
+    writeFileSync(join(h.cwd, 'mesh.yaml'), yaml);
+    expect(await h.run('validate')).toBe(0);
+    const lines = h.err.join('\n').split('\n');
+    expect(lines.some((l) => l.startsWith('warning: services[1].canActAsHumans:'))).toBe(true);
+  });
 });
 
 describe('cliCommand', () => {

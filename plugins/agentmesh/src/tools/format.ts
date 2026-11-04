@@ -10,7 +10,7 @@ import {
   type TaskDetail,
   type ThreadSummary,
 } from '@agentmesh/protocol';
-import { EXTERNAL_TAG, oneLine, quoteBody } from '../inbox/render';
+import { decides, EXTERNAL_TAG, oneLine, quoteBody } from '../inbox/render';
 
 /** Compact text renderings of hub results, written for Claude to read. */
 
@@ -46,9 +46,17 @@ function formatSession(s: SessionSummary): string {
   return `    · ${s.id} — ${s.description}${where}${owns}${pull}${window}`;
 }
 
-/** A header line, then the body quoted (`│ `), so no body line can pass for another entry. */
-export function formatMessage(m: MeshMessage): string {
-  const tags = [m.kind, m.status, m.trust === 'external' ? 'EXTERNAL' : null]
+/**
+ * A header line, then the body quoted (`│ `), so no body line can pass for another entry. DECIDES:
+ * the hub marked it as from `selfId`'s owner.
+ */
+export function formatMessage(m: MeshMessage, selfId?: string): string {
+  const tags = [
+    m.kind,
+    m.status,
+    m.trust === 'external' ? 'EXTERNAL' : null,
+    decides(m, selfId) ? 'DECIDES' : null,
+  ]
     .filter(Boolean)
     .join(', ');
   return `--- ${m.from.displayName} [${m.from.id}] (${tags}) ${m.createdAt.slice(0, 16).replace('T', ' ')} UTC · ${m.id}\n${quoteBody(m)}`;
@@ -63,8 +71,13 @@ export function formatThreadHeader(t: ThreadSummary): string {
 const titleOf = (t: Task): string =>
   `${t.trust === 'external' ? `${EXTERNAL_TAG} · ` : ''}${oneLine(t.title)}`;
 
-export function formatThread(thread: ThreadSummary, messages: readonly MeshMessage[]): string {
-  const body = messages.length > 0 ? messages.map(formatMessage).join('\n\n') : '(no messages)';
+export function formatThread(
+  thread: ThreadSummary,
+  messages: readonly MeshMessage[],
+  selfId?: string,
+): string {
+  const entries = messages.map((m) => formatMessage(m, selfId));
+  const body = entries.length > 0 ? entries.join('\n\n') : '(no messages)';
   return `${formatThreadHeader(thread)}\n\n${body}`;
 }
 

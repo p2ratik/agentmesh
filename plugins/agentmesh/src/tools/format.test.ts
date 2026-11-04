@@ -2,12 +2,37 @@ import type { MeshMessage, PeerInfo, TaskDetail, ThreadSummary } from '@agentmes
 import { describe, expect, it } from 'vitest';
 import { EXTERNAL_MARK } from '../inbox/render';
 import {
+  formatMessage,
   formatPeers,
   formatTask,
   formatTaskLine,
   formatThread,
   formatThreadHeader,
 } from './format';
+
+/** Alice's own word to her agent, marked by the hub. */
+const owner: MeshMessage = {
+  id: 'msg-1',
+  threadId: 'thr-1',
+  kind: 'reply',
+  from: { id: 'alice', kind: 'human', displayName: 'Alice' },
+  to: ['alice-agent'],
+  subject: 'Deploy',
+  body: 'Ship it.',
+  status: null,
+  trust: 'team',
+  depth: 0,
+  refs: { decidesFor: ['alice-agent'] },
+  createdAt: '2026-11-04T09:00:00.000Z',
+};
+
+describe('formatMessage decides', () => {
+  it("tags the owner's message DECIDES for the agent it names", () => {
+    expect(formatMessage(owner, 'alice-agent').split('\n')[0]).toContain('(reply, DECIDES)');
+    expect(formatMessage(owner)).not.toContain('DECIDES');
+    expect(formatThread(thread, [owner], 'alice-agent')).toContain('(reply, DECIDES)');
+  });
+});
 
 const thread = {
   id: 'thr-1',

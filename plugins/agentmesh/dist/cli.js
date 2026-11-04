@@ -45820,7 +45820,9 @@ var MessageRefs = external_exports.object({
   verdict: external_exports.string().optional(),
   repo: external_exports.string().max(200).optional(),
   /** The sender's pick of the recipient session. */
-  session: external_exports.string().optional()
+  session: external_exports.string().optional(),
+  /** Set by the hub only: the recipient agents whose owner sent this message. */
+  decidesFor: external_exports.array(external_exports.string()).max(50).optional()
 });
 var DeliveryClass = external_exports.enum(["action", "status"]);
 var MeshMessage = external_exports.object({
@@ -46988,6 +46990,16 @@ function validateReferences(config2) {
   checkDiscord(config2, add);
   checkIngest(config2, add);
   return issues;
+}
+function configWarnings(config2) {
+  return config2.services.flatMap(
+    (s, i) => s.canActAsHumans && s.id !== config2.discord.serviceId ? [
+      {
+        path: `services[${i}].canActAsHumans`,
+        message: `service "${s.id}" can act as any human, so it could send owner-marked commands to every agent; only the Discord bridge (discord.serviceId) should`
+      }
+    ] : []
+  );
 }
 function pendingInvitees(config2) {
   const listed = new Set([...config2.humans, ...config2.agents, ...config2.services].map((p) => p.id));
@@ -50134,6 +50146,9 @@ function renderIssues(file2, issues) {
   const noun = issues.length === 1 ? "problem" : "problems";
   return [`${file2}: ${issues.length} ${noun}`, ...lines].join("\n");
 }
+function renderWarnings(issues) {
+  return issues.map((i) => `warning: ${i.path}: ${i.message}`).join("\n");
+}
 function renderMissingEnv(names) {
   return `warning: environment variables without a value or fallback: ${names.join(", ")}
          (they become empty strings; set them in your shell or deploy/.env)`;
@@ -50174,7 +50189,8 @@ var validateCommand = {
   help: `Usage: agentmesh validate [--config <dir>]
 
 Loads the config exactly like the hub (with your current environment) and
-reports every problem with its path. Exit code 1 when the config is invalid.`,
+reports every problem with its path. Exit code 1 when the config is invalid.
+Risky but valid settings print as warnings and still exit 0.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -50186,6 +50202,8 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
       const loaded = loadConfig(file2, { env: ctx.env });
       ctx.stdout(renderSummary(loaded));
       if (loaded.missingEnv.length > 0) ctx.stderr(renderMissingEnv(loaded.missingEnv));
+      const warnings = configWarnings(loaded.config);
+      if (warnings.length > 0) ctx.stderr(renderWarnings(warnings));
       return 0;
     } catch (error62) {
       if (error62 instanceof ConfigError) {

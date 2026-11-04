@@ -2,6 +2,7 @@ import type { RpcParams } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext } from '../../contracts';
 import { internalId } from '../../core/ids';
+import { joinTeam } from '../../testing/harness';
 import { createServiceHarness } from '../../testing/services';
 import type { MessagingServiceImpl } from './messaging.service';
 import { sendHandlers } from './send.handlers';
@@ -44,5 +45,22 @@ describe('escalate into an existing thread', () => {
   it("defaults to the agent's owner inside a thread too", async () => {
     const { last } = await escalateInThread('bob-agent');
     expect(last?.message.to).toEqual(['bob']);
+  });
+});
+
+describe('escalate notes', () => {
+  it('notes when the target has no Discord account mapped', async () => {
+    const h = createServiceHarness();
+    const { escalate } = sendHandlers(h.messaging as MessagingServiceImpl);
+    joinTeam(h.ctx, 'dana');
+    const notesFor = async (to: string) => {
+      const call = agent('alice-agent');
+      await escalate({ question: `Ship it, ${to}?`, to } as RpcParams<'escalate'>, call);
+      return call.notes;
+    };
+    expect(await notesFor('dana')).toEqual([
+      'dana has no Discord account mapped, so this escalation pinged nobody; reach them another way.',
+    ]);
+    expect(await notesFor('carol')).toEqual([]);
   });
 });

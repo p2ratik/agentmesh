@@ -171,6 +171,11 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
           refs: taskRefs(params.taskId),
         });
       });
+      if (!index.human(to)?.discordUserId) {
+        call.notes.push(
+          `${to} has no Discord account mapped, so this escalation pinged nobody; reach them another way.`,
+        );
+      }
       return { threadId: result.message.threadId, messageId: result.message.id };
     },
   };

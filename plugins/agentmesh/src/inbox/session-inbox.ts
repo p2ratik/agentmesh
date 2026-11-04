@@ -99,9 +99,8 @@ export function runSessionInbox(options: SessionInboxOptions): {
     delivered: string[],
   ): Promise<boolean> => {
     try {
-      await options.push(
-        renderEvent(fresh, { footer: formatFyi(fyi), footerExternal: anyExternal(fyi) }),
-      );
+      const footer = { footer: formatFyi(fyi), footerExternal: anyExternal(fyi) };
+      await options.push(renderEvent(fresh, { selfId: hub.config.agentId, ...footer }));
     } catch (err) {
       logger.warn(
         { err, thread: fresh[0]?.threadId },

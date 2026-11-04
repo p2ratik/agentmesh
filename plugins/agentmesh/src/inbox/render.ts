@@ -22,26 +22,34 @@ export interface RenderOptions {
   /** An FYI in the footer is external, so the whole push is `trust=external`. */
   footerExternal?: boolean;
   maxChars?: number;
+  /** This session's agent: a message the hub marked for it came from its owner. */
+  selfId?: string;
+}
+
+/** Whether the hub marked `m` as a decision for `selfId`: its owner sent it. */
+export function decides(m: MeshMessage, selfId: string | undefined): boolean {
+  return selfId !== undefined && (m.refs.decidesFor?.includes(selfId) ?? false);
 }
 
 /**
  * Renders messages of ONE thread as one channel event. A single message is
  * its quoted body; several become a compact transcript. Meta describes the
  * latest message (plus `count`), and `trust` is `external` if any part,
- * footer included, is external.
+ * footer included, is external. `decides` is `yes` only if every message is
+ * the owner's; the FYI footer never carries the mark.
  */
 export function renderEvent(
   messages: readonly MeshMessage[],
-  { footer = '', footerExternal = false, maxChars = MAX_CONTENT }: RenderOptions = {},
+  { footer = '', footerExternal = false, maxChars = MAX_CONTENT, selfId }: RenderOptions = {},
 ): ChannelEvent {
   const last = messages.at(-1);
   if (!last) throw new Error('renderEvent needs at least one message');
   const body = clip(
-    messages.length === 1 ? quoteBody(last) : transcript(messages, last),
+    messages.length === 1 ? quoteBody(last) : transcript(messages, last, selfId),
     last.threadId,
     maxChars,
   );
-  const meta = buildMeta(messages, last);
+  const meta = buildMeta(messages, last, selfId);
   if (footerExternal) meta.trust = 'external';
   return { content: escapeChannelTags(footer ? `${body}\n\n${footer}` : body), meta };
 }
@@ -56,10 +64,19 @@ export function quoteBody(m: Pick<MeshMessage, 'body' | 'trust'>): string {
   return (m.trust === 'external' ? [EXTERNAL_MARK, ...lines] : lines).join('\n');
 }
 
-function transcript(messages: readonly MeshMessage[], last: MeshMessage): string {
+function transcript(
+  messages: readonly MeshMessage[],
+  last: MeshMessage,
+  selfId: string | undefined,
+): string {
   const header = `${messages.length} new messages in ${last.threadId} «${oneLine(last.subject)}»:`;
   const entries = messages.map((m) => {
-    const tags = [m.kind, m.status, m.trust === 'external' ? 'external' : null].filter(Boolean);
+    const tags = [
+      m.kind,
+      m.status,
+      m.trust === 'external' ? 'external' : null,
+      decides(m, selfId) ? 'DECIDES' : null,
+    ].filter(Boolean);
     return `--- ${m.from.displayName} (${tags.join(', ')}, ${m.createdAt.slice(11, 16)} UTC) ---\n${quoteBody(m)}`;
   });
   return [header, ...entries].join('\n\n');
@@ -78,6 +95,7 @@ function escapeChannelTags(text: string): string {
 export function buildMeta(
   messages: readonly MeshMessage[],
   last: MeshMessage,
+  selfId?: string,
 ): Record<string, string> {
   const raw: Record<string, string | number | null | undefined> = {
     thread_id: last.threadId,
@@ -93,6 +111,7 @@ export function buildMeta(
     pr_url: last.refs.prUrl,
     verdict: last.refs.verdict,
     trust: messages.some((m) => m.trust === 'external') ? 'external' : 'team',
+    decides: messages.every((m) => decides(m, selfId)) ? 'yes' : undefined,
     depth: last.depth,
     count: messages.length > 1 ? messages.length : undefined,
     subject: oneLine(last.subject),
