@@ -22,7 +22,9 @@ COPY --from=build --chown=node:node /out/hub ./
 USER node
 ENV AGENTMESH_CONFIG=/config AGENTMESH_DATA_DIR=/data
 EXPOSE 8787
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
+# /healthz is readiness: 503 until the hub's database, NATS and subscriptions all answer. While it
+# starts, Docker probes every 2 s (Engine 25+), so a new hub shows healthy within seconds.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --start-interval=2s \
   CMD node -e "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/main.js"]
 

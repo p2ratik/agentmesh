@@ -59,6 +59,7 @@ export function buildModules(
     /** Reaches sessions for activation checks; absent without NATS. */
     sessionTransport?: Pick<SessionTransport, 'check'> | null;
   },
+  http: { health?: () => Promise<{ ok: boolean }> } = {},
 ): BuiltModules {
   let messaging: MessagingModule | null = null;
   let sessions: SessionsService | null = null;
@@ -117,6 +118,7 @@ export function buildModules(
     tasks,
     presence: presence.service,
     transport,
+    health: http.health,
   });
 
   const modules: Array<HubModule<unknown>> = [
