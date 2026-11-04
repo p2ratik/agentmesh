@@ -114,13 +114,19 @@ async function runUnenrolled(logger: Logger): Promise<void> {
   logger.info({ version: VERSION }, 'agentmesh plugin waiting for join');
 }
 
-/** The mesh tools; after each call a pull session's counts may have changed (read, answered). */
+/**
+ * The mesh tools; after each call the counts may have changed (read, answered), and a private
+ * session that used the mesh starts keeping its local record.
+ */
 function meshTools(session: Session, agentId: string): ToolHandler {
   const tools = meshToolHandler(toolDeps(session, agentId));
   return {
     list: tools.list,
     call: (name, args, signal) =>
-      tools.call(name, args, signal).finally(() => void session.pull.refresh()),
+      tools.call(name, args, signal).finally(() => {
+        session.pull.markUsed();
+        void session.pull.refresh();
+      }),
   };
 }
 

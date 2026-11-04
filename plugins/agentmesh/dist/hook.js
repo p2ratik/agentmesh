@@ -74,6 +74,10 @@ function readMarker(env, home, platform, agentId) {
 import { join } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
+  const age = now - (typeof at === "string" ? Date.parse(at) : Number.NaN);
+  return age >= 0 && age <= maxAge;
+}
 function pullStateDirs(env, home) {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
@@ -110,9 +114,7 @@ function selectStates(values, projectDir, now, windows) {
   const newest = /* @__PURE__ */ new Map();
   for (const value of values) {
     const state = asState(value);
-    if (!state) continue;
-    const age = now - Date.parse(state.updatedAt);
-    if (!(age >= 0 && age <= STATE_MAX_AGE_MS)) continue;
+    if (!state || !isFresh(state.updatedAt, now)) continue;
     if (projectDir && state.projectDir && !sameDir(projectDir, state.projectDir, windows)) continue;
     const kept = newest.get(state.agentId);
     if (!kept || kept.updatedAt < state.updatedAt) newest.set(state.agentId, state);
@@ -131,13 +133,104 @@ function announce(states) {
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
+// src/relay/local-session.ts
+var PREFIX = /^[a-z][a-z0-9_-]{0,30}$/;
+var HUB_SESSION = /^s-[a-z0-9]{12}$/;
+var valid = (re, v) => typeof v === "string" && re.test(v);
+var isLocalSessionFile = (name) => name.startsWith("sess-") && name.endsWith(".json");
+function localSessionRecord(base, peek, updatedAt) {
+  const { agentId, prefix, hubSessionId, uds, claudePid, claudeSessionId, projectDir, relay } = base;
+  const { threads, from } = peek;
+  return {
+    agentId,
+    prefix,
+    hubSessionId,
+    uds,
+    claudePid,
+    claudeSessionId,
+    projectDir,
+    relay,
+    threads,
+    from: [...from],
+    updatedAt
+  };
+}
+function parseLocalSession(value) {
+  if (typeof value !== "object" || value === null) return null;
+  const v = value;
+  const ok = valid(PARTICIPANT_ID, v.agentId) && valid(PREFIX, v.prefix) && valid(HUB_SESSION, v.hubSessionId) && (v.uds === null || typeof v.uds === "string") && Number.isInteger(v.claudePid) && v.claudePid > 0 && (v.claudeSessionId === null || typeof v.claudeSessionId === "string") && typeof v.projectDir === "string" && typeof v.relay === "boolean" && Number.isInteger(v.threads) && v.threads >= 0 && Array.isArray(v.from) && typeof v.updatedAt === "string";
+  if (!ok) return null;
+  const s = v;
+  const from = v.from.filter((f) => valid(PARTICIPANT_ID, f));
+  return localSessionRecord(s, { threads: s.threads, from }, s.updatedAt);
+}
+function freshLocalSessions(values, now) {
+  return values.map(parseLocalSession).filter((s) => s !== null && isFresh(s.updatedAt, now));
+}
+function ownLocalSession(values, claudePid, now) {
+  if (!Number.isInteger(claudePid)) return null;
+  let newest = null;
+  for (const s of freshLocalSessions(values, now)) {
+    if (s.claudePid === claudePid && (!newest || newest.updatedAt < s.updatedAt)) newest = s;
+  }
+  return newest;
+}
+function replyNote({ threads, from }) {
+  if (threads === 0) return null;
+  return `AgentMesh: ${threads} unread repl(ies)${from.length ? ` from ${from.join(", ")}` : ""} in threads this session started; call inbox to read them.`;
+}
+
+// src/relay/pointer.ts
+var THREAD_ID = /^thr-[1-9]\d{0,11}$/;
+var MESSAGE_ID = /^msg-[0-9A-HJKMNP-TV-Z]{26}$/;
+var valid2 = (re, v) => typeof v === "string" && re.test(v);
+function pointerText({ from, threadId, messageId }) {
+  if (!valid2(PARTICIPANT_ID, from) || !valid2(THREAD_ID, threadId) || !valid2(MESSAGE_ID, messageId)) {
+    return null;
+  }
+  return `AgentMesh: ${from} answered in ${threadId} (msg ${messageId}). Read it with thread ${threadId} and reply there. Do not reply to this message.`;
+}
+function parsePointer(text) {
+  const m = /^AgentMesh: (\S+) answered in (\S+) \(msg (\S+)\)\. /.exec(text);
+  if (!m) return null;
+  const [, from = "", threadId = "", messageId = ""] = m;
+  const fields = { from, threadId, messageId };
+  return pointerText(fields) === text ? fields : null;
+}
+
+// src/hook/prompt.ts
+var TURN = /^<cross-session-message from="([^"]*)"[^>]*>\n([\s\S]*)\n<\/cross-session-message>\s*$/;
+function crossSessionTurn(prompt) {
+  if (typeof prompt !== "string") return null;
+  const m = TURN.exec(prompt.trimStart());
+  return m ? { from: m[1] ?? "", body: m[2] ?? "" } : null;
+}
+var VERIFIED = (t) => `AgentMesh: a verified reply pointer from your mesh window. Read ${t} with the thread tool and reply there if it needs an answer; never reply to this message.`;
+var NOT_MESH = "AgentMesh: this cross-session message is not from your mesh window, so it is not AgentMesh.";
+function promptContext({
+  prompt,
+  marked,
+  own,
+  windowAddresses: windowAddresses2
+}) {
+  if (marked) return null;
+  const turn = crossSessionTurn(prompt);
+  if (!turn) return own ? replyNote(own) : null;
+  if (!own) return null;
+  const pointer = windowAddresses2.includes(turn.from) ? parsePointer(turn.body) : null;
+  return pointer ? VERIFIED(pointer.threadId) : NOT_MESH;
+}
+
 // src/window/heartbeat.ts
 var isHeartbeatFile = (name) => name.startsWith("push-") && name.endsWith(".json");
 function anyFresh(values, now) {
-  return values.some((v) => {
-    const at = v?.updatedAt;
-    const age = now - (typeof at === "string" ? Date.parse(at) : Number.NaN);
-    return age >= 0 && age <= STATE_MAX_AGE_MS;
+  return values.some((v) => isFresh(v?.updatedAt, now));
+}
+function windowAddresses(values, prefix, agentId, now) {
+  return values.flatMap((v) => {
+    const b = v;
+    const ok = b?.meshWindow === true && b.prefix === prefix && b.agentId === agentId && typeof b.uds === "string" && b.uds !== "" && isFresh(b.updatedAt, now);
+    return ok ? [b.uds] : [];
   });
 }
 
@@ -252,13 +345,22 @@ function sessionStart(source) {
     launcherExists: existsSync(windowFiles(home, process.platform).launcher)
   });
 }
+function promptLine(prompt, dirs) {
+  const env = process.env;
+  const marked = !!env.AGENTMESH_MESH_WINDOW;
+  const now = Date.now();
+  const read = (filter) => dirs.flatMap((d) => readJsonFiles(d, filter));
+  const pid = Number(env.CLAUDE_PID);
+  const own = marked ? null : ownLocalSession(read(isLocalSessionFile), pid, now);
+  const addresses = own ? windowAddresses(read(isHeartbeatFile), own.prefix, own.agentId, now) : [];
+  return promptContext({ prompt, marked, own, windowAddresses: addresses });
+}
 async function main() {
   const input = parse(await readStdin());
   const event = input?.hook_event_name;
   if (typeof event !== "string" || !EVENTS.has(event)) return;
-  const values = pullStateDirs(process.env, homedir()).flatMap(
-    (d) => readJsonFiles(d, isStateFile)
-  );
+  const dirs = pullStateDirs(process.env, homedir());
+  const values = dirs.flatMap((d) => readJsonFiles(d, isStateFile));
   const states = selectStates(
     values,
     process.env.CLAUDE_PROJECT_DIR,
@@ -267,9 +369,12 @@ async function main() {
   );
   const pull = announce(states);
   if (event !== "SessionStart") {
-    if (pull) {
+    const context2 = [pull, promptLine(input?.prompt, dirs)].filter(Boolean).join("\n");
+    if (context2) {
       process.stdout.write(
-        JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: pull } })
+        JSON.stringify({
+          hookSpecificOutput: { hookEventName: event, additionalContext: context2 }
+        })
       );
     }
     return;

@@ -1,6 +1,7 @@
 // Built-ins only: dist/guard.js writes the stamp, and the MCP server's activate reads it.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isFresh } from '../pull/state';
 
 /** Written by the worktree guard on the activate call, in the plugin's data folder. */
 export const GUARD_STAMP = 'guard-alive.json';
@@ -19,8 +20,7 @@ export function writeGuardStamp(dir: string, now: Date): void {
 export function guardAlive(dir: string, now: number): boolean {
   try {
     const at = (JSON.parse(readFileSync(join(dir, GUARD_STAMP), 'utf8')) as { at?: unknown }).at;
-    const age = now - (typeof at === 'string' ? Date.parse(at) : Number.NaN);
-    return age >= 0 && age <= GUARD_STAMP_MAX_AGE_MS;
+    return isFresh(at, now, GUARD_STAMP_MAX_AGE_MS);
   } catch {
     return false;
   }

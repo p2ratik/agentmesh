@@ -2,15 +2,19 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readMarker, windowFiles } from '@agentmesh/common/window';
+import { promptContext } from './hook/prompt';
 import { announce, isStateFile, pullStateDirs, selectStates } from './pull/state';
-import { anyFresh, isHeartbeatFile } from './window/heartbeat';
+import { isLocalSessionFile, ownLocalSession } from './relay/local-session';
+import { anyFresh, isHeartbeatFile, windowAddresses } from './window/heartbeat';
 import { sessionStartOutput } from './window/session-start';
 
 /**
  * The plugin's UserPromptSubmit / SessionStart hook (dist/hook.js, ADR 0008):
  * when a pull-only session in this project has unread mesh work, it adds one line
- * of context saying so. It prints nothing otherwise, never fails the prompt and
- * always exits 0. Node built-ins only: it runs on every prompt.
+ * of context saying so. A private session that used the mesh gets its reply note, or
+ * on a cross-session turn a label saying whether it is a verified pointer from its
+ * mesh window. It prints nothing otherwise, never fails the prompt and always exits
+ * 0. Node built-ins only: it runs on every prompt.
  */
 
 const EVENTS = new Set(['UserPromptSubmit', 'SessionStart']);
@@ -83,13 +87,25 @@ function sessionStart(source: unknown): {
   });
 }
 
+/** UserPromptSubmit: a private session's reply note, or the label of a cross-session turn. */
+function promptLine(prompt: unknown, dirs: readonly string[]): string | null {
+  const env = process.env;
+  const marked = !!env.AGENTMESH_MESH_WINDOW;
+  const now = Date.now();
+  const read = (filter: (name: string) => boolean) => dirs.flatMap((d) => readJsonFiles(d, filter));
+  const pid = Number(env.CLAUDE_PID);
+  const own = marked ? null : ownLocalSession(read(isLocalSessionFile), pid, now);
+  const addresses = own ? windowAddresses(read(isHeartbeatFile), own.prefix, own.agentId, now) : [];
+  return promptContext({ prompt, marked, own, windowAddresses: addresses });
+}
+
 async function main(): Promise<void> {
-  const input = parse(await readStdin()) as { hook_event_name?: unknown; source?: unknown } | null;
+  type Input = { hook_event_name?: unknown; source?: unknown; prompt?: unknown };
+  const input = parse(await readStdin()) as Input | null;
   const event = input?.hook_event_name;
   if (typeof event !== 'string' || !EVENTS.has(event)) return;
-  const values = pullStateDirs(process.env, homedir()).flatMap((d) =>
-    readJsonFiles(d, isStateFile),
-  );
+  const dirs = pullStateDirs(process.env, homedir());
+  const values = dirs.flatMap((d) => readJsonFiles(d, isStateFile));
   const states = selectStates(
     values,
     process.env.CLAUDE_PROJECT_DIR,
@@ -98,9 +114,12 @@ async function main(): Promise<void> {
   );
   const pull = announce(states);
   if (event !== 'SessionStart') {
-    if (pull) {
+    const context = [pull, promptLine(input?.prompt, dirs)].filter(Boolean).join('\n');
+    if (context) {
       process.stdout.write(
-        JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: pull } }),
+        JSON.stringify({
+          hookSpecificOutput: { hookEventName: event, additionalContext: context },
+        }),
       );
     }
     return;

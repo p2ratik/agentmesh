@@ -8,6 +8,7 @@ import { FyiBuffer } from './inbox/fyi';
 import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
 import { PullWatcher } from './pull/watcher';
+import { ownAddress } from './relay/address';
 import { pushEvent, VERSION } from './server';
 import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
@@ -34,8 +35,10 @@ export interface Session {
   onHello: ((renewed: boolean) => void) | null;
   /** Resolved once the inbox first listens on the session subject (the hub's check goes there). */
   listening: PromiseWithResolvers<void>;
-  /** Keeps the prompt hook's state file current while this session is active in pull mode. */
+  /** Keeps the hooks' local file current: pull counts, heartbeat or private record. */
   pull: PullWatcher;
+  /** This session's messaging address: local data, never logged or sent to the hub. */
+  uds: string | null;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
@@ -45,6 +48,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
   const presence = new Presence(hub, logger, projectDir);
   const activation = newActivationState();
   const window = meshWindowContext(process.env, homedir(), platform(), projectDir, config.agentId);
+  const uds = ownAddress(process.env.CLAUDE_CODE_MESSAGING_SOCKET);
   hub.connect();
   await presence.refreshGit();
   let inFlight: Promise<Hello | null> | null = null;
@@ -66,8 +70,12 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
       dir: window.dataDir,
       projectDir,
       meshWindow: window.state === 'verified',
+      uds,
+      claudePid: process.ppid,
+      relay: process.env.AGENTMESH_RELAY !== 'off',
       logger,
     }),
+    uds,
     sayHello: () => {
       inFlight ??= register(hub, presence, logger, window.state === 'verified')
         .then((landed) => {

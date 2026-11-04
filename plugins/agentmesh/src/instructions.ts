@@ -22,6 +22,10 @@ After that the mesh tools appear in this session. A human who prefers a terminal
 const OPT_IN =
   'This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session.';
 
+/** What a private session may receive from its mesh window. */
+const FROM_WINDOW = (agentId: string) =>
+  `A message from your mesh window (mesh-${agentId}) is either a reply pointer (read the thread, never answer it) or one question your human approved (answer it once, take no action).`;
+
 const WINDOW_OPT_IN =
   "This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only.";
 
@@ -71,10 +75,12 @@ export function buildInstructions(input: InstructionsInput): string {
   }
   // Session state goes first: anything past MAX_INSTRUCTIONS is cut off by Claude Code.
   const parts: string[] = [];
-  const optIn = input.meshWindow ? WINDOW_OPT_IN : OPT_IN;
+  const optIn = input.meshWindow
+    ? [WINDOW_OPT_IN]
+    : [OPT_IN, ...(input.agentId ? [FROM_WINDOW(input.agentId)] : [])];
   if (input.hello) {
     const { unreadThreads } = input.hello;
-    parts.push(identityLine(input.hello), optIn);
+    parts.push(identityLine(input.hello), ...optIn);
     if (unreadThreads > 0) {
       parts.push(
         `${unreadThreads} mesh thread(s) have unread messages; ${
@@ -90,7 +96,7 @@ export function buildInstructions(input: InstructionsInput): string {
   } else {
     parts.push(
       `You are ${input.agentId ?? 'an agent'} on the AgentMesh. The hub was unreachable when this session started; the tools work once it is back.`,
-      optIn,
+      ...optIn,
       PROTOCOL,
     );
   }

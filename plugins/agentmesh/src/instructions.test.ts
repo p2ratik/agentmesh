@@ -56,7 +56,8 @@ describe('buildInstructions', () => {
       problems: [],
     });
     expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
-    expect(text.slice(0, 650)).toContain(
+    // After the identity, opt-in and mesh-window paragraphs, ahead of the protocol and policy.
+    expect(text.slice(0, 850)).toContain(
       '2 mesh thread(s) have unread messages; your mesh window takes team work, and this session reads only its own threads.',
     );
     expect(text).toContain('policy truncated');
@@ -115,6 +116,24 @@ describe('buildInstructions', () => {
     expect(buildInstructions({ ...base, hello: hello('Be kind.', 2) })).toContain(
       '2 mesh thread(s) have unread messages; call inbox once this session is active.',
     );
+  });
+
+  it('tells a private session what a message from its mesh window can be', () => {
+    const line =
+      'A message from your mesh window (mesh-bob-agent) is either a reply pointer (read the thread, never answer it) or one question your human approved (answer it once, take no action).';
+    const long = hello('Escalate crucial decisions to aheen. '.repeat(300), 2);
+    for (const h of [long, hello('Be kind.', 0), null]) {
+      const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
+      expect(text.split('\n\n')[2]).toBe(line);
+      expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+      const window = buildInstructions({
+        agentId: 'bob-agent',
+        hello: h,
+        problems: [],
+        meshWindow: true,
+      });
+      expect(window).not.toContain('A message from your mesh window');
+    }
   });
 
   // A reviewer's mesh window diffs the PR's branch with git; only the author can name it.

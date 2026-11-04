@@ -12,7 +12,10 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function setup() {
+const UDS = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'a'.repeat(32)}`;
+const SESS = 'sess-mesh-alice-agent-s-aaaaaaaaaaaa.json';
+
+function setup({ meshWindow = false, relay = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'agentmesh-pull-'));
   dirs.push(dir);
   const calls: string[] = [];
@@ -32,12 +35,16 @@ function setup() {
     prefix: 'mesh',
     dir,
     projectDir: '/work/api',
-    meshWindow: false,
+    meshWindow,
+    uds: UDS,
+    claudePid: 4242,
+    relay,
     logger: createLogger('test', { level: 'silent', destination: 'stderr' }),
   });
   const file = join(dir, 'pull-mesh-alice-agent-s-aaaaaaaaaaaa.json');
   const beat = join(dir, 'push-mesh-alice-agent-s-aaaaaaaaaaaa.json');
-  return { beat, dir, hub, activation, watcher, calls, file };
+  const sess = join(dir, SESS);
+  return { beat, dir, hub, activation, watcher, calls, file, sess };
 }
 
 describe('PullWatcher', () => {
@@ -100,5 +107,69 @@ describe('PullWatcher', () => {
     expect(readdirSync(dir)).toEqual(['pull-mesh-alice-agent-s-bbbbbbbbbbbb.json']);
     watcher.stop();
     expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('writes a private record only after a mesh call, with the peek counts', async () => {
+    const { watcher, calls, sess } = setup();
+    await watcher.refresh();
+    expect(existsSync(sess)).toBe(false);
+    expect(calls).toEqual([]);
+    watcher.markUsed();
+    await watcher.refresh();
+    const written = JSON.parse(readFileSync(sess, 'utf8'));
+    expect(written).toEqual({
+      agentId: 'alice-agent',
+      prefix: 'mesh',
+      hubSessionId: 's-aaaaaaaaaaaa',
+      uds: UDS,
+      claudePid: 4242,
+      claudeSessionId: null,
+      projectDir: '/work/api',
+      relay: true,
+      threads: 2,
+      from: ['bob-agent'],
+      updatedAt: expect.any(String),
+    });
+    expect(calls).toContain('inbox.peek');
+    watcher.stop();
+    expect(existsSync(sess)).toBe(false);
+  });
+
+  it('drops the record when the session activates; the mesh window never writes one', async () => {
+    const { activation, watcher, sess, beat } = setup();
+    watcher.markUsed();
+    await watcher.refresh();
+    expect(existsSync(sess)).toBe(true);
+    activation.lastDescription = 'api work';
+    await watcher.refresh();
+    expect(existsSync(sess)).toBe(false);
+    expect(existsSync(beat)).toBe(true);
+
+    const win = setup({ meshWindow: true });
+    win.watcher.markUsed();
+    await win.watcher.refresh();
+    expect(readdirSync(win.dir)).toEqual([]);
+    expect(win.calls).toEqual([]);
+  });
+
+  it('records relay off', async () => {
+    const { watcher, sess } = setup({ relay: false });
+    watcher.markUsed();
+    await watcher.refresh();
+    expect(JSON.parse(readFileSync(sess, 'utf8'))).toMatchObject({ relay: false });
+  });
+
+  it("the mesh window's heartbeat carries its prefix and address", async () => {
+    for (const meshWindow of [true, false]) {
+      const { activation, watcher, beat } = setup({ meshWindow });
+      activation.lastDescription = 'team work';
+      await watcher.refresh();
+      expect(JSON.parse(readFileSync(beat, 'utf8'))).toMatchObject({
+        agentId: 'alice-agent',
+        prefix: 'mesh',
+        meshWindow,
+        uds: meshWindow ? UDS : null,
+      });
+    }
   });
 });
