@@ -28,7 +28,16 @@ Constraints:
   with no stored credential. It adds an NSG rule for its own `/32` and removes it when it ends.
   The Azure identity's custom role covers rules on that one NSG and nothing else.
 - **The deploy key can only deploy.** Its forced command is a root-owned script that accepts
-  `deploy <x.y.z>` or `status`. It refuses tags that are not on `main`.
+  `deploy <x.y.z> <hub digest> <bridge digest>` or `status`. It refuses tags that are not on
+  `main`.
+- **Only images release.yml built on main.** Anyone with write access can push to the image
+  package from a branch workflow. So the release workflow signs each image with GitHub's build
+  provenance, and the deploy job verifies it (`gh attestation verify --signer-workflow …release.yml
+  --source-ref refs/heads/main`) before sending the digests; the server pulls by digest.
+- **Only admins deploy by hand.** A manual run or any re-run needs a repository admin, so nobody
+  else can redeploy an old version. A release's own run deploys the version it published.
+  Rulesets on `main` (approval of the most recent push) and on `v*` tags (no moving or deleting)
+  keep write access from shipping unreviewed code.
 - **Short downtime, gated on readiness.** The script backs up the database while the hub keeps
   serving (SQLite `VACUUM INTO`), so the hub is down only while compose swaps its container.
   `/healthz` became a readiness check: database, a NATS round trip, and the RPC, presence and
@@ -67,5 +76,6 @@ Constraints:
 - Hub changes ship only with a version bump. Config, `.env`, `nats.conf` and the seeds stay manual.
 - The setup is Azure-specific (`deploy/azure/github-deploy-setup.sh`). Other providers install
   the same server script and replace the two NSG steps or open SSH another way.
-- The server trusts the images in the registry for a tag on `main`. Nobody signs the images or
-  pins them by digest yet (see [security.md](../security.md#automatic-deploys)).
+- Versions released before provenance (0.5.0 and older) cannot be deployed from Actions; an admin
+  deploys them on the server. The server trusts the digests the deploy job sends and does not verify
+  provenance itself (see [security.md](../security.md#automatic-deploys)).
