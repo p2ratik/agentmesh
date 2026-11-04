@@ -111,7 +111,7 @@ export function buildMeta(
     pr_url: last.refs.prUrl,
     verdict: last.refs.verdict,
     trust: messages.some((m) => m.trust === 'external') ? 'external' : 'team',
-    decides: messages.every((m) => decides(m, selfId)) ? 'yes' : undefined,
+    decides: messages.length > 0 && messages.every((m) => decides(m, selfId)) ? 'yes' : undefined,
     depth: last.depth,
     count: messages.length > 1 ? messages.length : undefined,
     subject: oneLine(last.subject),

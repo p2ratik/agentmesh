@@ -48453,7 +48453,7 @@ function buildMeta(messages, last, selfId) {
     pr_url: last.refs.prUrl,
     verdict: last.refs.verdict,
     trust: messages.some((m) => m.trust === "external") ? "external" : "team",
-    decides: messages.every((m) => decides(m, selfId)) ? "yes" : void 0,
+    decides: messages.length > 0 && messages.every((m) => decides(m, selfId)) ? "yes" : void 0,
     depth: last.depth,
     count: messages.length > 1 ? messages.length : void 0,
     subject: oneLine(last.subject)
@@ -51498,7 +51498,8 @@ function runSessionInbox(options) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      const fyi = options.fyi.take();
+      const owner = fresh.every((m) => decides(m, hub.config.agentId));
+      const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
       if (await pushThread(fresh, fyi, delivered)) shown2.push(...seenIds(fyi));
       else options.fyi.putBack(fyi);
     }

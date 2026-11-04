@@ -1,7 +1,7 @@
 import type { MeshMessage } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import { formatFyi } from './fyi';
-import { renderEvent } from './render';
+import { buildMeta, renderEvent } from './render';
 
 const reply = (id: string, from: MeshMessage['from'], refs: MeshMessage['refs']): MeshMessage => ({
   id,
@@ -34,6 +34,7 @@ describe('renderEvent decides', () => {
     expect(mixed.content.match(/DECIDES/g)).toHaveLength(1);
 
     expect(renderEvent([owner], { selfId: 'bob-agent' }).meta.decides).toBeUndefined();
+    expect(buildMeta([], owner, 'alice-agent').decides).toBeUndefined();
   });
 
   it('never tags an FYI item, even an owner-marked one', () => {

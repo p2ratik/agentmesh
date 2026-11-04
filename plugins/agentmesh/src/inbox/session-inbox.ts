@@ -9,7 +9,7 @@ import {
 import type { HubClient } from '../hub';
 import { anyExternal, type FyiBuffer, formatFyi, seenIds, type TakenFyi } from './fyi';
 import { RecentIds } from './recent-ids';
-import { type ChannelEvent, renderEvent } from './render';
+import { type ChannelEvent, decides, renderEvent } from './render';
 
 export interface SessionInboxOptions {
   hub: HubClient;
@@ -83,9 +83,11 @@ export function runSessionInbox(options: SessionInboxOptions): {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      // The buffer rides along with the first push that works. A failed push puts it back,
+      // The buffer rides along with the first push that works, never under an owner's command
+      // (decides=yes): nothing of anyone else's goes under that mark. A failed push puts it back,
       // since RecentIds would not let a redelivery buffer those items again.
-      const fyi = options.fyi.take();
+      const owner = fresh.every((m) => decides(m, hub.config.agentId));
+      const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
       if (await pushThread(fresh, fyi, delivered)) shown.push(...seenIds(fyi));
       else options.fyi.putBack(fyi);
     }
