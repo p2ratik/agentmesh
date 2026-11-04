@@ -40,7 +40,10 @@ export interface ForwardCandidate {
   fields: PointerFields;
 }
 
-/** One record's fields, if it is unexpired, valid, and its name agrees with its content. */
+/**
+ * One record's fields, if it is unexpired (and expires within the TTL), valid, and its name agrees
+ * with its content.
+ */
 function candidate(dir: string, name: string, hex: string, now: number): ForwardCandidate[] {
   try {
     const v = JSON.parse(readFileSync(join(dir, name), 'utf8')) as Record<string, unknown>;
@@ -48,6 +51,8 @@ function candidate(dir: string, name: string, hex: string, now: number): Forward
     const ok =
       typeof v.expiresAt === 'number' &&
       now <= v.expiresAt &&
+      // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
+      v.expiresAt - now <= FORWARD_TTL_MS &&
       pointerText(fields) !== null &&
       forwardFile(hex, fields.messageId) === name;
     return ok ? [{ name, fields }] : [];

@@ -28,14 +28,12 @@ function readStamp(dir: string): { at?: unknown; version?: unknown } {
 }
 
 /**
- * The stamp, if the guard wrote it in the last two minutes (and not in the future), with its
- * version (null from a guard before 0.6.0). Activate records that version from this same read.
+ * The stamp, if the guard wrote it in the last two minutes (and not in the future): proof the
+ * guard ran for this call. Its version is null from a guard before 0.6.0; activate checks the
+ * guard and records that version from this one read.
  */
 export function freshGuardStamp(dir: string, now: number): { version: string | null } | null {
   const { at, version } = readStamp(dir);
   if (!isFresh(at, now, GUARD_STAMP_MAX_AGE_MS)) return null;
   return { version: typeof version === 'string' ? version : null };
 }
-
-/** Whether the guard wrote its stamp in the last two minutes (and not in the future). */
-export const guardAlive = (dir: string, now: number): boolean => !!freshGuardStamp(dir, now);

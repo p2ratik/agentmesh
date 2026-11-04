@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
+import type { ActivationState } from './activation';
 import { defineTool, ToolRefusal } from './types';
 
 const Description = z.string().min(1).max(200);
@@ -34,13 +35,18 @@ const needDescription = () =>
 
 /**
  * The mesh window's guard stamp (null for any other session). The guard stamps this very call;
- * without it, edits and commands here go unchecked, so the window refuses.
+ * without it, edits and commands here go unchecked, so the window refuses, and the version an
+ * earlier activate recorded no longer stands (relays stop).
  */
-function windowStamp(window: MeshWindowContext): { version: string | null } | null {
+function windowStamp(
+  window: MeshWindowContext,
+  activation: ActivationState,
+): { version: string | null } | null {
   if (window.state !== 'verified') return null;
   const stamp = freshGuardStamp(window.dataDir, Date.now());
-  if (!stamp) throw new ToolRefusal(GUARD_DOWN);
-  return stamp;
+  if (stamp) return stamp;
+  activation.guardVersion = null;
+  throw new ToolRefusal(GUARD_DOWN);
 }
 
 /** Opting this session in and out of the mesh, and moving work to it. */
@@ -63,7 +69,7 @@ export const sessionTools = [
         );
       }
       const isWindow = window.state === 'verified';
-      const stamp = windowStamp(window);
+      const stamp = windowStamp(window, activation);
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
@@ -111,6 +117,7 @@ export const sessionTools = [
       activation.lastDescription = null;
       activation.renewedFrom = null;
       activation.pull = false;
+      activation.guardVersion = null;
       return 'This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.';
     },
   }),

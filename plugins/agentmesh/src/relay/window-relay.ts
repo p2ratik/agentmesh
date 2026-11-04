@@ -1,3 +1,4 @@
+import type { Logger } from '@agentmesh/common';
 import { isAtLeast, RELAY_MIN_VERSION } from '@agentmesh/common/version';
 import type { RelayAnswer, SessionRelay } from '@agentmesh/protocol';
 import type { ChannelEvent } from '../inbox/render';
@@ -20,6 +21,8 @@ export interface WindowRelayDeps {
   platform: NodeJS.Platform;
   now: number;
   push(event: ChannelEvent): Promise<void>;
+  /** Gets ids only, never an address. */
+  logger: Logger;
 }
 
 const no = (reason: string): RelayAnswer => ({ forwarded: false, reason });
@@ -60,8 +63,10 @@ export async function forwardRelay(
   const meta = { kind: 'relay', thread_id: relay.threadId, message_id: relay.messageId };
   try {
     await deps.push({ content: text, meta: { ...meta, forward_to: to } });
-  } catch {
+  } catch (err) {
     removeForward(window.dataDir, name);
+    const ids = { thread: relay.threadId, message: relay.messageId };
+    deps.logger.warn({ err, ...ids }, 'could not push a relay pointer');
     return no('the push failed');
   }
   return { forwarded: true, reason: 'forwarded' };

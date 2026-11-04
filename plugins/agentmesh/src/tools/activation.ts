@@ -13,8 +13,9 @@ export interface ActivationState {
   pull: boolean;
   /**
    * The mesh window's guard version, read from its stamp on the last successful activate and kept
-   * for the life of the process (the guard and this server update together, and an update
-   * restarts the server); null before then, or from a guard before 0.6.0. Relays gate on it.
+   * while the process lives (the guard and this server update together, and an update restarts
+   * the server); null before then, from a guard before 0.6.0, after deactivate, or once activate
+   * finds the guard did not run. Relays gate on it.
    */
   guardVersion: string | null;
 }

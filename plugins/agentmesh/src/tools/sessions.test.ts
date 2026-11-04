@@ -113,11 +113,13 @@ describe('session tools', () => {
     await callTool('describe_session', { description: 'billing v2' }, deps);
     expect(deps.activation.lastDescription).toBe('billing v2');
     deps.activation.renewedFrom = 'billing';
+    deps.activation.guardVersion = '0.6.0';
     await callTool('deactivate', {}, deps);
-    expect(deps.activation).toMatchObject({
+    expect(deps.activation).toEqual({
       lastDescription: null,
       renewedFrom: null,
       pull: false,
+      guardVersion: null,
     });
     const took = await callTool('take', { task_id: 'task-9' }, deps);
     expect(text(took)).toContain('thr-9');

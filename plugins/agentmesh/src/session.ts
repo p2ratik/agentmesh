@@ -157,6 +157,7 @@ export function startSession(
           platform: process.platform,
           now: Date.now(),
           push: (event) => pushEvent(server, event),
+          logger,
         }),
     });
     if (!hub.sessionId) rehello();

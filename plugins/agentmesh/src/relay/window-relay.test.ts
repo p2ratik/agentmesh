@@ -1,8 +1,9 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createLogger, type Logger } from '@agentmesh/common';
 import type { SessionRelay } from '@agentmesh/protocol';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelEvent } from '../inbox/render';
 import { newActivationState } from '../tools/activation';
 import { fakeHub } from '../tools/fake-hub';
@@ -25,6 +26,7 @@ const NO_RECORD = 'no fresh record for that session';
 
 let dataDir: string;
 let pushed: ChannelEvent[];
+let logger: Logger;
 
 function writeRecord(over: Partial<LocalSession> = {}, at = now): void {
   const record: LocalSession = {
@@ -57,6 +59,7 @@ function deps(over: Partial<WindowRelayDeps> = {}): WindowRelayDeps {
     push: async (event) => {
       pushed.push(event);
     },
+    logger,
     ...over,
   };
 }
@@ -66,6 +69,7 @@ const forwards = () => readdirSync(dataDir).filter((f) => f.startsWith('fwd-'));
 beforeEach(() => {
   dataDir = mkdtempSync(join(tmpdir(), 'am-relay-'));
   pushed = [];
+  logger = createLogger('test', { level: 'silent', destination: 'stderr' });
   writeRecord();
 });
 
@@ -109,7 +113,8 @@ describe('the mesh window forwarding a relay', () => {
     expect(forwards()).toEqual([]);
   });
 
-  it('removes the guard record when the push fails', async () => {
+  it('removes the guard record when the push fails, and logs ids only', async () => {
+    const warn = vi.spyOn(logger, 'warn');
     const push = async () => {
       expect(forwards()).toHaveLength(1);
       throw new Error('transport closed');
@@ -117,17 +122,34 @@ describe('the mesh window forwarding a relay', () => {
     const answer = await forwardRelay(RELAY, deps({ push }));
     expect(answer).toEqual({ forwarded: false, reason: 'the push failed' });
     expect(forwards()).toEqual([]);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      { err: expect.any(Error), thread: 'thr-12', message: ID },
+      expect.any(String),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(HEX);
+  });
+
+  it('answers, and pushes nothing, when the guard record cannot be written', async () => {
+    // Renaming the staged file onto a folder fails on Windows and POSIX alike.
+    mkdirSync(join(dataDir, `fwd-${HEX}-${ID}.json`));
+    const answer = await forwardRelay(RELAY, deps());
+    expect(answer).toEqual({ forwarded: false, reason: 'could not write the guard record' });
+    expect(pushed).toEqual([]);
   });
 });
 
 describe('the guard version recorded at activation', () => {
   const view = { id: 's-wwwwwwwwwwww', active: true, delivery: 'push', description: 'mesh window' };
-  /** Activates the verified window over this stamp; resolves with the version it recorded. */
-  async function activate(stamp: object | null): Promise<string | null> {
+  function windowTool() {
     const { deps: tool } = fakeHub({
       'session.activate': { ...view, repo: null, branch: null, owns: [] },
+      'session.deactivate': { ok: true },
     });
     tool.window = { state: 'verified', policy: null, dataDir, folder: '.' };
+    return tool;
+  }
+  /** Activates the verified window over this stamp; resolves with the version it recorded. */
+  async function activate(stamp: object | null, tool = windowTool()): Promise<string | null> {
     const file = join(dataDir, GUARD_STAMP);
     rmSync(file, { force: true });
     if (stamp) writeFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...stamp }));
@@ -156,5 +178,16 @@ describe('the guard version recorded at activation', () => {
       expect(answer).toEqual({ forwarded: false, reason: GUARD_OLD });
     }
     expect(forwards()).toEqual([]);
+  });
+
+  it('a later activation overwrites it; a down guard or deactivate clears it', async () => {
+    const tool = windowTool();
+    expect(await activate({ version: '0.6.0' }, tool)).toBe('0.6.0');
+    expect(await activate({}, tool)).toBeNull(); // a downgrade overwrites
+    expect(await activate({ version: '0.6.0' }, tool)).toBe('0.6.0');
+    expect(await activate(null, tool)).toBeNull(); // GUARD_DOWN: the guard is not running
+    expect(await activate({ version: '0.6.0' }, tool)).toBe('0.6.0');
+    await callTool('deactivate', {}, tool);
+    expect(tool.activation.guardVersion).toBeNull();
   });
 });

@@ -6,7 +6,6 @@ import {
   freshGuardStamp,
   GUARD_STAMP,
   GUARD_STAMP_MAX_AGE_MS,
-  guardAlive,
   writeGuardStamp,
 } from './guard-stamp';
 
@@ -26,18 +25,18 @@ describe('the guard stamp', () => {
     expect(GUARD_STAMP_MAX_AGE_MS).toBe(120_000);
     writeGuardStamp(dir, now, '0.6.0');
     expect(readdirSync(dir)).toEqual([GUARD_STAMP]);
-    expect(guardAlive(dir, now.getTime())).toBe(true);
-    expect(guardAlive(dir, now.getTime() + 119_000)).toBe(true);
-    expect(guardAlive(dir, now.getTime() + 121_000)).toBe(false);
-    expect(guardAlive(dir, now.getTime() - 1_000)).toBe(false);
+    expect(freshGuardStamp(dir, now.getTime())).not.toBeNull();
+    expect(freshGuardStamp(dir, now.getTime() + 119_000)).not.toBeNull();
+    expect(freshGuardStamp(dir, now.getTime() + 121_000)).toBeNull();
+    expect(freshGuardStamp(dir, now.getTime() - 1_000)).toBeNull();
   });
 
   it('is dead with no file or a corrupt one', () => {
-    expect(guardAlive(dir, now.getTime())).toBe(false);
+    expect(freshGuardStamp(dir, now.getTime())).toBeNull();
     writeGuardStamp(dir, now, '0.6.0');
     for (const text of ['', '{', 'null', '{"at":5}', '{"at":"soon"}']) {
       writeFileSync(join(dir, GUARD_STAMP), text);
-      expect(guardAlive(dir, now.getTime())).toBe(false);
+      expect(freshGuardStamp(dir, now.getTime())).toBeNull();
     }
   });
 
@@ -47,7 +46,6 @@ describe('the guard stamp', () => {
     expect(freshGuardStamp(dir, now.getTime() + 121_000)).toBeNull();
     // A stamp from a guard before 0.6.0 has no version: alive, but no version to read.
     writeFileSync(join(dir, GUARD_STAMP), JSON.stringify({ at: now.toISOString() }));
-    expect(guardAlive(dir, now.getTime() + 1_000)).toBe(true);
     expect(freshGuardStamp(dir, now.getTime() + 1_000)).toEqual({ version: null });
     rmSync(join(dir, GUARD_STAMP));
     expect(freshGuardStamp(dir, now.getTime())).toBeNull();

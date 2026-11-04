@@ -41,6 +41,13 @@ describe('forward records', () => {
     expect(readForwards(join(dir, 'missing'), HEX, now)).toEqual([]);
   });
 
+  it('refuses a record whose expiry lies further ahead than the TTL', () => {
+    writeForward(dir, HEX, FIELDS, now + FORWARD_TTL_MS + 1);
+    expect(readForwards(dir, HEX, now)).toEqual([]);
+    writeForward(dir, HEX, FIELDS, Number.MAX_SAFE_INTEGER);
+    expect(readForwards(dir, HEX, now)).toEqual([]);
+  });
+
   it('skips a record with an edited field, and unreadable files', () => {
     writeForward(dir, HEX, FIELDS, now + 60_000);
     const edit = (over: object) =>

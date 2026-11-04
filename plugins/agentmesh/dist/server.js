@@ -49118,11 +49118,12 @@ var needDescription = () => new MeshError(
   "invalid_request",
   "Pass description too: one line on what this session is working on."
 );
-function windowStamp(window) {
+function windowStamp(window, activation) {
   if (window.state !== "verified") return null;
   const stamp = freshGuardStamp(window.dataDir, Date.now());
-  if (!stamp) throw new ToolRefusal(GUARD_DOWN);
-  return stamp;
+  if (stamp) return stamp;
+  activation.guardVersion = null;
+  throw new ToolRefusal(GUARD_DOWN);
 }
 var sessionTools = [
   defineTool({
@@ -49141,7 +49142,7 @@ var sessionTools = [
         );
       }
       const isWindow = window.state === "verified";
-      const stamp = windowStamp(window);
+      const stamp = windowStamp(window, activation);
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
@@ -49184,6 +49185,7 @@ ${windowRules(window.policy)}` : `${active} ${NOT_WINDOW}`;
       activation.lastDescription = null;
       activation.renewedFrom = null;
       activation.pull = false;
+      activation.guardVersion = null;
       return "This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.";
     }
   }),
@@ -51938,8 +51940,10 @@ async function forwardRelay(relay, deps) {
   const meta3 = { kind: "relay", thread_id: relay.threadId, message_id: relay.messageId };
   try {
     await deps.push({ content: text3, meta: { ...meta3, forward_to: to } });
-  } catch {
+  } catch (err) {
     removeForward(window.dataDir, name);
+    const ids = { thread: relay.threadId, message: relay.messageId };
+    deps.logger.warn({ err, ...ids }, "could not push a relay pointer");
     return no("the push failed");
   }
   return { forwarded: true, reason: "forwarded" };
@@ -52062,7 +52066,8 @@ function startSession(server, session, logger, pushDelayMs) {
         guardVersion: session.activation.guardVersion,
         platform: process.platform,
         now: Date.now(),
-        push: (event2) => pushEvent(server, event2)
+        push: (event2) => pushEvent(server, event2),
+        logger
       })
     });
     if (!hub.sessionId) rehello();
