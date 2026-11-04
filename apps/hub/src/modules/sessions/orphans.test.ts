@@ -15,7 +15,9 @@ function setup(version = '0.6.0') {
   const sentTo = (sessionId: string) =>
     h.transport.batches.filter((_, i) => h.transport.sends[i]?.sessionId === sessionId).flat();
   const rows = () =>
-    h.ctx.db.all('SELECT thread_id, agent_id, released_by, due_at FROM orphan_decisions');
+    h.ctx.db.all(
+      'SELECT thread_id, agent_id, released_by, due_at, escalated_at FROM orphan_decisions',
+    );
   const messagesIn = (threadId: number) =>
     h.ctx.db.all<{ kind: string; body: string; status: string | null; recipients: string }>(
       'SELECT kind, body, status, recipients FROM messages WHERE thread_id = $threadId ORDER BY seq',
@@ -52,7 +54,7 @@ describe('a closed private asker', () => {
     expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBeNull();
     const due = new Date(h.clock.now().getTime() + 15 * MINUTE_MS).toISOString();
     expect(h.rows()).toEqual([
-      { thread_id: h.t, agent_id: 'bob-agent', released_by: h.p, due_at: due },
+      { thread_id: h.t, agent_id: 'bob-agent', released_by: h.p, due_at: due, escalated_at: null },
     ]);
     const notices = h.messagesIn(h.t).filter((m) => m.body.includes("Bob's decision"));
     expect(notices.map(({ kind, body }) => ({ kind, body }))).toEqual([
@@ -74,22 +76,51 @@ describe('a closed private asker', () => {
         'decision: continue it in the mesh window, reopen that session, or drop it. Reply here or ' +
         'in the mesh window.',
     });
-    expect(h.rows()).toEqual([]);
+    expect(h.rows()).toMatchObject([{ escalated_at: h.clock.now().toISOString() }]);
     expect(h.tick(15)).toBe(0);
   });
 
-  it('drops the timer when the window took the thread or the thread closed', async () => {
+  // Controller ruling: one notice and one escalation per closed asker.
+  it('after the escalation, another teammate reply gets no second notice or escalation', async () => {
+    const h = setup();
+    await h.orphan();
+    expect(h.tick(15)).toBe(1);
+    h.reply(h.t);
+    await h.outbox.flush();
+    expect(h.sentTo(h.w).filter((m) => m.kind === 'reply')).toHaveLength(2);
+    expect(h.tick(15)).toBe(0);
+    const kinds = h.messagesIn(h.t).map((m) => m.kind);
+    expect(kinds).toEqual(['reply', 'system', 'escalation', 'reply']);
+  });
+
+  it("the owner's own reply in a released thread starts no timer and posts no notice", async () => {
+    const h = setup();
+    h.sessions.close('bob-agent', h.p);
+    const post = { threadId: h.t, senderId: 'bob', kind: 'reply' as const, body: 'drop it' };
+    const decision = h.messaging.post(post).message;
+    expect(decision.refs.decidesFor).toEqual(['bob-agent']);
+    await h.outbox.flush();
+    expect(h.sentTo(h.w).map((m) => m.id)).toContain(decision.id);
+    expect(h.rows()).toEqual([]);
+    expect(h.messagesIn(h.t).map((m) => m.kind)).toEqual(['reply']);
+  });
+
+  it('drops the row when the window took the thread or the thread closed, escalated or not', async () => {
     const settles = [
       (h: Setup) => h.sessions.take('bob-agent', h.w, h.t),
       (h: Setup) => h.messaging.closeThread(h.t, 'alice'),
     ];
-    for (const settle of settles) {
-      const h = setup();
-      await h.orphan();
-      settle(h);
-      expect(h.tick(15)).toBe(0);
-      expect(h.rows()).toEqual([]);
-      expect(h.messagesIn(h.t).map((m) => m.kind)).not.toContain('escalation');
+    for (const escalated of [false, true]) {
+      for (const settle of settles) {
+        const h = setup();
+        await h.orphan();
+        if (escalated) expect(h.tick(15)).toBe(1);
+        settle(h);
+        expect(h.tick(15)).toBe(0);
+        expect(h.rows()).toEqual([]);
+        const escalations = h.messagesIn(h.t).filter((m) => m.kind === 'escalation');
+        expect(escalations).toHaveLength(escalated ? 1 : 0);
+      }
     }
   });
 

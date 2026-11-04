@@ -175,12 +175,15 @@ export class SessionsServiceImpl implements SessionsService {
 
   /**
    * Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps
-   * it. A closed asker's answer claims nothing; it starts the owner's decision timer.
+   * it. A closed asker's answer claims nothing; it starts the owner's decision timer, unless the
+   * owner sent it (that is the decision).
    */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void {
     if (route.kind !== 'deliver') return;
     const threadId = internalId('thread', message.threadId);
-    if (route.released) this.orphans.record(agentId, threadId, route.released.bySession);
+    const byOwner = message.refs.decidesFor?.includes(agentId);
+    if (route.released && !byOwner)
+      this.orphans.record(agentId, threadId, route.released.bySession);
     if (route.claim) claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
   }
 
