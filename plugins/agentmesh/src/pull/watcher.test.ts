@@ -15,7 +15,15 @@ afterEach(() => {
 const UDS = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'a'.repeat(32)}`;
 const SESS = 'sess-mesh-alice-agent-s-aaaaaaaaaaaa.json';
 
-function setup({ meshWindow = false, relay = true } = {}) {
+function setup({
+  meshWindow = false,
+  marked = meshWindow,
+  relay = true,
+}: {
+  meshWindow?: boolean;
+  marked?: boolean;
+  relay?: boolean;
+} = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'agentmesh-pull-'));
   dirs.push(dir);
   const calls: string[] = [];
@@ -36,6 +44,7 @@ function setup({ meshWindow = false, relay = true } = {}) {
     dir,
     projectDir: '/work/api',
     meshWindow,
+    marked,
     uds: UDS,
     claudePid: 4242,
     relay,
@@ -150,6 +159,14 @@ describe('PullWatcher', () => {
     await win.watcher.refresh();
     expect(readdirSync(win.dir)).toEqual([]);
     expect(win.calls).toEqual([]);
+  });
+
+  it('a marked but unverified session never writes a record, so the window never forwards to it', async () => {
+    const { watcher, dir, calls } = setup({ meshWindow: false, marked: true });
+    watcher.markUsed();
+    await watcher.refresh();
+    expect(readdirSync(dir)).toEqual([]);
+    expect(calls).toEqual([]);
   });
 
   it('records relay off', async () => {

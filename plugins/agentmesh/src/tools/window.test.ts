@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { VERSION } from '@agentmesh/common/version';
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeGuardStamp } from '../window/guard-stamp';
@@ -49,7 +50,7 @@ afterEach(() => rmSync(dataDir, { recursive: true, force: true }));
 
 /** The verified mesh window, with the guard's stamp as fresh as the guard writes it. */
 function verified(deps: ReturnType<typeof fakeHub>['deps'], stamp = true) {
-  if (stamp) writeGuardStamp(dataDir, new Date());
+  if (stamp) writeGuardStamp(dataDir, new Date(), VERSION);
   deps.window = { ...deps.window, state: 'verified', policy, dataDir };
 }
 
@@ -62,7 +63,7 @@ describe('activate and the mesh window', () => {
       expect(result.isError).toBe(true);
       expect(text(result)).toBe(GUARD_DOWN);
     }
-    writeGuardStamp(dataDir, new Date(Date.now() - 121_000));
+    writeGuardStamp(dataDir, new Date(Date.now() - 121_000), VERSION);
     expect(text(await callTool('activate', {}, deps))).toBe(GUARD_DOWN);
     expect(calls).toEqual([]);
   });

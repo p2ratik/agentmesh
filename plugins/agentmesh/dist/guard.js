@@ -3,6 +3,9 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 // src/guard.ts
 import { homedir } from "node:os";
 
+// ../../packages/common/src/version.ts
+var VERSION = "0.5.0";
+
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
 import { posix, win32 } from "node:path";
@@ -478,11 +481,11 @@ function pullStateDirs(env, home) {
 import { mkdirSync, readFileSync as readFileSync4, renameSync, writeFileSync } from "node:fs";
 import { join as join2 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
-function writeGuardStamp(dir, now) {
+function writeGuardStamp(dir, now, version) {
   mkdirSync(dir, { recursive: true, mode: 448 });
   const file = join2(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
-  writeFileSync(staged, JSON.stringify({ at: now.toISOString() }), { mode: 384 });
+  writeFileSync(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
   renameSync(staged, file);
 }
 
@@ -505,7 +508,9 @@ async function main(marked2) {
   const platform = process.platform;
   const { policy } = readMarker(env, home, platform);
   const decision = decide(parse(text), { marked: marked2, policy, home, platform });
-  if (decision.kind === "stamp") writeGuardStamp(pullStateDirs(env, home)[0] ?? ".", /* @__PURE__ */ new Date());
+  if (decision.kind === "stamp") {
+    writeGuardStamp(pullStateDirs(env, home)[0] ?? ".", /* @__PURE__ */ new Date(), VERSION);
+  }
   const out = hookOutput(decision);
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);

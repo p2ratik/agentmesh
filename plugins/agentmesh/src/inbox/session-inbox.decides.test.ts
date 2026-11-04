@@ -62,6 +62,7 @@ function harness(fyi: FyiBuffer) {
     pushCheck: async () => {},
     onExpired: () => {},
     onListening: () => {},
+    onRelay: async () => ({ forwarded: false, reason: 'not the mesh window' }),
   });
   const send = (messages: SessionDelivery[]) =>
     new Promise<SessionAck>((resolve) => {

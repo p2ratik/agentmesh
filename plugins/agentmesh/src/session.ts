@@ -9,6 +9,7 @@ import { runSessionInbox } from './inbox/session-inbox';
 import { Presence } from './presence';
 import { PullWatcher } from './pull/watcher';
 import { ownAddress } from './relay/address';
+import { forwardRelay } from './relay/window-relay';
 import { pushEvent, VERSION } from './server';
 import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
@@ -70,6 +71,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
       dir: window.dataDir,
       projectDir,
       meshWindow: window.state === 'verified',
+      marked: window.state !== 'none',
       uds,
       claudePid: process.ppid,
       relay: process.env.AGENTMESH_RELAY !== 'off',
@@ -144,6 +146,17 @@ export function startSession(
         presence.beat();
         session.listening.resolve();
       },
+      onRelay: (relay) =>
+        forwardRelay(relay, {
+          window: session.window,
+          agentId: session.config.agentId,
+          prefix: session.config.prefix,
+          ownUds: session.uds,
+          ownSession: hub.sessionId,
+          platform: process.platform,
+          now: Date.now(),
+          push: (event) => pushEvent(server, event),
+        }),
     });
     if (!hub.sessionId) rehello();
   };

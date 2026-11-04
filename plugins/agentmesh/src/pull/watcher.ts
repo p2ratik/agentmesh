@@ -21,6 +21,11 @@ export interface PullWatcherDeps {
   projectDir: string;
   /** Whether this process is the verified mesh window; the heartbeat says so. */
   meshWindow: boolean;
+  /**
+   * Whether AGENTMESH_MESH_WINDOW marks this process, verified or not (the hooks' "marked"). A
+   * marked session keeps no private record, so the window never forwards a pointer to it.
+   */
+  marked: boolean;
   /** This session's messaging address: local data, never logged or sent to the hub. */
   uds: string | null;
   /** The Claude Code process (the prompt hook's `CLAUDE_PID`). */
@@ -131,10 +136,11 @@ export class PullWatcher {
   }
 
   async #refresh(): Promise<void> {
-    const { hub, activation, logger, meshWindow } = this.#deps;
+    const { hub, activation, logger, meshWindow, marked } = this.#deps;
     const sessionId = hub.sessionId;
     if (!sessionId) return this.clear();
-    if (activation.lastDescription === null && !activation.pull && !meshWindow && this.#used) {
+    const inactive = activation.lastDescription === null && !activation.pull;
+    if (inactive && !meshWindow && !marked && this.#used) {
       return this.#record(sessionId).catch((err) =>
         logger.warn({ err }, 'could not refresh the local session record'),
       );

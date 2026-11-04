@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLogger } from '@agentmesh/common';
+import { VERSION } from '@agentmesh/common/version';
 import { MESH_WINDOW_ENV } from '@agentmesh/common/window';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
@@ -86,7 +87,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('the mesh window end to end', () =
     await activate(b1, 'web client');
     const data = mkdtempSync(join(tmpdir(), 'am-e2e-window-data-'));
     const b2 = await spawn('bob-agent', { home: windowHome(), data });
-    writeGuardStamp(data, new Date());
+    writeGuardStamp(data, new Date(), VERSION);
     expect(await activate(b2, 'mesh window')).toContain('It is your mesh window.');
 
     // b1's own activation check came before; nothing may follow it.

@@ -1,9 +1,11 @@
 import type { Msg, NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
 import {
+  type RelayAnswer,
   type SessionAck,
   type SessionDelivery,
   SessionInbound,
+  type SessionRelay,
   subjects,
 } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
@@ -28,6 +30,8 @@ export interface SessionInboxOptions {
    * delivery finds nobody listening (startup, re-hello) until it hears a heartbeat.
    */
   onListening(): void;
+  /** The mesh window's answer to a relay: a pointer for one of its human's private sessions. */
+  onRelay(relay: SessionRelay): Promise<RelayAnswer>;
 }
 
 /**
@@ -38,7 +42,8 @@ export interface SessionInboxOptions {
  * Code, one event per thread in arrival order; the first push that works takes
  * the FYI buffer as its footer, and those ids are reported seen. The reply
  * (`SessionAck`) lists the ids buffered or pushed now or before; the hub
- * retries the rest. An activation check is pushed, then acked. Batches are
+ * retries the rest. An activation check is pushed, then acked; a relay is
+ * acked with `onRelay`'s answer. Batches are
  * handled one at a time, so pushes keep the hub's order. `resubscribe` follows
  * `hub.sessionId`; `retryFailed` resubscribes after the server refused or
  * ended the subscription (a permissions violation).
@@ -64,6 +69,12 @@ export function runSessionInbox(options: SessionInboxOptions): {
       return;
     }
     if (inbound.type === 'expired') return options.onExpired();
+    if (inbound.type === 'relay') {
+      // A pointer, not a message: it never touches the FYI buffer or RecentIds.
+      const ack: SessionAck = { delivered: [], ...(await options.onRelay(inbound)) };
+      msg.respond(JSON.stringify(ack));
+      return;
+    }
     if (inbound.type === 'check') await options.pushCheck(inbound.code);
     const delivered: string[] = [];
     const shown = inbound.type === 'deliver' ? await deliver(inbound.messages, delivered) : [];

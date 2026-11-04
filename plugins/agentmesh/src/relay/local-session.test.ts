@@ -111,4 +111,18 @@ describe('local session records', () => {
     expect(readLocalSession(dir, 'mesh', 'bob-agent', 's-bbbbbbbbbbbb', now)).toBeNull();
     expect(readLocalSession(dir, '../mesh', 'bob-agent', 's-aaaaaaaaaaaa', now)).toBeNull();
   });
+
+  it('refuses a record whose content names another session, agent or mesh than its file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-sess-'));
+    dirs.push(dir);
+    const file = join(dir, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json');
+    for (const other of [
+      { hubSessionId: 's-bbbbbbbbbbbb' },
+      { agentId: 'carol-agent' },
+      { prefix: 'other' },
+    ]) {
+      writeFileSync(file, JSON.stringify(record(other)));
+      expect(readLocalSession(dir, 'mesh', 'bob-agent', 's-aaaaaaaaaaaa', now)).toBeNull();
+    }
+  });
 });
