@@ -22,6 +22,10 @@ export interface SessionRow {
   closed_at: string | null;
   /** JSON array of thread ids released at close. */
   released: string;
+  /** 1: inactive and not the mesh window when it closed, so its released threads had an asker. */
+  private_at_close: number;
+  /** Claude Code's conversation id, once the plugin reported it. */
+  claude_session_id: string | null;
 }
 
 export interface NewSession {
@@ -33,6 +37,14 @@ export interface NewSession {
   branch?: string | null;
   meshWindow?: boolean;
   at: string;
+}
+
+/** A closed session that released a thread. */
+export interface ReleasedBy {
+  id: string;
+  closed_at: string;
+  private_at_close: number;
+  claude_session_id: string | null;
 }
 
 const NOT_CLOSED = "liveness <> 'closed'";
@@ -126,10 +138,22 @@ export class SessionsRepo {
   }
 
   /** Closes and deactivates the session. */
-  close(id: string, at: string): void {
+  close(id: string, at: string, privateAtClose: boolean): void {
     this.#db.run(
-      "UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at WHERE id = $id",
-      { id, at },
+      `UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at,
+         private_at_close = $private WHERE id = $id`,
+      { id, at, private: privateAtClose ? 1 : 0 },
+    );
+  }
+
+  /** The agent's latest closed session whose `released` holds the thread. */
+  releasedBy(agentId: string, threadId: number): ReleasedBy | undefined {
+    return this.#db.get<ReleasedBy>(
+      `SELECT id, closed_at, private_at_close, claude_session_id FROM sessions
+       WHERE agent_id = $agentId AND liveness = 'closed'
+         AND EXISTS (SELECT 1 FROM json_each(released) WHERE value = $threadId)
+       ORDER BY closed_at DESC, rowid DESC LIMIT 1`,
+      { agentId, threadId },
     );
   }
 

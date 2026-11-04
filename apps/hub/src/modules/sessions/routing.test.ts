@@ -21,6 +21,7 @@ const input = (over: Partial<RouteInput> = {}): RouteInput => ({
   taskOwner: null,
   picked: null,
   repo: null,
+  released: null,
   ...over,
 });
 
@@ -186,6 +187,27 @@ describe('the mesh window', () => {
     expect(routeDelivery(input({ sessions: [s1i], taskOwner: 's1' }))).toEqual({
       kind: 'wait',
       reason: 'no active push session; skipped inactive s1 (owns task)',
+    });
+  });
+
+  const released = { bySession: 's9', closedAt: '2026-10-21T11:00:00Z', claudeSessionId: null };
+  it("gives a closed private asker's thread to a 0.6.0 window, unclaimed and marked", () => {
+    const w6 = { ...w, clientVersion: '0.6.0' };
+    expect(routeDelivery(input({ sessions: [s1, w6], released }))).toEqual({
+      kind: 'deliver',
+      sessionId: 's2',
+      claim: false,
+      reason: 'released by closed s9',
+      released,
+    });
+  });
+  it('a 0.5.0 window, or no window, takes it as before', () => {
+    expect(routeDelivery(input({ sessions: [s1, w], released }))).toStrictEqual(win);
+    expect(routeDelivery(input({ released }))).toStrictEqual({
+      kind: 'deliver',
+      sessionId: 's1',
+      claim: true,
+      reason: 'longest-active session',
     });
   });
 });

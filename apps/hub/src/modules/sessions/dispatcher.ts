@@ -3,6 +3,7 @@ import type { RelayAnswer, SessionDelivery, SessionRelay } from '@agentmesh/prot
 import type { MessagingService, SessionsService } from '../../contracts';
 import type { DeliveryPort, DeliveryReceipt } from '../../ports';
 import { RelayMarks, type RelayTarget } from './relay';
+import { follow, withReleased } from './released';
 import type { Route } from './routing';
 
 export interface SessionTransport {
@@ -48,6 +49,9 @@ interface Relay {
  * mesh window (spec §4.1): the window gets a body-less `relay` pointer, once
  * per thread and asking session until the owner reads the thread. The reply
  * itself stays pending: never delivered, read or claimed here.
+ *
+ * A thread whose private asker closed goes to a 0.6.0 window unclaimed, its messages marked
+ * `released`; the commit starts the owner's decision timer (`OrphanDecisions`).
  */
 export class SessionDispatcher implements DeliveryPort {
   readonly #sessions: SessionsService;
@@ -159,7 +163,8 @@ export class SessionDispatcher implements DeliveryPort {
   /** The ids the session acked, among those it was sent (carried status items aside). */
   async #send(agentId: string, sessionId: string, batch: Routed[]): Promise<string[]> {
     const messages = batch.map((r) => r.message);
-    const sent = [...this.#carried(agentId, messages), ...messages];
+    const routed = batch.map((r) => withReleased(r.message, r.route));
+    const sent = [...this.#carried(agentId, messages), ...routed];
     const acked = new Set(await this.#transport.send(agentId, sessionId, sent));
     return messages.filter((m) => acked.has(m.id)).map((m) => m.id);
   }
@@ -209,21 +214,4 @@ export class SessionDispatcher implements DeliveryPort {
     }
     return { routed, waiting };
   }
-}
-
-/**
- * A later message of a thread, in the same call, goes where the thread's first
- * one went, with its claim: only action items claim, so a status first message
- * leaves the claim to a later action.
- */
-function follow(first: Route): Route {
-  if (first.kind === 'wait')
-    return { kind: 'wait', reason: 'an earlier message of its thread waits' };
-  const { sessionId, claim } = first;
-  return {
-    kind: 'deliver',
-    sessionId,
-    claim,
-    reason: `its thread goes to ${sessionId} in this batch`,
-  };
 }

@@ -25,6 +25,12 @@ describe('configFromObject', () => {
     expect(configFromObject(minimal).config.presence.ownershipGraceMinutes).toBe(120);
   });
 
+  it('relay.closedAskerEscalationMinutes defaults to 15; 0 is refused', () => {
+    expect(configFromObject(minimal).config.relay.closedAskerEscalationMinutes).toBe(15);
+    const zero = { ...minimal, relay: { closedAskerEscalationMinutes: 0 } };
+    expect(() => configFromObject(zero)).toThrow(ConfigError);
+  });
+
   // Removed with per-session delivery; existing mesh.yaml files that still set it must load.
   it('ignores the retired limits.deliveryRetentionDays', () => {
     const { config } = configFromObject({ ...minimal, limits: { deliveryRetentionDays: 14 } });

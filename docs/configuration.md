@@ -97,6 +97,7 @@ error.
 | `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
 | `presence.ownershipGraceMinutes` | `120` | A session silent past `offlineAfterSeconds` goes away but keeps its threads; after this many minutes it closes and releases them (a reconnect with its previous session id reclaims what nobody took). |
+| `relay.closedAskerEscalationMinutes` | `15` | A reply whose asking session closed waits this long for the owner's decision in the mesh window, then the hub pings them on Discord, in the thread (1–1440). Only a session that was private when it closed (inactive, not the mesh window) counts as a closed asker; plugins get the value with `session.hello`. Known gap: if the human chose reopen but hasn't reopened yet, the ping still fires. |
 | `limits.rpcBurst` | `60` | Calls that change state (tasks, plans, reviews, leases, sessions, messages) one agent or human may make at once. Reads are free; services acting as themselves are not metered. |
 | `limits.rpcPerMinute` | `20` | How fast that allowance refills. Past it the hub answers `rate_limited` with `retryAfterSeconds`. |
 | `limits.maxSessionsPerAgent` | `20` | Open (live or away) sessions per agent. A new one beyond it first closes the stalest (away before live, then least recently seen), which releases its threads. A reconnect reuses its session and closes nothing. |

@@ -65,6 +65,18 @@ describe('session liveness', () => {
     sessions.unreachable(s1);
     expect(liveness()).toBe('away');
   });
+
+  it('records whether a session was private when it closed', () => {
+    const { ctx, sessions, s1 } = setup();
+    const open = (meshWindow: boolean) =>
+      sessions.open('alice-agent', { clientVersion: '0.6.0', meshWindow }).session.id;
+    const [inactive, win] = [open(false), open(true)];
+    for (const id of [inactive, s1, win]) sessions.close('alice-agent', id);
+    const privateAtClose = (id: string) =>
+      ctx.db.get<{ p: number }>('SELECT private_at_close AS p FROM sessions WHERE id = $id', { id })
+        ?.p;
+    expect([inactive, s1, win].map(privateAtClose)).toEqual([1, 0, 0]);
+  });
 });
 
 describe('session limits', () => {

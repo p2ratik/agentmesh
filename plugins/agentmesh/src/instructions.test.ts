@@ -41,6 +41,7 @@ function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'
         branchTemplate: 'agent/{owner}/{task}-{slug}',
         agentsMayMergeInto: ['agents'],
       },
+      closedAskerEscalationMinutes: 15,
     },
     unreadThreads,
     sessionId: 's-000000000001',

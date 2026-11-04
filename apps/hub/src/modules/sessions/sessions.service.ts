@@ -18,6 +18,7 @@ import type {
 import { internalId, taskKey, threadKey } from '../../core/ids';
 import { evictStalest, expireSessions, releaseAndClose } from './liveness';
 import { toRecord, toSummary, toView } from './mappers';
+import { OrphanDecisions } from './orphans';
 import { claimThread, reclaimReleased } from './ownership';
 import { recordClaims } from './record-claims';
 import { type RelayTarget, relayFor } from './relay';
@@ -38,6 +39,7 @@ export interface SessionsDeps {
  */
 export class SessionsServiceImpl implements SessionsService {
   readonly repo: SessionsRepo;
+  readonly orphans: OrphanDecisions;
   readonly #ctx: HubContext;
   readonly #deps: SessionsDeps;
 
@@ -45,6 +47,7 @@ export class SessionsServiceImpl implements SessionsService {
     this.#ctx = ctx;
     this.#deps = deps;
     this.repo = new SessionsRepo(ctx.db);
+    this.orphans = new OrphanDecisions(ctx, this.repo, deps.messaging);
   }
 
   /** Reuses an open previous session; after a closed one, reclaims what nobody took since. */
@@ -170,11 +173,15 @@ export class SessionsServiceImpl implements SessionsService {
     return chainOwner(input)?.session.id ?? null;
   }
 
-  /** Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps it. */
+  /**
+   * Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps
+   * it. A closed asker's answer claims nothing; it starts the owner's decision timer.
+   */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void {
-    if (route.kind !== 'deliver' || !route.claim) return;
+    if (route.kind !== 'deliver') return;
     const threadId = internalId('thread', message.threadId);
-    claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
+    if (route.released) this.orphans.record(agentId, threadId, route.released.bySession);
+    if (route.claim) claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
   }
 
   expire(now: Date) {

@@ -17,7 +17,7 @@ describe('migrations', () => {
        INSERT INTO rpc_idempotency (caller, key, method, response, withheld, created_at)
          VALUES ('alice-agent', 'k1', 'task.get', '{"ok":1}', 0, '2026-10-16T09:00:00.000Z');`,
     );
-    expect(migrate(db)).toBe(5);
+    expect(migrate(db)).toBe(6);
     expect(db.all('SELECT caller, key, method, response, pending FROM rpc_idempotency')).toEqual([
       { caller: 'alice-agent', key: 'k1', method: 'task.get', response: '{"ok":1}', pending: 0 },
     ]);
@@ -36,7 +36,7 @@ describe('migrations', () => {
        INSERT INTO sessions (id, agent_id, active, liveness, client_version, created_at, last_seen)
          VALUES ('s-aaaaaaaaaaaa', 'bob-agent', 1, 'live', '0.4.1', 'x', 'x');`,
     );
-    expect(migrate(db)).toBe(3);
+    expect(migrate(db)).toBe(4);
     expect(db.all('SELECT message_id, state, class, thread_key FROM deliveries')).toEqual([
       { message_id: 'msg-1', state: 'pending', class: 'action', thread_key: 'thr-3' },
     ]);
@@ -47,6 +47,10 @@ describe('migrations', () => {
     // 007: and none was the mesh window.
     expect(db.all('SELECT id, mesh_window FROM sessions')).toEqual([
       { id: 's-aaaaaaaaaaaa', mesh_window: 0 },
+    ]);
+    // 008: none closed private, and none knows its Claude Code session yet.
+    expect(db.all('SELECT private_at_close, claude_session_id FROM sessions')).toEqual([
+      { private_at_close: 0, claude_session_id: null },
     ]);
   });
 });

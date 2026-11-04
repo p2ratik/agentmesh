@@ -83,7 +83,11 @@ export function sessionHandlers(
       return {
         self: presence.peer(agentId),
         mesh: { name: config.mesh.name, prefix: config.mesh.prefix },
-        policy: { instructions: ctx.loaded.policyText, git: config.git },
+        policy: {
+          instructions: ctx.loaded.policyText,
+          git: config.git,
+          closedAskerEscalationMinutes: config.relay.closedAskerEscalationMinutes,
+        },
         unreadThreads: messaging.unreadThreadCount(agentId),
         sessionId: session.id,
         reclaimed: reclaimed.map(threadKey),

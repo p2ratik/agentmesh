@@ -1,5 +1,8 @@
 /** Pure per-session delivery routing (spec §3). No I/O. */
 
+import { isAtLeast, RELAY_MIN_VERSION } from '@agentmesh/common/version';
+import type { ReleasedMarker } from '@agentmesh/protocol';
+
 export interface RouteSession {
   id: string;
   active: boolean;
@@ -27,10 +30,19 @@ export interface RouteInput {
   picked: string | null;
   /** refs.repo, else the task's repo. */
   repo: string | null;
+  /** Set only for an unowned thread whose latest releaser was a closed private session. */
+  released: ReleasedMarker | null;
 }
 
 export type Route =
-  | { kind: 'deliver'; sessionId: string; claim: boolean; reason: string }
+  | {
+      kind: 'deliver';
+      sessionId: string;
+      claim: boolean;
+      reason: string;
+      /** For a 0.6.0 mesh window: the thread's private asker closed. */
+      released?: ReleasedMarker;
+    }
   | { kind: 'wait'; reason: string };
 
 /** A delivery target: active, live and push (a pull session reads its own messages). */
@@ -98,13 +110,18 @@ export function routeDelivery(input: RouteInput): Route {
     return { kind: 'wait', reason: `held for ${picked.id} (picked, pull)` };
   }
 
-  const route = fallThrough(input.sessions.filter(ready), input.repo);
+  const route = fallThrough(input.sessions.filter(ready), input);
   return { ...route, reason: route.reason + (skippedOwner(input) ?? '') };
 }
 
 /** Unowned work: the mesh window, then the task's repo, then the longest-active session. */
-function fallThrough(candidates: RouteSession[], repo: string | null): Route {
+function fallThrough(candidates: RouteSession[], { repo, released }: RouteInput): Route {
   const win = longestActive(candidates.filter((s) => s.meshWindow));
+  // A 0.6.0 window leaves a closed private asker's thread unclaimed, so the asker can reclaim it.
+  if (win && released && isAtLeast(win.clientVersion, RELAY_MIN_VERSION)) {
+    const reason = `released by closed ${released.bySession}`;
+    return { kind: 'deliver', sessionId: win.id, claim: false, reason, released };
+  }
   if (win) return { kind: 'deliver', sessionId: win.id, claim: true, reason: 'mesh window' };
   const inRepo = repo ? longestActive(candidates.filter((s) => s.repo === repo)) : undefined;
   if (inRepo) {

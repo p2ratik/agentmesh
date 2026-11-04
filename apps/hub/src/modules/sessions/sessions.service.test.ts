@@ -196,6 +196,7 @@ describe('sessions service', () => {
     expect(hello.sessionId).toMatch(SESSION_ID_PATTERN);
     expect(hello.reclaimed).toEqual([]);
     expect(hello.self.status).toBe('online');
+    expect(hello.policy.closedAskerEscalationMinutes).toBe(15);
   });
 
   it('peers list active sessions only', async () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DeliveryClass, MeshMessage } from './messages';
-import { DeliveryMode, ParticipantId, SessionId } from './primitives';
+import { ClaudeSessionId, DeliveryMode, IsoDate, ParticipantId, SessionId } from './primitives';
 
 // SessionId, SESSION_ID_PATTERN, DeliveryMode and SessionSummary live in primitives.ts (PeerInfo needs them).
 export { SESSION_ID_PATTERN, SessionId, SessionSummary } from './primitives';
@@ -20,8 +20,29 @@ export type SessionView = z.infer<typeof SessionView>;
 /** Most messages in one `deliver`; the hub splits bigger batches. */
 export const MAX_DELIVERY_MESSAGES = 100;
 
+/**
+ * How long a reply whose private asker closed waits in the mesh window for the owner's decision
+ * before the hub pings them (`relay.closedAskerEscalationMinutes`).
+ */
+export const CLOSED_ASKER_DEFAULT_MINUTES = 15;
+
+/**
+ * On a delivery to a mesh window (0.6.0 and later): the thread's private asker `bySession` closed
+ * at `closedAt` and released it, so the window asks its human what to do with the answer.
+ * `claudeSessionId` lets the window print `claude --resume <uuid>`.
+ */
+export const ReleasedMarker = z.object({
+  bySession: SessionId,
+  closedAt: IsoDate,
+  claudeSessionId: ClaudeSessionId.nullable(),
+});
+export type ReleasedMarker = z.infer<typeof ReleasedMarker>;
+
 /** A message as delivered to one recipient, with its class for that recipient. */
-export const SessionDelivery = MeshMessage.extend({ class: DeliveryClass.default('action') });
+export const SessionDelivery = MeshMessage.extend({
+  class: DeliveryClass.default('action'),
+  released: ReleasedMarker.optional(),
+});
 export type SessionDelivery = z.infer<typeof SessionDelivery>;
 
 /**

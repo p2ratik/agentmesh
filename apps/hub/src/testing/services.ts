@@ -11,7 +11,9 @@ import { createMessagingModule } from '../modules/messaging';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
 import { SessionDispatcher } from '../modules/sessions/dispatcher';
+import type { OrphanDecisions } from '../modules/sessions/orphans';
 import { ownerReader, takeUnownedReader } from '../modules/sessions/readers';
+import type { SessionsServiceImpl } from '../modules/sessions/sessions.service';
 import type { DeliveryPort } from '../ports';
 import { FakeLeases, FakeTransport } from './fakes';
 import { createTestHarness, type TestHarness } from './harness';
@@ -77,6 +79,7 @@ export function createServiceHarness(
 
 export interface DispatchHarness extends ServiceHarness {
   sessions: SessionsService;
+  orphans: OrphanDecisions;
   transport: FakeTransport;
   dispatcher: SessionDispatcher;
 }
@@ -115,7 +118,8 @@ export function createDispatchHarness(): DispatchHarness {
     transport,
     logger: h.ctx.logger,
   });
-  return { ...h, sessions, transport, dispatcher };
+  const { orphans } = sessions as SessionsServiceImpl;
+  return { ...h, sessions, orphans, transport, dispatcher };
 }
 
 /** The dispatch harness with helpers for alice-agent writing to bob-agent's sessions. */

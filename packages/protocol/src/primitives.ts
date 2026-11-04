@@ -45,6 +45,11 @@ export type PresenceStatus = z.infer<typeof PresenceStatus>;
 export const SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 export const SessionId = z.string().regex(SESSION_ID_PATTERN);
 
+/** Claude Code's own id for a conversation (`claude --resume <uuid>`). */
+export const ClaudeSessionId = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
 /**
  * How work reaches an active session: `push` (channel events) or `pull` (no channel flag, e.g.
  * Claude Desktop: nothing is pushed, the session reads with `inbox` on its next prompt).

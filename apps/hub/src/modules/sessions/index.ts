@@ -21,6 +21,9 @@ export function createSessionsModule(
   return {
     service,
     handlers: sessionHandlers(ctx, service, deps),
-    ticks: [{ name: 'sessions.expire', run: (now) => void service.expire(now) }],
+    ticks: [
+      { name: 'sessions.expire', run: (now) => void service.expire(now) },
+      { name: 'sessions.orphans', run: (now) => void service.orphans.tick(now) },
+    ],
   };
 }

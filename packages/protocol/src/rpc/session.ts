@@ -8,7 +8,7 @@ import {
   PeerInfo,
   SessionId,
 } from '../primitives';
-import { SessionView } from '../sessions';
+import { CLOSED_ASKER_DEFAULT_MINUTES, SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
 export const sessionMethods = {
@@ -27,7 +27,16 @@ export const sessionMethods = {
     result: z.object({
       self: PeerInfo,
       mesh: z.object({ name: z.string(), prefix: z.string() }),
-      policy: z.object({ instructions: z.string(), git: GitPolicy }),
+      policy: z.object({
+        instructions: z.string(),
+        git: GitPolicy,
+        /** `relay.closedAskerEscalationMinutes`; older hubs don't send it. */
+        closedAskerEscalationMinutes: z
+          .number()
+          .int()
+          .positive()
+          .default(CLOSED_ASKER_DEFAULT_MINUTES),
+      }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
       unreadThreads: z.number().int().nonnegative(),
       /** The hub-issued id this session sends on every call. */

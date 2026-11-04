@@ -46875,6 +46875,7 @@ var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
 var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
 var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
+var ClaudeSessionId = external_exports.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 var DeliveryMode = external_exports.enum(["push", "pull"]);
 var SessionSummary = external_exports.object({
   id: SessionId,
@@ -47641,7 +47642,16 @@ var SessionView = external_exports.object({
   owns: external_exports.array(external_exports.string())
 });
 var MAX_DELIVERY_MESSAGES = 100;
-var SessionDelivery = MeshMessage.extend({ class: DeliveryClass.default("action") });
+var CLOSED_ASKER_DEFAULT_MINUTES = 15;
+var ReleasedMarker = external_exports.object({
+  bySession: SessionId,
+  closedAt: IsoDate,
+  claudeSessionId: ClaudeSessionId.nullable()
+});
+var SessionDelivery = MeshMessage.extend({
+  class: DeliveryClass.default("action"),
+  released: ReleasedMarker.optional()
+});
 var SessionRelay = external_exports.object({
   type: external_exports.literal("relay"),
   threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
@@ -47681,7 +47691,12 @@ var sessionMethods = {
     result: external_exports.object({
       self: PeerInfo,
       mesh: external_exports.object({ name: external_exports.string(), prefix: external_exports.string() }),
-      policy: external_exports.object({ instructions: external_exports.string(), git: GitPolicy }),
+      policy: external_exports.object({
+        instructions: external_exports.string(),
+        git: GitPolicy,
+        /** `relay.closedAskerEscalationMinutes`; older hubs don't send it. */
+        closedAskerEscalationMinutes: external_exports.number().int().positive().default(CLOSED_ASKER_DEFAULT_MINUTES)
+      }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
       unreadThreads: external_exports.number().int().nonnegative(),
       /** The hub-issued id this session sends on every call. */
