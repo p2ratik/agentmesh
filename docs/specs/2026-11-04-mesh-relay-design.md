@@ -132,10 +132,18 @@ stays as it is.
   whose guard is SendMessage-aware. `guard-alive.json` gains the guard's version, and the window's
   plugin acks `forwarded: false` unless the stamp proves a 0.6.0 guard. The `hooks.json` matcher
   change ships in the same release as the first `forward_to` push.
-- **Platforms (my call).** In 0.6.0 the relay runs only where the messaging address matches a
-  pattern verified on that platform, which today is Windows. On macOS and Linux the plugin refuses
-  to resolve an address, acks `forwarded: false`, and the note covers it. A probe on a teammate's
-  Mac or Linux box adds the POSIX pattern later.
+- **Platforms.** The relay runs only where the messaging address matches a pattern verified on that
+  platform. Windows is verified. On macOS and Linux the plugin refuses to resolve an address, acks
+  `forwarded: false`, and the note covers it.
+  - The team is on Windows except **Sagar, who is on Linux** (Pratik, 2026-11-04). So plan 3
+    ships a small probe script, `plugins/agentmesh/scripts/probe-messaging.mjs`.
+    - Sagar runs it once, in a temp folder.
+    - It starts one non-interactive `claude -p` with a stub MCP server, under `--strict-mcp-config`.
+    - It prints the shape of `CLAUDE_CODE_MESSAGING_SOCKET`, with the random part masked, and
+      whether the MCP server's parent process is the claude process.
+  - A follow-up task adds the Linux pattern, which is equally strict, and its tests from that
+    output. It lands in plan 3 if the result arrives in time, otherwise in 0.6.1. macOS stays off
+    until someone on a Mac joins.
 
 **Addressing (my call, after the research).** The window sends to the asking session's **messaging
 socket address**, not its name.
@@ -562,8 +570,8 @@ No live hub is needed (my call).
 2. **Relay wire.** The relay is a new `SessionInbound` type, gated to windows on 0.6.0 or later
    with a 0.6.0 guard. It sends one pointer per thread and session until the owner reads, and only
    for action-class replies.
-3. **Platforms.** The relay is Windows-only in 0.6.0, where the address pattern is verified. On
-   macOS and Linux, private sessions get the note, until a teammate's probe adds the POSIX pattern.
+3. **Platforms.** The relay starts on Windows, where the address pattern is verified. Sagar (Linux)
+   runs the probe script, and the Linux pattern follows from its output. macOS stays on the note.
 4. **Away owners** aren't relayed to. The relay fires when they come back.
 5. **Consults.** They are by hand in 0.6.0, and every non-pointer SendMessage is denied. A
    human-approved send waits for live check 1.
