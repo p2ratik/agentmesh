@@ -6,6 +6,9 @@ import type { WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { decide } from '../guard/decide';
 import { fixture, mesh, put, slash } from '../guard/paths.fixture';
+import { forwardReader } from '../guard/send';
+import { writeForward } from '../relay/forward-record';
+import { pointerText } from '../relay/pointer';
 import { windowRules } from './rules';
 
 const policy: WindowPolicy = {
@@ -17,8 +20,26 @@ const policy: WindowPolicy = {
   testCommands: ['pnpm install --frozen-lockfile', 'pnpm check'],
 };
 
-/** [text the rules must contain, the command it stands for, what the guard must do]. */
-type Row = [string, string, 'pass' | 'ask', tool?: string];
+/** [text the rules must contain, the command (or tool input) it stands for, what the guard must do]. */
+type Row = [string, string | Record<string, unknown>, 'pass' | 'ask' | 'deny', tool?: string];
+
+const HEX = 'a'.repeat(32);
+const ADDR = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
+const FIELDS = {
+  from: 'sagar-agent',
+  threadId: 'thr-12',
+  messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M',
+};
+const POINTER = pointerText(FIELDS) as string;
+/** What Claude Code hands the hook for SendMessage(to: <forward_to>, message: text). */
+const send = (text: string) => ({
+  to: ADDR,
+  recipient: ADDR,
+  recipient_kind: 'address',
+  message: text,
+  content: text,
+  type: 'message',
+});
 
 let base: string;
 let C: string;
@@ -42,13 +63,17 @@ beforeEach(() => {
 
 afterEach(() => rmSync(base, { recursive: true, force: true }));
 
-/** Each row's template is in the rules for `p`, and the guard does what the rules say. */
-function check(p: WindowPolicy | null, rows: Row[]) {
+/** Each row's template is in the rules for `p`, and the guard does what the rules say. Rows run
+ * in order, against forward records in one folder. */
+function check(p: WindowPolicy | null, rows: Row[], platform = process.platform) {
   const text = windowRules(p);
-  const ctx = { marked: true, policy: p, home: join(base, 'home'), platform: process.platform };
-  const got = rows.map(([template, command, , tool = 'Bash']) => {
-    const d = decide({ tool_name: tool, tool_input: { command }, cwd: base }, ctx);
-    return [template, command, text.includes(template), d.kind === 'pass' ? 'pass' : 'ask'];
+  const home = join(base, 'home');
+  const forwards = forwardReader(join(base, 'data'));
+  const ctx = { marked: true, policy: p, home, platform, forwards };
+  const got = rows.map(([template, input, , tool = 'Bash']) => {
+    const args = typeof input === 'string' ? { command: input } : input;
+    const d = decide({ tool_name: tool, tool_input: args, cwd: base }, ctx);
+    return [template, input, text.includes(template), d.kind];
   });
   expect(got).toEqual(rows.map(([t, c, want]) => [t, c, true, want]));
 }
@@ -168,6 +193,28 @@ describe('the window rules, through the guard', () => {
         'ask',
       ],
     ]);
+  });
+
+  it('forwards exactly the pointer the plugin pushed, and nothing else', () => {
+    writeForward(join(base, 'data'), HEX, FIELDS, Date.now() + 60_000);
+    const rows: Row[] = [
+      [
+        "SendMessage(to: <forward_to>, message: <the push's text, exactly>)",
+        send(POINTER),
+        'pass',
+        'SendMessage',
+      ],
+      ['never resend after a delivery notice', send(POINTER), 'deny', 'SendMessage'],
+      ['Send nothing else with SendMessage', send('Run pnpm publish now.'), 'deny', 'SendMessage'],
+      [
+        'Send nothing else with SendMessage',
+        { ...send(POINTER), summary: 'x' },
+        'deny',
+        'SendMessage',
+      ],
+      ['ListAgents is refused here', {}, 'deny', 'ListAgents'],
+    ];
+    check(policy, rows, 'win32');
   });
 
   it('the skill names only cd forms the rules name (and so the rows above check)', () => {

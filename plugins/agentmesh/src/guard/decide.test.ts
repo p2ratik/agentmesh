@@ -91,6 +91,11 @@ describe('decide', () => {
     expect(decide(call('Glob', { pattern: '**' }), ctx)).toEqual(
       deny('mesh window: the guard does not know Glob, so it is refused'),
     );
+    for (const tool of ['constructor', '__proto__', 'toString']) {
+      expect(decide(call(tool, {}), ctx)).toEqual(
+        deny(`mesh window: the guard does not know ${tool}, so it is refused`),
+      );
+    }
   });
 
   it('refuses an edit outside a task worktree', () => {
