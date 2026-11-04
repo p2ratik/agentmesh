@@ -1,9 +1,11 @@
 name: Deploy
 
 # Deploys a released version to the team's hub server (docs/deploy.md#automatic-deploys). The
-# release workflow calls it after publishing a new version's images; run it by hand to redeploy,
-# or to roll back to an older version. On the server the deploy key is a forced command: this job
-# can ask for `agentmesh-deploy deploy <version>` or `status`, never a shell.
+# release workflow calls it after publishing a new version's images; a repository admin runs it by
+# hand to redeploy, or to roll back to an older version. It deploys only images whose signed
+# provenance says release.yml built them on main, and hands the server their digests. On the server
+# the deploy key is a forced command: this job can ask for `agentmesh-deploy deploy …` or `status`,
+# never a shell.
 on:
   workflow_call:
     inputs:
@@ -21,6 +23,7 @@ on:
 permissions:
   contents: read
   id-token: write # the Azure sign-in (OIDC); no Azure password is stored anywhere
+  attestations: read # the images' build provenance
 
 jobs:
   deploy:
@@ -48,6 +51,45 @@ jobs:
             { echo "::error::The version must look like 0.5.1."; exit 1; }
           [ -n "$DEPLOY_HOST" ] || { echo "::error::Set the DEPLOY_HOST repository variable."; exit 1; }
           echo "Deploying **$VERSION** to \`$DEPLOY_HOST\`." >> "$GITHUB_STEP_SUMMARY"
+
+      # A release deploys the version it just published. Anything else needs a repository admin:
+      # a manual run, and any re-run (re-running an old release would redeploy an old version).
+      # triggering_actor is whoever started this attempt, also for a re-run.
+      - name: Check who started this deploy
+        env:
+          EVENT: ${{ github.event_name }}
+          ATTEMPT: ${{ github.run_attempt }}
+          STARTED_BY: ${{ github.triggering_actor }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$EVENT" = push ] && [ "$ATTEMPT" = 1 ]; then exit 0; fi
+          ROLE=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$STARTED_BY/permission" --jq .permission) ||
+            ROLE=unknown
+          [ "$ROLE" = admin ] ||
+            { echo "::error::Only a repository admin may deploy by hand or re-run a deploy ($STARTED_BY: $ROLE)."; exit 1; }
+
+      # Only images release.yml built on main, as GitHub's signed build provenance says: an image
+      # pushed to the same tag from any other workflow or branch is refused. The server then pulls
+      # them by these digests, so the tag can no longer change what runs.
+      - name: Verify the release images
+        id: images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          for svc in hub discord-bridge; do
+            name="ghcr.io/${OWNER,,}/agentmesh-$svc"
+            # The digest the tag points at now; it is then verified, and deployed, as is.
+            digest=$(docker buildx imagetools inspect "$name:$VERSION" --format '{{json .Manifest.Digest}}' | tr -d '"') ||
+              { echo "::error::$name:$VERSION is not published."; exit 1; }
+            [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Unexpected digest for $name:$VERSION."; exit 1; }
+            gh attestation verify "oci://$name@$digest" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --source-ref refs/heads/main --deny-self-hosted-runners >/dev/null ||
+              { echo "::error::$name:$VERSION ($digest) has no build provenance from release.yml on main; refusing it."; exit 1; }
+            echo "- \`agentmesh-$svc\` $digest" >> "$GITHUB_STEP_SUMMARY"
+            echo "${svc//-/_}=$digest" >> "$GITHUB_OUTPUT"
+          done
 
       # Only the smoke test's script; the job token stays out of .git/config.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -90,6 +132,8 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          HUB_DIGEST: ${{ steps.images.outputs.hub }}
+          BRIDGE_DIGEST: ${{ steps.images.outputs.discord_bridge }}
         run: |
           [ -n "$DEPLOY_SSH_KEY" ] && [ -n "$DEPLOY_KNOWN_HOSTS" ] ||
             { echo "::error::Set the DEPLOY_SSH_KEY secret and the DEPLOY_KNOWN_HOSTS variable."; exit 1; }
@@ -108,7 +152,7 @@ jobs:
             [ "$i" = 12 ] && { echo "::error::SSH to $DEPLOY_HOST does not work:"; remote status; exit 1; }
             sleep 10
           done
-          remote deploy "$VERSION"
+          remote deploy "$VERSION" "$HUB_DIGEST" "$BRIDGE_DIGEST"
           echo "Deployed **$VERSION**; the hub reports ready." >> "$GITHUB_STEP_SUMMARY"
 
       # From outside, the way agents connect: NATS answers on the public endpoint with a

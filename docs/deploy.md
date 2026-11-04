@@ -314,21 +314,30 @@ release by itself from GitHub Actions, so nobody SSHes in to upgrade it
 2. Its `deploy` job runs `.github/workflows/deploy.yml` with that version, if the repository has a
    `DEPLOY_HOST` variable. Forks and teams without a server skip it.
 3. The job runs in the `production` environment, which holds the secrets and deploys only from
-   `main`. It signs in to Azure with GitHub's OIDC token (no Azure password is stored anywhere)
-   and adds an NSG rule that opens port 22 to **this runner's IP only**. It removes the rule when
-   the job ends, even if the deploy failed. The admin's own SSH rule is never touched.
-4. It connects with the deploy key, checks the server's host key against `DEPLOY_KNOWN_HOSTS`, and
-   asks for `deploy <version>`. On the server, that key's forced command is
-   `/usr/local/sbin/agentmesh-deploy`. It runs nothing else.
-5. `agentmesh-deploy deploy <version>`:
+   `main`. A run that a release started deploys straight away. A manual run, and any re-run
+   (re-running an old release would redeploy an old version), needs a **repository admin** as the
+   person who started it.
+4. It **verifies the images**. With `gh attestation verify`, it checks that each one carries
+   GitHub's signed build provenance, saying that `release.yml` built it on `main`. The release
+   workflow attests every image it publishes. An image pushed to the same tag from any other
+   workflow or branch (anyone with write access can push one) is refused. The verified digests
+   are what the server pulls, so the tag can no longer change what runs.
+5. It signs in to Azure with GitHub's OIDC token (no Azure password is stored anywhere) and adds
+   an NSG rule that opens port 22 to **this runner's IP only**. It removes the rule when the job
+   ends, even if the deploy failed. The admin's own SSH rule is never touched.
+6. It connects with the deploy key, checks the server's host key against `DEPLOY_KNOWN_HOSTS`, and
+   asks for `deploy <version> <hub digest> <bridge digest>`. On the server, that key's forced
+   command is `/usr/local/sbin/agentmesh-deploy`. It runs nothing else, and over SSH it refuses a
+   deploy that names no digests.
+7. `agentmesh-deploy deploy <version> <digests>`:
    - fetches the tag `v<version>`. It refuses a tag that is not on `main`, and never moves a tag
      the checkout already has;
-   - pulls the hub and bridge images of that version. A missing image stops it here, with
-     nothing changed;
+   - pulls the hub and bridge images by those digests (`agentmesh-hub:<version>@sha256:…`). A
+     missing image stops it here, with nothing changed;
    - checks out the tag, so `deploy/docker-compose.yml` matches the release. It also writes
-     `deploy/docker-compose.override.yml` (gitignored), which points the hub and the bridge at
-     the published images. Compose loads that file by itself, so the `docker compose` commands you
-     run by hand use the same images;
+     `deploy/docker-compose.override.yml` (gitignored), which pins the hub and the bridge to those
+     images. Compose loads that file by itself, so the `docker compose` commands you run by hand
+     use the same images;
    - backs up the database **while the hub keeps running**: SQLite's `VACUUM INTO` takes a
      consistent copy inside the hub container, saved to
      `~/backups/hub-data-<time>-pre-<version>.auto.sqlite.gz` (mode 600; it keeps the last 10). A
@@ -344,7 +353,7 @@ release by itself from GitHub Actions, so nobody SSHes in to upgrade it
    - rolls back to the previous checkout and images if anything fails after the checkout, and fails
      the job. It never restores the database: hub migrations only add, so an older hub runs on a
      newer schema. The backup is there if you need it ([below](#restoring-a-backup)).
-6. A smoke test from the runner checks the path every agent connects through
+8. A smoke test from the runner checks the path every agent connects through
    (`deploy/auto-deploy/nats-smoke.mjs`). NATS must answer on the public endpoint and present a
    certificate clients accept for `DEPLOY_HOST`, valid for at least 14 more days. It never logs
    in. A failure fails the job, so GitHub alerts you, but it does not roll back: a port or
@@ -360,10 +369,12 @@ does not stop a deploy halfway.
 those as before ([Operations](#operations)), and do any server step an upgrade note asks for. A
 merge to `main` without a version bump deploys nothing: bump the version to ship hub changes.
 
-**Roll back or redeploy:** Actions → Deploy → Run workflow on `main` with the version, or
-`gh workflow run deploy.yml -f version=0.5.0`. On the server, run `agentmesh-deploy deploy 0.5.0` or
-`agentmesh-deploy status`. The checkout stays on a detached tag: deploy with the script, not with
-`git pull`.
+**Roll back or redeploy** (a repository admin): Actions → Deploy → Run workflow on `main` with the
+version, or `gh workflow run deploy.yml -f version=<version>`. It works for every version the
+release workflow attested. Versions published before it did (0.5.0 and older) have no provenance
+and are refused. On the server, an admin can run `agentmesh-deploy deploy <version>`, which pulls by
+tag without verifying, or `agentmesh-deploy status`. The checkout stays on a detached tag: deploy
+with the script, not with `git pull`.
 
 ### Restoring a backup
 
@@ -407,14 +418,20 @@ It:
   and sets the repository variables ([configuration.md](configuration.md#automatic-deploys)).
 - **Cleanup:** deletes the private key from the laptop.
 
-Re-running it is safe, and it rotates the deploy key. To test it, deploy the version the server
-already runs: `gh workflow run deploy.yml -f version=<that version> && gh run watch`. A stack you
-built by hand moves to the published images of that version on its first deploy.
+Re-running it is safe, and it rotates the deploy key. Run it **before** the next release reaches
+`main`; that release is then the first automatic deploy, and `gh run watch` follows it. A stack you
+built by hand moves to the published images on its first deploy. To move it sooner, run
+`agentmesh-deploy deploy <the version it runs>` on the server.
 
-Optional:
-- Make yourself a required reviewer of the `production` environment, so each deploy waits for
-  your approval.
-- Protect `v*` tags with a ruleset, so only the release workflow creates them.
+**Repository settings** that keep anyone else from shipping unreviewed code:
+- **`main`:** a ruleset that requires a pull request with one approval and the CI checks, and
+  **approval of the most recent push**. Without that last rule, a collaborator could push to your
+  open pull request and approve it themselves. Give only the admin role a bypass, and only for
+  pull requests.
+- **Release tags:** a tag ruleset on `v*` that forbids updating and deleting them. Leave creating
+  them allowed: the release workflow creates each tag with the workflow token.
+- **Optional:** make an admin a required reviewer of the `production` environment, so each deploy,
+  release ones included, waits for an approval.
 
 ### Other providers
 

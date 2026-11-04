@@ -964,17 +964,35 @@ identity (Azure), and a moment when SSH is open to an address other than the adm
   The script is root-owned, outside the checkout, so a change merged to the repo's copy takes
   effect only when an admin reinstalls it. **Residual risk:** it runs as the SSH user, who is in
   the `docker` group (root-equivalent), so a bug in the script is a bug on the host.
-- **Threat: someone deploys code that was never reviewed.** **Mitigation:**
+- **Threat: someone deploys code that was never reviewed.** On an open-source project, many people
+  may get write access. **Mitigation:**
   - only jobs in the `production` environment can read the key, and that environment deploys only
-    from `main`, which takes changes only by reviewed pull request with CI. Pull requests from
-    forks never see the secrets;
-  - the server deploys only a tag that is on `origin/main`, and never moves a tag it already has;
-  - a manual run needs write access and still runs from `main`.
+    from `main`. `main` takes changes only by pull request, with CI, an approval, and approval of the
+    most recent push, so nobody can approve their own commit pushed to someone else's PR. Pull
+    requests from forks never see the secrets;
+  - **image provenance:** any workflow in the repository, on any branch, can push to the image
+    package with `packages: write`, so a tag proves nothing. The release workflow therefore signs
+    each image with GitHub's build provenance (Sigstore, keyless). The deploy job verifies it with
+    `gh attestation verify --signer-workflow <repo>/.github/workflows/release.yml --source-ref
+    refs/heads/main` and refuses any other image. The server then pulls by the verified digest, and
+    the forced command refuses a deploy over SSH that names no digests;
+  - the server deploys only a tag that is on `origin/main`, and never moves a tag it already has. A
+    tag ruleset keeps `v*` tags from being moved or deleted;
+  - a manual run or a re-run needs a repository admin (next threat) and still runs from `main`.
 
-  **Residual risk:** the server trusts whatever image the registry serves for that version. Any
-  workflow in the repository, on any branch, can push to the package with `packages: write`. So a
-  collaborator with write access could replace an image tag before it is deployed. Nobody signs or
-  pins the images by digest yet. Protecting `v*` tags with a ruleset closes the tag half of this.
+  **Residual risk:**
+  - the server does not verify provenance itself: it trusts the digests the deploy job sends. Someone
+    holding the deploy key and able to reach port 22 (closed to all but the admin and, briefly, the
+    runner) could name another digest from the registry;
+  - anyone with write access can create a `v*` tag first, which makes the release workflow skip
+    that version. That blocks the release; it cannot ship code;
+  - versions published before provenance (0.5.0 and older) can be deployed only by an admin on the
+    server.
+- **Threat: an old version redeployed on purpose (a downgrade to a known bug).** Re-running an old
+  release's deploy, or a manual run, would bring back an older hub. **Mitigation:** both need a
+  repository admin. The check reads `github.triggering_actor`, the person who started this
+  attempt, which a re-run changes; `github.actor` would keep the original author. A release's first
+  run deploys only the version it just published.
 - **Threat: SSH open to the internet.** **Mitigation:** port 22 opens only to the runner's own
   IPv4 address (`/32`), only for the length of the job; an `always()` step removes the rule, and
   the next deploy removes a rule an earlier run left behind. The admin's rule never changes, and
