@@ -154,7 +154,6 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
         if (params.threadId) {
           threadId = internalId('thread', params.threadId);
           assertCanPost(messaging, threadId, actor);
-          messaging.addParticipants(threadId, [to]);
         } else {
           threadId = startThread(messaging, actor, {
             kind: 'escalation',
@@ -166,6 +165,7 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
           threadId,
           senderId: actor.id,
           kind: 'escalation',
+          to: [to],
           body,
           status: 'needs_human',
           refs: taskRefs(params.taskId),

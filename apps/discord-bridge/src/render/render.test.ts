@@ -11,7 +11,10 @@ const index = new ConfigIndex(
   configFromObject({
     version: 1,
     mesh: { name: 'acme' },
-    humans: [{ id: 'alice', displayName: 'Alice', discordUserId: '100000000000000001' }],
+    humans: [
+      { id: 'alice', displayName: 'Alice', discordUserId: '100000000000000001' },
+      { id: 'dana', displayName: 'Dana', discordUserId: '100000000000000004' },
+    ],
     agents: [{ id: 'alice-agent', owner: 'alice', avatarUrl: 'https://img/a.png' }],
   }).config,
 );
@@ -77,6 +80,40 @@ describe('message rendering', () => {
     expect(intent?.content).toMatch(
       /^<@100000000000000001>\n🌐 external content · \*\*\[escalation\]\*\* → Alice · 🙋 needs human/,
     );
+  });
+
+  const escalation = message({ kind: 'escalation', status: 'needs_human', to: ['alice'] });
+
+  it('pings the escalation target inside a conversation thread, and only them', () => {
+    const [intent] = renderMessageCreated(
+      {
+        message: escalation,
+        thread: { ...thread('conversation'), participants: ['alice-agent', 'alice', 'dana'] },
+      },
+      index,
+    );
+    expect(intent?.purpose).toBe('council');
+    expect(intent?.mentionUserIds).toEqual(['100000000000000001']);
+    expect(intent?.content).toMatch(
+      /^<@100000000000000001>\n\*\*\[escalation\]\*\* → Alice · 🙋 needs human/,
+    );
+  });
+
+  it('pings the human a stalled plan escalates to', () => {
+    const [intent] = renderMessageCreated(
+      { message: escalation, thread: { ...thread('planning'), planId: 'plan-2' } },
+      index,
+    );
+    expect(intent?.purpose).toBe('planning');
+    expect(intent?.mentionUserIds).toEqual(['100000000000000001']);
+  });
+
+  it('a reply in a conversation thread pings nobody', () => {
+    const [intent] = renderMessageCreated(
+      { message: message({ kind: 'reply', to: ['alice'] }), thread: thread('conversation') },
+      index,
+    );
+    expect(intent?.mentionUserIds).toBeUndefined();
   });
 
   it('keeps names within Discord limits and away from reserved words', () => {

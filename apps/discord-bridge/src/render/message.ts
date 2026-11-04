@@ -51,7 +51,8 @@ export function renderMessageCreated(
   index: ConfigIndex,
 ): PostIntent[] {
   const { message, thread } = data;
-  const mentionUserIds = thread.kind === 'escalation' ? humanTargets(message, index) : [];
+  const pings = thread.kind === 'escalation' || message.kind === 'escalation';
+  const mentionUserIds = pings ? humanTargets(message, index) : [];
   const mentions = mentionUserIds.map((id) => `<@${id}>`).join(' ');
   const header = messageHeader(message, addressee(message, thread, index));
   const content = [mentions, header, message.body].filter(Boolean).join('\n');
