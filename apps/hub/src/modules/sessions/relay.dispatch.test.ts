@@ -58,6 +58,29 @@ describe('SessionDispatcher, the relay to the mesh window', () => {
     expect(h.transport.relays.map((r) => r.relay.messageId)).toEqual([r1.id, r3.id]);
   });
 
+  it('a relay that never answers holds up no flush and is not sent again meanwhile', async () => {
+    const h = setup();
+    h.transport.relayAnswer = () => new Promise<never>(() => {});
+    const r = h.reply(h.t);
+    const q = h.ask(h.thread()); // unowned: goes to the window
+    await h.outbox.flush();
+    await h.outbox.flush();
+    expect(h.pushedTo(h.w)).toContain(q.id);
+    expect(h.pending()).toEqual([r.id]);
+    expect(h.transport.relays).toHaveLength(1);
+  });
+
+  it('a failed relay leaves no mark: it goes again on the next flush, the window stays live', async () => {
+    const h = setup();
+    h.transport.relayAnswer = () => Promise.reject(new Error('timeout'));
+    h.reply(h.t);
+    await h.outbox.flush();
+    expect(h.transport.relays).toHaveLength(1);
+    await h.outbox.flush();
+    expect(h.transport.relays).toHaveLength(2);
+    expect(h.liveness(h.w)).toBe('live');
+  });
+
   // Preflight F10: the first waiting message that relays, not the thread's first action.
   it('an ask waiting ahead of the reply does not stop its relay', async () => {
     const h = setup();

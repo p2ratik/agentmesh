@@ -78,4 +78,13 @@ describe('relayTarget', () => {
     expect(marks.has('bob-agent', 'thr-1', 'p')).toBe(false);
     expect(marks.has('bob-agent', 'thr-1', 'q')).toBe(false);
   });
+
+  it('deletes one mark and keeps the thread’s others', () => {
+    const marks = new RelayMarks();
+    marks.set('bob-agent', 'thr-1', 'p');
+    marks.set('bob-agent', 'thr-1', 'q');
+    marks.delete('bob-agent', 'thr-1', 'p');
+    expect(marks.has('bob-agent', 'thr-1', 'p')).toBe(false);
+    expect(marks.has('bob-agent', 'thr-1', 'q')).toBe(true);
+  });
 });

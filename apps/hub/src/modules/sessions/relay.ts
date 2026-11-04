@@ -75,6 +75,11 @@ export class RelayMarks {
     this.#sent.set(key, (this.#sent.get(key) ?? new Set()).add(sessionId));
   }
 
+  /** One session's mark only: its request failed, so the next flush sends it again. */
+  delete(agentId: string, threadId: string, sessionId: string): void {
+    this.#sent.get(markKey(agentId, threadId))?.delete(sessionId);
+  }
+
   clearThread(agentId: string, threadId: string): void {
     this.#sent.delete(markKey(agentId, threadId));
   }

@@ -19,6 +19,15 @@ const ENVELOPE_BYTES = 1024;
 
 const byteSize = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
 
+/** The reply's JSON, or null when it is not JSON. */
+function readJson(reply: { json(): unknown }): unknown {
+  try {
+    return reply.json();
+  } catch {
+    return null;
+  }
+}
+
 /** The message with its body cut to fit `maxBytes`; the hub keeps the full text. */
 function clipToFit(message: SessionDelivery, maxBytes: number): SessionDelivery {
   const note = `\n… _(truncated: call thread(thread_id: "${message.threadId}") for the full text)_`;
@@ -104,11 +113,16 @@ export class NatsSessionTransport implements SessionTransport {
     await this.#ask(agentId, sessionId, JSON.stringify(body));
   }
 
-  /** An ack without the relay fields comes from a window that cannot forward. */
+  /**
+   * An ack without the relay fields comes from a window that cannot forward. Any ack counts as
+   * answered: one the hub cannot read is not forwarded, so it is not sent again every flush.
+   */
   async relay(agentId: string, sessionId: string, relay: SessionRelay): Promise<RelayAnswer> {
     const reply = await this.#ask(agentId, sessionId, JSON.stringify(relay));
-    const ack = SessionAck.parse(reply.json());
-    return { forwarded: ack.forwarded ?? false, reason: ack.reason ?? 'no reason given' };
+    const ack = SessionAck.safeParse(readJson(reply));
+    if (!ack.success) return { forwarded: false, reason: 'unreadable ack' };
+    const { forwarded = false, reason = 'no reason given' } = ack.data;
+    return { forwarded, reason };
   }
 
   expired(agentId: string, sessionId: string): void {

@@ -78,14 +78,13 @@ export class SessionDispatcher implements DeliveryPort {
     if (!this.#sessions.hasReadySession(agentId)) return { delivered: seen };
     const unseen = messages.filter((m) => !seen.includes(m.id));
     const { routed, waiting } = this.#route(agentId, unseen);
+    // Fire and forget: a window that never answers must not hold up this flush.
+    for (const r of this.#relays(agentId, waiting)) void this.#relay(agentId, r);
     const batches = [...Map.groupBy(routed, (r) => r.route.sessionId)];
-    // Every send and relay starts before any is awaited, so a dead session never holds up the others.
-    const [results] = await Promise.all([
-      Promise.allSettled(
-        batches.map(([sessionId, batch]) => this.#send(agentId, sessionId, batch)),
-      ),
-      Promise.allSettled(this.#relays(agentId, waiting).map((r) => this.#relay(agentId, r))),
-    ]);
+    // Every send starts before any is awaited, so a dead session never holds up the others.
+    const results = await Promise.allSettled(
+      batches.map(([sessionId, batch]) => this.#send(agentId, sessionId, batch)),
+    );
     const acked = new Set<string>();
     batches.forEach(([sessionId], i) => {
       const result = results[i];
@@ -132,22 +131,28 @@ export class SessionDispatcher implements DeliveryPort {
     );
   }
 
-  /** Any answer marks the pointer sent, `forwarded: false` included; a failed request goes again. */
+  /**
+   * Never rejects. Marked before the request, so no flush sends it again while it is in flight;
+   * any answer keeps the mark (`forwarded: false` included). A failed request unmarks it so the
+   * next flush tries again; the window is never marked away for it.
+   */
   async #relay(agentId: string, { message, target }: Relay): Promise<void> {
     const { id, threadId } = message;
-    const log = { agent: agentId, window: target.windowId, thread: threadId, message: id };
+    const { windowId, forSession } = target;
+    const log = { agent: agentId, window: windowId, thread: threadId, message: id };
+    this.#marks.set(agentId, threadId, forSession);
     try {
-      const answer = await this.#transport.relay(agentId, target.windowId, {
+      const answer = await this.#transport.relay(agentId, windowId, {
         type: 'relay',
         threadId,
         messageId: id,
         from: message.from.id,
-        forSession: target.forSession,
+        forSession,
       });
-      this.#marks.set(agentId, threadId, target.forSession);
       this.#logger.info({ ...log, ...answer }, 'relay pointer sent');
     } catch (err) {
-      this.#logger.warn({ ...log, err }, 'relay pointer failed; a later flush sends it again');
+      this.#marks.delete(agentId, threadId, forSession);
+      this.#logger.warn({ ...log, err }, 'relay pointer failed; the next flush sends it again');
     }
   }
 
