@@ -1,6 +1,17 @@
 // Built-ins only (the guard bundle reads these records). The file name holds only the 32-hex part
 // of an address, never the address, and the record holds only the pointer's fields.
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { MESSAGE_ID, type PointerFields, pointerText } from './pointer';
 
@@ -27,6 +38,7 @@ export function writeForward(
   const name = forwardFile(hex, fields.messageId);
   if (!name || !pointerText(fields)) throw new Error('refusing to write an invalid forward record');
   mkdirSync(dir, { recursive: true, mode: 0o700 });
+  pruneClaimed(dir, Date.now());
   const file = join(dir, name);
   const { from, threadId, messageId } = fields;
   // Write then rename, so the guard never reads half a file.
@@ -71,22 +83,46 @@ export function readForwards(dir: string, hex: string, now: number): ForwardCand
     return [];
   }
   // ponytail: expired records stay until claimed or removed; sweep them if they ever pile up.
+  // Only `.json` names: a `.claimed` marker is never read as a record.
   return names
     .filter((n) => n.startsWith(`fwd-${hex}-`) && n.endsWith('.json'))
     .flatMap((n) => candidate(dir, n, hex, now));
 }
 
-/** Takes a record for one send: the rename succeeds for exactly one caller. */
+const CLAIMED = '.claimed';
+
+/**
+ * Takes a record for one send. Creating its `.claimed` marker is exclusive, so exactly one caller
+ * wins; a rename is not on Windows (it opens the source by name, then renames through the handle).
+ * The marker stays, so a caller that read the record before it was removed can't claim it again,
+ * and a record the window removed first can't be claimed at all.
+ */
 export function claimForward(dir: string, name: string): boolean {
-  const file = join(dir, name);
-  const claimed = `${file}.${process.pid}.claimed`;
   try {
-    renameSync(file, claimed);
+    closeSync(openSync(join(dir, `${name}${CLAIMED}`), 'wx', 0o600));
   } catch {
     return false;
   }
-  removeForward(dir, `${name}.${process.pid}.claimed`);
+  if (!existsSync(join(dir, name))) return false;
+  removeForward(dir, name);
   return true;
+}
+
+/** Drops the window's claim markers older than the TTL, best effort: no live record needs them. */
+function pruneClaimed(dir: string, now: number): void {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const n of names.filter((f) => f.startsWith('fwd-') && f.endsWith(CLAIMED))) {
+    try {
+      if (now - statSync(join(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
+    } catch {
+      // Gone already, or unreadable: a later write tries again. The write itself never fails here.
+    }
+  }
 }
 
 /** Removes a record; a file that is already gone, or busy, is left to expire. */
@@ -94,6 +130,6 @@ export function removeForward(dir: string, name: string): void {
   try {
     rmSync(join(dir, name), { force: true });
   } catch {
-    // A leftover `.claimed` file is never read again; a leftover record expires.
+    // A leftover `.claimed` marker is never read as a record; a leftover record expires.
   }
 }

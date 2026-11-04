@@ -386,7 +386,18 @@ function udsHex(address, platform) {
 }
 
 // src/relay/forward-record.ts
-import { mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync4, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync4,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from "node:fs";
 import { join as join2 } from "node:path";
 
 // src/pull/state.ts
@@ -436,15 +447,15 @@ function readForwards(dir, hex, now) {
   }
   return names.filter((n) => n.startsWith(`fwd-${hex}-`) && n.endsWith(".json")).flatMap((n) => candidate(dir, n, hex, now));
 }
+var CLAIMED = ".claimed";
 function claimForward(dir, name) {
-  const file = join2(dir, name);
-  const claimed = `${file}.${process.pid}.claimed`;
   try {
-    renameSync(file, claimed);
+    closeSync(openSync(join2(dir, `${name}${CLAIMED}`), "wx", 384));
   } catch {
     return false;
   }
-  removeForward(dir, `${name}.${process.pid}.claimed`);
+  if (!existsSync(join2(dir, name))) return false;
+  removeForward(dir, name);
   return true;
 }
 function removeForward(dir, name) {

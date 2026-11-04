@@ -6,6 +6,7 @@ import {
   NOT_MESH,
   type PromptInput,
   promptContext,
+  unreadInput,
   VERIFIED,
   WINDOW_LABEL,
 } from './prompt';
@@ -107,5 +108,16 @@ describe('promptContext', () => {
     }
     expect(promptContext(window)).toBeNull();
     expect(promptContext({ ...window, prompt: undefined })).toBeNull();
+  });
+
+  it('labels an input the window could not read, unless it is plainly a SessionStart', () => {
+    const cut = '{"hook_event_name":"UserPromptSubmit","prompt":"<cross-session-message from=';
+    for (const text of [cut, '', '{', 'not json']) {
+      expect(unreadInput(text, true)).toBe(WINDOW_LABEL);
+      expect(unreadInput(text, false)).toBeNull();
+    }
+    expect(unreadInput('{"hook_event_name": "SessionStart", "source": ', true)).toBeNull();
+    // a prompt can't pose as one: inside the JSON its quotes are escaped
+    expect(unreadInput(`${cut}\\"hook_event_name\\":\\"SessionStart\\"`, true)).toBe(WINDOW_LABEL);
   });
 });

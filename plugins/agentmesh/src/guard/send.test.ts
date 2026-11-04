@@ -56,10 +56,15 @@ describe('the guard on SendMessage', () => {
     );
     expect(run(send(POINTER))).toEqual(PASS);
     expect(run(send(POINTER))).toEqual(DENIED);
-    expect(readdirSync(dir)).toEqual([]);
-    // recipient_kind may be left out
+    // the record is gone; its claim marker stays and blocks the pointer even if it is written again
+    const name = `fwd-${HEX}-${FIELDS.messageId}.json`;
+    expect(readdirSync(dir)).toEqual([`${name}.claimed`]);
     writeForward(dir, HEX, FIELDS, now + 60_000);
-    const { recipient_kind: _, ...bare } = send(POINTER);
+    expect(run(send(POINTER))).toEqual(DENIED);
+    // recipient_kind may be left out
+    const next = { ...FIELDS, messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9A' };
+    writeForward(dir, HEX, next, now + 60_000);
+    const { recipient_kind: _, ...bare } = send(pointerText(next) as string);
     expect(run(bare)).toEqual(PASS);
   });
 

@@ -2552,7 +2552,7 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync4 } = __require("node:fs");
+    var { existsSync: existsSync5 } = __require("node:fs");
     var getCallers = require_caller();
     var { join: join12, isAbsolute, sep: sep2 } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute(path) && !existsSync4(path);
+      return isAbsolute(path) && !existsSync5(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -51877,7 +51877,18 @@ function ownAddress(socket) {
 }
 
 // src/relay/forward-record.ts
-import { mkdirSync as mkdirSync3, readdirSync as readdirSync2, readFileSync as readFileSync9, renameSync as renameSync3, rmSync as rmSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import {
+  closeSync,
+  existsSync as existsSync4,
+  mkdirSync as mkdirSync3,
+  openSync,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync9,
+  renameSync as renameSync3,
+  rmSync as rmSync3,
+  statSync,
+  writeFileSync as writeFileSync3
+} from "node:fs";
 import { join as join11 } from "node:path";
 
 // src/relay/pointer.ts
@@ -51901,11 +51912,27 @@ function writeForward(dir, hex3, fields, expiresAt) {
   const name = forwardFile(hex3, fields.messageId);
   if (!name || !pointerText(fields)) throw new Error("refusing to write an invalid forward record");
   mkdirSync3(dir, { recursive: true, mode: 448 });
+  pruneClaimed(dir, Date.now());
   const file2 = join11(dir, name);
   const { from, threadId, messageId } = fields;
   const staged = `${file2}.${process.pid}.tmp`;
   writeFileSync3(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
   renameSync3(staged, file2);
+}
+var CLAIMED = ".claimed";
+function pruneClaimed(dir, now) {
+  let names;
+  try {
+    names = readdirSync2(dir);
+  } catch {
+    return;
+  }
+  for (const n of names.filter((f) => f.startsWith("fwd-") && f.endsWith(CLAIMED))) {
+    try {
+      if (now - statSync(join11(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
+    } catch {
+    }
+  }
 }
 function removeForward(dir, name) {
   try {

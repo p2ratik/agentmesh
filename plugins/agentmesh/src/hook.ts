@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readMarker, windowFiles } from '@agentmesh/common/window';
-import { promptContext } from './hook/prompt';
+import { promptContext, unreadInput } from './hook/prompt';
 import { announce, isStateFile, pullStateDirs, selectStates } from './pull/state';
 import { isLocalSessionFile, ownLocalSession } from './relay/local-session';
 import { anyFresh, isHeartbeatFile, windowAddresses } from './window/heartbeat';
@@ -101,8 +101,12 @@ function promptLine(prompt: unknown, dirs: readonly string[]): string | null {
 
 async function main(): Promise<void> {
   type Input = { hook_event_name?: unknown; source?: unknown; prompt?: unknown };
-  const input = parse(await readStdin()) as Input | null;
-  const event = input?.hook_event_name;
+  const text = await readStdin();
+  const input = parse(text) as Input | null;
+  // Cut at MAX_STDIN or the wait, or not JSON: a sender controls a cross-session turn's length,
+  // so the mesh window still gets its label.
+  const unread = input === null ? unreadInput(text, !!process.env.AGENTMESH_MESH_WINDOW) : null;
+  const event = unread ? 'UserPromptSubmit' : input?.hook_event_name;
   if (typeof event !== 'string' || !EVENTS.has(event)) return;
   const dirs = pullStateDirs(process.env, homedir());
   const values = dirs.flatMap((d) => readJsonFiles(d, isStateFile));
@@ -114,7 +118,7 @@ async function main(): Promise<void> {
   );
   const pull = announce(states);
   if (event !== 'SessionStart') {
-    const context = [pull, promptLine(input?.prompt, dirs)].filter(Boolean).join('\n');
+    const context = [pull, unread ?? promptLine(input?.prompt, dirs)].filter(Boolean).join('\n');
     if (context) {
       process.stdout.write(
         JSON.stringify({
