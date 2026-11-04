@@ -150,7 +150,8 @@ plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard}/, sk
                     (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js (MCP
                     server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
-deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup}.sh
+deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup,github-deploy-setup}.sh,
+                    auto-deploy/ (agentmesh-deploy.sh: the deploy key's forced command; install.sh)
 docs/               getting-started, deploy, configuration, workflows, planning, discord,
                     events-and-hermes, protocol, security, adr/, specs/ (original design spec)
 tests/integration   e2e against a real nats-server + hub + bundled plugin over MCP
@@ -224,9 +225,16 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0009, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0010, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
+- **Automatic deploys (ADR 0010):** after publishing, the release workflow runs `deploy.yml`. It
+  opens SSH to its runner through an Azure OIDC identity scoped to the NSG. The deploy key's
+  forced command `agentmesh-deploy` pulls the images, backs up online (`VACUUM INTO`), swaps the
+  containers (a few seconds of downtime), waits for `/healthz` readiness (DB, NATS round trip,
+  subscriptions) and rolls back if it fails. A smoke test then checks the public NATS endpoint.
+  Run `deploy.yml` by hand to redeploy or roll back. Once it is set up, a release needs no SSH to
+  the VM.
 - **Security hardening (0.4.1)**, from a launch audit (`docs/security.md`):
   - the callout uses native ed25519 and gives each client address a connect budget;
   - RPC params are capped, replies go only to the caller's inbox, mutating RPCs are rate-limited

@@ -11,6 +11,8 @@ data/
 deploy/nats/nats.conf
 deploy/nats/tls/
 deploy/secrets/
+# Written on the server by agentmesh-deploy: the release images the stack runs.
+deploy/docker-compose.override.yml
 *.creds
 *.nk
 

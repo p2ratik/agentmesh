@@ -15,6 +15,7 @@ import { NatsSessionTransport } from './modules/sessions/nats-transport';
 import { type DeliveryPort, type EventPort, MemoryPorts } from './ports';
 import { IdempotencyStore } from './rpc/idempotency';
 import { createRpcRouter } from './rpc/router';
+import { checkHealth } from './runtime/health';
 import { buildModules, type HubServices } from './runtime/modules';
 import { connectHubNats, type HubNats, type NatsSettings, provisionTopology } from './runtime/nats';
 import { Scheduler } from './scheduler';
@@ -103,7 +104,21 @@ export async function createHub(options: HubOptions): Promise<Hub> {
   const { transport, sessionTransport, sys } = await natsAdapters(nats, options, logger);
   let callout: CalloutService | null = null;
   const kick = (agentId: string) => callout?.kick(agentId) ?? Promise.resolve();
-  const built = buildModules(context, transport, { kick: sys ? kick : null, sessionTransport });
+  const subscriptions: Subscription[] = [];
+  let started = false;
+  const health = () =>
+    checkHealth({
+      started: () => started,
+      db: () => db.get('SELECT 1 AS one'),
+      natsRoundTrip: () => (nats ? nats.nc.rtt() : null),
+      subscriptionsOpen: () => subscriptions.every((sub) => !sub.isClosed()),
+    });
+  const built = buildModules(
+    context,
+    transport,
+    { kick: sys ? kick : null, sessionTransport },
+    { health },
+  );
   if (sessionTransport) {
     const { sessions, messaging } = built.services;
     dispatcher = new SessionDispatcher({
@@ -145,7 +160,6 @@ export async function createHub(options: HubOptions): Promise<Hub> {
   });
   for (const job of built.ticks) scheduler.add(job);
 
-  const subscriptions: Subscription[] = [];
   return {
     context,
     dispatch,
@@ -172,8 +186,10 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       for (const module of built.modules) await module.start?.();
       scheduler.start();
       await outbox.flush();
+      started = true;
     },
     async stop() {
+      started = false;
       await scheduler.stop();
       for (const module of [...built.modules].reverse()) await module.stop?.();
       for (const sub of subscriptions) sub.unsubscribe();

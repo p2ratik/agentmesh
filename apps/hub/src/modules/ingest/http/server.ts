@@ -13,6 +13,8 @@ export interface IngestHttpOptions {
   sink(source: string, event: IdentifiedEvent): Promise<{ duplicate: boolean }>;
   logger: Logger;
   maxBodyBytes?: number;
+  /** Readiness for `GET /healthz` (runtime/health.ts): 200 when ok, else 503. Without it, 200. */
+  health?: () => Promise<{ ok: boolean }>;
 }
 
 const MAX_BODY = 1024 * 1024;
@@ -72,12 +74,22 @@ export function authFailureLog(
   };
 }
 
+const isHealthz = (req: IncomingMessage): boolean =>
+  req.method === 'GET' && (req.url ?? '/').split('?')[0] === '/healthz';
+
+/** `GET /healthz`: the hub's readiness when it gave one (503 while not ready), else just "up". */
+async function answerHealth(res: ServerResponse, options: IngestHttpOptions): Promise<void> {
+  const report = options.health ? await options.health() : { ok: true };
+  send(res, report.ok ? 200 : 503, report);
+}
+
 async function handle(
   req: IncomingMessage,
   res: ServerResponse,
   options: IngestHttpOptions,
   authFailed: (source: string) => void,
 ): Promise<void> {
+  if (isHealthz(req)) return answerHealth(res, options);
   const source = resolveSource(req, res, options);
   if (!source) return;
   const unauthorized = () => {
@@ -120,10 +132,6 @@ function resolveSource(
   options: IngestHttpOptions,
 ): IngestSource | null {
   const path = (req.url ?? '/').split('?')[0] ?? '/';
-  if (req.method === 'GET' && path === '/healthz') {
-    send(res, 200, { ok: true });
-    return null;
-  }
   const route = ROUTE.exec(path);
   const source = route && options.sources.find((s) => s.id === route[1]);
   if (!route) refuse(res, 404, 'not found');

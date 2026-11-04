@@ -302,6 +302,130 @@ Each member then:
 - **Members** join and leave with `/mesh invite`, `/mesh uninvite` and `/mesh remove`; nothing
   changes on the server.
 
+## Automatic deploys
+
+A hub that runs from a checkout of this repository ([by hand](#deploying-by-hand)) can deploy every
+release by itself from GitHub Actions, so nobody SSHes in to upgrade it
+([ADR 0010](adr/0010-automatic-deploys.md)). A setup deploy upgrades with `agentmesh upgrade`.
+
+**On every release:**
+1. A version bump reaches `main`. The release workflow publishes the images and tags
+   `v<version>` ([Published images and versions](#published-images-and-versions)).
+2. Its `deploy` job runs `.github/workflows/deploy.yml` with that version, if the repository has a
+   `DEPLOY_HOST` variable. Forks and teams without a server skip it.
+3. The job runs in the `production` environment, which holds the secrets and deploys only from
+   `main`. It signs in to Azure with GitHub's OIDC token (no Azure password is stored anywhere)
+   and adds an NSG rule that opens port 22 to **this runner's IP only**. It removes the rule when
+   the job ends, even if the deploy failed. The admin's own SSH rule is never touched.
+4. It connects with the deploy key, checks the server's host key against `DEPLOY_KNOWN_HOSTS`, and
+   asks for `deploy <version>`. On the server, that key's forced command is
+   `/usr/local/sbin/agentmesh-deploy`. It runs nothing else.
+5. `agentmesh-deploy deploy <version>`:
+   - fetches the tag `v<version>`. It refuses a tag that is not on `main`, and never moves a tag
+     the checkout already has;
+   - pulls the hub and bridge images of that version. A missing image stops it here, with
+     nothing changed;
+   - checks out the tag, so `deploy/docker-compose.yml` matches the release. It also writes
+     `deploy/docker-compose.override.yml` (gitignored), which points the hub and the bridge at
+     the published images. Compose loads that file by itself, so the `docker compose` commands you
+     run by hand use the same images;
+   - backs up the database **while the hub keeps running**: SQLite's `VACUUM INTO` takes a
+     consistent copy inside the hub container, saved to
+     `~/backups/hub-data-<time>-pre-<version>.auto.sqlite.gz` (mode 600; it keeps the last 10). A
+     hub that is not running (one that crashed, say) is copied from its volume as `….auto.tgz`
+     instead;
+   - starts the stack with `up -d --no-build`. Compose swaps the hub and the bridge for the new
+     images. NATS keeps running unless the release changed it;
+   - waits for the new hub to be **ready**. It asks `/healthz` every 2 seconds, from inside the
+     container, for up to 60 seconds. `/healthz` answers 200 only when the hub's database answers,
+     a round trip to NATS completes, and its RPC, presence and callout subscriptions are open. A hub
+     that exits or restarts fails at once. Then NATS, the hub and the bridge must keep running for
+     10 more seconds;
+   - rolls back to the previous checkout and images if anything fails after the checkout, and fails
+     the job. It never restores the database: hub migrations only add, so an older hub runs on a
+     newer schema. The backup is there if you need it ([below](#restoring-a-backup)).
+6. A smoke test from the runner checks the path every agent connects through
+   (`deploy/auto-deploy/nats-smoke.mjs`). NATS must answer on the public endpoint and present a
+   certificate clients accept for `DEPLOY_HOST`, valid for at least 14 more days. It never logs
+   in. A failure fails the job, so GitHub alerts you, but it does not roll back: a port or
+   certificate problem is not the hub image's doing.
+
+The hub is down only while compose swaps its container: a few seconds. Agents stay connected to
+NATS, messages wait in the outbox, and tool calls made in those seconds fail. A release that is
+not ready is rolled back within about a minute. The output goes to the job log and to
+`~/.local/state/agentmesh-deploy/deploy.log` on the server. A dropped connection or a cancelled run
+does not stop a deploy halfway.
+
+**It does not touch** `config/`, `deploy/.env`, `nats.conf`, the seeds or the TLS files. Change
+those as before ([Operations](#operations)), and do any server step an upgrade note asks for. A
+merge to `main` without a version bump deploys nothing: bump the version to ship hub changes.
+
+**Roll back or redeploy:** Actions → Deploy → Run workflow on `main` with the version, or
+`gh workflow run deploy.yml -f version=0.5.0`. On the server, run `agentmesh-deploy deploy 0.5.0` or
+`agentmesh-deploy status`. The checkout stays on a detached tag: deploy with the script, not with
+`git pull`.
+
+### Restoring a backup
+
+Restoring loses every change since the backup, so do it only when the database itself is broken.
+On the server, in `/opt/agentmesh/deploy`, with `<image>` the hub image the stack runs
+(`docker compose images hub`):
+
+```bash
+docker compose stop hub discord-bridge
+VOLUME=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' \
+  "$(docker compose ps -a -q hub)")
+# A .sqlite.gz backup (made while the hub ran):
+gunzip -c ~/backups/<file>.auto.sqlite.gz | docker run --rm -i -v "$VOLUME:/data" --entrypoint sh \
+  <image> -c 'cat > /data/hub.sqlite && rm -f /data/hub.sqlite-wal /data/hub.sqlite-shm'
+# A .tgz backup (a copy of the whole volume):
+docker run --rm -i -v "$VOLUME:/data" --entrypoint sh <image> \
+  -c 'rm -rf /data/* && tar -xzf - -C /data' < ~/backups/<file>.auto.tgz
+docker compose up -d
+```
+
+### Setting it up on Azure
+
+Run this once from the repo root on the admin's laptop. You need to be signed in to `az` and `gh`
+and to have SSH to the VM:
+
+```bash
+REPO=<owner>/agentmesh RG=<resource group> NSG=<the VM's NSG> DEPLOY_USER=mesh \
+DEPLOY_HOST=<the VM's DNS name> ./deploy/azure/github-deploy-setup.sh
+```
+
+It:
+- **Azure:** creates the Entra app registration `agentmesh-deploy-<owner>-<repo>`, with a
+  federated credential for `repo:<owner>/<repo>:environment:production` and no client secret. It
+  also creates a custom role, "AgentMesh deploy NSG rules (<rg>)", which can only read, write and
+  delete rules, and assigns it on that one NSG.
+- **Server:** generates an ed25519 deploy key and installs `agentmesh-deploy` and the key on the
+  server (`deploy/auto-deploy/install.sh`; the key's line starts
+  `restrict,command="/usr/local/sbin/agentmesh-deploy"`). It reads the server's host key over the
+  SSH session it just authenticated.
+- **GitHub:** creates the `production` environment (deploys from `main` only) with its secrets,
+  and sets the repository variables ([configuration.md](configuration.md#automatic-deploys)).
+- **Cleanup:** deletes the private key from the laptop.
+
+Re-running it is safe, and it rotates the deploy key. To test it, deploy the version the server
+already runs: `gh workflow run deploy.yml -f version=<that version> && gh run watch`. A stack you
+built by hand moves to the published images of that version on its first deploy.
+
+Optional:
+- Make yourself a required reviewer of the `production` environment, so each deploy waits for
+  your approval.
+- Protect `v*` tags with a ruleset, so only the release workflow creates them.
+
+### Other providers
+
+The workflow's Azure steps run only when `AZURE_NSG` is set. Elsewhere:
+1. On the server, from the checkout, run
+   `sudo MESH_USER=<user> DEPLOY_PUBKEY='ssh-ed25519 …' ./deploy/auto-deploy/install.sh`.
+2. Let GitHub's runners reach port 22. Their addresses change and span many ranges, so either open
+   SSH to the internet for key logins only (the deploy key still runs nothing but the deploy), or
+   replace the two NSG steps with your provider's API.
+3. Create the environment, the secrets and the variables by hand.
+
 ## Deploying by hand
 
 The rest of this page is the manual path with the repo's own `deploy/docker-compose.yml`, which
@@ -353,7 +477,7 @@ cd deploy
 docker compose up -d --build                     # NATS + hub
 docker compose --profile discord up -d --build   # + Discord bridge
 docker compose ps
-curl http://<tailscale-ip>:8787/healthz           # {"ok":true}
+curl http://<tailscale-ip>:8787/healthz           # {"ok":true,"checks":{…}}; 503 names what is down
 ```
 
 Laptops use `nats_url = nats://<vm-tailnet-name>:4222`. For invite-only onboarding, NATS needs a
