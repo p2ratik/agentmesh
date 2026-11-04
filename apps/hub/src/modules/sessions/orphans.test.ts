@@ -1,6 +1,9 @@
 import { MINUTE_MS } from '@agentmesh/common';
-import { describe, expect, it } from 'vitest';
+import { ConfigIndex } from '@agentmesh/config';
+import { describe, expect, it, vi } from 'vitest';
+import { leaveTeam } from '../../testing/harness';
 import { createBobDispatchHarness } from '../../testing/services';
+import type { SessionsServiceImpl } from './sessions.service';
 
 const NOTICE = "The session that asked this has closed; the follow-up waits for Bob's decision.";
 
@@ -19,8 +22,15 @@ function setup(version = '0.6.0') {
       'SELECT thread_id, agent_id, released_by, due_at, escalated_at FROM orphan_decisions',
     );
   const messagesIn = (threadId: number) =>
-    h.ctx.db.all<{ kind: string; body: string; status: string | null; recipients: string }>(
-      'SELECT kind, body, status, recipients FROM messages WHERE thread_id = $threadId ORDER BY seq',
+    h.ctx.db.all<{
+      kind: string;
+      body: string;
+      status: string | null;
+      recipients: string;
+      status_for: string;
+    }>(
+      `SELECT kind, body, status, recipients, status_for FROM messages
+       WHERE thread_id = $threadId ORDER BY seq`,
       { threadId },
     );
   /** Advances the clock, then runs the hub's tick. */
@@ -60,6 +70,9 @@ describe('a closed private asker', () => {
     expect(notices.map(({ kind, body }) => ({ kind, body }))).toEqual([
       { kind: 'system', body: NOTICE },
     ]);
+    // Status for both participants: it wakes neither agent.
+    const both = JSON.stringify(['alice-agent', 'bob-agent']);
+    expect(notices.map((m) => [m.recipients, m.status_for])).toEqual([[both, both]]);
   });
 
   it('escalates in the thread to the owner after the configured minutes, once', async () => {
@@ -71,6 +84,7 @@ describe('a closed private asker', () => {
       kind: 'escalation',
       status: 'needs_human',
       recipients: '["bob"]',
+      status_for: '[]',
       body:
         "The session that asked this has closed, and its answer has waited 15 minutes for Bob's " +
         'decision: continue it in the mesh window, reopen that session, or drop it. Reply here or ' +
@@ -103,6 +117,95 @@ describe('a closed private asker', () => {
     expect(h.sentTo(h.w).map((m) => m.id)).toContain(decision.id);
     expect(h.rows()).toEqual([]);
     expect(h.messagesIn(h.t).map((m) => m.kind)).toEqual(['reply']);
+  });
+
+  it("the owner's answer after the notice settles the timer: no ping", async () => {
+    const h = setup();
+    await h.orphan();
+    h.clock.advance(5 * MINUTE_MS);
+    h.messaging.post({ threadId: h.t, senderId: 'bob', kind: 'reply', body: 'drop it' });
+    await h.outbox.flush();
+    expect(h.rows()).toMatchObject([{ escalated_at: h.clock.now().toISOString() }]);
+    expect(h.tick(15)).toBe(0);
+    expect(h.messagesIn(h.t).map((m) => m.kind)).toEqual(['reply', 'system', 'reply']);
+  });
+
+  // Review (Important): a thread someone took since the close is no longer that asker's.
+  it('a thread taken and released again since the close routes as plain work', async () => {
+    const h = setup();
+    await h.orphan();
+    const a = h.active();
+    h.sessions.take('bob-agent', a, h.t);
+    expect(h.tick(15)).toBe(0);
+    h.sessions.deactivate('bob-agent', a);
+    const r = h.reply(h.t);
+    const plain = { kind: 'deliver', sessionId: h.w, claim: true, reason: 'mesh window' };
+    expect(h.sessions.route('bob-agent', r)).toStrictEqual(plain);
+    await h.outbox.flush();
+    expect(h.rows()).toEqual([]);
+    expect(h.messagesIn(h.t).filter((m) => m.kind === 'system')).toHaveLength(1);
+  });
+
+  it('no notice when the window took the thread between the send and the commit', async () => {
+    const h = setup();
+    h.sessions.close('bob-agent', h.p);
+    h.transport.respond.set(h.w, async (messages) => {
+      h.sessions.take('bob-agent', h.w, h.t);
+      return messages.map((m) => m.id);
+    });
+    h.reply(h.t);
+    await h.outbox.flush();
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBe(h.w);
+    expect(h.rows()).toEqual([]);
+    expect(h.messagesIn(h.t).map((m) => m.kind)).toEqual(['reply']);
+  });
+
+  it('an agent that left the team: its row is settled and nobody is pinged', async () => {
+    const h = setup();
+    await h.orphan();
+    leaveTeam(h.ctx, 'bob');
+    expect(h.tick(15)).toBe(0);
+    expect(h.rows()).toMatchObject([{ escalated_at: h.clock.now().toISOString() }]);
+    expect(h.messagesIn(h.t).map((m) => m.kind)).not.toContain('escalation');
+  });
+
+  it('warns when the owner has no Discord account, and still escalates', async () => {
+    const h = setup();
+    await h.orphan();
+    const { config } = h.ctx.index;
+    const humans = config.humans.map(({ discordUserId: _, ...human }) => human);
+    h.ctx.setIndex(new ConfigIndex({ ...config, humans }));
+    const warn = vi.spyOn(h.ctx.logger, 'warn');
+    expect(h.tick(15)).toBe(1);
+    expect(warn).toHaveBeenCalledWith(
+      { agent: 'bob-agent', owner: 'bob', thread: `thr-${h.t}` },
+      'closed-asker escalation pings nobody: no Discord account mapped',
+    );
+  });
+
+  it('a row that fails is logged, and the rows due after it still escalate', async () => {
+    const h = setup();
+    await h.orphan();
+    h.ctx.db.run(
+      `INSERT INTO orphan_decisions (thread_id, agent_id, released_by, due_at)
+       VALUES (999, 'bob-agent', 's-000000000000', '2026-01-01T00:00:00.000Z')`,
+    );
+    const error = vi.spyOn(h.ctx.logger, 'error');
+    expect(h.tick(15)).toBe(1);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({ thread: 'thr-999', agent: 'bob-agent' }),
+      expect.any(String),
+    );
+  });
+
+  it('effectiveOwner skips the release scan; routing a delivery runs it', () => {
+    const h = setup();
+    const scan = vi.spyOn((h.sessions as SessionsServiceImpl).repo, 'releasedBy');
+    h.sessions.close('bob-agent', h.p);
+    h.sessions.effectiveOwner(h.t, 'bob-agent');
+    expect(scan).not.toHaveBeenCalled();
+    h.sessions.route('bob-agent', h.reply(h.t));
+    expect(scan).toHaveBeenCalledTimes(1);
   });
 
   it('drops the row when the window took the thread or the thread closed, escalated or not', async () => {

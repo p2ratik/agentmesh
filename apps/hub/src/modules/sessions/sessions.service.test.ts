@@ -185,18 +185,19 @@ describe('sessions service', () => {
   });
 
   it('hello refuses plugins older than 0.3.0', async () => {
-    const { rpc, call } = setup();
+    const { rpc, call, ctx } = setup();
     await expect(
       rpc('session.hello', { clientVersion: '0.2.0' }, call(null)),
     ).rejects.toMatchObject({
       code: 'invalid_request',
       message: expect.stringContaining('claude plugin update'),
     });
+    ctx.loaded.config.relay.closedAskerEscalationMinutes = 7;
     const hello = await rpc('session.hello', { clientVersion: '0.3.0' }, call(null));
     expect(hello.sessionId).toMatch(SESSION_ID_PATTERN);
     expect(hello.reclaimed).toEqual([]);
     expect(hello.self.status).toBe('online');
-    expect(hello.policy.closedAskerEscalationMinutes).toBe(15);
+    expect(hello.policy.closedAskerEscalationMinutes).toBe(7);
   });
 
   it('peers list active sessions only', async () => {

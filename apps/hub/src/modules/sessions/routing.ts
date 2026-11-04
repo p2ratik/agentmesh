@@ -118,6 +118,7 @@ export function routeDelivery(input: RouteInput): Route {
 function fallThrough(candidates: RouteSession[], { repo, released }: RouteInput): Route {
   const win = longestActive(candidates.filter((s) => s.meshWindow));
   // A 0.6.0 window leaves a closed private asker's thread unclaimed, so the asker can reclaim it.
+  // Only the longest-active window is checked; relay.ts picks the longest-active 0.6.0+ one.
   if (win && released && isAtLeast(win.clientVersion, RELAY_MIN_VERSION)) {
     const reason = `released by closed ${released.bySession}`;
     return { kind: 'deliver', sessionId: win.id, claim: false, reason, released };

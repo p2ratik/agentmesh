@@ -22,7 +22,7 @@ import { OrphanDecisions } from './orphans';
 import { claimThread, reclaimReleased } from './ownership';
 import { recordClaims } from './record-claims';
 import { type RelayTarget, relayFor } from './relay';
-import { routeInput } from './route-input';
+import { releasedMarker, routeInput } from './route-input';
 import { chainOwner, type Route, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
 
@@ -160,6 +160,7 @@ export class SessionsServiceImpl implements SessionsService {
       ...input,
       picked: message.refs.session ?? null,
       repo: message.refs.repo ?? input.repo,
+      released: releasedMarker(this.repo, agentId, threadId, input.threadOwner),
     });
   }
 
@@ -176,14 +177,14 @@ export class SessionsServiceImpl implements SessionsService {
   /**
    * Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps
    * it. A closed asker's answer claims nothing; it starts the owner's decision timer, unless the
-   * owner sent it (that is the decision).
+   * owner sent it: that is the decision, and it settles a running timer.
    */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void {
     if (route.kind !== 'deliver') return;
     const threadId = internalId('thread', message.threadId);
     const byOwner = message.refs.decidesFor?.includes(agentId);
-    if (route.released && !byOwner)
-      this.orphans.record(agentId, threadId, route.released.bySession);
+    if (route.released && byOwner) this.orphans.answered(agentId, threadId);
+    else if (route.released) this.orphans.record(agentId, threadId, route.released.bySession);
     if (route.claim) claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
   }
 
