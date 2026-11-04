@@ -62,6 +62,10 @@ export const SessionSummary = z.object({
   activeSince: IsoDate,
   /** Started by the mesh window launcher; routing prefers it for team work. */
   meshWindow: z.boolean().default(false),
+  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
+  liveness: z.enum(['live', 'away']).default('live'),
+  awaySince: IsoDate.nullable().default(null),
+  closesAt: IsoDate.nullable().default(null),
   tasks: z.array(z.string()),
 });
 export type SessionSummary = z.infer<typeof SessionSummary>;

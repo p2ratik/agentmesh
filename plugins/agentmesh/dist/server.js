@@ -27530,8 +27530,8 @@ function anchor(source) {
 }
 var date = /* @__PURE__ */ anchor(dateSource);
 function timeSource(args) {
-  const hhmm = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
-  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm}` : args.precision === 0 ? `${hhmm}:[0-5]\\d` : `${hhmm}:[0-5]\\d\\.\\d{${args.precision}}` : args.seconds ? `${hhmm}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm}(?::[0-5]\\d(?:\\.\\d+)?)?`;
+  const hhmm2 = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
+  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm2}` : args.precision === 0 ? `${hhmm2}:[0-5]\\d` : `${hhmm2}:[0-5]\\d\\.\\d{${args.precision}}` : args.seconds ? `${hhmm2}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm2}(?::[0-5]\\d(?:\\.\\d+)?)?`;
   return regex;
 }
 function time(args) {
@@ -46873,6 +46873,10 @@ var SessionSummary = external_exports.object({
   activeSince: IsoDate,
   /** Started by the mesh window launcher; routing prefers it for team work. */
   meshWindow: external_exports.boolean().default(false),
+  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
+  liveness: external_exports.enum(["live", "away"]).default("live"),
+  awaySince: IsoDate.nullable().default(null),
+  closesAt: IsoDate.nullable().default(null),
   tasks: external_exports.array(external_exports.string())
 });
 var PeerInfo = ParticipantRef.extend({
@@ -48553,7 +48557,12 @@ function formatSession(s) {
   const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(", ")}` : "";
   const pull = s.delivery === "pull" ? " [pull: reads on its next prompt]" : "";
   const window = s.meshWindow ? " [mesh window]" : "";
-  return `    \xB7 ${s.id} \u2014 ${s.description}${where}${owns}${pull}${window}`;
+  const away = s.liveness === "away" && s.awaySince && s.closesAt ? ` [away: no heartbeat since ${hhmm(s.awaySince)}; closes ${hhmm(s.closesAt)} unless it returns]` : "";
+  return `    \xB7 ${s.id} \u2014 ${s.description}${where}${owns}${pull}${window}${away}`;
+}
+function hhmm(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 function formatMessage(m, selfId) {
   const tags = [
@@ -51888,6 +51897,24 @@ async function register(hub, presence, logger, meshWindow) {
   }
 }
 
+// src/shutdown-signals.ts
+function shutdownSignals(platform2) {
+  const signals = ["SIGTERM", "SIGINT", "SIGHUP"];
+  if (platform2 === "win32") signals.push("SIGBREAK");
+  return signals;
+}
+function watchSignals(platform2, target, shutdown) {
+  for (const signal of shutdownSignals(platform2)) target.on(signal, () => shutdown(signal));
+}
+function once(fn) {
+  let called = false;
+  return (...args) => {
+    if (called) return;
+    called = true;
+    fn(...args);
+  };
+}
+
 // src/main.ts
 var CHANNEL_READY_MS = 2e3;
 var cleanup = async () => void 0;
@@ -51987,18 +52014,14 @@ function toolDeps(session, agentId) {
   };
 }
 function watchLifecycle(logger) {
-  let stopping = false;
-  const shutdown = (reason) => {
-    if (stopping) return;
-    stopping = true;
+  const shutdown = once((reason) => {
     logger.info({ reason }, "agentmesh plugin stopping");
     void cleanup().finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 1e3).unref();
-  };
+  });
   process.stdin.on("end", () => shutdown("stdin end"));
   process.stdin.on("close", () => shutdown("stdin close"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  watchSignals(process.platform, process, shutdown);
   setInterval(() => {
     if (process.stdin.destroyed || process.stdin.readableEnded) shutdown("orphaned");
   }, 5e3).unref();

@@ -121,3 +121,23 @@ describe('session limits', () => {
     expect(ids).toEqual([recent]);
   });
 });
+
+describe('away sessions in the active list', () => {
+  it('labels an away session with when it went away and when it closes, from config', () => {
+    const { ctx, clock, sessions } = setup();
+    ctx.loaded.config.presence.ownershipGraceMinutes = 30;
+    expect(sessions.activeSessions('alice-agent')[0]).toMatchObject({
+      liveness: 'live',
+      awaySince: null,
+      closesAt: null,
+    });
+    clock.advance(76_000);
+    sessions.expire(clock.now());
+    const away = clock.now().toISOString();
+    expect(sessions.activeSessions('alice-agent')[0]).toMatchObject({
+      liveness: 'away',
+      awaySince: away,
+      closesAt: new Date(clock.now().getTime() + 30 * 60_000).toISOString(),
+    });
+  });
+});

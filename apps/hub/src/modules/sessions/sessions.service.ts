@@ -212,10 +212,11 @@ export class SessionsServiceImpl implements SessionsService {
 
   /** Active, non-closed sessions with the tasks whose threads they own. */
   activeSessions(agentId: string): SessionSummary[] {
+    const grace = this.#ctx.loaded.config.presence.ownershipGraceMinutes;
     return this.repo
       .listLive(agentId)
       .filter((s) => s.active === 1)
-      .map((s) => toSummary(s, this.#ownedTasks(s.id)));
+      .map((s) => toSummary(s, this.#ownedTasks(s.id), grace));
   }
 
   hasLiveSession(agentId: string): boolean {

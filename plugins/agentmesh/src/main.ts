@@ -8,6 +8,7 @@ import { CONNECT_TOOL, callConnectTool, connectToolListing } from './join/connec
 import { callJoinTool, JOIN_TOOL, joinToolListing } from './join/tool';
 import { createMcpServer, type ToolHandler, VERSION } from './server';
 import { openSession, type Session, startSession } from './session';
+import { once, watchSignals } from './shutdown-signals';
 import { meshToolHandler } from './tools/registry';
 import type { ToolDeps } from './tools/types';
 
@@ -136,18 +137,14 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
 
 /** Exits when Claude Code closes stdin, on signals, or if orphaned. */
 function watchLifecycle(logger: Logger): void {
-  let stopping = false;
-  const shutdown = (reason: string) => {
-    if (stopping) return;
-    stopping = true;
+  const shutdown = once((reason: string) => {
     logger.info({ reason }, 'agentmesh plugin stopping');
     void cleanup().finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 1000).unref();
-  };
+  });
   process.stdin.on('end', () => shutdown('stdin end'));
   process.stdin.on('close', () => shutdown('stdin close'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  watchSignals(process.platform, process, shutdown);
   setInterval(() => {
     if (process.stdin.destroyed || process.stdin.readableEnded) shutdown('orphaned');
   }, 5000).unref();

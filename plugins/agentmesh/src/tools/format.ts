@@ -43,7 +43,17 @@ function formatSession(s: SessionSummary): string {
   const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(', ')}` : '';
   const pull = s.delivery === 'pull' ? ' [pull: reads on its next prompt]' : '';
   const window = s.meshWindow ? ' [mesh window]' : '';
-  return `    · ${s.id} — ${s.description}${where}${owns}${pull}${window}`;
+  const away =
+    s.liveness === 'away' && s.awaySince && s.closesAt
+      ? ` [away: no heartbeat since ${hhmm(s.awaySince)}; closes ${hhmm(s.closesAt)} unless it returns]`
+      : '';
+  return `    · ${s.id} — ${s.description}${where}${owns}${pull}${window}${away}`;
+}
+
+/** Local time, `HH:MM`. */
+function hhmm(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 /**

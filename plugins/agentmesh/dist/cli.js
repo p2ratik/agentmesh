@@ -45641,6 +45641,10 @@ var SessionSummary = external_exports.object({
   activeSince: IsoDate,
   /** Started by the mesh window launcher; routing prefers it for team work. */
   meshWindow: external_exports.boolean().default(false),
+  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
+  liveness: external_exports.enum(["live", "away"]).default("live"),
+  awaySince: IsoDate.nullable().default(null),
+  closesAt: IsoDate.nullable().default(null),
   tasks: external_exports.array(external_exports.string())
 });
 var PeerInfo = ParticipantRef.extend({

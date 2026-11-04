@@ -224,6 +224,9 @@ describe('sessions service', () => {
         branch: null,
         activeSince: clock.now().toISOString(),
         meshWindow: false,
+        liveness: 'live',
+        awaySince: null,
+        closesAt: null,
         tasks: [task.id],
       },
     ]);

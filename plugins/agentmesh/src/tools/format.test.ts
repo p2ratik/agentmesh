@@ -178,4 +178,35 @@ describe('formatPeers', () => {
       '    · s-aaaaaaaaaaaa — mesh window [mesh window]',
     );
   });
+
+  it('labels an away session with when it went away and when it closes', () => {
+    const hhmm = (iso: string) => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    const awaySince = '2026-11-04T09:05:00.000Z';
+    const closesAt = '2026-11-04T11:05:00.000Z';
+    const base = { repo: null, branch: null, tasks: [] };
+    const peer = {
+      id: 'bob-agent',
+      displayName: 'Bob',
+      kind: 'agent',
+      status: 'away',
+      statusNote: null,
+      activeTasks: 0,
+      skills: [],
+      areas: [],
+      repo: null,
+      branch: null,
+      sessions: [
+        { ...base, id: 's-aaaaaaaaaaaa', description: 'x', liveness: 'away', awaySince, closesAt },
+        { ...base, id: 's-bbbbbbbbbbbb', description: 'y', liveness: 'live' },
+      ],
+    } as unknown as PeerInfo;
+    const lines = formatPeers([peer]).split('\n');
+    expect(lines[1]).toBe(
+      `    · s-aaaaaaaaaaaa — x [away: no heartbeat since ${hhmm(awaySince)}; closes ${hhmm(closesAt)} unless it returns]`,
+    );
+    expect(lines[2]).toBe('    · s-bbbbbbbbbbbb — y');
+  });
 });
