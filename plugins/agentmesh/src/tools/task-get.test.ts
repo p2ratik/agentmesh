@@ -5,7 +5,7 @@ import type { TaskDetail } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeHub, text } from './fake-hub';
 import { formatTask } from './format';
-import { callTool } from './registry';
+import { callTool, listTools } from './registry';
 
 const task = (repo: string | null) => ({
   id: 'task-3',
@@ -75,4 +75,10 @@ describe("the PR's branch, for reviewers who diff it", () => {
     await callTool('request_review', { pr_url: 'u', branch }, deps);
     expect(calls.map((c) => (c.params as { branch?: string }).branch)).toEqual([branch, branch]);
   });
+});
+
+it('task_create shows the hub limit for the description', () => {
+  const create = listTools().find((t) => t.name === 'task_create');
+  const props = create?.inputSchema.properties as Record<string, { maxLength?: number }>;
+  expect(props.description?.maxLength).toBe(16000);
 });

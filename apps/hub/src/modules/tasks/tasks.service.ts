@@ -107,7 +107,7 @@ export class TaskServiceImpl implements TaskService {
     const directAssignee = plan.viaAssign ? null : (input.assignee ?? null);
     const taskId = this.repos.tasks.insert({
       title: input.title.trim(),
-      description: input.description.trim(),
+      description: redactSecrets(input.description.trim()),
       workflow: plan.workflow.id,
       state: plan.workflow.initial,
       priority: input.priority,

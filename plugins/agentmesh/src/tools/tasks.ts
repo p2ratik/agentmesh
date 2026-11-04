@@ -12,7 +12,13 @@ export const taskTools = [
       'Create a task for the team. Without an assignee the hub routes it to the least-loaded owner of its area (or the board). Use depends_on for ordering.',
     input: z.object({
       title: z.string().min(3).max(200),
-      description: z.string().optional(),
+      description: z
+        .string()
+        .max(16_000)
+        .optional()
+        .describe(
+          'Up to 16,000 characters. From a private session, the handoff note: what you learned, files and lines, decisions made, what is open and who to ask. Everyone in the Discord server can read it.',
+        ),
       repo: z.string().optional(),
       area: z.string().optional(),
       assignee: z.string().optional(),

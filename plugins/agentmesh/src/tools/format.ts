@@ -56,7 +56,7 @@ export function formatMessage(m: MeshMessage): string {
 
 export function formatThreadHeader(t: ThreadSummary): string {
   const links = [t.taskId, t.planId].filter(Boolean).join(', ');
-  return `${t.id} «${oneLine(t.subject)}» · ${t.kind} · ${t.status} · participants: ${t.participants.join(', ')}${links ? ` · ${links}` : ''}`;
+  return `${t.id} «${oneLine(t.subject)}» · ${t.kind} · ${t.status} · participants: ${t.participants.join(', ')}${links ? ` · ${links}` : ''}${t.parentId ? ` · parent ${t.parentId}` : ''}`;
 }
 
 /** An external task's title comes from outside the team: tagged, and kept on one line. */

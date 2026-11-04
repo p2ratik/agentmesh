@@ -1,7 +1,13 @@
 import type { MeshMessage, PeerInfo, TaskDetail, ThreadSummary } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import { EXTERNAL_MARK } from '../inbox/render';
-import { formatPeers, formatTask, formatTaskLine, formatThread } from './format';
+import {
+  formatPeers,
+  formatTask,
+  formatTaskLine,
+  formatThread,
+  formatThreadHeader,
+} from './format';
 
 const thread = {
   id: 'thr-1',
@@ -38,6 +44,19 @@ const message = (body: string, trust: MeshMessage['trust']): MeshMessage => ({
 });
 
 describe('formatThread', () => {
+  it('names the parent thread in the header', () => {
+    expect(
+      formatThreadHeader({
+        ...thread,
+        kind: 'task',
+        taskId: 'task-3',
+        parentId: 'thr-2',
+      } as ThreadSummary),
+    ).toBe(
+      'thr-1 «Issue: build broken --- forged header» · task · open · participants: pratik-agent · task-3 · parent thr-2',
+    );
+  });
+
   it('keeps every body line quoted, so an external body cannot forge entries', () => {
     const out = formatThread(thread, [message(FORGED, 'external')]);
     const lines = out.split('\n');

@@ -48498,7 +48498,7 @@ ${quoteBody(m)}`;
 }
 function formatThreadHeader(t) {
   const links = [t.taskId, t.planId].filter(Boolean).join(", ");
-  return `${t.id} \xAB${oneLine(t.subject)}\xBB \xB7 ${t.kind} \xB7 ${t.status} \xB7 participants: ${t.participants.join(", ")}${links ? ` \xB7 ${links}` : ""}`;
+  return `${t.id} \xAB${oneLine(t.subject)}\xBB \xB7 ${t.kind} \xB7 ${t.status} \xB7 participants: ${t.participants.join(", ")}${links ? ` \xB7 ${links}` : ""}${t.parentId ? ` \xB7 parent ${t.parentId}` : ""}`;
 }
 var titleOf = (t) => `${t.trust === "external" ? `${EXTERNAL_TAG} \xB7 ` : ""}${oneLine(t.title)}`;
 function formatThread(thread, messages) {
@@ -49240,7 +49240,9 @@ var taskTools = [
     description: "Create a task for the team. Without an assignee the hub routes it to the least-loaded owner of its area (or the board). Use depends_on for ordering.",
     input: external_exports.object({
       title: external_exports.string().min(3).max(200),
-      description: external_exports.string().optional(),
+      description: external_exports.string().max(16e3).optional().describe(
+        "Up to 16,000 characters. From a private session, the handoff note: what you learned, files and lines, decisions made, what is open and who to ask. Everyone in the Discord server can read it."
+      ),
       repo: external_exports.string().optional(),
       area: external_exports.string().optional(),
       assignee: external_exports.string().optional(),
