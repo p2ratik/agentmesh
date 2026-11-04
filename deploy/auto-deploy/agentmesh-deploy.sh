@@ -3,9 +3,13 @@
 # The GitHub Actions deploy workflow runs it over SSH as the deploy key's forced command
 # (docs/deploy.md#automatic-deploys), so that key can run nothing else. An admin can run it too:
 #
-#   agentmesh-deploy deploy 0.5.1   # pull the images, back up hub-data (online), switch, wait for
+#   agentmesh-deploy deploy 0.5.1 [<hub-digest> <bridge-digest>]
+#                                   # pull the images, back up hub-data (online), switch, wait for
 #                                   # /healthz; a release that is not ready is rolled back
 #   agentmesh-deploy status         # the deployed release and the containers
+#
+# Over SSH (the forced command) the digests are required: the workflow verified the images' build
+# provenance and the server pulls exactly those. An admin on the server may deploy by tag alone.
 #
 # Installed as /usr/local/sbin/agentmesh-deploy by deploy/auto-deploy/install.sh. Settings: the
 # defaults below, overridden by /etc/default/agentmesh-deploy. It never reads deploy/.env and
@@ -14,15 +18,19 @@ set -euo pipefail
 umask 077
 
 refuse() {
-  echo "agentmesh-deploy: refused: expected 'deploy <version>' (such as 0.5.1) or 'status'" >&2
+  echo "agentmesh-deploy: refused: expected 'deploy <version> <hub-digest> <bridge-digest>'" \
+    "(such as 0.5.1 sha256:… sha256:…) or 'status'" >&2
   exit 2
 }
 
 # The forced command receives the client's command line in SSH_ORIGINAL_COMMAND. It is matched
-# against two fixed shapes and never evaluated, so the key cannot run anything else.
+# against fixed shapes and never evaluated, so the key cannot run anything else.
 if [ "$#" -gt 0 ]; then REQUEST="$*"; else REQUEST=${SSH_ORIGINAL_COMMAND-}; fi
-if [[ $REQUEST =~ ^deploy\ ([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)$ ]]; then
-  ACTION=deploy VERSION=${BASH_REMATCH[1]}
+HUB_DIGEST= BRIDGE_DIGEST=
+if [[ $REQUEST =~ ^deploy\ ([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)(\ (sha256:[0-9a-f]{64})\ (sha256:[0-9a-f]{64}))?$ ]]; then
+  ACTION=deploy VERSION=${BASH_REMATCH[1]} HUB_DIGEST=${BASH_REMATCH[4]} BRIDGE_DIGEST=${BASH_REMATCH[5]}
+  # No arguments means the request came over SSH: the key must name verified digests.
+  if [ "$#" -eq 0 ] && [ -z "$HUB_DIGEST" ]; then refuse; fi
 elif [ "$REQUEST" = status ]; then
   ACTION=status
 else
@@ -65,7 +73,12 @@ begin_deploy() {
 
 log() { printf '== %s\n' "$*"; }
 git_() { git -C "$AGENTMESH_DIR" "$@"; }
-image() { printf '%s/agentmesh-%s:%s' "$IMAGE_REGISTRY" "$1" "$2"; }
+# A service's image for a version, pinned to the verified digest when the request named one.
+image() {
+  local digest=
+  case $1 in hub) digest=$HUB_DIGEST ;; discord-bridge) digest=$BRIDGE_DIGEST ;; esac
+  printf '%s/agentmesh-%s:%s%s' "$IMAGE_REGISTRY" "$1" "$2" "${digest:+@$digest}"
+}
 deployed() { git_ describe --tags --always HEAD 2>/dev/null || echo unknown; }
 
 write_override() {

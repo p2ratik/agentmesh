@@ -233,8 +233,9 @@ Run `pnpm check` before calling anything done.
   forced command `agentmesh-deploy` pulls the images, backs up online (`VACUUM INTO`), swaps the
   containers (a few seconds of downtime), waits for `/healthz` readiness (DB, NATS round trip,
   subscriptions) and rolls back if it fails. A smoke test then checks the public NATS endpoint.
-  Run `deploy.yml` by hand to redeploy or roll back. Once it is set up, a release needs no SSH to
-  the VM.
+  It deploys only images whose build provenance says `release.yml` built them on `main`
+  (`gh attestation verify`), pulled by digest; manual runs and re-runs need a repository admin.
+  Once it is set up, a release needs no SSH to the VM.
 - **Security hardening (0.4.1)**, from a launch audit (`docs/security.md`):
   - the callout uses native ed25519 and gives each client address a connect budget;
   - RPC params are capped, replies go only to the caller's inbox, mutating RPCs are rate-limited

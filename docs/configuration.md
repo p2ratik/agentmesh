@@ -213,7 +213,7 @@ once and never replaces it. `agentmesh-deploy` reads it on every run:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `AGENTMESH_DIR` | `/opt/agentmesh` | The repo checkout the stack runs from. |
-| `IMAGE_REGISTRY` | `ghcr.io/p2ratik` | Where the images come from: `<registry>/agentmesh-hub:<version>`, and the same for `agentmesh-discord-bridge`. |
+| `IMAGE_REGISTRY` | `ghcr.io/p2ratik` | Where the images come from: `<registry>/agentmesh-hub:<version>`, and the same for `agentmesh-discord-bridge`. For deploys from Actions, it must be where `release.yml` publishes (`ghcr.io/<repository owner>`): the job verifies the images there and the server pulls them by digest. |
 | `COMPOSE_PROFILES` | `discord` | The compose profiles to run. Leave it empty for a mesh without the Discord bridge. |
 | `GIT_REMOTE`, `RELEASE_BRANCH` | `origin`, `main` | A release tag must be on this branch of this remote. |
 | `BACKUP_DIR`, `KEEP_BACKUPS` | `~/backups`, `10` | Where the pre-deploy `hub-data` backups go, and how many of the script's own backups to keep. |
