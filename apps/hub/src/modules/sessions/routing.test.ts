@@ -8,6 +8,7 @@ const s = (over: Partial<RouteSession> & { id: string }): RouteSession => ({
   repo: null,
   activatedAt: '2026-10-21T09:00:00Z',
   meshWindow: false,
+  clientVersion: '0.5.0',
   ...over,
 });
 const s1 = s({ id: 's1' });

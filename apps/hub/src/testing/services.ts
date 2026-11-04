@@ -1,5 +1,5 @@
 import type { LoadedConfig } from '@agentmesh/config';
-import type { MessageRefs, SessionDelivery } from '@agentmesh/protocol';
+import type { MessageRefs, ReplyStatus, SessionDelivery } from '@agentmesh/protocol';
 import type {
   ControlService,
   MessagingService,
@@ -150,6 +150,23 @@ export function createBobDispatchHarness() {
       body: `n${++n}`,
       deliveryClass: 'status',
     }).message;
+  /** Posts a reply from alice-agent; a `working` or `info` one is status for bob. */
+  const reply = (threadId: number, status?: ReplyStatus) =>
+    h.messaging.post({
+      threadId,
+      senderId: 'alice-agent',
+      kind: 'reply',
+      body: `r${++n}`,
+      status: status ?? null,
+      deliveryClass: status === 'working' || status === 'info' ? 'status' : 'action',
+    }).message;
+  /** A bob-agent mesh window at that client version, activated. */
+  const meshWindow = (version = '0.6.0') => {
+    const id = h.sessions.open('bob-agent', { clientVersion: version, meshWindow: true }).session
+      .id;
+    h.sessions.activate('bob-agent', id, 'mesh window');
+    return id;
+  };
   const pending = () =>
     h.ctx.db
       .all<{ message_id: string }>(
@@ -157,5 +174,5 @@ export function createBobDispatchHarness() {
       )
       .map((r) => r.message_id);
   const liveness = (sessionId: string) => h.sessions.verify('bob-agent', sessionId).liveness;
-  return { ...h, active, thread, ask, note, pending, liveness };
+  return { ...h, active, thread, ask, note, reply, meshWindow, pending, liveness };
 }

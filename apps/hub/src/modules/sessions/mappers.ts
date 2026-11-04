@@ -58,5 +58,6 @@ export function toRouteSession(row: SessionRow): RouteSession {
     repo: row.repo,
     activatedAt: row.activated_at,
     meshWindow: row.mesh_window === 1,
+    clientVersion: row.client_version,
   };
 }

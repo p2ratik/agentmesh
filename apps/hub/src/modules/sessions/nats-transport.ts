@@ -3,9 +3,11 @@ import type { NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
 import {
   MAX_DELIVERY_MESSAGES,
+  type RelayAnswer,
   SessionAck,
   type SessionDelivery,
   type SessionInbound,
+  type SessionRelay,
   subjects,
 } from '@agentmesh/protocol';
 import type { SessionTransport } from './dispatcher';
@@ -100,6 +102,13 @@ export class NatsSessionTransport implements SessionTransport {
   async check(agentId: string, sessionId: string, code: string): Promise<void> {
     const body: SessionInbound = { type: 'check', code };
     await this.#ask(agentId, sessionId, JSON.stringify(body));
+  }
+
+  /** An ack without the relay fields comes from a window that cannot forward. */
+  async relay(agentId: string, sessionId: string, relay: SessionRelay): Promise<RelayAnswer> {
+    const reply = await this.#ask(agentId, sessionId, JSON.stringify(relay));
+    const ack = SessionAck.parse(reply.json());
+    return { forwarded: ack.forwarded ?? false, reason: ack.reason ?? 'no reason given' };
   }
 
   expired(agentId: string, sessionId: string): void {

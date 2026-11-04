@@ -5,7 +5,9 @@ import type {
   MeshMessage,
   PeerInfo,
   PresenceStatus,
+  RelayAnswer,
   SessionDelivery,
+  SessionRelay,
   ThreadSummary,
 } from '@agentmesh/protocol';
 import type {
@@ -229,6 +231,14 @@ export class FakeTransport implements SessionTransport {
   readonly respond = new Map<string, (messages: SessionDelivery[]) => Promise<string[]>>();
   /** Set to make every check fail, as when nobody listens on the session subject. */
   checkError: Error | null = null;
+  readonly relays: Array<{ agentId: string; sessionId: string; relay: SessionRelay }> = [];
+  /** What every relay answers. */
+  relayAnswer: RelayAnswer = { forwarded: true, reason: 'forwarded' };
+
+  async relay(agentId: string, sessionId: string, relay: SessionRelay): Promise<RelayAnswer> {
+    this.relays.push({ agentId, sessionId, relay });
+    return this.relayAnswer;
+  }
 
   async check(agentId: string, sessionId: string, code: string): Promise<void> {
     this.checks.push({ agentId, sessionId, code });

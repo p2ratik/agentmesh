@@ -10,6 +10,8 @@ export interface RouteSession {
   activatedAt: string | null;
   /** Started by the mesh window launcher: team work goes here first. */
   meshWindow: boolean;
+  /** The plugin version its hello reported. */
+  clientVersion: string;
 }
 
 export interface RouteInput {
@@ -32,7 +34,7 @@ export type Route =
   | { kind: 'wait'; reason: string };
 
 /** A delivery target: active, live and push (a pull session reads its own messages). */
-const ready = (s: RouteSession): boolean =>
+export const ready = (s: RouteSession): boolean =>
   s.active && s.liveness === 'live' && s.delivery === 'push';
 
 /** Why a session that holds work cannot take a delivery now. */
@@ -40,7 +42,7 @@ const notReady = (s: RouteSession): string =>
   !s.active ? 'inactive' : s.liveness === 'away' ? 'away' : 'pull';
 
 /** Earliest activation first; ties keep list order. */
-const longestActive = (list: RouteSession[]): RouteSession | undefined =>
+export const longestActive = (list: RouteSession[]): RouteSession | undefined =>
   list.reduce<RouteSession | undefined>(
     (best, s) => (!best || (s.activatedAt ?? '') < (best.activatedAt ?? '') ? s : best),
     undefined,

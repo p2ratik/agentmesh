@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PeerInfo } from './primitives';
 import { RPC_METHODS } from './rpc';
-import { SessionId, SessionInbound } from './sessions';
+import { SessionAck, SessionId, SessionInbound } from './sessions';
 import { subjects } from './subjects';
 
 const minimalPeer = {
@@ -43,6 +43,26 @@ describe('session contracts', () => {
       code: 'K7Q2ZP',
     });
     expect(SessionInbound.safeParse({ type: 'check' }).success).toBe(false);
+  });
+
+  it('parses a relay pointer with hub-issued ids only', () => {
+    const relay = {
+      type: 'relay',
+      threadId: 'thr-12',
+      messageId: 'msg-01JC0000000000000000000000',
+      from: 'alice-agent',
+      forSession: 's-abc123def456',
+    };
+    expect(SessionInbound.parse(relay)).toEqual(relay);
+    for (const bad of [{ forSession: 'S-X' }, { threadId: 'thr-x' }, { from: 'Bob' }]) {
+      expect(SessionInbound.safeParse({ ...relay, ...bad }).success).toBe(false);
+    }
+  });
+
+  it("a relay's ack may say whether it was forwarded, and why", () => {
+    const ack = { delivered: [], forwarded: false, reason: 'x' };
+    expect(SessionAck.parse(ack)).toEqual(ack);
+    expect(SessionAck.parse({ delivered: ['m'] })).toEqual({ delivered: ['m'] });
   });
 
   it('session.take needs exactly one of threadId and taskId', () => {

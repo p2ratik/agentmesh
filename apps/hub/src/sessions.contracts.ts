@@ -3,10 +3,12 @@ import type {
   DeliveryMode,
   MeshMessage,
   RpcMethodName,
+  SessionDelivery,
   SessionSummary,
   SessionView,
 } from '@agentmesh/protocol';
 import type { CallContext } from './contracts';
+import type { RelayTarget } from './modules/sessions/relay';
 import type { Route } from './modules/sessions/routing';
 
 export interface SessionRecord {
@@ -66,6 +68,8 @@ export interface SessionsService {
   unreachable(sessionId: string): void;
   /** Where a message for this agent goes now, by the routing rules. DB reads only. */
   route(agentId: string, message: MeshMessage): Route;
+  /** For a waiting reply to an inactive private session: the mesh window to point. DB reads only. */
+  relay(agentId: string, message: SessionDelivery): RelayTarget | null;
   /** After the session acked the message: a claiming route makes it own the thread. DB only. */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void;
   /** Tick: silent live sessions go away; away ones past the grace period close and release. */

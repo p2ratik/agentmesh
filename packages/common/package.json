@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./window": "./src/window.ts"
+    "./window": "./src/window.ts",
+    "./version": "./src/version.ts"
   },
   "dependencies": {
     "pino": "10.4.0",

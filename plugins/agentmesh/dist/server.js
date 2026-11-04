@@ -47626,15 +47626,27 @@ var SessionView = external_exports.object({
 });
 var MAX_DELIVERY_MESSAGES = 100;
 var SessionDelivery = MeshMessage.extend({ class: DeliveryClass.default("action") });
+var SessionRelay = external_exports.object({
+  type: external_exports.literal("relay"),
+  threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
+  messageId: external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/),
+  from: ParticipantId,
+  forSession: SessionId
+});
 var SessionInbound = external_exports.discriminatedUnion("type", [
   external_exports.object({
     type: external_exports.literal("deliver"),
     messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
   }),
   external_exports.object({ type: external_exports.literal("expired") }),
-  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) })
+  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) }),
+  SessionRelay
 ]);
-var SessionAck = external_exports.object({ delivered: external_exports.array(external_exports.string()) });
+var SessionAck = external_exports.object({
+  delivered: external_exports.array(external_exports.string()),
+  forwarded: external_exports.boolean().optional(),
+  reason: external_exports.string().max(200).optional()
+});
 
 // ../../packages/protocol/src/rpc/session.ts
 var sessionMethods = {

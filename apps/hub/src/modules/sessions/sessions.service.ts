@@ -3,6 +3,7 @@ import type {
   DeliveryMode,
   MeshMessage,
   RpcMethodName,
+  SessionDelivery,
   SessionSummary,
   SessionView,
 } from '@agentmesh/protocol';
@@ -15,11 +16,13 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { claimsWhenInactive, claimTargets } from './claims';
 import { evictStalest, expireSessions, releaseAndClose } from './liveness';
-import { toRecord, toRouteSession, toSummary, toView } from './mappers';
-import { claimedThread, claimThread, reclaimReleased } from './ownership';
-import { chainOwner, type Route, type RouteInput, routeDelivery } from './routing';
+import { toRecord, toSummary, toView } from './mappers';
+import { claimThread, reclaimReleased } from './ownership';
+import { recordClaims } from './record-claims';
+import { type RelayTarget, relayFor } from './relay';
+import { routeInput } from './route-input';
+import { chainOwner, type Route, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
 
 export interface SessionsDeps {
@@ -148,7 +151,8 @@ export class SessionsServiceImpl implements SessionsService {
   route(agentId: string, message: MeshMessage): Route {
     // Lenient: a bad task ref must not wedge the agent's queue.
     const taskId = message.refs.taskId ? parseId('task', message.refs.taskId) : null;
-    const input = this.#routeInput(agentId, internalId('thread', message.threadId), taskId);
+    const threadId = internalId('thread', message.threadId);
+    const input = routeInput(this.repo, this.#deps, agentId, threadId, taskId);
     return routeDelivery({
       ...input,
       picked: message.refs.session ?? null,
@@ -156,9 +160,14 @@ export class SessionsServiceImpl implements SessionsService {
     });
   }
 
+  relay(agentId: string, message: SessionDelivery): RelayTarget | null {
+    return relayFor(this.repo, agentId, message);
+  }
+
   effectiveOwner(threadId: number, agentId: string): string | null {
     const { taskId } = this.#deps.messaging.thread(threadId);
-    return chainOwner(this.#routeInput(agentId, threadId, taskId))?.session.id ?? null;
+    const input = routeInput(this.repo, this.#deps, agentId, threadId, taskId);
+    return chainOwner(input)?.session.id ?? null;
   }
 
   /** Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps it. */
@@ -192,18 +201,7 @@ export class SessionsServiceImpl implements SessionsService {
 
   /** Agent callers with a verified session only. Never moves work another open session owns. */
   recordClaims(call: CallContext, method: RpcMethodName, params: unknown, result: unknown): void {
-    const { session: sessionId } = call;
-    if (call.caller.kind !== 'agent' || !sessionId) return;
-    const inactive = this.repo.get(sessionId)?.active !== 1;
-    for (const target of claimTargets(method, params, result)) {
-      const threadId = claimedThread(target, this.#deps);
-      if (threadId === null) continue;
-      if (inactive && !claimsWhenInactive(method, this.#deps.messaging.thread(threadId).kind))
-        continue;
-      const claim = { agentId: call.caller.id, sessionId, threadId, at: this.#now() };
-      const note = claimThread(this.repo, claim);
-      if (note) call.notes.push(note);
-    }
+    recordClaims(this.repo, this.#deps, this.#now(), call, method, params, result);
   }
 
   view(sessionId: string): SessionView {
@@ -238,20 +236,6 @@ export class SessionsServiceImpl implements SessionsService {
 
   ownerOf(threadId: number, agentId: string): string | null {
     return this.repo.owner(threadId, agentId);
-  }
-
-  /** Routing's view of a thread: the agent's open sessions and the owner chain; no sender pick. */
-  #routeInput(agentId: string, threadId: number, taskId: number | null): RouteInput {
-    const owner = (id: number | null) => (id === null ? null : this.repo.owner(id, agentId));
-    const task = taskId === null ? null : this.#deps.locate(taskId);
-    return {
-      sessions: this.repo.listLive(agentId).map(toRouteSession),
-      threadOwner: owner(threadId),
-      parentOwner: owner(this.#deps.messaging.thread(threadId).parentId),
-      taskOwner: task && task.threadId !== threadId ? owner(task.threadId) : null,
-      picked: null,
-      repo: task?.repo ?? null,
-    };
   }
 
   #row(agentId: string, sessionId: string): SessionRow {

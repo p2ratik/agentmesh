@@ -1,7 +1,8 @@
 import type { Logger } from '@agentmesh/common';
-import type { SessionDelivery } from '@agentmesh/protocol';
+import type { RelayAnswer, SessionDelivery, SessionRelay } from '@agentmesh/protocol';
 import type { MessagingService, SessionsService } from '../../contracts';
 import type { DeliveryPort, DeliveryReceipt } from '../../ports';
+import { RelayMarks, type RelayTarget } from './relay';
 import type { Route } from './routing';
 
 export interface SessionTransport {
@@ -11,6 +12,8 @@ export interface SessionTransport {
   expired(agentId: string, sessionId: string): void;
   /** Hands one session its activation code; resolves once it acked, throws if nobody answered. */
   check(agentId: string, sessionId: string, code: string): Promise<void>;
+  /** Hands the mesh window a pointer to a private session's reply; resolves with its answer. */
+  relay(agentId: string, sessionId: string, relay: SessionRelay): Promise<RelayAnswer>;
 }
 
 /** The most unread status items of one thread that ride along with a delivery in it. */
@@ -19,6 +22,11 @@ const CARRIED_PER_THREAD = 20;
 interface Routed {
   message: SessionDelivery;
   route: Extract<Route, { kind: 'deliver' }>;
+}
+
+interface Relay {
+  message: SessionDelivery;
+  target: RelayTarget;
 }
 
 /**
@@ -35,12 +43,18 @@ interface Routed {
  * them along passes them. A status shown only to a session that died before
  * reporting it seen may be shown twice: there, and again with the next delivery
  * in its thread. That is acceptable for FYI.
+ *
+ * A reply that waits for an inactive private session may wake it through the
+ * mesh window (spec §4.1): the window gets a body-less `relay` pointer, once
+ * per thread and asking session until the owner reads the thread. The reply
+ * itself stays pending: never delivered, read or claimed here.
  */
 export class SessionDispatcher implements DeliveryPort {
   readonly #sessions: SessionsService;
   readonly #messaging: MessagingService;
   readonly #transport: SessionTransport;
   readonly #logger: Logger;
+  readonly #marks = new RelayMarks();
 
   constructor(deps: {
     sessions: SessionsService;
@@ -56,16 +70,22 @@ export class SessionDispatcher implements DeliveryPort {
 
   async deliver(agentId: string, messages: SessionDelivery[]): Promise<DeliveryReceipt> {
     // Already read through inbox or thread: delivered, with nothing to push, claim or mark read.
-    const seen = messages.filter((m) => this.#messaging.isRead(agentId, m.id)).map((m) => m.id);
+    const alreadyRead = messages.filter((m) => this.#messaging.isRead(agentId, m.id));
+    // The owner read the thread: its next reply may wake it again.
+    for (const m of alreadyRead) this.#marks.clearThread(agentId, m.threadId);
+    const seen = alreadyRead.map((m) => m.id);
     // No active, live session: every route would wait.
     if (!this.#sessions.hasReadySession(agentId)) return { delivered: seen };
     const unseen = messages.filter((m) => !seen.includes(m.id));
-    const routed = this.#route(agentId, unseen);
+    const { routed, waiting } = this.#route(agentId, unseen);
     const batches = [...Map.groupBy(routed, (r) => r.route.sessionId)];
-    // Every send starts before any is awaited, so a dead session never holds up the others.
-    const results = await Promise.allSettled(
-      batches.map(([sessionId, batch]) => this.#send(agentId, sessionId, batch)),
-    );
+    // Every send and relay starts before any is awaited, so a dead session never holds up the others.
+    const [results] = await Promise.all([
+      Promise.allSettled(
+        batches.map(([sessionId, batch]) => this.#send(agentId, sessionId, batch)),
+      ),
+      Promise.allSettled(this.#relays(agentId, waiting).map((r) => this.#relay(agentId, r))),
+    ]);
     const acked = new Set<string>();
     batches.forEach(([sessionId], i) => {
       const result = results[i];
@@ -94,6 +114,41 @@ export class SessionDispatcher implements DeliveryPort {
         this.#messaging.markRead(agentId, read);
       },
     };
+  }
+
+  /**
+   * Per thread, the first waiting message that wakes its inactive private owner through the
+   * mesh window, unless that owner was pointed to the thread since it last read it.
+   */
+  #relays(agentId: string, waiting: SessionDelivery[]): Relay[] {
+    const relays = new Map<string, Relay>();
+    for (const message of waiting) {
+      if (relays.has(message.threadId)) continue;
+      const target = this.#sessions.relay(agentId, message);
+      if (target) relays.set(message.threadId, { message, target });
+    }
+    return [...relays.values()].filter(
+      ({ message, target }) => !this.#marks.has(agentId, message.threadId, target.forSession),
+    );
+  }
+
+  /** Any answer marks the pointer sent, `forwarded: false` included; a failed request goes again. */
+  async #relay(agentId: string, { message, target }: Relay): Promise<void> {
+    const { id, threadId } = message;
+    const log = { agent: agentId, window: target.windowId, thread: threadId, message: id };
+    try {
+      const answer = await this.#transport.relay(agentId, target.windowId, {
+        type: 'relay',
+        threadId,
+        messageId: id,
+        from: message.from.id,
+        forSession: target.forSession,
+      });
+      this.#marks.set(agentId, threadId, target.forSession);
+      this.#logger.info({ ...log, ...answer }, 'relay pointer sent');
+    } catch (err) {
+      this.#logger.warn({ ...log, err }, 'relay pointer failed; a later flush sends it again');
+    }
   }
 
   /** The ids the session acked, among those it was sent (carried status items aside). */
@@ -125,11 +180,16 @@ export class SessionDispatcher implements DeliveryPort {
   /**
    * In order. A thread's later messages follow its first one in this call: they
    * wait with it, or go to its session (claims commit only after the sends, so
-   * routing them afresh could split a new thread across sessions).
+   * routing them afresh could split a new thread across sessions). Also returns
+   * the messages that wait, for the relay.
    */
-  #route(agentId: string, messages: SessionDelivery[]): Routed[] {
+  #route(
+    agentId: string,
+    messages: SessionDelivery[],
+  ): { routed: Routed[]; waiting: SessionDelivery[] } {
     const firstOfThread = new Map<string, Route>();
     const routed: Routed[] = [];
+    const waiting: SessionDelivery[] = [];
     for (const message of messages) {
       const first = firstOfThread.get(message.threadId);
       const route = first ? follow(first) : this.#sessions.route(agentId, message);
@@ -140,8 +200,9 @@ export class SessionDispatcher implements DeliveryPort {
         'delivery routed',
       );
       if (route.kind === 'deliver') routed.push({ message, route });
+      else waiting.push(message);
     }
-    return routed;
+    return { routed, waiting };
   }
 }
 
