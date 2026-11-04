@@ -153,6 +153,7 @@ export function startSession(
           prefix: session.config.prefix,
           ownUds: session.uds,
           ownSession: hub.sessionId,
+          guardVersion: session.activation.guardVersion,
           platform: process.platform,
           now: Date.now(),
           push: (event) => pushEvent(server, event),

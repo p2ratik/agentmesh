@@ -2,7 +2,6 @@ import { isAtLeast, RELAY_MIN_VERSION } from '@agentmesh/common/version';
 import type { RelayAnswer, SessionRelay } from '@agentmesh/protocol';
 import type { ChannelEvent } from '../inbox/render';
 import type { MeshWindowContext } from '../window/context';
-import { guardVersion } from '../window/guard-stamp';
 import { relayPlatform, udsHex } from './address';
 import { FORWARD_TTL_MS, forwardFile, removeForward, writeForward } from './forward-record';
 import { readLocalSession } from './local-session';
@@ -16,6 +15,8 @@ export interface WindowRelayDeps {
   ownUds: string | null;
   /** This window's hub session. */
   ownSession: string | null;
+  /** The guard version activate recorded (`ActivationState.guardVersion`); null when none. */
+  guardVersion: string | null;
   platform: NodeJS.Platform;
   now: number;
   push(event: ChannelEvent): Promise<void>;
@@ -33,11 +34,10 @@ export async function forwardRelay(
   relay: SessionRelay,
   deps: WindowRelayDeps,
 ): Promise<RelayAnswer> {
-  const { window, platform, now } = deps;
+  const { window, platform, now, guardVersion } = deps;
   if (window.state !== 'verified') return no('not the mesh window');
   if (!relayPlatform(platform)) return no(`relay is off on ${platform}`);
-  const version = guardVersion(window.dataDir, now);
-  if (!version || !isAtLeast(version, RELAY_MIN_VERSION)) {
+  if (!guardVersion || !isAtLeast(guardVersion, RELAY_MIN_VERSION)) {
     return no(`the guard is older than ${RELAY_MIN_VERSION} or not running`);
   }
   const { forSession } = relay;

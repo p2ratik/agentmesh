@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import type { SessionRelay } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ChannelEvent } from '../inbox/render';
-import { writeGuardStamp } from '../window/guard-stamp';
+import { newActivationState } from '../tools/activation';
+import { fakeHub } from '../tools/fake-hub';
+import { callTool } from '../tools/registry';
+import { GUARD_STAMP } from '../window/guard-stamp';
 import { readForwards } from './forward-record';
 import type { LocalSession } from './local-session';
 import { pointerText } from './pointer';
@@ -19,12 +22,11 @@ const RELAY: SessionRelay = { type: 'relay', ...FIELDS, forSession: 's-aaaaaaaaa
 const now = Date.parse('2026-11-04T10:00:00Z');
 const GUARD_OLD = 'the guard is older than 0.6.0 or not running';
 const NO_RECORD = 'no fresh record for that session';
-const STAMP = new Date(now - 5_000).toISOString();
 
 let dataDir: string;
 let pushed: ChannelEvent[];
 
-function writeRecord(over: Partial<LocalSession> = {}): void {
+function writeRecord(over: Partial<LocalSession> = {}, at = now): void {
   const record: LocalSession = {
     agentId: 'bob-agent',
     prefix: 'mesh',
@@ -36,7 +38,7 @@ function writeRecord(over: Partial<LocalSession> = {}): void {
     relay: true,
     threads: 1,
     from: ['sagar-agent'],
-    updatedAt: new Date(now - 10_000).toISOString(),
+    updatedAt: new Date(at - 10_000).toISOString(),
     ...over,
   };
   writeFileSync(join(dataDir, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(record));
@@ -49,6 +51,7 @@ function deps(over: Partial<WindowRelayDeps> = {}): WindowRelayDeps {
     prefix: 'mesh',
     ownUds: WINDOW,
     ownSession: 's-wwwwwwwwwwww',
+    guardVersion: '0.6.0',
     platform: 'win32',
     now,
     push: async (event) => {
@@ -63,7 +66,6 @@ const forwards = () => readdirSync(dataDir).filter((f) => f.startsWith('fwd-'));
 beforeEach(() => {
   dataDir = mkdtempSync(join(tmpdir(), 'am-relay-'));
   pushed = [];
-  writeGuardStamp(dataDir, new Date(now - 5_000), '0.6.0');
   writeRecord();
 });
 
@@ -87,10 +89,9 @@ describe('the mesh window forwarding a relay', () => {
     const rows: Array<[string, () => Partial<WindowRelayDeps> | undefined, SessionRelay?]> = [
       ['not the mesh window', () => ({ window: { ...deps().window, state: 'marked' } })],
       ['relay is off on linux', () => ({ platform: 'linux' })],
-      [GUARD_OLD, () => void writeGuardStamp(dataDir, new Date(now - 5_000), '0.5.0')],
-      [GUARD_OLD, () => void rmSync(join(dataDir, 'guard-alive.json'))],
-      // What a 0.5.0 guard writes: a fresh stamp with no version.
-      [GUARD_OLD, () => void writeFileSync(join(dataDir, 'guard-alive.json'), `{"at":"${STAMP}"}`)],
+      // Activation recorded a 0.5.0 stamp, a version-less one (a 0.5.0 guard), or none.
+      [GUARD_OLD, () => ({ guardVersion: '0.5.0' })],
+      [GUARD_OLD, () => ({ guardVersion: null })],
       [NO_RECORD, () => void writeRecord({ updatedAt: new Date(now - 180_000).toISOString() })],
       [NO_RECORD, () => ({ ownSession: 's-aaaaaaaaaaaa' })],
       ['that session turned relay off', () => void writeRecord({ relay: false })],
@@ -99,7 +100,6 @@ describe('the mesh window forwarding a relay', () => {
       ['the pointer fields are invalid', () => undefined, { ...RELAY, from: 'Bob' }],
     ];
     for (const [reason, arrange, relay = RELAY] of rows) {
-      writeGuardStamp(dataDir, new Date(now - 5_000), '0.6.0');
       writeRecord();
       const over = arrange();
       expect(await forwardRelay(relay, deps(over)), reason).toEqual({ forwarded: false, reason });
@@ -116,6 +116,45 @@ describe('the mesh window forwarding a relay', () => {
     };
     const answer = await forwardRelay(RELAY, deps({ push }));
     expect(answer).toEqual({ forwarded: false, reason: 'the push failed' });
+    expect(forwards()).toEqual([]);
+  });
+});
+
+describe('the guard version recorded at activation', () => {
+  const view = { id: 's-wwwwwwwwwwww', active: true, delivery: 'push', description: 'mesh window' };
+  /** Activates the verified window over this stamp; resolves with the version it recorded. */
+  async function activate(stamp: object | null): Promise<string | null> {
+    const { deps: tool } = fakeHub({
+      'session.activate': { ...view, repo: null, branch: null, owns: [] },
+    });
+    tool.window = { state: 'verified', policy: null, dataDir, folder: '.' };
+    const file = join(dataDir, GUARD_STAMP);
+    rmSync(file, { force: true });
+    if (stamp) writeFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...stamp }));
+    await callTool('activate', { code: 'c-1', description: 'mesh window' }, tool);
+    return tool.activation.guardVersion;
+  }
+
+  it('forwards behind a 0.6.0 guard though its stamp is 10 minutes old', async () => {
+    const guardVersion = await activate({ version: '0.6.0' });
+    const later = Date.now() + 600_000;
+    writeRecord({}, later);
+    const answer = await forwardRelay(RELAY, deps({ guardVersion, now: later }));
+    expect(answer).toEqual({ forwarded: true, reason: 'forwarded' });
+  });
+
+  it('refuses after activating over a version-less or 0.5.0 stamp, or never activating', async () => {
+    const recorded = [
+      await activate({}),
+      await activate({ version: '0.5.0' }),
+      await activate(null), // the guard did not run: activate refuses and records nothing
+      newActivationState().guardVersion,
+    ];
+    expect(recorded).toEqual([null, '0.5.0', null, null]);
+    for (const guardVersion of recorded) {
+      const answer = await forwardRelay(RELAY, deps({ guardVersion }));
+      expect(answer).toEqual({ forwarded: false, reason: GUARD_OLD });
+    }
     expect(forwards()).toEqual([]);
   });
 });

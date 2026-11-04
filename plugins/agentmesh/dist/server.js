@@ -49098,12 +49098,10 @@ function readStamp(dir) {
     return {};
   }
 }
-function guardAlive(dir, now) {
-  return isFresh(readStamp(dir).at, now, GUARD_STAMP_MAX_AGE_MS);
-}
-function guardVersion(dir, now) {
+function freshGuardStamp(dir, now) {
   const { at, version: version2 } = readStamp(dir);
-  return isFresh(at, now, GUARD_STAMP_MAX_AGE_MS) && typeof version2 === "string" ? version2 : null;
+  if (!isFresh(at, now, GUARD_STAMP_MAX_AGE_MS)) return null;
+  return { version: typeof version2 === "string" ? version2 : null };
 }
 
 // src/tools/sessions.ts
@@ -49120,6 +49118,12 @@ var needDescription = () => new MeshError(
   "invalid_request",
   "Pass description too: one line on what this session is working on."
 );
+function windowStamp(window) {
+  if (window.state !== "verified") return null;
+  const stamp = freshGuardStamp(window.dataDir, Date.now());
+  if (!stamp) throw new ToolRefusal(GUARD_DOWN);
+  return stamp;
+}
 var sessionTools = [
   defineTool({
     name: "activate",
@@ -49137,7 +49141,7 @@ var sessionTools = [
         );
       }
       const isWindow = window.state === "verified";
-      if (isWindow && !guardAlive(window.dataDir, Date.now())) throw new ToolRefusal(GUARD_DOWN);
+      const stamp = windowStamp(window);
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
@@ -49163,6 +49167,7 @@ var sessionTools = [
       activation.lastDescription = view.description ?? args.description;
       activation.renewedFrom = null;
       activation.pull = false;
+      if (stamp) activation.guardVersion = stamp.version;
       const active = `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
       return isWindow ? `${active} It is your mesh window.
 
@@ -51907,11 +51912,10 @@ function removeForward(dir, name) {
 // src/relay/window-relay.ts
 var no = (reason) => ({ forwarded: false, reason });
 async function forwardRelay(relay, deps) {
-  const { window, platform: platform2, now } = deps;
+  const { window, platform: platform2, now, guardVersion } = deps;
   if (window.state !== "verified") return no("not the mesh window");
   if (!relayPlatform(platform2)) return no(`relay is off on ${platform2}`);
-  const version2 = guardVersion(window.dataDir, now);
-  if (!version2 || !isAtLeast(version2, RELAY_MIN_VERSION)) {
+  if (!guardVersion || !isAtLeast(guardVersion, RELAY_MIN_VERSION)) {
     return no(`the guard is older than ${RELAY_MIN_VERSION} or not running`);
   }
   const { forSession } = relay;
@@ -51945,7 +51949,8 @@ async function forwardRelay(relay, deps) {
 var newActivationState = () => ({
   lastDescription: null,
   renewedFrom: null,
-  pull: false
+  pull: false,
+  guardVersion: null
 });
 function checkEvent(code, previous) {
   const intro = previous ? "This session reconnected to the mesh after a long absence and is no longer active. " : "";
@@ -52054,6 +52059,7 @@ function startSession(server, session, logger, pushDelayMs) {
         prefix: session.config.prefix,
         ownUds: session.uds,
         ownSession: hub.sessionId,
+        guardVersion: session.activation.guardVersion,
         platform: process.platform,
         now: Date.now(),
         push: (event2) => pushEvent(server, event2)

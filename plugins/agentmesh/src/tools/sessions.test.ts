@@ -68,6 +68,7 @@ describe('session tools', () => {
       lastDescription: 'checkout redesign',
       renewedFrom: null,
       pull: false,
+      guardVersion: null,
     });
   });
 
@@ -113,7 +114,11 @@ describe('session tools', () => {
     expect(deps.activation.lastDescription).toBe('billing v2');
     deps.activation.renewedFrom = 'billing';
     await callTool('deactivate', {}, deps);
-    expect(deps.activation).toEqual({ lastDescription: null, renewedFrom: null, pull: false });
+    expect(deps.activation).toMatchObject({
+      lastDescription: null,
+      renewedFrom: null,
+      pull: false,
+    });
     const took = await callTool('take', { task_id: 'task-9' }, deps);
     expect(text(took)).toContain('thr-9');
     await callTool('take', { thread_id: 'thr-9' }, deps);

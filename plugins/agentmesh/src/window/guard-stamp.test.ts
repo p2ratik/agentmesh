@@ -3,10 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  freshGuardStamp,
   GUARD_STAMP,
   GUARD_STAMP_MAX_AGE_MS,
   guardAlive,
-  guardVersion,
   writeGuardStamp,
 } from './guard-stamp';
 
@@ -43,14 +43,14 @@ describe('the guard stamp', () => {
 
   it('stamps the guard version and reads it only while fresh', () => {
     writeGuardStamp(dir, now, '0.6.0');
-    expect(guardVersion(dir, now.getTime() + 1_000)).toBe('0.6.0');
-    expect(guardVersion(dir, now.getTime() + 121_000)).toBeNull();
+    expect(freshGuardStamp(dir, now.getTime() + 1_000)).toEqual({ version: '0.6.0' });
+    expect(freshGuardStamp(dir, now.getTime() + 121_000)).toBeNull();
     // A stamp from a guard before 0.6.0 has no version: alive, but no version to read.
     writeFileSync(join(dir, GUARD_STAMP), JSON.stringify({ at: now.toISOString() }));
     expect(guardAlive(dir, now.getTime() + 1_000)).toBe(true);
-    expect(guardVersion(dir, now.getTime() + 1_000)).toBeNull();
+    expect(freshGuardStamp(dir, now.getTime() + 1_000)).toEqual({ version: null });
     rmSync(join(dir, GUARD_STAMP));
-    expect(guardVersion(dir, now.getTime())).toBeNull();
+    expect(freshGuardStamp(dir, now.getTime())).toBeNull();
   });
 
   it.skipIf(process.platform === 'win32')('is private to the user', () => {

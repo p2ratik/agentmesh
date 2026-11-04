@@ -11,12 +11,19 @@ export interface ActivationState {
   renewedFrom: string | null;
   /** Active in pull mode (ADR 0008): nothing is pushed; the prompt hook announces unread work. */
   pull: boolean;
+  /**
+   * The mesh window's guard version, read from its stamp on the last successful activate and kept
+   * for the life of the process (the guard and this server update together, and an update
+   * restarts the server); null before then, or from a guard before 0.6.0. Relays gate on it.
+   */
+  guardVersion: string | null;
 }
 
 export const newActivationState = (): ActivationState => ({
   lastDescription: null,
   renewedFrom: null,
   pull: false,
+  guardVersion: null,
 });
 
 /**

@@ -27,13 +27,15 @@ function readStamp(dir: string): { at?: unknown; version?: unknown } {
   }
 }
 
-/** Whether the guard wrote its stamp in the last two minutes (and not in the future). */
-export function guardAlive(dir: string, now: number): boolean {
-  return isFresh(readStamp(dir).at, now, GUARD_STAMP_MAX_AGE_MS);
+/**
+ * The stamp, if the guard wrote it in the last two minutes (and not in the future), with its
+ * version (null from a guard before 0.6.0). Activate records that version from this same read.
+ */
+export function freshGuardStamp(dir: string, now: number): { version: string | null } | null {
+  const { at, version } = readStamp(dir);
+  if (!isFresh(at, now, GUARD_STAMP_MAX_AGE_MS)) return null;
+  return { version: typeof version === 'string' ? version : null };
 }
 
-/** The version of a fresh stamp; null for a missing, stale or version-less one (before 0.6.0). */
-export function guardVersion(dir: string, now: number): string | null {
-  const { at, version } = readStamp(dir);
-  return isFresh(at, now, GUARD_STAMP_MAX_AGE_MS) && typeof version === 'string' ? version : null;
-}
+/** Whether the guard wrote its stamp in the last two minutes (and not in the future). */
+export const guardAlive = (dir: string, now: number): boolean => !!freshGuardStamp(dir, now);

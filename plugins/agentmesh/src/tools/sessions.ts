@@ -1,7 +1,8 @@
 import { MeshError } from '@agentmesh/common';
 import { RESTART, START_COMMAND } from '@agentmesh/common/window';
 import { z } from 'zod';
-import { guardAlive } from '../window/guard-stamp';
+import type { MeshWindowContext } from '../window/context';
+import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
 import { defineTool, ToolRefusal } from './types';
 
@@ -31,6 +32,17 @@ const needDescription = () =>
     'Pass description too: one line on what this session is working on.',
   );
 
+/**
+ * The mesh window's guard stamp (null for any other session). The guard stamps this very call;
+ * without it, edits and commands here go unchecked, so the window refuses.
+ */
+function windowStamp(window: MeshWindowContext): { version: string | null } | null {
+  if (window.state !== 'verified') return null;
+  const stamp = freshGuardStamp(window.dataDir, Date.now());
+  if (!stamp) throw new ToolRefusal(GUARD_DOWN);
+  return stamp;
+}
+
 /** Opting this session in and out of the mesh, and moving work to it. */
 export const sessionTools = [
   defineTool({
@@ -51,8 +63,7 @@ export const sessionTools = [
         );
       }
       const isWindow = window.state === 'verified';
-      // The guard stamps this very call; without it, edits and commands here go unchecked.
-      if (isWindow && !guardAlive(window.dataDir, Date.now())) throw new ToolRefusal(GUARD_DOWN);
+      const stamp = windowStamp(window);
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
@@ -81,6 +92,8 @@ export const sessionTools = [
       activation.lastDescription = view.description ?? args.description;
       activation.renewedFrom = null;
       activation.pull = false;
+      // From the stamp this call checked: relays gate on it for the life of the process.
+      if (stamp) activation.guardVersion = stamp.version;
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
       return isWindow
         ? `${active} It is your mesh window.\n\n${windowRules(window.policy)}`
