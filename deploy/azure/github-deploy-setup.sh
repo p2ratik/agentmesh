@@ -40,6 +40,9 @@ gh auth status >/dev/null 2>&1 || { echo "sign in first: gh auth login" >&2; exi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+# A file argument for az. On Windows az is a native program that cannot open Git Bash's /tmp/…
+# paths, so it gets the Windows form (cygpath -m: C:/Users/…).
+azfile() { if command -v cygpath >/dev/null; then printf '@%s' "$(cygpath -m "$1")"; else printf '@%s' "$1"; fi; }
 
 echo "== Azure: identity for $REPO ($ENVIRONMENT)"
 SUBSCRIPTION=$(az account show --query id -o tsv)
@@ -57,7 +60,7 @@ if [ "$(az ad app federated-credential list --id "$APP_ID" --query "length([?nam
  "subject": "repo:$REPO:environment:$ENVIRONMENT", "audiences": ["api://AzureADTokenExchange"],
  "description": "GitHub Actions deploys of $REPO"}
 EOF
-  az ad app federated-credential create --id "$APP_ID" --parameters "@$TMP/federation.json" --output none
+  az ad app federated-credential create --id "$APP_ID" --parameters "$(azfile "$TMP/federation.json")" --output none
 fi
 
 # Add, change and remove rules on the NSG: nothing else, on nothing else.
@@ -71,7 +74,7 @@ if [ "$(az role definition list --custom-role-only true --name "$ROLE_NAME" --qu
              "Microsoft.Network/networkSecurityGroups/securityRules/delete"],
  "NotActions": [], "AssignableScopes": ["/subscriptions/$SUBSCRIPTION/resourceGroups/$RG"]}
 EOF
-  az role definition create --role-definition "@$TMP/role.json" --output none
+  az role definition create --role-definition "$(azfile "$TMP/role.json")" --output none
 fi
 if [ "$(az role assignment list --assignee "$SP_ID" --scope "$NSG_ID" --query 'length(@)' -o tsv)" = 0 ]; then
   # A new role definition can take a minute to become assignable.
