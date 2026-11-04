@@ -51,7 +51,8 @@ curl -X POST http://<hub>:8787/v1/ingest/hermes \
 | `payload` | no | Any JSON object; rules and templates read it. |
 
 Responses: `202` accepted, `400` invalid body (with issues), `401` bad credentials, `404` unknown
-source, `413` body over 1 MiB, `503` NATS unavailable (retry later). `GET /healthz` → `200`.
+source, `413` body over 1 MiB, `503` NATS unavailable (retry later). `GET /healthz` → `200` when the hub is ready (its database, NATS and subscriptions answer), `503`
+with the failing check otherwise.
 
 The endpoint checks a bearer token before it reads the body, and refuses a body over 1 MiB as soon
 as it knows (from `Content-Length`, or while reading). A `401`, `404`, `405` or `413` closes the

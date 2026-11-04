@@ -951,6 +951,61 @@ follows is set by the compose files, `agentmesh nats-config`, `setup host` and
   that could lock the admin out. **Residual risk:** until the admin turns passwords off, the
   server is as strong as its passwords.
 
+## Automatic deploys
+
+[Automatic deploys](deploy.md#automatic-deploys) ([ADR 0010](adr/0010-automatic-deploys.md)) let
+a GitHub Actions job reach the hub server. They add a credential (the deploy key), a cloud
+identity (Azure), and a moment when SSH is open to an address other than the admin's.
+
+- **Threat: the deploy key is used to run something else.** **Mitigation:** its
+  `authorized_keys` line is `restrict,command="/usr/local/sbin/agentmesh-deploy"`, so there is no
+  shell, no forwarding and no pty. The script matches the requested command against exactly
+  `deploy <x.y.z>` or `status` and never evaluates it; a unit test feeds it injection attempts.
+  The script is root-owned, outside the checkout, so a change merged to the repo's copy takes
+  effect only when an admin reinstalls it. **Residual risk:** it runs as the SSH user, who is in
+  the `docker` group (root-equivalent), so a bug in the script is a bug on the host.
+- **Threat: someone deploys code that was never reviewed.** **Mitigation:**
+  - only jobs in the `production` environment can read the key, and that environment deploys only
+    from `main`, which takes changes only by reviewed pull request with CI. Pull requests from
+    forks never see the secrets;
+  - the server deploys only a tag that is on `origin/main`, and never moves a tag it already has;
+  - a manual run needs write access and still runs from `main`.
+
+  **Residual risk:** the server trusts whatever image the registry serves for that version. Any
+  workflow in the repository, on any branch, can push to the package with `packages: write`. So a
+  collaborator with write access could replace an image tag before it is deployed. Nobody signs or
+  pins the images by digest yet. Protecting `v*` tags with a ruleset closes the tag half of this.
+- **Threat: SSH open to the internet.** **Mitigation:** port 22 opens only to the runner's own
+  IPv4 address (`/32`), only for the length of the job; an `always()` step removes the rule, and
+  the next deploy removes a rule an earlier run left behind. The admin's rule never changes, and
+  the job checks the server's host key (`StrictHostKeyChecking=yes`) against a key read through the
+  admin's authenticated session. **Residual risk:** if a runner dies before its cleanup, its
+  address (one shared GitHub-hosted IP) can reach sshd until the next deploy. It still needs a key.
+- **Threat: a leaked cloud credential.** **Mitigation:** none exists to leak. The app registration
+  has no client secret: Azure accepts only GitHub's OIDC tokens for the subject
+  `repo:<owner>/<repo>:environment:production`. Its custom role can only read, write and delete
+  rules on the one NSG, so it cannot touch the VM, its disks or its run commands. **Residual risk:**
+  a compromised deploy job could open other ports in that NSG. Behind them, the hub's HTTP port
+  listens on 127.0.0.1 only and NATS is already public.
+- **Threat: secrets in a public log.** On a public repository, anyone can read the job's log.
+  **Mitigation:** the script never reads `deploy/.env` and never prints container logs; a failure
+  says which command to run on the server instead. The Azure ids are stored as secrets, so the log
+  masks them, and `az` prints nothing (`--output none`). The host name is public anyway.
+- **Threat: a half-finished or broken deploy.** **Mitigation:**
+  - the script holds a lock and ignores SIGHUP (a dropped connection or a cancelled run);
+  - it takes a `hub-data` backup first (mode 600, in a directory with mode 700);
+  - it rolls back to the previous checkout and images if the new hub is not ready. A hub that
+    exits or restarts fails at once; one whose `/healthz` does not answer 200 fails within 60
+    seconds.
+- **Threat: what `/healthz` gives away.** It answers without authentication, on 127.0.0.1 unless
+  `HUB_HTTP_BIND` says otherwise. **Mitigation:** it reports four booleans (started, database,
+  NATS, subscriptions) and never an error text, a host name or a count. Each request costs one
+  `SELECT 1` and one NATS ping; the server's 100-connection cap bounds a flood.
+- **Threat: the smoke test as a login attempt.** **Mitigation:** it reads NATS's greeting,
+  completes the TLS handshake to read the certificate, and closes. It sends no NATS command, so it
+  never authenticates. It uses Node's full
+  certificate verification (chain and host name), so it fails exactly where an agent would.
+
 ## Setup and the admin workspace
 
 `/agentmesh:setup` ([ADR 0007](adr/0007-claude-run-setup.md)) has Claude interview the admin and

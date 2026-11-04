@@ -19,6 +19,8 @@ export interface IngestDeps {
   presence: PresenceService;
   /** Null runs the rules directly from HTTP (tests, single-process setups). */
   transport: IngestTransport | null;
+  /** The hub's readiness, served at `GET /healthz`. */
+  health?: () => Promise<{ ok: boolean }>;
 }
 
 /** External events: HTTP + NATS ingestion, dedup, and the rules engine. */
@@ -43,6 +45,7 @@ export function createIngestModule(ctx: HubContext, deps: IngestDeps): HubModule
           port: hub.http.port,
           sources: ingest.sources,
           logger: ctx.logger,
+          health: deps.health,
           sink: async (source, event) => {
             if (!transport) return service.accept(source, event);
             await transport.publish(source, event);

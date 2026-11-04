@@ -25,7 +25,7 @@ numbers are not coerced from strings — write them literally.
 | `nkey` | — | Public key of the hub's NATS user (`agentmesh keys add hub`). |
 | `authCallout.issuer` / `xkey` / `sysNkey` | — | Public keys for auth-callout mode (`agentmesh nats-config --auth-callout`): the account key that signs user JWTs, the curve key that seals auth requests, and the hub's kick-only system user. Generate each with `agentmesh keys add hub-issuer`, `hub-xkey` and `hub-sys`; the seeds stay in `deploy/secrets`. |
 | `dataDir` | `./data` | Directory of `hub.sqlite`, relative to the config dir. `AGENTMESH_DATA_DIR` overrides. |
-| `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz`, `POST /v1/ingest/<source>`. |
+| `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz` (readiness: `200` when the hub's database, NATS and subscriptions answer, else `503`; the Docker healthcheck and automatic deploys need it on 8787), `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |
 | `tickSeconds` | `10` | Scheduler interval (outbox retries, presence expiry, deadlines, leases). |
 | `streams.eventsMaxMB` / `ingestMaxMB` | `128` / `64` | Size caps of the activity feed and ingest JetStream streams. When one is full its oldest messages go, so publishing never stops. 128 MB holds weeks of a busy team's feed, past its 7-day age limit. The hub applies them at every start, to existing streams too. Their sum must fit in `nats.conf`'s `max_file_store` (5 GB unless `nats-config --max-file-store` says otherwise), or NATS refuses the streams and the hub does not start. |
@@ -181,6 +181,43 @@ references and the compose settings. Never commit it or paste its values into a 
 | `NATS_MEM_LIMIT`, `HUB_MEM_LIMIT`, `BRIDGE_MEM_LIMIT` | `256m`, `512m`, `384m` | Memory caps of the three containers, in Docker units (`256m`, `1g`), sized for a 1–2 GB server. A container that reaches its cap is restarted. Both compose files use the same defaults when a key is missing ([deploy.md](deploy.md#containers)). |
 | `PIDS_LIMIT` | `256` | The most processes and threads each container may run. |
 | `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |
+
+## Automatic deploys
+
+The settings for [automatic deploys](deploy.md#automatic-deploys) from GitHub Actions.
+`deploy/azure/github-deploy-setup.sh` sets the GitHub ones on Azure.
+
+**GitHub repository variables** (Settings → Secrets and variables → Actions → Variables). Anyone
+who can read the run logs can see them, which is everyone on a public repo:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DEPLOY_HOST` | none | The server's DNS name. If it is not set, the release workflow does not deploy. |
+| `DEPLOY_USER` | `mesh` | The SSH user who runs `docker compose` for the hub. |
+| `DEPLOY_KNOWN_HOSTS` | none | `<host> ssh-ed25519 <key>`: the server's host key. The job refuses any other. |
+| `AZURE_RESOURCE_GROUP`, `AZURE_NSG` | none | The VM's NSG. Set them to open port 22 only to the runner for the length of the job. Leave them empty if SSH is reachable some other way. |
+| `DEPLOY_SSH_RULE` | `github-deploy-ssh` | The name of that temporary NSG rule. |
+| `DEPLOY_SSH_RULE_PRIORITY` | `200` | Its priority. Pick one no other rule in the NSG uses. |
+| `DEPLOY_NATS_PORT` | `4222` | The public NATS port the post-deploy smoke test checks. |
+
+**Secrets of the `production` environment.** That environment deploys only from `main`:
+
+| Secret | Meaning |
+| --- | --- |
+| `DEPLOY_SSH_KEY` | The deploy key's private half (ed25519). On the server, it can only run `agentmesh-deploy`. |
+| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | The app registration the job signs in as through OIDC. These are not secret, but storing them as secrets masks them in the log. |
+
+**On the server: `/etc/default/agentmesh-deploy`.** `deploy/auto-deploy/install.sh` writes it
+once and never replaces it. `agentmesh-deploy` reads it on every run:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `AGENTMESH_DIR` | `/opt/agentmesh` | The repo checkout the stack runs from. |
+| `IMAGE_REGISTRY` | `ghcr.io/p2ratik` | Where the images come from: `<registry>/agentmesh-hub:<version>`, and the same for `agentmesh-discord-bridge`. |
+| `COMPOSE_PROFILES` | `discord` | The compose profiles to run. Leave it empty for a mesh without the Discord bridge. |
+| `GIT_REMOTE`, `RELEASE_BRANCH` | `origin`, `main` | A release tag must be on this branch of this remote. |
+| `BACKUP_DIR`, `KEEP_BACKUPS` | `~/backups`, `10` | Where the pre-deploy `hub-data` backups go, and how many of the script's own backups to keep. |
+| `HEALTH_TIMEOUT` | `60` | How many seconds the new hub's `/healthz` has to answer 200 before the deploy rolls back. A hub that exits or restarts fails at once. |
 
 ## Laptop (plugin)
 
