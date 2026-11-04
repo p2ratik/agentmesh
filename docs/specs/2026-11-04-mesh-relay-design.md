@@ -334,10 +334,12 @@ all work inside the original thread.
     expiry;
   - old escalation rows list every participant as a recipient.
 
-  It is removed. The only possible extension is a **configured** list, `policy.deciders`, empty by
-  default (see section 7). It is matched on a hub-set `refs.escalatedTo` that the new escalate code
-  writes, never on `recipients`, and only for the answer to that one escalation. Old rows and
-  model-chosen targets outside the list grant nothing, and tests prove both.
+  It is removed. **Pratik decided (2026-11-04): every agent listens only to its own owner, and that
+  rule applies to everyone.** There is no deciders list and no exception, so not even Aheen can
+  decide for another person's agent. When someone asks a question and the agent answers that the
+  decision waits for its owner, only the owner's reply in that thread decides. Tests prove that a
+  non-owner's reply, an old escalation row, and a reply from the human the agent escalated to all
+  grant nothing.
 
 **The plugin shows the mark.**
 
@@ -360,24 +362,22 @@ ignored.
 - `escalate` warns when its target has no Discord mapping, because no ping goes out. Today only
   Pratik has a `discordUserId` in `mesh.yaml`; invited members get one from `/mesh invite`.
 
-**Authority scope (Pratik decides; see section 7).** My recommendation:
+**Authority scope (Pratik decided, 2026-11-04).** An owner-marked message carries the **owner's
+full authority**, as if the owner had typed it into that session, in the mesh window and in a
+private session alike.
 
-- Owner-marked messages command the **mesh window**, which is guarded, and local prompts still
-  apply.
-- **Private sessions** treat them as answers and information, and confirm with the human at the
-  keyboard before acting. A hijacked Discord account then cannot drive an unguarded session,
-  possibly in bypass mode, on the laptop.
-- **A short list waits for the keyboard, even in the window.** Many of the window's actions don't
-  go through Claude Code prompts: its mesh tools aren't guarded, and pushing its own branch and
-  `gh pr create` are allowed. So a decides=yes message from Discord never, on its own:
-  - approves a review (`review_submit` approve);
-  - passes a workflow gate;
-  - merges;
-  - touches secrets, infrastructure or billing.
-
-  For those, the window asks the human in the window and waits. Everything else (continue, drop,
-  answer, accept or decline work, do X in a worktree) proceeds from Discord. This is a rules and
-  skill line, not a guard rule. Its threat note advises Discord 2FA.
+- Commanding the agent and answering its questions both work from Discord: continue, drop, accept,
+  approve, merge, "do X". The owner has 2FA on their Discord account. A future ticketing feature
+  will remove a member whose account is lost (`/mesh remove` already refuses their key today).
+- **The one exception is Claude Code's own permission prompts on the laptop.** They stay local: the
+  mesh never relays tool-approval prompts (a CLAUDE.md principle; `claude/channel/permission` is
+  never declared). An action that prompts on the laptop still waits for the keyboard, and the
+  agent says so in the thread.
+- The policy's existing "escalate to your owner before risky actions" rule now has an answer
+  channel. The owner can answer the escalation from Discord.
+- The threat note records the accepted risk: a hijacked owner Discord account can command that
+  owner's agents within their guard and prompts. The mitigations are 2FA, `/mesh remove`, and the
+  ticketing feature to come.
 
 ### 4.4 Part D: context for a new task
 
@@ -509,9 +509,9 @@ No live hub is needed (my call).
 - **Owner authority comes from the Discord account**, which the hub resolves, and only from the
   owner.
   - No authority follows from an agent's own action, such as who it escalated to.
-  - Its reach is limited by the authority scope (4.3, section 7). Approvals, merges, gates and
-    secrets or infra wait for the keyboard. A hijacked account can't approve laptop permission
-    prompts.
+  - It carries the owner's full authority (4.3, decided by Pratik). A hijacked account is an
+    accepted risk, mitigated by 2FA, `/mesh remove` and future ticketing. A hijacked account still
+    can't approve laptop permission prompts.
   - Channels are readable by the whole server, so secrets never go into replies. Advise 2FA.
   - A decides mark on a message stays with that message. If a Discord id is later reused by
     someone else, old marks are stale; that's theoretical.
@@ -536,21 +536,11 @@ No live hub is needed (my call).
 
 ## 7. Open: Pratik's call, and live checks
 
-**Pratik decides (C):**
+**Decided by Pratik (2026-11-04):**
 
-1. **Authority scope.**
-   - **Option 1 (my recommendation).** Owner-marked Discord messages command the **mesh window**.
-     Approvals, merges, workflow gates and secrets or infra still wait for the keyboard.
-     **Private sessions** treat owner messages as answers or information, and confirm locally
-     before acting.
-   - **Option 2.** An owner-marked message carries the same authority as typing in **any**
-     session.
-2. **Deciders besides the owner.** Should anyone else's answer count as a decision for your agent?
-   For example, the team policy has Aheen decide crucial matters.
-   - **Default (my recommendation): no one.** Their answers are information, and the agent waits
-     for its owner.
-   - **Alternative:** a configured `policy.deciders: [aheen]`, counted only for their answer to an
-     escalation that was addressed to them.
+1. **Authority scope.** An owner-marked Discord message has the owner's full authority in every
+   session, except laptop permission prompts, which never leave the laptop.
+2. **Deciders.** Only the owner, for every agent, with no exceptions and no deciders list.
 
 **Live checks.** Pratik runs these at the keyboard; subagents may not touch `~/.claude`.
 
@@ -587,7 +577,8 @@ No live hub is needed (my call).
 10. **Escalation fix.** The escalation-ping bug is fixed at the root, so escalations stay inside
     the original thread.
 11. **Owner mark.** It is hub-computed and comes only from the owner. No authority follows from
-    the agent's own escalations, which was the security review's Critical finding.
+    the agent's own escalations, which was the security review's Critical finding. Pratik
+    confirmed owner-only, with full authority.
 12. **Local sessions.** The overlap check reads the plugin's own session records and shows counts,
     not paths.
 13. **Handoff notes.** They live in the task description and are redacted in `#insert`. Only a
