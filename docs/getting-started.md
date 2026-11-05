@@ -340,8 +340,8 @@ path.
   you: continue it there, reopen that session with `claude --resume <id>` (it prints the command
   when the hub knows the id), or drop it. If you don't answer within
   `relay.closedAskerEscalationMinutes` (15 by default), the hub pings you on Discord, in the
-  thread, and you can answer there. The window shows these choices when the answer is pushed to
-  it, not when it reads its `inbox`.
+  thread, and you can answer there. The window shows these choices whether the answer is pushed to
+  it or it reads it first with `inbox` or `thread`.
 - `claude --resume` gives the reopened session its threads back when Claude Code keeps the same
   conversation id. That is best effort: it misses if the plugin's MCP server restarted inside a
   long-running Claude Code, and the mesh window still has the answer.

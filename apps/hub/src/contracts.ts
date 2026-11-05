@@ -26,7 +26,7 @@ import type {
   ThreadSummary,
   Trust,
 } from '@agentmesh/protocol';
-import type { ThreadOwner } from './sessions.contracts';
+import type { SessionsService, ThreadOwner } from './sessions.contracts';
 
 /** The sessions module's and the outbox's contracts have their own files, to keep this one small. */
 export type { Outbox } from './outbox.contracts';
@@ -199,6 +199,8 @@ export interface MessagingService {
   classFor(messageId: string, participantId: string): DeliveryClass;
   /** Wired once the sessions module exists: the thread's effective owner session, or null. */
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void;
+  /** Wired likewise: what a session's inbox or thread read shows of a closed asker's thread. */
+  setReleasedReader(reader: SessionsService['readReleased']): void;
 }
 
 // ---------------------------------------------------------------- leases

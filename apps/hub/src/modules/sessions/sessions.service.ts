@@ -23,7 +23,7 @@ import { OrphanDecisions } from './orphans';
 import { claimThread } from './ownership';
 import { recordClaims } from './record-claims';
 import { type RelayTarget, relayFor } from './relay';
-import { releasedMarker, routeInput } from './route-input';
+import { releasedForRead, releasedMarker, routeInput } from './route-input';
 import { chainOwner, type Route, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
 import { type Adopted, adoptAwayWindows, logAdopted } from './takeover';
@@ -162,16 +162,22 @@ export class SessionsServiceImpl implements SessionsService {
 
   /**
    * Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps
-   * it. A closed asker's answer claims nothing; it starts the owner's decision timer, unless the
-   * owner sent it: that is the decision, and it settles a running timer.
+   * it. A closed asker's answer claims nothing; it reached the window (`OrphanDecisions.reached`).
    */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void {
     if (route.kind !== 'deliver') return;
     const threadId = internalId('thread', message.threadId);
-    const byOwner = message.refs.decidesFor?.includes(agentId);
-    if (route.released && byOwner) this.orphans.answered(agentId, threadId);
-    else if (route.released) this.orphans.record(agentId, threadId, route.released.bySession);
+    if (route.released) this.orphans.reached(agentId, threadId, route.released, message);
     if (route.claim) claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
+  }
+
+  /** A window's read of a closed asker's thread: the push's marker; each `handed` item reached. */
+  readReleased(agentId: string, sessionId: string, threadId: number, handed: MeshMessage[]) {
+    return this.#ctx.db.transaction(() => {
+      const released = releasedForRead(this.repo, this.#deps, agentId, sessionId, threadId);
+      if (released) for (const m of handed) this.orphans.reached(agentId, threadId, released, m);
+      return released;
+    });
   }
 
   expire(now: Date) {

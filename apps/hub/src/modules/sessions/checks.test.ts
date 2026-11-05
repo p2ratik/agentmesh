@@ -54,6 +54,20 @@ describe('activation check', () => {
     });
   });
 
+  // 13b R2: the human's off wins over a check still pending.
+  it('refuses a code issued before a deactivate', async () => {
+    const { sessions, session, rpc, codes } = setup();
+    await rpc('session.check', {});
+    await rpc('session.deactivate', {});
+    const activate = rpc('session.activate', {
+      mode: 'push',
+      code: codes().at(-1) ?? '',
+      description: 'billing api',
+    });
+    await expect(activate).rejects.toMatchObject({ code: 'invalid_request' });
+    expect(sessions.verify('alice-agent', session).active).toBe(false);
+  });
+
   it('activates a pull session without a code, and push still needs one', async () => {
     const { transport, session, rpc } = setup();
     const view = await rpc('session.activate', { mode: 'pull', description: 'desktop' });

@@ -49,6 +49,10 @@ export type Route =
 export const ready = (s: RouteSession): boolean =>
   s.active && s.liveness === 'live' && s.delivery === 'push';
 
+/** A mesh window that understands the `released` marker (0.6.0 and later). */
+export const takesReleased = (s: RouteSession): boolean =>
+  s.meshWindow && isAtLeast(s.clientVersion, RELAY_MIN_VERSION);
+
 /** Why a session that holds work cannot take a delivery now. */
 const notReady = (s: RouteSession): string =>
   !s.active ? 'inactive' : s.liveness === 'away' ? 'away' : 'pull';
@@ -118,7 +122,7 @@ export function routeDelivery(input: RouteInput): Route {
 function fallThrough(candidates: RouteSession[], { repo, released }: RouteInput): Route {
   const win = longestActive(candidates.filter((s) => s.meshWindow));
   // Only the longest-active window is checked; relay.ts picks the longest-active 0.6.0+ one.
-  if (win && released && isAtLeast(win.clientVersion, RELAY_MIN_VERSION)) {
+  if (win && released && takesReleased(win)) {
     const reason = `released by closed ${released.bySession}`;
     return { kind: 'deliver', sessionId: win.id, claim: false, reason, released };
   }

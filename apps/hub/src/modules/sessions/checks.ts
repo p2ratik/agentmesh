@@ -22,6 +22,11 @@ export class ActivationChecks {
     return code.join('');
   }
 
+  /** Drops the session's pending code: a deactivate wins over a check still in flight. */
+  forget(sessionId: string): void {
+    this.#codes.delete(sessionId);
+  }
+
   /** Throws unless `code` (trimmed, any case) is the session's latest, at most 10 minutes old. */
   confirm(sessionId: string, code: string, now: number): void {
     const issued = this.#codes.get(sessionId);

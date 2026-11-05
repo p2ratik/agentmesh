@@ -32,6 +32,7 @@ hub:
 
 # People. Their Discord user ids let them run slash commands and reply in threads.
 # (Discord: Settings → Advanced → Developer Mode, then right-click a user → Copy User ID.)
+# Ids: lowercase letters, digits and dashes; `all` is reserved.
 humans:
   - id: alice
     displayName: Alice

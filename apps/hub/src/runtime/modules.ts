@@ -98,6 +98,7 @@ export function buildModules(
   });
   sessions = sessionsModule.service;
   messaging.service.setOwnerReader(ownerReader(sessionsModule.service));
+  messaging.service.setReleasedReader((...read) => sessionsModule.service.readReleased(...read));
   presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
   presence.service.setReadyReader((agentId) => sessionsModule.service.reach(agentId));
   const leases = createLeaseModule(ctx);

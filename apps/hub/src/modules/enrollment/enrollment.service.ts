@@ -209,8 +209,9 @@ export class EnrollmentServiceImpl implements EnrollmentService {
   /** Refuses ids, Discord ids or open invites the team already uses. */
   #assertFree(humanId: string, agentId: string, discordUserId: string, now: string): void {
     const index = this.#ctx.index;
-    if (!isValidParticipantId(agentId) || agentId === humanId) {
-      throw new MeshError('invalid_request', `"${agentId}" is not a usable agent id`);
+    const unusable = [humanId, agentId].find((id) => !isValidParticipantId(id));
+    if (unusable !== undefined || agentId === humanId) {
+      throw new MeshError('invalid_request', `"${unusable ?? agentId}" is not a usable id`);
     }
     for (const id of [humanId, agentId]) {
       if (index.kindOf(id) || id === index.config.hub.serviceId) {

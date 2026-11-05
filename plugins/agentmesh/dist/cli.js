@@ -25599,6 +25599,7 @@ function isMeshError(value) {
 
 // ../../packages/common/src/ids.ts
 var PARTICIPANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+var RESERVED_PARTICIPANT_IDS = ["all"];
 
 // ../../packages/common/src/logger.ts
 var import_pino = __toESM(require_pino(), 1);
@@ -45617,9 +45618,9 @@ var IsoDate = external_exports.string().min(1);
 var IdRef = external_exports.string().max(64);
 var GitRef = external_exports.string().max(300).regex(/^[^\p{Cc}\p{Zl}\p{Zp}]*$/u, "one line, with no control characters");
 var Label = external_exports.string().max(60);
-var ParticipantId = external_exports.string().regex(
-  PARTICIPANT_ID_PATTERN,
-  "lowercase letters, digits and dashes; starts with a letter/digit"
+var ParticipantId = external_exports.string().regex(PARTICIPANT_ID_PATTERN, "lowercase letters, digits and dashes; starts with a letter/digit").refine(
+  (id) => !RESERVED_PARTICIPANT_IDS.includes(id),
+  'reserved: "all" means every participant'
 );
 var ParticipantKind = external_exports.enum(["agent", "human", "service"]);
 var ParticipantRef = external_exports.object({
@@ -46199,6 +46200,50 @@ var leaseMethods = {
   })
 };
 
+// ../../packages/protocol/src/sessions.ts
+var SessionView = external_exports.object({
+  id: SessionId,
+  active: external_exports.boolean(),
+  delivery: DeliveryMode.default("push"),
+  description: external_exports.string().nullable(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  owns: external_exports.array(external_exports.string())
+});
+var MAX_DELIVERY_MESSAGES = 100;
+var CLOSED_ASKER_DEFAULT_MINUTES = 15;
+var ReleasedMarker = external_exports.object({
+  bySession: SessionId,
+  closedAt: IsoDate,
+  claudeSessionId: ClaudeSessionId.nullable()
+});
+var ReadMessage = MeshMessage.extend({ released: ReleasedMarker.optional() });
+var SessionDelivery = MeshMessage.extend({
+  class: DeliveryClass.default("action"),
+  released: ReleasedMarker.optional()
+});
+var SessionRelay = external_exports.object({
+  type: external_exports.literal("relay"),
+  threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
+  messageId: external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/),
+  from: ParticipantId,
+  forSession: SessionId
+});
+var SessionInbound = external_exports.discriminatedUnion("type", [
+  external_exports.object({
+    type: external_exports.literal("deliver"),
+    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
+  }),
+  external_exports.object({ type: external_exports.literal("expired") }),
+  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) }),
+  SessionRelay
+]);
+var SessionAck = external_exports.object({
+  delivered: external_exports.array(external_exports.string()),
+  forwarded: external_exports.boolean().optional(),
+  reason: external_exports.string().max(200).optional()
+});
+
 // ../../packages/protocol/src/rpc/messaging.ts
 var MAX_PEEK_SENDERS = 5;
 var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
@@ -46237,7 +46282,7 @@ var messagingMethods = {
       limit: external_exports.number().int().min(1).max(200).default(50),
       beforeId: IdRef.optional()
     }),
-    result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(MeshMessage) })
+    result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(ReadMessage) })
   }),
   "thread.list": defineMethod({
     description: "List threads, newest activity first.",
@@ -46262,7 +46307,7 @@ var messagingMethods = {
         external_exports.object({
           thread: ThreadSummary,
           unread: external_exports.number().int().nonnegative(),
-          messages: external_exports.array(MeshMessage),
+          messages: external_exports.array(ReadMessage),
           /** True when every unread message in the thread is status for the caller. */
           fyi: external_exports.boolean().default(false)
         })
@@ -46381,49 +46426,6 @@ var planningMethods = {
     result: Plan
   })
 };
-
-// ../../packages/protocol/src/sessions.ts
-var SessionView = external_exports.object({
-  id: SessionId,
-  active: external_exports.boolean(),
-  delivery: DeliveryMode.default("push"),
-  description: external_exports.string().nullable(),
-  repo: external_exports.string().nullable(),
-  branch: external_exports.string().nullable(),
-  owns: external_exports.array(external_exports.string())
-});
-var MAX_DELIVERY_MESSAGES = 100;
-var CLOSED_ASKER_DEFAULT_MINUTES = 15;
-var ReleasedMarker = external_exports.object({
-  bySession: SessionId,
-  closedAt: IsoDate,
-  claudeSessionId: ClaudeSessionId.nullable()
-});
-var SessionDelivery = MeshMessage.extend({
-  class: DeliveryClass.default("action"),
-  released: ReleasedMarker.optional()
-});
-var SessionRelay = external_exports.object({
-  type: external_exports.literal("relay"),
-  threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
-  messageId: external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/),
-  from: ParticipantId,
-  forSession: SessionId
-});
-var SessionInbound = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("deliver"),
-    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
-  }),
-  external_exports.object({ type: external_exports.literal("expired") }),
-  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) }),
-  SessionRelay
-]);
-var SessionAck = external_exports.object({
-  delivered: external_exports.array(external_exports.string()),
-  forwarded: external_exports.boolean().optional(),
-  reason: external_exports.string().max(200).optional()
-});
 
 // ../../packages/protocol/src/rpc/session.ts
 var sessionMethods = {

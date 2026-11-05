@@ -153,7 +153,7 @@ export class SessionDispatcher implements DeliveryPort {
         from: message.from.id,
         forSession,
       });
-      this.#logger.info({ ...log, ...answer }, 'relay pointer sent');
+      this.#logger.info({ ...log, ...answer }, 'relay answered');
     } catch (err) {
       this.#marks.delete(agentId, threadId, forSession);
       this.#logger.warn({ ...log, err }, 'relay pointer failed; the next flush sends it again');

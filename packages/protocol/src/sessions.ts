@@ -38,6 +38,10 @@ export const ReleasedMarker = z.object({
 });
 export type ReleasedMarker = z.infer<typeof ReleasedMarker>;
 
+/** A message as `inbox` or `thread` returns it: `released` when its push would carry the marker. */
+export const ReadMessage = MeshMessage.extend({ released: ReleasedMarker.optional() });
+export type ReadMessage = z.infer<typeof ReadMessage>;
+
 /** A message as delivered to one recipient, with its class for that recipient. */
 export const SessionDelivery = MeshMessage.extend({
   class: DeliveryClass.default('action'),

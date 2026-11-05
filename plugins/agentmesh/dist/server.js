@@ -25462,8 +25462,9 @@ function isMeshError(value) {
 
 // ../../packages/common/src/ids.ts
 var PARTICIPANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+var RESERVED_PARTICIPANT_IDS = ["all"];
 function isValidParticipantId(id) {
-  return PARTICIPANT_ID_PATTERN.test(id);
+  return PARTICIPANT_ID_PATTERN.test(id) && !RESERVED_PARTICIPANT_IDS.includes(id);
 }
 
 // ../../packages/common/src/logger.ts
@@ -25507,9 +25508,6 @@ function isAtLeast(version2, min) {
   }
   return true;
 }
-
-// ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
-import process2 from "node:process";
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -45228,6 +45226,1031 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
+// ../../packages/protocol/src/primitives.ts
+var IsoDate = external_exports.string().min(1);
+var IdRef = external_exports.string().max(64);
+var GitRef = external_exports.string().max(300).regex(/^[^\p{Cc}\p{Zl}\p{Zp}]*$/u, "one line, with no control characters");
+var Label = external_exports.string().max(60);
+var ParticipantId = external_exports.string().regex(PARTICIPANT_ID_PATTERN, "lowercase letters, digits and dashes; starts with a letter/digit").refine(
+  (id) => !RESERVED_PARTICIPANT_IDS.includes(id),
+  'reserved: "all" means every participant'
+);
+var ParticipantKind = external_exports.enum(["agent", "human", "service"]);
+var ParticipantRef = external_exports.object({
+  id: external_exports.string(),
+  kind: ParticipantKind,
+  displayName: external_exports.string()
+});
+var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
+var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
+var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
+var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
+var ClaudeSessionId = external_exports.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+var DeliveryMode = external_exports.enum(["push", "pull"]);
+var SessionSummary = external_exports.object({
+  id: SessionId,
+  delivery: DeliveryMode.default("push"),
+  description: external_exports.string(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  activeSince: IsoDate,
+  /** Started by the mesh window launcher; routing prefers it for team work. */
+  meshWindow: external_exports.boolean().default(false),
+  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
+  liveness: external_exports.enum(["live", "away"]).default("live"),
+  awaySince: IsoDate.nullable().default(null),
+  closesAt: IsoDate.nullable().default(null),
+  tasks: external_exports.array(external_exports.string())
+});
+var PeerInfo = ParticipantRef.extend({
+  owner: external_exports.string().nullable(),
+  status: PresenceStatus,
+  statusNote: external_exports.string().nullable(),
+  lastSeen: IsoDate.nullable(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  skills: external_exports.array(external_exports.string()),
+  areas: external_exports.array(external_exports.string()),
+  activeTasks: external_exports.number().int().nonnegative(),
+  sessions: external_exports.array(SessionSummary).default([])
+});
+var Trust = external_exports.enum(["team", "external"]);
+var Severity = external_exports.enum(["debug", "info", "warning", "error", "critical"]);
+var Priority = external_exports.enum(["low", "normal", "high", "urgent"]);
+var GitPolicy = external_exports.object({
+  integrationBranch: external_exports.string(),
+  protectedBranches: external_exports.array(external_exports.string()),
+  branchTemplate: external_exports.string(),
+  agentsMayMergeInto: external_exports.array(external_exports.string())
+});
+
+// ../../packages/protocol/src/subjects.ts
+var PREFIX_PATTERN = /^[a-z][a-z0-9_-]{0,30}$/;
+function subjects(prefix) {
+  if (!PREFIX_PATTERN.test(prefix)) throw new Error(`Invalid subject prefix "${prefix}"`);
+  return {
+    prefix,
+    rpc: (caller, method) => `${prefix}.rpc.${caller}.${method}`,
+    rpcAll: `${prefix}.rpc.>`,
+    presence: (id) => `${prefix}.presence.${id}`,
+    presenceAll: `${prefix}.presence.*`,
+    event: (type) => `${prefix}.evt.${type}`,
+    eventAll: `${prefix}.evt.>`,
+    ingest: (source) => `${prefix}.ingest.${source}`,
+    ingestAll: `${prefix}.ingest.>`,
+    session: (agentId, sessionId) => `${prefix}.session.${agentId}.${sessionId}`,
+    sessionAll: (agentId) => `${prefix}.session.${agentId}.*`,
+    ack: (agentId, token) => `${prefix}.ack.${agentId}.${token}`,
+    ackAll: (agentId) => `${prefix}.ack.${agentId}.>`
+  };
+}
+var inboxPrefix = (participantId) => `_INBOX_${participantId}`;
+
+// ../../packages/protocol/src/enrollment.ts
+var PublicNkey = external_exports.string().regex(/^U[A-Z2-7]{55}$/, "a NATS user public key (U\u2026)");
+var DiscordUserId = external_exports.string().regex(/^\d{5,25}$/, "a Discord user id");
+var InviteId = external_exports.string().regex(/^inv-[0-9A-Za-z]{1,40}$/, "an invite id (inv-\u2026)");
+var LOOPBACK_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]"]);
+function isSafeInviteUrl(raw) {
+  let url2;
+  try {
+    url2 = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (!url2.hostname || url2.username || url2.password) return false;
+  const scheme = url2.protocol.slice(0, -1);
+  if (scheme === "tls" || scheme === "wss") return true;
+  return (scheme === "nats" || scheme === "ws") && LOOPBACK_HOSTS.has(url2.hostname);
+}
+var InvitePayload = external_exports.object({
+  v: external_exports.literal(1),
+  natsUrl: external_exports.string().max(300).refine(isSafeInviteUrl, "a tls:// or wss:// URL (nats:// and ws:// only for localhost)"),
+  inviteId: InviteId,
+  /**
+   * The agent id the laptop connects as (its reply inbox and RPC subjects need it
+   * before the first connect). A hint only: the hub enrolls the id it stored.
+   */
+  agentId: ParticipantId,
+  /** The mesh subject prefix (`mesh.prefix`). */
+  prefix: external_exports.string().regex(PREFIX_PATTERN),
+  /** 32 random bytes, base64url. The hub stores only its sha256. */
+  secret: external_exports.string().regex(/^[A-Za-z0-9_-]{43}$/, "32 bytes, base64url")
+});
+var MAX_INVITE_CODE_CHARS = 1024;
+function decodeInvite(code) {
+  const trimmed = code.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_INVITE_CODE_CHARS) throw invalidInvite();
+  let json2;
+  try {
+    json2 = JSON.parse(Buffer.from(trimmed, "base64url").toString("utf8"));
+  } catch {
+    throw invalidInvite();
+  }
+  const parsed = InvitePayload.safeParse(json2);
+  if (!parsed.success) throw invalidInvite();
+  return parsed.data;
+}
+var invalidInvite = () => new MeshError("invalid_request", "Not a valid AgentMesh invite code");
+var MemberStatus = external_exports.enum(["active", "revoked"]);
+var MemberRecord = external_exports.object({
+  humanId: ParticipantId,
+  agentId: ParticipantId,
+  displayName: external_exports.string().min(1),
+  discordUserId: DiscordUserId.nullable(),
+  roles: external_exports.array(external_exports.string()),
+  skills: external_exports.array(external_exports.string()),
+  /** The agent's public nkey, generated on the member's laptop. */
+  nkey: PublicNkey,
+  status: MemberStatus,
+  invitedBy: external_exports.string(),
+  joinedAt: IsoDate,
+  removedAt: IsoDate.nullable()
+});
+var OpenInvite = external_exports.object({
+  inviteId: InviteId,
+  humanId: ParticipantId,
+  agentId: ParticipantId,
+  displayName: external_exports.string().min(1),
+  discordUserId: DiscordUserId,
+  invitedBy: external_exports.string(),
+  expiresAt: IsoDate
+});
+var CancelStatus = external_exports.enum([
+  "cancelled",
+  "used",
+  "expired",
+  "already_cancelled",
+  "not_found"
+]);
+
+// ../../packages/protocol/src/ingest.ts
+var IngestEvent = external_exports.object({
+  /** Producer-side id; repeated ids inside the dedup window are dropped. */
+  id: external_exports.string().min(1).max(200).optional(),
+  type: external_exports.string().min(1).max(120).regex(/^[A-Za-z0-9_.:-]+$/, "letters, digits, and _ . : -"),
+  occurredAt: IsoDate.optional(),
+  severity: Severity.default("info"),
+  summary: external_exports.string().max(2e3).optional(),
+  url: external_exports.string().max(2e3).optional(),
+  payload: external_exports.record(external_exports.string(), external_exports.unknown()).default({})
+});
+var StoredIngestEvent = IngestEvent.extend({
+  id: external_exports.string(),
+  source: external_exports.string(),
+  receivedAt: IsoDate
+});
+
+// ../../packages/protocol/src/messages.ts
+var MessageKind = external_exports.enum([
+  "ask",
+  // a question or request that expects an answer
+  "reply",
+  // an answer or status report inside an existing thread
+  "broadcast",
+  // an announcement to several participants
+  "task",
+  // task lifecycle notice (assigned, accepted, blocked, done…)
+  "review",
+  // review requested or submitted
+  "plan",
+  // planning-session traffic (invites, rounds, contributions, results)
+  "escalation",
+  // an agent asking a human
+  "event",
+  // an external event routed in by a rule
+  "system"
+  // hub notice
+]);
+var SendableKind = external_exports.enum(["ask", "reply", "broadcast"]);
+var ReplyStatus = external_exports.enum([
+  "answer",
+  "accepted",
+  "declined",
+  "working",
+  "blocked",
+  "done",
+  "needs_human",
+  "info"
+]);
+var MessageRefs = external_exports.object({
+  taskId: external_exports.string().optional(),
+  planId: external_exports.string().optional(),
+  round: external_exports.string().optional(),
+  prUrl: external_exports.string().optional(),
+  replyTo: external_exports.string().optional(),
+  eventId: external_exports.string().optional(),
+  action: external_exports.string().optional(),
+  verdict: external_exports.string().optional(),
+  repo: external_exports.string().max(200).optional(),
+  /** The sender's pick of the recipient session. */
+  session: external_exports.string().optional(),
+  /** Set by the hub only: the recipient agents whose owner sent this message. */
+  decidesFor: external_exports.array(external_exports.string()).max(50).optional()
+});
+var DeliveryClass = external_exports.enum(["action", "status"]);
+var MeshMessage = external_exports.object({
+  id: external_exports.string(),
+  threadId: external_exports.string(),
+  kind: MessageKind,
+  from: ParticipantRef,
+  to: external_exports.array(external_exports.string()),
+  subject: external_exports.string(),
+  body: external_exports.string(),
+  status: ReplyStatus.nullable(),
+  trust: Trust,
+  depth: external_exports.number().int().nonnegative(),
+  refs: MessageRefs,
+  createdAt: IsoDate
+});
+var ThreadKind = external_exports.enum(["conversation", "task", "planning", "escalation", "event"]);
+var ThreadSummary = external_exports.object({
+  id: external_exports.string(),
+  kind: ThreadKind,
+  subject: external_exports.string(),
+  createdBy: external_exports.string(),
+  createdAt: IsoDate,
+  updatedAt: IsoDate,
+  depth: external_exports.number().int().nonnegative(),
+  parentId: external_exports.string().nullable(),
+  participants: external_exports.array(external_exports.string()),
+  taskId: external_exports.string().nullable(),
+  planId: external_exports.string().nullable(),
+  status: external_exports.enum(["open", "closed"]),
+  messageCount: external_exports.number().int().nonnegative()
+});
+
+// ../../packages/protocol/src/planning.ts
+var PlanState = external_exports.enum([
+  "collecting",
+  // discussion rounds are running
+  "synthesizing",
+  // the facilitator is drafting the plan
+  "awaiting_approval",
+  // a human must approve before tasks are created
+  "materialized",
+  // tasks were created
+  "cancelled",
+  "stalled"
+  // nobody synthesized in time; a human was asked to step in
+]);
+var PlanRound = external_exports.object({
+  id: external_exports.string(),
+  title: external_exports.string(),
+  prompt: external_exports.string(),
+  minutes: external_exports.number().positive()
+});
+var PlanTaskDraft = external_exports.object({
+  /** Local key so drafts can depend on each other before they have task ids. */
+  key: external_exports.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
+  title: external_exports.string().min(3).max(200),
+  description: external_exports.string().max(8e3),
+  // Capped like task.create's params, which these drafts become. The repo is only capped here:
+  // results must still read a plan stored before GitRef refused line breaks (PlanTaskDraftParams).
+  area: IdRef.optional(),
+  repo: external_exports.string().max(300).optional(),
+  assignee: IdRef.optional(),
+  priority: Priority.optional(),
+  labels: external_exports.array(Label).max(20).optional(),
+  dependsOn: external_exports.array(IdRef).max(50).optional(),
+  doneWhen: external_exports.string().max(2e3).optional(),
+  estimateHours: external_exports.number().positive().optional()
+});
+var PlanTaskDraftParams = PlanTaskDraft.extend({ repo: GitRef.optional() });
+var Plan = external_exports.object({
+  id: external_exports.string(),
+  topic: external_exports.string(),
+  state: PlanState,
+  initiator: external_exports.string(),
+  facilitator: external_exports.string(),
+  participants: external_exports.array(external_exports.string()),
+  threadId: external_exports.string(),
+  rounds: external_exports.array(PlanRound),
+  roundIndex: external_exports.number().int().nonnegative(),
+  currentRound: external_exports.string().nullable(),
+  deadline: IsoDate.nullable(),
+  requireApproval: external_exports.boolean(),
+  summary: external_exports.string().nullable(),
+  drafts: external_exports.array(PlanTaskDraft),
+  taskIds: external_exports.array(external_exports.string()),
+  createdAt: IsoDate,
+  updatedAt: IsoDate
+});
+var PlanContribution = external_exports.object({
+  planId: external_exports.string(),
+  round: external_exports.string(),
+  participant: external_exports.string(),
+  body: external_exports.string(),
+  createdAt: IsoDate
+});
+
+// ../../packages/protocol/src/tasks.ts
+var ReviewVerdict = external_exports.enum(["approve", "request_changes", "comment"]);
+var TaskReview = external_exports.object({
+  reviewer: external_exports.string(),
+  verdict: ReviewVerdict,
+  body: external_exports.string(),
+  round: external_exports.number().int().nonnegative(),
+  createdAt: IsoDate
+});
+var Task = external_exports.object({
+  id: external_exports.string(),
+  title: external_exports.string(),
+  description: external_exports.string(),
+  workflow: external_exports.string(),
+  state: external_exports.string(),
+  terminal: external_exports.boolean(),
+  priority: Priority,
+  labels: external_exports.array(external_exports.string()),
+  repo: external_exports.string().nullable(),
+  area: external_exports.string().nullable(),
+  baseBranch: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  prUrl: external_exports.string().nullable(),
+  doneWhen: external_exports.string().nullable(),
+  assignee: external_exports.string().nullable(),
+  reviewers: external_exports.array(external_exports.string()),
+  reviewRound: external_exports.number().int().nonnegative(),
+  createdBy: external_exports.string(),
+  planId: external_exports.string().nullable(),
+  threadId: external_exports.string(),
+  dependsOn: external_exports.array(external_exports.string()),
+  /**
+   * `external` for a task an event rule created: its title and description come from outside
+   * the team. Older hubs send none; `team` reads their tasks as before.
+   */
+  trust: Trust.default("team"),
+  createdAt: IsoDate,
+  updatedAt: IsoDate
+});
+var TaskHistoryEntry = external_exports.object({
+  at: IsoDate,
+  actor: external_exports.string(),
+  action: external_exports.string(),
+  from: external_exports.string().nullable(),
+  to: external_exports.string(),
+  note: external_exports.string().nullable()
+});
+var TaskDetail = Task.extend({
+  history: external_exports.array(TaskHistoryEntry),
+  reviews: external_exports.array(TaskReview),
+  /** Actions the caller may take right now, according to the workflow. */
+  availableActions: external_exports.array(external_exports.string())
+});
+
+// ../../packages/protocol/src/events.ts
+var event = (type, data) => external_exports.object({ id: external_exports.string(), type: external_exports.literal(type), at: IsoDate, data });
+var DomainEvent = external_exports.discriminatedUnion("type", [
+  event("message.created", external_exports.object({ message: MeshMessage, thread: ThreadSummary })),
+  event("thread.created", external_exports.object({ thread: ThreadSummary })),
+  event("task.created", external_exports.object({ task: Task })),
+  event(
+    "task.changed",
+    external_exports.object({
+      task: Task,
+      action: external_exports.string(),
+      from: external_exports.string().nullable(),
+      to: external_exports.string(),
+      actor: external_exports.string(),
+      note: external_exports.string().nullable()
+    })
+  ),
+  event("plan.started", external_exports.object({ plan: Plan })),
+  event(
+    "plan.changed",
+    external_exports.object({
+      plan: Plan,
+      from: PlanState,
+      to: PlanState,
+      round: external_exports.string().nullable()
+    })
+  ),
+  event(
+    "external.received",
+    external_exports.object({ event: StoredIngestEvent, matchedRules: external_exports.array(external_exports.string()) })
+  ),
+  event(
+    "notice.posted",
+    external_exports.object({
+      /** Channel purpose from config (e.g. `alerts`), not a platform channel id. */
+      channel: external_exports.string(),
+      text: external_exports.string(),
+      severity: Severity,
+      /** `external` when the text holds event content. Older hubs send none: read it as external. */
+      trust: Trust.default("external")
+    })
+  ),
+  event("mesh.paused", external_exports.object({ by: external_exports.string(), reason: external_exports.string().nullable() })),
+  event("mesh.resumed", external_exports.object({ by: external_exports.string(), released: external_exports.number().int() })),
+  event("presence.changed", external_exports.object({ peer: PeerInfo })),
+  event("member.joined", external_exports.object({ member: MemberRecord })),
+  event("member.removed", external_exports.object({ member: MemberRecord, by: external_exports.string() }))
+]);
+
+// ../../packages/protocol/src/leases.ts
+var Lease = external_exports.object({
+  id: external_exports.string(),
+  holder: external_exports.string(),
+  repo: external_exports.string().nullable(),
+  path: external_exports.string(),
+  reason: external_exports.string().nullable(),
+  taskId: external_exports.string().nullable(),
+  expiresAt: IsoDate,
+  createdAt: IsoDate
+});
+var LeaseConflict = external_exports.object({
+  requested: external_exports.string(),
+  held: external_exports.string(),
+  holder: external_exports.string(),
+  expiresAt: IsoDate
+});
+
+// ../../packages/protocol/src/rpc/define.ts
+var defineMethod = (def) => def;
+var ANY_CALLER = ["agent", "human", "service"];
+var PARTICIPANTS = ["agent", "human"];
+
+// ../../packages/protocol/src/rpc/admin.ts
+var RefKey = external_exports.object({
+  system: external_exports.string().min(1).max(40),
+  entityType: external_exports.enum(["thread", "task", "plan", "participant"]),
+  entityId: external_exports.string().min(1).max(120)
+});
+var adminMethods = {
+  "mesh.status": defineMethod({
+    description: "Mesh health: pause state, presence and open work counts.",
+    callers: ANY_CALLER,
+    params: external_exports.object({}),
+    result: external_exports.object({
+      name: external_exports.string(),
+      paused: external_exports.boolean(),
+      pausedReason: external_exports.string().nullable(),
+      peers: external_exports.array(PeerInfo),
+      counts: external_exports.object({
+        openThreads: external_exports.number().int(),
+        openTasks: external_exports.number().int(),
+        activePlans: external_exports.number().int(),
+        heldDeliveries: external_exports.number().int()
+      })
+    })
+  }),
+  "mesh.pause": defineMethod({
+    description: "Kill switch: hold every delivery until resumed.",
+    callers: ["human"],
+    requiresRole: "admin",
+    params: external_exports.object({ reason: external_exports.string().max(500).optional() }),
+    result: external_exports.object({ paused: external_exports.literal(true) })
+  }),
+  "mesh.resume": defineMethod({
+    description: "Resume delivery and release held messages.",
+    callers: ["human"],
+    requiresRole: "admin",
+    params: external_exports.object({}),
+    result: external_exports.object({ paused: external_exports.literal(false), released: external_exports.number().int() })
+  }),
+  "refs.set": defineMethod({
+    description: "Bridges only: remember the external id of a mesh entity.",
+    callers: ["service"],
+    params: RefKey.extend({ ref: external_exports.string().min(1).max(200) }),
+    result: external_exports.object({ ok: external_exports.literal(true) })
+  }),
+  "refs.get": defineMethod({
+    description: "Bridges only: look up the external id of a mesh entity.",
+    callers: ["service"],
+    params: RefKey,
+    result: external_exports.object({ ref: external_exports.string().nullable() })
+  }),
+  "refs.find": defineMethod({
+    description: "Bridges only: find the mesh entity behind an external id.",
+    callers: ["service"],
+    params: external_exports.object({ system: external_exports.string().max(40), ref: external_exports.string().max(200) }),
+    result: external_exports.object({
+      entity: external_exports.object({ entityType: external_exports.string(), entityId: external_exports.string() }).nullable()
+    })
+  })
+};
+
+// ../../packages/protocol/src/rpc/enrollment.ts
+var enrollmentMethods = {
+  "enrollment.invite": defineMethod({
+    description: "Create a one-time invite for a new member. The code in the result is a secret: DM it to the invitee, never post or log it.",
+    callers: ["human"],
+    requiresRole: "admin",
+    // The result holds the invite secret: never store it in the idempotency cache.
+    cacheResponse: false,
+    params: external_exports.object({
+      humanId: ParticipantId,
+      displayName: external_exports.string().min(1).max(80),
+      /** The invitee's Discord account, recorded on the member. Redemption does not prove it: the code is a bearer token. */
+      discordUserId: DiscordUserId,
+      roles: external_exports.array(external_exports.string().min(1).max(40)).max(10).default([]),
+      skills: external_exports.array(external_exports.string().min(1).max(40)).max(20).default([]),
+      /** Defaults to `{humanId}-agent`. */
+      agentId: ParticipantId.optional()
+    }),
+    result: external_exports.object({
+      inviteId: InviteId,
+      code: external_exports.string(),
+      humanId: ParticipantId,
+      agentId: ParticipantId,
+      expiresAt: IsoDate
+    })
+  }),
+  "enrollment.cancelInvite": defineMethod({
+    description: "Revoke an unused invite by its id, or a person's latest invite by their human id (a lost or leaked code, an undelivered DM). Idempotent: `status` says what was found.",
+    callers: ["human"],
+    requiresRole: "admin",
+    params: external_exports.union([external_exports.object({ inviteId: InviteId }), external_exports.object({ humanId: ParticipantId })]),
+    result: external_exports.object({
+      cancelled: external_exports.boolean(),
+      status: CancelStatus,
+      /** The invite that was looked at; absent for `not_found`. */
+      inviteId: InviteId.optional()
+    })
+  }),
+  "enrollment.remove": defineMethod({
+    description: "Remove an enrolled member: their agent is disconnected and refused from now on.",
+    callers: ["human"],
+    requiresRole: "admin",
+    params: external_exports.object({ humanId: ParticipantId }),
+    result: external_exports.object({ removed: external_exports.boolean(), agentIds: external_exports.array(ParticipantId) })
+  }),
+  "enrollment.list": defineMethod({
+    description: "Bridges only: every enrolled member (active and revoked), to build their index, and the open invites (no codes).",
+    callers: ["service"],
+    requiresRole: "bridge",
+    params: external_exports.object({}),
+    result: external_exports.object({
+      members: external_exports.array(MemberRecord),
+      invites: external_exports.array(OpenInvite).default([])
+    })
+  })
+};
+
+// ../../packages/protocol/src/rpc/leases.ts
+var leaseMethods = {
+  "lease.acquire": defineMethod({
+    description: "Take advisory leases on path globs before editing a shared area. All-or-nothing: on any conflict nothing is granted and the conflicts are returned.",
+    callers: ["agent"],
+    params: external_exports.object({
+      paths: external_exports.array(external_exports.string().min(1).max(300)).min(1).max(50),
+      repo: GitRef.optional(),
+      ttlMinutes: external_exports.number().positive().max(7 * 24 * 60).optional(),
+      reason: external_exports.string().max(500).optional(),
+      taskId: IdRef.optional()
+    }),
+    result: external_exports.object({ granted: external_exports.array(Lease), conflicts: external_exports.array(LeaseConflict) })
+  }),
+  "lease.release": defineMethod({
+    description: "Release some of your leases, or all of them.",
+    callers: ["agent"],
+    params: external_exports.object({
+      paths: external_exports.array(external_exports.string().max(300)).max(200).optional(),
+      all: external_exports.boolean().default(false)
+    }),
+    result: external_exports.object({ released: external_exports.number().int().nonnegative() })
+  }),
+  "lease.list": defineMethod({
+    description: "List active leases, optionally for one holder or repo.",
+    callers: ANY_CALLER,
+    params: external_exports.object({ holder: IdRef.optional(), repo: GitRef.optional() }),
+    result: external_exports.object({ leases: external_exports.array(Lease) })
+  })
+};
+
+// ../../packages/protocol/src/sessions.ts
+var SessionView = external_exports.object({
+  id: SessionId,
+  active: external_exports.boolean(),
+  delivery: DeliveryMode.default("push"),
+  description: external_exports.string().nullable(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  owns: external_exports.array(external_exports.string())
+});
+var MAX_DELIVERY_MESSAGES = 100;
+var CLOSED_ASKER_DEFAULT_MINUTES = 15;
+var ReleasedMarker = external_exports.object({
+  bySession: SessionId,
+  closedAt: IsoDate,
+  claudeSessionId: ClaudeSessionId.nullable()
+});
+var ReadMessage = MeshMessage.extend({ released: ReleasedMarker.optional() });
+var SessionDelivery = MeshMessage.extend({
+  class: DeliveryClass.default("action"),
+  released: ReleasedMarker.optional()
+});
+var SessionRelay = external_exports.object({
+  type: external_exports.literal("relay"),
+  threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
+  messageId: external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/),
+  from: ParticipantId,
+  forSession: SessionId
+});
+var SessionInbound = external_exports.discriminatedUnion("type", [
+  external_exports.object({
+    type: external_exports.literal("deliver"),
+    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
+  }),
+  external_exports.object({ type: external_exports.literal("expired") }),
+  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) }),
+  SessionRelay
+]);
+var SessionAck = external_exports.object({
+  delivered: external_exports.array(external_exports.string()),
+  forwarded: external_exports.boolean().optional(),
+  reason: external_exports.string().max(200).optional()
+});
+
+// ../../packages/protocol/src/rpc/messaging.ts
+var MAX_PEEK_SENDERS = 5;
+var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
+var messagingMethods = {
+  "message.send": defineMethod({
+    description: "Start a thread (pass `to`) or post into one (pass `threadId`). Posting into a thread delivers to every participant except the sender; `to` also adds participants.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({
+      kind: SendableKind,
+      body: external_exports.string().min(1).max(32e3),
+      to: Recipients.optional(),
+      threadId: IdRef.optional(),
+      /** Thread that caused this one; drives loop protection. */
+      parentThreadId: IdRef.optional(),
+      subject: external_exports.string().max(200).optional(),
+      status: ReplyStatus.optional(),
+      prUrl: external_exports.string().max(500).optional(),
+      taskId: IdRef.optional(),
+      toSession: IdRef.optional(),
+      repo: GitRef.optional()
+    }).refine((p) => p.to !== void 0 || p.threadId !== void 0, {
+      message: "Pass `to` to start a thread or `threadId` to reply in one."
+    }),
+    result: external_exports.object({
+      messageId: external_exports.string(),
+      threadId: external_exports.string(),
+      deliveredTo: external_exports.array(external_exports.string()),
+      held: external_exports.boolean()
+    })
+  }),
+  "thread.get": defineMethod({
+    description: "Fetch a thread and its most recent messages (oldest first).",
+    callers: ANY_CALLER,
+    params: external_exports.object({
+      threadId: IdRef,
+      limit: external_exports.number().int().min(1).max(200).default(50),
+      beforeId: IdRef.optional()
+    }),
+    result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(ReadMessage) })
+  }),
+  "thread.list": defineMethod({
+    description: "List threads, newest activity first.",
+    callers: ANY_CALLER,
+    params: external_exports.object({
+      participant: IdRef.optional(),
+      kind: ThreadKind.optional(),
+      openOnly: external_exports.boolean().default(true),
+      limit: external_exports.number().int().min(1).max(100).default(20)
+    }),
+    result: external_exports.object({ threads: external_exports.array(ThreadSummary) })
+  }),
+  "inbox.get": defineMethod({
+    description: "Threads with messages you have not seen yet, with those messages. Returning them marks them read. Channel pushes are best-effort, so this is the source of truth.",
+    callers: ["agent"],
+    params: external_exports.object({
+      limit: external_exports.number().int().min(1).max(50).default(20),
+      perThread: external_exports.number().int().min(1).max(20).default(5)
+    }),
+    result: external_exports.object({
+      threads: external_exports.array(
+        external_exports.object({
+          thread: ThreadSummary,
+          unread: external_exports.number().int().nonnegative(),
+          messages: external_exports.array(ReadMessage),
+          /** True when every unread message in the thread is status for the caller. */
+          fyi: external_exports.boolean().default(false)
+        })
+      ),
+      remainingThreads: external_exports.number().int().nonnegative(),
+      /** Unread threads owned by the agent's other sessions (left unread here), for `take`. */
+      otherSessions: external_exports.array(
+        external_exports.object({
+          threadId: external_exports.string(),
+          sessionId: external_exports.string(),
+          liveness: external_exports.enum(["live", "away"])
+        })
+      ).default([]),
+      /** Unread unowned threads this session may not take (not active, or a push session is ready). */
+      waiting: external_exports.number().int().nonnegative().default(0),
+      /** True while the mesh is paused (the inbox is held). */
+      paused: external_exports.boolean().default(false)
+    })
+  }),
+  "inbox.peek": defineMethod({
+    description: "Counts what `inbox.get` would return for this session, without marking anything read: unread threads, how many need action, recent senders and whether any is external.",
+    callers: ["agent"],
+    params: external_exports.object({}),
+    result: external_exports.object({
+      threads: external_exports.number().int().nonnegative(),
+      /** Threads with an unread action item (the rest are FYI only). */
+      actions: external_exports.number().int().nonnegative(),
+      /** Distinct sender ids of the unread messages, newest first. */
+      from: external_exports.array(external_exports.string()).max(MAX_PEEK_SENDERS),
+      external: external_exports.boolean(),
+      /** Unread unowned threads this session may not take; not counted in `threads`. */
+      waiting: external_exports.number().int().nonnegative().default(0)
+    })
+  }),
+  "messages.seen": defineMethod({
+    description: "Mark messages you have read (e.g. FYI items shown in a session) as seen.",
+    callers: ["agent"],
+    params: external_exports.object({ messageIds: external_exports.array(IdRef).min(1).max(500) }),
+    result: external_exports.object({ ok: external_exports.literal(true) })
+  }),
+  "thread.close": defineMethod({
+    description: "Close a conversation thread you participate in.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({ threadId: IdRef }),
+    result: ThreadSummary
+  }),
+  escalate: defineMethod({
+    description: "Ask a human (your owner by default) a question; they are pinged in Discord.",
+    callers: ["agent"],
+    params: external_exports.object({
+      question: external_exports.string().min(1).max(8e3),
+      to: IdRef.optional(),
+      threadId: IdRef.optional(),
+      taskId: IdRef.optional(),
+      urgent: external_exports.boolean().default(false)
+    }),
+    result: external_exports.object({ threadId: external_exports.string(), messageId: external_exports.string() })
+  })
+};
+
+// ../../packages/protocol/src/rpc/planning.ts
+var planningMethods = {
+  "plan.start": defineMethod({
+    description: "Start a team planning session: every participant proposes, then discusses, then the facilitator synthesizes a plan that becomes tasks.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({
+      topic: external_exports.string().min(3).max(4e3),
+      participants: external_exports.array(IdRef).max(50).optional(),
+      facilitator: IdRef.optional(),
+      roundMinutes: external_exports.number().positive().max(24 * 60).optional(),
+      template: IdRef.optional()
+    }),
+    result: Plan
+  }),
+  "plan.get": defineMethod({
+    description: "Fetch a plan with every contribution so far.",
+    callers: ANY_CALLER,
+    params: external_exports.object({ planId: IdRef }),
+    result: external_exports.object({ plan: Plan, contributions: external_exports.array(PlanContribution) })
+  }),
+  "plan.list": defineMethod({
+    description: "List planning sessions, newest first.",
+    callers: ANY_CALLER,
+    params: external_exports.object({
+      state: external_exports.array(PlanState).max(10).optional(),
+      limit: external_exports.number().int().min(1).max(100).default(20)
+    }),
+    result: external_exports.object({ plans: external_exports.array(Plan) })
+  }),
+  "plan.contribute": defineMethod({
+    description: "Add your contribution to the current round of a planning session.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({ planId: IdRef, body: external_exports.string().min(1).max(32e3) }),
+    result: external_exports.object({ round: external_exports.string(), roundComplete: external_exports.boolean() })
+  }),
+  "plan.submit": defineMethod({
+    description: "Facilitator only: submit the final plan as a summary plus task drafts.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({
+      planId: IdRef,
+      summary: external_exports.string().min(1).max(32e3),
+      tasks: external_exports.array(PlanTaskDraftParams).min(1).max(100)
+    }),
+    result: Plan
+  }),
+  "plan.approve": defineMethod({
+    description: "Approve a plan that is awaiting approval; its tasks are created and assigned.",
+    callers: ["human"],
+    params: external_exports.object({ planId: IdRef }),
+    result: Plan
+  }),
+  "plan.cancel": defineMethod({
+    description: "Cancel a planning session.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({ planId: IdRef, reason: external_exports.string().max(2e3).optional() }),
+    result: Plan
+  })
+};
+
+// ../../packages/protocol/src/rpc/session.ts
+var sessionMethods = {
+  "session.hello": defineMethod({
+    description: "Register a connected agent session and fetch team policy.",
+    callers: ["agent", "service"],
+    params: external_exports.object({
+      clientVersion: external_exports.string().max(32),
+      repo: GitRef.optional(),
+      branch: GitRef.optional(),
+      /** This process's session before a reconnect: reused if still open, else reclaimed from. */
+      previousSessionId: SessionId.optional(),
+      /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
+      meshWindow: external_exports.boolean().optional(),
+      /** Claude Code's conversation id, from the SessionStart hook: the hub resumes its closed session. */
+      claudeSessionId: ClaudeSessionId.optional()
+    }),
+    result: external_exports.object({
+      self: PeerInfo,
+      mesh: external_exports.object({ name: external_exports.string(), prefix: external_exports.string() }),
+      policy: external_exports.object({
+        instructions: external_exports.string(),
+        git: GitPolicy,
+        /** `relay.closedAskerEscalationMinutes`; older hubs don't send it. */
+        closedAskerEscalationMinutes: external_exports.number().int().positive().default(CLOSED_ASKER_DEFAULT_MINUTES)
+      }),
+      /** Threads with messages this agent has not read yet (see `inbox.get`). */
+      unreadThreads: external_exports.number().int().nonnegative(),
+      /** The hub-issued id this session sends on every call. */
+      sessionId: SessionId,
+      /** Thread keys taken back from the previous session because nobody else took them. */
+      reclaimed: external_exports.array(external_exports.string())
+    })
+  }),
+  "session.bye": defineMethod({
+    description: "Mark the calling session offline.",
+    callers: ["agent", "service"],
+    params: external_exports.object({}),
+    result: external_exports.object({ ok: external_exports.literal(true) })
+  }),
+  "session.check": defineMethod({
+    description: "Send this session a test message with an activation code, over its session subject.",
+    callers: ["agent"],
+    params: external_exports.object({}),
+    result: external_exports.object({ ok: external_exports.literal(true) })
+  }),
+  "session.activate": defineMethod({
+    description: "Make this session one that receives work: the code from its check and a short description. In `pull` mode (no channel flag) no code is needed and nothing is pushed: it reads with inbox.",
+    callers: ["agent"],
+    params: external_exports.object({
+      mode: DeliveryMode.default("push"),
+      code: external_exports.string().min(1).max(20).optional(),
+      description: external_exports.string().min(1).max(200)
+    }).refine((p) => p.mode === "pull" || p.code !== void 0, {
+      message: 'Pass the code from the test message, or mode "pull".'
+    }),
+    result: SessionView
+  }),
+  "session.deactivate": defineMethod({
+    description: "Stop receiving work in this session.",
+    callers: ["agent"],
+    params: external_exports.object({}),
+    result: SessionView
+  }),
+  "session.describe": defineMethod({
+    description: "Change this session description.",
+    callers: ["agent"],
+    params: external_exports.object({ description: external_exports.string().min(1).max(200) }),
+    result: SessionView
+  }),
+  "session.take": defineMethod({
+    description: "Take over a thread or task from the session that owns it.",
+    callers: ["agent"],
+    params: external_exports.object({ threadId: IdRef.optional(), taskId: IdRef.optional() }).refine((p) => p.threadId === void 0 !== (p.taskId === void 0), {
+      message: "Pass exactly one of `threadId` and `taskId`."
+    }),
+    result: external_exports.object({ threadId: external_exports.string(), previousSession: external_exports.string().nullable() })
+  }),
+  "presence.set": defineMethod({
+    description: "Declare your status (online, busy, away) with an optional note.",
+    callers: ["agent"],
+    params: external_exports.object({
+      status: DeclaredStatus,
+      note: external_exports.string().max(200).optional(),
+      repo: GitRef.optional(),
+      branch: GitRef.optional()
+    }),
+    result: PeerInfo
+  }),
+  "peers.list": defineMethod({
+    description: "List every participant with presence and current load.",
+    callers: ANY_CALLER,
+    params: external_exports.object({ kind: external_exports.enum(["agent", "human", "all"]).default("all") }),
+    result: external_exports.object({ peers: external_exports.array(PeerInfo) })
+  })
+};
+
+// ../../packages/protocol/src/rpc/tasks.ts
+var TaskCreateParams = external_exports.object({
+  title: external_exports.string().min(3).max(200),
+  description: external_exports.string().max(16e3).default(""),
+  repo: GitRef.optional(),
+  area: IdRef.optional(),
+  assignee: IdRef.optional(),
+  priority: Priority.default("normal"),
+  labels: external_exports.array(Label).max(20).default([]),
+  doneWhen: external_exports.string().max(2e3).optional(),
+  dependsOn: external_exports.array(IdRef).max(50).default([]),
+  baseBranch: GitRef.optional(),
+  workflow: IdRef.optional(),
+  parentThreadId: IdRef.optional()
+});
+var taskMethods = {
+  "task.create": defineMethod({
+    description: "Create a task. Without an assignee the hub routes it by area ownership and load.",
+    callers: ANY_CALLER,
+    params: TaskCreateParams,
+    result: TaskDetail
+  }),
+  "task.get": defineMethod({
+    description: "Fetch a task with its history, reviews and the actions you can take.",
+    callers: ANY_CALLER,
+    params: external_exports.object({ taskId: IdRef }),
+    result: TaskDetail
+  }),
+  "task.list": defineMethod({
+    description: 'List tasks. `assignee: "me"` means the caller; `unassigned` lists the board.',
+    callers: ANY_CALLER,
+    params: external_exports.object({
+      assignee: IdRef.optional(),
+      state: external_exports.array(IdRef).max(20).optional(),
+      area: IdRef.optional(),
+      planId: IdRef.optional(),
+      includeTerminal: external_exports.boolean().default(false),
+      limit: external_exports.number().int().min(1).max(200).default(50)
+    }),
+    result: external_exports.object({ tasks: external_exports.array(Task) })
+  }),
+  "task.act": defineMethod({
+    description: "Apply a workflow action (accept, decline, start, block, unblock, submit, complete, handoff, claim, cancel\u2026). Valid actions depend on the workflow and current state.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({
+      taskId: IdRef,
+      action: external_exports.string().min(1).max(60),
+      note: external_exports.string().max(8e3).optional(),
+      prUrl: external_exports.string().max(500).optional(),
+      /** The PR's branch, with `submit`: a reviewer's mesh window diffs it. */
+      branch: GitRef.optional(),
+      /** Target participant for `handoff` / `assign`. */
+      to: IdRef.optional()
+    }),
+    result: TaskDetail
+  }),
+  "review.request": defineMethod({
+    description: "Ask for a review of a pull request; creates a review task and picks reviewers.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({
+      prUrl: external_exports.string().min(1).max(500),
+      title: external_exports.string().max(200).optional(),
+      focus: external_exports.string().max(4e3).optional(),
+      reviewers: external_exports.array(IdRef).max(5).optional(),
+      repo: GitRef.optional(),
+      /** The PR's branch, shown to the reviewers. */
+      branch: GitRef.optional(),
+      area: IdRef.optional()
+    }),
+    result: TaskDetail
+  }),
+  "review.submit": defineMethod({
+    description: "Submit your review verdict for a task you were asked to review.",
+    callers: PARTICIPANTS,
+    params: external_exports.object({
+      taskId: IdRef,
+      verdict: ReviewVerdict,
+      body: external_exports.string().min(1).max(16e3)
+    }),
+    result: TaskDetail
+  })
+};
+
+// ../../packages/protocol/src/rpc/envelope.ts
+var PROTOCOL_VERSION = 1;
+var RpcRequestEnvelope = external_exports.object({
+  v: external_exports.literal(PROTOCOL_VERSION),
+  params: external_exports.unknown(),
+  /** Honored only for services allowed to act on behalf of humans. */
+  actAs: external_exports.string().max(64).optional(),
+  /** Retrying a request with the same key returns the original result. */
+  idempotencyKey: external_exports.string().min(1).max(120).optional(),
+  /** Calling session id; the hub validates it against the caller's live sessions. */
+  session: external_exports.string().max(64).optional()
+});
+
+// ../../packages/protocol/src/rpc/index.ts
+var RPC_METHODS = {
+  ...sessionMethods,
+  ...messagingMethods,
+  ...taskMethods,
+  ...planningMethods,
+  ...leaseMethods,
+  ...adminMethods,
+  ...enrollmentMethods
+};
+
+// ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+import process2 from "node:process";
+
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
@@ -46856,1027 +47879,6 @@ import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:f
 import { homedir as homedir3 } from "node:os";
 import { join as join3 } from "node:path";
 
-// ../../packages/protocol/src/primitives.ts
-var IsoDate = external_exports.string().min(1);
-var IdRef = external_exports.string().max(64);
-var GitRef = external_exports.string().max(300).regex(/^[^\p{Cc}\p{Zl}\p{Zp}]*$/u, "one line, with no control characters");
-var Label = external_exports.string().max(60);
-var ParticipantId = external_exports.string().regex(
-  PARTICIPANT_ID_PATTERN,
-  "lowercase letters, digits and dashes; starts with a letter/digit"
-);
-var ParticipantKind = external_exports.enum(["agent", "human", "service"]);
-var ParticipantRef = external_exports.object({
-  id: external_exports.string(),
-  kind: ParticipantKind,
-  displayName: external_exports.string()
-});
-var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
-var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
-var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
-var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
-var ClaudeSessionId = external_exports.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-var DeliveryMode = external_exports.enum(["push", "pull"]);
-var SessionSummary = external_exports.object({
-  id: SessionId,
-  delivery: DeliveryMode.default("push"),
-  description: external_exports.string(),
-  repo: external_exports.string().nullable(),
-  branch: external_exports.string().nullable(),
-  activeSince: IsoDate,
-  /** Started by the mesh window launcher; routing prefers it for team work. */
-  meshWindow: external_exports.boolean().default(false),
-  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
-  liveness: external_exports.enum(["live", "away"]).default("live"),
-  awaySince: IsoDate.nullable().default(null),
-  closesAt: IsoDate.nullable().default(null),
-  tasks: external_exports.array(external_exports.string())
-});
-var PeerInfo = ParticipantRef.extend({
-  owner: external_exports.string().nullable(),
-  status: PresenceStatus,
-  statusNote: external_exports.string().nullable(),
-  lastSeen: IsoDate.nullable(),
-  repo: external_exports.string().nullable(),
-  branch: external_exports.string().nullable(),
-  skills: external_exports.array(external_exports.string()),
-  areas: external_exports.array(external_exports.string()),
-  activeTasks: external_exports.number().int().nonnegative(),
-  sessions: external_exports.array(SessionSummary).default([])
-});
-var Trust = external_exports.enum(["team", "external"]);
-var Severity = external_exports.enum(["debug", "info", "warning", "error", "critical"]);
-var Priority = external_exports.enum(["low", "normal", "high", "urgent"]);
-var GitPolicy = external_exports.object({
-  integrationBranch: external_exports.string(),
-  protectedBranches: external_exports.array(external_exports.string()),
-  branchTemplate: external_exports.string(),
-  agentsMayMergeInto: external_exports.array(external_exports.string())
-});
-
-// ../../packages/protocol/src/subjects.ts
-var PREFIX_PATTERN = /^[a-z][a-z0-9_-]{0,30}$/;
-function subjects(prefix) {
-  if (!PREFIX_PATTERN.test(prefix)) throw new Error(`Invalid subject prefix "${prefix}"`);
-  return {
-    prefix,
-    rpc: (caller, method) => `${prefix}.rpc.${caller}.${method}`,
-    rpcAll: `${prefix}.rpc.>`,
-    presence: (id) => `${prefix}.presence.${id}`,
-    presenceAll: `${prefix}.presence.*`,
-    event: (type) => `${prefix}.evt.${type}`,
-    eventAll: `${prefix}.evt.>`,
-    ingest: (source) => `${prefix}.ingest.${source}`,
-    ingestAll: `${prefix}.ingest.>`,
-    session: (agentId, sessionId) => `${prefix}.session.${agentId}.${sessionId}`,
-    sessionAll: (agentId) => `${prefix}.session.${agentId}.*`,
-    ack: (agentId, token) => `${prefix}.ack.${agentId}.${token}`,
-    ackAll: (agentId) => `${prefix}.ack.${agentId}.>`
-  };
-}
-var inboxPrefix = (participantId) => `_INBOX_${participantId}`;
-
-// ../../packages/protocol/src/enrollment.ts
-var PublicNkey = external_exports.string().regex(/^U[A-Z2-7]{55}$/, "a NATS user public key (U\u2026)");
-var DiscordUserId = external_exports.string().regex(/^\d{5,25}$/, "a Discord user id");
-var InviteId = external_exports.string().regex(/^inv-[0-9A-Za-z]{1,40}$/, "an invite id (inv-\u2026)");
-var LOOPBACK_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]"]);
-function isSafeInviteUrl(raw) {
-  let url2;
-  try {
-    url2 = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (!url2.hostname || url2.username || url2.password) return false;
-  const scheme = url2.protocol.slice(0, -1);
-  if (scheme === "tls" || scheme === "wss") return true;
-  return (scheme === "nats" || scheme === "ws") && LOOPBACK_HOSTS.has(url2.hostname);
-}
-var InvitePayload = external_exports.object({
-  v: external_exports.literal(1),
-  natsUrl: external_exports.string().max(300).refine(isSafeInviteUrl, "a tls:// or wss:// URL (nats:// and ws:// only for localhost)"),
-  inviteId: InviteId,
-  /**
-   * The agent id the laptop connects as (its reply inbox and RPC subjects need it
-   * before the first connect). A hint only: the hub enrolls the id it stored.
-   */
-  agentId: ParticipantId,
-  /** The mesh subject prefix (`mesh.prefix`). */
-  prefix: external_exports.string().regex(PREFIX_PATTERN),
-  /** 32 random bytes, base64url. The hub stores only its sha256. */
-  secret: external_exports.string().regex(/^[A-Za-z0-9_-]{43}$/, "32 bytes, base64url")
-});
-var MAX_INVITE_CODE_CHARS = 1024;
-function decodeInvite(code) {
-  const trimmed = code.trim();
-  if (trimmed.length === 0 || trimmed.length > MAX_INVITE_CODE_CHARS) throw invalidInvite();
-  let json2;
-  try {
-    json2 = JSON.parse(Buffer.from(trimmed, "base64url").toString("utf8"));
-  } catch {
-    throw invalidInvite();
-  }
-  const parsed = InvitePayload.safeParse(json2);
-  if (!parsed.success) throw invalidInvite();
-  return parsed.data;
-}
-var invalidInvite = () => new MeshError("invalid_request", "Not a valid AgentMesh invite code");
-var MemberStatus = external_exports.enum(["active", "revoked"]);
-var MemberRecord = external_exports.object({
-  humanId: ParticipantId,
-  agentId: ParticipantId,
-  displayName: external_exports.string().min(1),
-  discordUserId: DiscordUserId.nullable(),
-  roles: external_exports.array(external_exports.string()),
-  skills: external_exports.array(external_exports.string()),
-  /** The agent's public nkey, generated on the member's laptop. */
-  nkey: PublicNkey,
-  status: MemberStatus,
-  invitedBy: external_exports.string(),
-  joinedAt: IsoDate,
-  removedAt: IsoDate.nullable()
-});
-var OpenInvite = external_exports.object({
-  inviteId: InviteId,
-  humanId: ParticipantId,
-  agentId: ParticipantId,
-  displayName: external_exports.string().min(1),
-  discordUserId: DiscordUserId,
-  invitedBy: external_exports.string(),
-  expiresAt: IsoDate
-});
-var CancelStatus = external_exports.enum([
-  "cancelled",
-  "used",
-  "expired",
-  "already_cancelled",
-  "not_found"
-]);
-
-// ../../packages/protocol/src/ingest.ts
-var IngestEvent = external_exports.object({
-  /** Producer-side id; repeated ids inside the dedup window are dropped. */
-  id: external_exports.string().min(1).max(200).optional(),
-  type: external_exports.string().min(1).max(120).regex(/^[A-Za-z0-9_.:-]+$/, "letters, digits, and _ . : -"),
-  occurredAt: IsoDate.optional(),
-  severity: Severity.default("info"),
-  summary: external_exports.string().max(2e3).optional(),
-  url: external_exports.string().max(2e3).optional(),
-  payload: external_exports.record(external_exports.string(), external_exports.unknown()).default({})
-});
-var StoredIngestEvent = IngestEvent.extend({
-  id: external_exports.string(),
-  source: external_exports.string(),
-  receivedAt: IsoDate
-});
-
-// ../../packages/protocol/src/messages.ts
-var MessageKind = external_exports.enum([
-  "ask",
-  // a question or request that expects an answer
-  "reply",
-  // an answer or status report inside an existing thread
-  "broadcast",
-  // an announcement to several participants
-  "task",
-  // task lifecycle notice (assigned, accepted, blocked, done…)
-  "review",
-  // review requested or submitted
-  "plan",
-  // planning-session traffic (invites, rounds, contributions, results)
-  "escalation",
-  // an agent asking a human
-  "event",
-  // an external event routed in by a rule
-  "system"
-  // hub notice
-]);
-var SendableKind = external_exports.enum(["ask", "reply", "broadcast"]);
-var ReplyStatus = external_exports.enum([
-  "answer",
-  "accepted",
-  "declined",
-  "working",
-  "blocked",
-  "done",
-  "needs_human",
-  "info"
-]);
-var MessageRefs = external_exports.object({
-  taskId: external_exports.string().optional(),
-  planId: external_exports.string().optional(),
-  round: external_exports.string().optional(),
-  prUrl: external_exports.string().optional(),
-  replyTo: external_exports.string().optional(),
-  eventId: external_exports.string().optional(),
-  action: external_exports.string().optional(),
-  verdict: external_exports.string().optional(),
-  repo: external_exports.string().max(200).optional(),
-  /** The sender's pick of the recipient session. */
-  session: external_exports.string().optional(),
-  /** Set by the hub only: the recipient agents whose owner sent this message. */
-  decidesFor: external_exports.array(external_exports.string()).max(50).optional()
-});
-var DeliveryClass = external_exports.enum(["action", "status"]);
-var MeshMessage = external_exports.object({
-  id: external_exports.string(),
-  threadId: external_exports.string(),
-  kind: MessageKind,
-  from: ParticipantRef,
-  to: external_exports.array(external_exports.string()),
-  subject: external_exports.string(),
-  body: external_exports.string(),
-  status: ReplyStatus.nullable(),
-  trust: Trust,
-  depth: external_exports.number().int().nonnegative(),
-  refs: MessageRefs,
-  createdAt: IsoDate
-});
-var ThreadKind = external_exports.enum(["conversation", "task", "planning", "escalation", "event"]);
-var ThreadSummary = external_exports.object({
-  id: external_exports.string(),
-  kind: ThreadKind,
-  subject: external_exports.string(),
-  createdBy: external_exports.string(),
-  createdAt: IsoDate,
-  updatedAt: IsoDate,
-  depth: external_exports.number().int().nonnegative(),
-  parentId: external_exports.string().nullable(),
-  participants: external_exports.array(external_exports.string()),
-  taskId: external_exports.string().nullable(),
-  planId: external_exports.string().nullable(),
-  status: external_exports.enum(["open", "closed"]),
-  messageCount: external_exports.number().int().nonnegative()
-});
-
-// ../../packages/protocol/src/planning.ts
-var PlanState = external_exports.enum([
-  "collecting",
-  // discussion rounds are running
-  "synthesizing",
-  // the facilitator is drafting the plan
-  "awaiting_approval",
-  // a human must approve before tasks are created
-  "materialized",
-  // tasks were created
-  "cancelled",
-  "stalled"
-  // nobody synthesized in time; a human was asked to step in
-]);
-var PlanRound = external_exports.object({
-  id: external_exports.string(),
-  title: external_exports.string(),
-  prompt: external_exports.string(),
-  minutes: external_exports.number().positive()
-});
-var PlanTaskDraft = external_exports.object({
-  /** Local key so drafts can depend on each other before they have task ids. */
-  key: external_exports.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
-  title: external_exports.string().min(3).max(200),
-  description: external_exports.string().max(8e3),
-  // Capped like task.create's params, which these drafts become. The repo is only capped here:
-  // results must still read a plan stored before GitRef refused line breaks (PlanTaskDraftParams).
-  area: IdRef.optional(),
-  repo: external_exports.string().max(300).optional(),
-  assignee: IdRef.optional(),
-  priority: Priority.optional(),
-  labels: external_exports.array(Label).max(20).optional(),
-  dependsOn: external_exports.array(IdRef).max(50).optional(),
-  doneWhen: external_exports.string().max(2e3).optional(),
-  estimateHours: external_exports.number().positive().optional()
-});
-var PlanTaskDraftParams = PlanTaskDraft.extend({ repo: GitRef.optional() });
-var Plan = external_exports.object({
-  id: external_exports.string(),
-  topic: external_exports.string(),
-  state: PlanState,
-  initiator: external_exports.string(),
-  facilitator: external_exports.string(),
-  participants: external_exports.array(external_exports.string()),
-  threadId: external_exports.string(),
-  rounds: external_exports.array(PlanRound),
-  roundIndex: external_exports.number().int().nonnegative(),
-  currentRound: external_exports.string().nullable(),
-  deadline: IsoDate.nullable(),
-  requireApproval: external_exports.boolean(),
-  summary: external_exports.string().nullable(),
-  drafts: external_exports.array(PlanTaskDraft),
-  taskIds: external_exports.array(external_exports.string()),
-  createdAt: IsoDate,
-  updatedAt: IsoDate
-});
-var PlanContribution = external_exports.object({
-  planId: external_exports.string(),
-  round: external_exports.string(),
-  participant: external_exports.string(),
-  body: external_exports.string(),
-  createdAt: IsoDate
-});
-
-// ../../packages/protocol/src/tasks.ts
-var ReviewVerdict = external_exports.enum(["approve", "request_changes", "comment"]);
-var TaskReview = external_exports.object({
-  reviewer: external_exports.string(),
-  verdict: ReviewVerdict,
-  body: external_exports.string(),
-  round: external_exports.number().int().nonnegative(),
-  createdAt: IsoDate
-});
-var Task = external_exports.object({
-  id: external_exports.string(),
-  title: external_exports.string(),
-  description: external_exports.string(),
-  workflow: external_exports.string(),
-  state: external_exports.string(),
-  terminal: external_exports.boolean(),
-  priority: Priority,
-  labels: external_exports.array(external_exports.string()),
-  repo: external_exports.string().nullable(),
-  area: external_exports.string().nullable(),
-  baseBranch: external_exports.string().nullable(),
-  branch: external_exports.string().nullable(),
-  prUrl: external_exports.string().nullable(),
-  doneWhen: external_exports.string().nullable(),
-  assignee: external_exports.string().nullable(),
-  reviewers: external_exports.array(external_exports.string()),
-  reviewRound: external_exports.number().int().nonnegative(),
-  createdBy: external_exports.string(),
-  planId: external_exports.string().nullable(),
-  threadId: external_exports.string(),
-  dependsOn: external_exports.array(external_exports.string()),
-  /**
-   * `external` for a task an event rule created: its title and description come from outside
-   * the team. Older hubs send none; `team` reads their tasks as before.
-   */
-  trust: Trust.default("team"),
-  createdAt: IsoDate,
-  updatedAt: IsoDate
-});
-var TaskHistoryEntry = external_exports.object({
-  at: IsoDate,
-  actor: external_exports.string(),
-  action: external_exports.string(),
-  from: external_exports.string().nullable(),
-  to: external_exports.string(),
-  note: external_exports.string().nullable()
-});
-var TaskDetail = Task.extend({
-  history: external_exports.array(TaskHistoryEntry),
-  reviews: external_exports.array(TaskReview),
-  /** Actions the caller may take right now, according to the workflow. */
-  availableActions: external_exports.array(external_exports.string())
-});
-
-// ../../packages/protocol/src/events.ts
-var event = (type, data) => external_exports.object({ id: external_exports.string(), type: external_exports.literal(type), at: IsoDate, data });
-var DomainEvent = external_exports.discriminatedUnion("type", [
-  event("message.created", external_exports.object({ message: MeshMessage, thread: ThreadSummary })),
-  event("thread.created", external_exports.object({ thread: ThreadSummary })),
-  event("task.created", external_exports.object({ task: Task })),
-  event(
-    "task.changed",
-    external_exports.object({
-      task: Task,
-      action: external_exports.string(),
-      from: external_exports.string().nullable(),
-      to: external_exports.string(),
-      actor: external_exports.string(),
-      note: external_exports.string().nullable()
-    })
-  ),
-  event("plan.started", external_exports.object({ plan: Plan })),
-  event(
-    "plan.changed",
-    external_exports.object({
-      plan: Plan,
-      from: PlanState,
-      to: PlanState,
-      round: external_exports.string().nullable()
-    })
-  ),
-  event(
-    "external.received",
-    external_exports.object({ event: StoredIngestEvent, matchedRules: external_exports.array(external_exports.string()) })
-  ),
-  event(
-    "notice.posted",
-    external_exports.object({
-      /** Channel purpose from config (e.g. `alerts`), not a platform channel id. */
-      channel: external_exports.string(),
-      text: external_exports.string(),
-      severity: Severity,
-      /** `external` when the text holds event content. Older hubs send none: read it as external. */
-      trust: Trust.default("external")
-    })
-  ),
-  event("mesh.paused", external_exports.object({ by: external_exports.string(), reason: external_exports.string().nullable() })),
-  event("mesh.resumed", external_exports.object({ by: external_exports.string(), released: external_exports.number().int() })),
-  event("presence.changed", external_exports.object({ peer: PeerInfo })),
-  event("member.joined", external_exports.object({ member: MemberRecord })),
-  event("member.removed", external_exports.object({ member: MemberRecord, by: external_exports.string() }))
-]);
-
-// ../../packages/protocol/src/leases.ts
-var Lease = external_exports.object({
-  id: external_exports.string(),
-  holder: external_exports.string(),
-  repo: external_exports.string().nullable(),
-  path: external_exports.string(),
-  reason: external_exports.string().nullable(),
-  taskId: external_exports.string().nullable(),
-  expiresAt: IsoDate,
-  createdAt: IsoDate
-});
-var LeaseConflict = external_exports.object({
-  requested: external_exports.string(),
-  held: external_exports.string(),
-  holder: external_exports.string(),
-  expiresAt: IsoDate
-});
-
-// ../../packages/protocol/src/rpc/define.ts
-var defineMethod = (def) => def;
-var ANY_CALLER = ["agent", "human", "service"];
-var PARTICIPANTS = ["agent", "human"];
-
-// ../../packages/protocol/src/rpc/admin.ts
-var RefKey = external_exports.object({
-  system: external_exports.string().min(1).max(40),
-  entityType: external_exports.enum(["thread", "task", "plan", "participant"]),
-  entityId: external_exports.string().min(1).max(120)
-});
-var adminMethods = {
-  "mesh.status": defineMethod({
-    description: "Mesh health: pause state, presence and open work counts.",
-    callers: ANY_CALLER,
-    params: external_exports.object({}),
-    result: external_exports.object({
-      name: external_exports.string(),
-      paused: external_exports.boolean(),
-      pausedReason: external_exports.string().nullable(),
-      peers: external_exports.array(PeerInfo),
-      counts: external_exports.object({
-        openThreads: external_exports.number().int(),
-        openTasks: external_exports.number().int(),
-        activePlans: external_exports.number().int(),
-        heldDeliveries: external_exports.number().int()
-      })
-    })
-  }),
-  "mesh.pause": defineMethod({
-    description: "Kill switch: hold every delivery until resumed.",
-    callers: ["human"],
-    requiresRole: "admin",
-    params: external_exports.object({ reason: external_exports.string().max(500).optional() }),
-    result: external_exports.object({ paused: external_exports.literal(true) })
-  }),
-  "mesh.resume": defineMethod({
-    description: "Resume delivery and release held messages.",
-    callers: ["human"],
-    requiresRole: "admin",
-    params: external_exports.object({}),
-    result: external_exports.object({ paused: external_exports.literal(false), released: external_exports.number().int() })
-  }),
-  "refs.set": defineMethod({
-    description: "Bridges only: remember the external id of a mesh entity.",
-    callers: ["service"],
-    params: RefKey.extend({ ref: external_exports.string().min(1).max(200) }),
-    result: external_exports.object({ ok: external_exports.literal(true) })
-  }),
-  "refs.get": defineMethod({
-    description: "Bridges only: look up the external id of a mesh entity.",
-    callers: ["service"],
-    params: RefKey,
-    result: external_exports.object({ ref: external_exports.string().nullable() })
-  }),
-  "refs.find": defineMethod({
-    description: "Bridges only: find the mesh entity behind an external id.",
-    callers: ["service"],
-    params: external_exports.object({ system: external_exports.string().max(40), ref: external_exports.string().max(200) }),
-    result: external_exports.object({
-      entity: external_exports.object({ entityType: external_exports.string(), entityId: external_exports.string() }).nullable()
-    })
-  })
-};
-
-// ../../packages/protocol/src/rpc/enrollment.ts
-var enrollmentMethods = {
-  "enrollment.invite": defineMethod({
-    description: "Create a one-time invite for a new member. The code in the result is a secret: DM it to the invitee, never post or log it.",
-    callers: ["human"],
-    requiresRole: "admin",
-    // The result holds the invite secret: never store it in the idempotency cache.
-    cacheResponse: false,
-    params: external_exports.object({
-      humanId: ParticipantId,
-      displayName: external_exports.string().min(1).max(80),
-      /** The invitee's Discord account, recorded on the member. Redemption does not prove it: the code is a bearer token. */
-      discordUserId: DiscordUserId,
-      roles: external_exports.array(external_exports.string().min(1).max(40)).max(10).default([]),
-      skills: external_exports.array(external_exports.string().min(1).max(40)).max(20).default([]),
-      /** Defaults to `{humanId}-agent`. */
-      agentId: ParticipantId.optional()
-    }),
-    result: external_exports.object({
-      inviteId: InviteId,
-      code: external_exports.string(),
-      humanId: ParticipantId,
-      agentId: ParticipantId,
-      expiresAt: IsoDate
-    })
-  }),
-  "enrollment.cancelInvite": defineMethod({
-    description: "Revoke an unused invite by its id, or a person's latest invite by their human id (a lost or leaked code, an undelivered DM). Idempotent: `status` says what was found.",
-    callers: ["human"],
-    requiresRole: "admin",
-    params: external_exports.union([external_exports.object({ inviteId: InviteId }), external_exports.object({ humanId: ParticipantId })]),
-    result: external_exports.object({
-      cancelled: external_exports.boolean(),
-      status: CancelStatus,
-      /** The invite that was looked at; absent for `not_found`. */
-      inviteId: InviteId.optional()
-    })
-  }),
-  "enrollment.remove": defineMethod({
-    description: "Remove an enrolled member: their agent is disconnected and refused from now on.",
-    callers: ["human"],
-    requiresRole: "admin",
-    params: external_exports.object({ humanId: ParticipantId }),
-    result: external_exports.object({ removed: external_exports.boolean(), agentIds: external_exports.array(ParticipantId) })
-  }),
-  "enrollment.list": defineMethod({
-    description: "Bridges only: every enrolled member (active and revoked), to build their index, and the open invites (no codes).",
-    callers: ["service"],
-    requiresRole: "bridge",
-    params: external_exports.object({}),
-    result: external_exports.object({
-      members: external_exports.array(MemberRecord),
-      invites: external_exports.array(OpenInvite).default([])
-    })
-  })
-};
-
-// ../../packages/protocol/src/rpc/leases.ts
-var leaseMethods = {
-  "lease.acquire": defineMethod({
-    description: "Take advisory leases on path globs before editing a shared area. All-or-nothing: on any conflict nothing is granted and the conflicts are returned.",
-    callers: ["agent"],
-    params: external_exports.object({
-      paths: external_exports.array(external_exports.string().min(1).max(300)).min(1).max(50),
-      repo: GitRef.optional(),
-      ttlMinutes: external_exports.number().positive().max(7 * 24 * 60).optional(),
-      reason: external_exports.string().max(500).optional(),
-      taskId: IdRef.optional()
-    }),
-    result: external_exports.object({ granted: external_exports.array(Lease), conflicts: external_exports.array(LeaseConflict) })
-  }),
-  "lease.release": defineMethod({
-    description: "Release some of your leases, or all of them.",
-    callers: ["agent"],
-    params: external_exports.object({
-      paths: external_exports.array(external_exports.string().max(300)).max(200).optional(),
-      all: external_exports.boolean().default(false)
-    }),
-    result: external_exports.object({ released: external_exports.number().int().nonnegative() })
-  }),
-  "lease.list": defineMethod({
-    description: "List active leases, optionally for one holder or repo.",
-    callers: ANY_CALLER,
-    params: external_exports.object({ holder: IdRef.optional(), repo: GitRef.optional() }),
-    result: external_exports.object({ leases: external_exports.array(Lease) })
-  })
-};
-
-// ../../packages/protocol/src/rpc/messaging.ts
-var MAX_PEEK_SENDERS = 5;
-var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
-var messagingMethods = {
-  "message.send": defineMethod({
-    description: "Start a thread (pass `to`) or post into one (pass `threadId`). Posting into a thread delivers to every participant except the sender; `to` also adds participants.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({
-      kind: SendableKind,
-      body: external_exports.string().min(1).max(32e3),
-      to: Recipients.optional(),
-      threadId: IdRef.optional(),
-      /** Thread that caused this one; drives loop protection. */
-      parentThreadId: IdRef.optional(),
-      subject: external_exports.string().max(200).optional(),
-      status: ReplyStatus.optional(),
-      prUrl: external_exports.string().max(500).optional(),
-      taskId: IdRef.optional(),
-      toSession: IdRef.optional(),
-      repo: GitRef.optional()
-    }).refine((p) => p.to !== void 0 || p.threadId !== void 0, {
-      message: "Pass `to` to start a thread or `threadId` to reply in one."
-    }),
-    result: external_exports.object({
-      messageId: external_exports.string(),
-      threadId: external_exports.string(),
-      deliveredTo: external_exports.array(external_exports.string()),
-      held: external_exports.boolean()
-    })
-  }),
-  "thread.get": defineMethod({
-    description: "Fetch a thread and its most recent messages (oldest first).",
-    callers: ANY_CALLER,
-    params: external_exports.object({
-      threadId: IdRef,
-      limit: external_exports.number().int().min(1).max(200).default(50),
-      beforeId: IdRef.optional()
-    }),
-    result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(MeshMessage) })
-  }),
-  "thread.list": defineMethod({
-    description: "List threads, newest activity first.",
-    callers: ANY_CALLER,
-    params: external_exports.object({
-      participant: IdRef.optional(),
-      kind: ThreadKind.optional(),
-      openOnly: external_exports.boolean().default(true),
-      limit: external_exports.number().int().min(1).max(100).default(20)
-    }),
-    result: external_exports.object({ threads: external_exports.array(ThreadSummary) })
-  }),
-  "inbox.get": defineMethod({
-    description: "Threads with messages you have not seen yet, with those messages. Returning them marks them read. Channel pushes are best-effort, so this is the source of truth.",
-    callers: ["agent"],
-    params: external_exports.object({
-      limit: external_exports.number().int().min(1).max(50).default(20),
-      perThread: external_exports.number().int().min(1).max(20).default(5)
-    }),
-    result: external_exports.object({
-      threads: external_exports.array(
-        external_exports.object({
-          thread: ThreadSummary,
-          unread: external_exports.number().int().nonnegative(),
-          messages: external_exports.array(MeshMessage),
-          /** True when every unread message in the thread is status for the caller. */
-          fyi: external_exports.boolean().default(false)
-        })
-      ),
-      remainingThreads: external_exports.number().int().nonnegative(),
-      /** Unread threads owned by the agent's other sessions (left unread here), for `take`. */
-      otherSessions: external_exports.array(
-        external_exports.object({
-          threadId: external_exports.string(),
-          sessionId: external_exports.string(),
-          liveness: external_exports.enum(["live", "away"])
-        })
-      ).default([]),
-      /** Unread unowned threads this session may not take (not active, or a push session is ready). */
-      waiting: external_exports.number().int().nonnegative().default(0),
-      /** True while the mesh is paused (the inbox is held). */
-      paused: external_exports.boolean().default(false)
-    })
-  }),
-  "inbox.peek": defineMethod({
-    description: "Counts what `inbox.get` would return for this session, without marking anything read: unread threads, how many need action, recent senders and whether any is external.",
-    callers: ["agent"],
-    params: external_exports.object({}),
-    result: external_exports.object({
-      threads: external_exports.number().int().nonnegative(),
-      /** Threads with an unread action item (the rest are FYI only). */
-      actions: external_exports.number().int().nonnegative(),
-      /** Distinct sender ids of the unread messages, newest first. */
-      from: external_exports.array(external_exports.string()).max(MAX_PEEK_SENDERS),
-      external: external_exports.boolean(),
-      /** Unread unowned threads this session may not take; not counted in `threads`. */
-      waiting: external_exports.number().int().nonnegative().default(0)
-    })
-  }),
-  "messages.seen": defineMethod({
-    description: "Mark messages you have read (e.g. FYI items shown in a session) as seen.",
-    callers: ["agent"],
-    params: external_exports.object({ messageIds: external_exports.array(IdRef).min(1).max(500) }),
-    result: external_exports.object({ ok: external_exports.literal(true) })
-  }),
-  "thread.close": defineMethod({
-    description: "Close a conversation thread you participate in.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({ threadId: IdRef }),
-    result: ThreadSummary
-  }),
-  escalate: defineMethod({
-    description: "Ask a human (your owner by default) a question; they are pinged in Discord.",
-    callers: ["agent"],
-    params: external_exports.object({
-      question: external_exports.string().min(1).max(8e3),
-      to: IdRef.optional(),
-      threadId: IdRef.optional(),
-      taskId: IdRef.optional(),
-      urgent: external_exports.boolean().default(false)
-    }),
-    result: external_exports.object({ threadId: external_exports.string(), messageId: external_exports.string() })
-  })
-};
-
-// ../../packages/protocol/src/rpc/planning.ts
-var planningMethods = {
-  "plan.start": defineMethod({
-    description: "Start a team planning session: every participant proposes, then discusses, then the facilitator synthesizes a plan that becomes tasks.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({
-      topic: external_exports.string().min(3).max(4e3),
-      participants: external_exports.array(IdRef).max(50).optional(),
-      facilitator: IdRef.optional(),
-      roundMinutes: external_exports.number().positive().max(24 * 60).optional(),
-      template: IdRef.optional()
-    }),
-    result: Plan
-  }),
-  "plan.get": defineMethod({
-    description: "Fetch a plan with every contribution so far.",
-    callers: ANY_CALLER,
-    params: external_exports.object({ planId: IdRef }),
-    result: external_exports.object({ plan: Plan, contributions: external_exports.array(PlanContribution) })
-  }),
-  "plan.list": defineMethod({
-    description: "List planning sessions, newest first.",
-    callers: ANY_CALLER,
-    params: external_exports.object({
-      state: external_exports.array(PlanState).max(10).optional(),
-      limit: external_exports.number().int().min(1).max(100).default(20)
-    }),
-    result: external_exports.object({ plans: external_exports.array(Plan) })
-  }),
-  "plan.contribute": defineMethod({
-    description: "Add your contribution to the current round of a planning session.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({ planId: IdRef, body: external_exports.string().min(1).max(32e3) }),
-    result: external_exports.object({ round: external_exports.string(), roundComplete: external_exports.boolean() })
-  }),
-  "plan.submit": defineMethod({
-    description: "Facilitator only: submit the final plan as a summary plus task drafts.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({
-      planId: IdRef,
-      summary: external_exports.string().min(1).max(32e3),
-      tasks: external_exports.array(PlanTaskDraftParams).min(1).max(100)
-    }),
-    result: Plan
-  }),
-  "plan.approve": defineMethod({
-    description: "Approve a plan that is awaiting approval; its tasks are created and assigned.",
-    callers: ["human"],
-    params: external_exports.object({ planId: IdRef }),
-    result: Plan
-  }),
-  "plan.cancel": defineMethod({
-    description: "Cancel a planning session.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({ planId: IdRef, reason: external_exports.string().max(2e3).optional() }),
-    result: Plan
-  })
-};
-
-// ../../packages/protocol/src/sessions.ts
-var SessionView = external_exports.object({
-  id: SessionId,
-  active: external_exports.boolean(),
-  delivery: DeliveryMode.default("push"),
-  description: external_exports.string().nullable(),
-  repo: external_exports.string().nullable(),
-  branch: external_exports.string().nullable(),
-  owns: external_exports.array(external_exports.string())
-});
-var MAX_DELIVERY_MESSAGES = 100;
-var CLOSED_ASKER_DEFAULT_MINUTES = 15;
-var ReleasedMarker = external_exports.object({
-  bySession: SessionId,
-  closedAt: IsoDate,
-  claudeSessionId: ClaudeSessionId.nullable()
-});
-var SessionDelivery = MeshMessage.extend({
-  class: DeliveryClass.default("action"),
-  released: ReleasedMarker.optional()
-});
-var SessionRelay = external_exports.object({
-  type: external_exports.literal("relay"),
-  threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
-  messageId: external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/),
-  from: ParticipantId,
-  forSession: SessionId
-});
-var SessionInbound = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("deliver"),
-    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
-  }),
-  external_exports.object({ type: external_exports.literal("expired") }),
-  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) }),
-  SessionRelay
-]);
-var SessionAck = external_exports.object({
-  delivered: external_exports.array(external_exports.string()),
-  forwarded: external_exports.boolean().optional(),
-  reason: external_exports.string().max(200).optional()
-});
-
-// ../../packages/protocol/src/rpc/session.ts
-var sessionMethods = {
-  "session.hello": defineMethod({
-    description: "Register a connected agent session and fetch team policy.",
-    callers: ["agent", "service"],
-    params: external_exports.object({
-      clientVersion: external_exports.string().max(32),
-      repo: GitRef.optional(),
-      branch: GitRef.optional(),
-      /** This process's session before a reconnect: reused if still open, else reclaimed from. */
-      previousSessionId: SessionId.optional(),
-      /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
-      meshWindow: external_exports.boolean().optional(),
-      /** Claude Code's conversation id, from the SessionStart hook: the hub resumes its closed session. */
-      claudeSessionId: ClaudeSessionId.optional()
-    }),
-    result: external_exports.object({
-      self: PeerInfo,
-      mesh: external_exports.object({ name: external_exports.string(), prefix: external_exports.string() }),
-      policy: external_exports.object({
-        instructions: external_exports.string(),
-        git: GitPolicy,
-        /** `relay.closedAskerEscalationMinutes`; older hubs don't send it. */
-        closedAskerEscalationMinutes: external_exports.number().int().positive().default(CLOSED_ASKER_DEFAULT_MINUTES)
-      }),
-      /** Threads with messages this agent has not read yet (see `inbox.get`). */
-      unreadThreads: external_exports.number().int().nonnegative(),
-      /** The hub-issued id this session sends on every call. */
-      sessionId: SessionId,
-      /** Thread keys taken back from the previous session because nobody else took them. */
-      reclaimed: external_exports.array(external_exports.string())
-    })
-  }),
-  "session.bye": defineMethod({
-    description: "Mark the calling session offline.",
-    callers: ["agent", "service"],
-    params: external_exports.object({}),
-    result: external_exports.object({ ok: external_exports.literal(true) })
-  }),
-  "session.check": defineMethod({
-    description: "Send this session a test message with an activation code, over its session subject.",
-    callers: ["agent"],
-    params: external_exports.object({}),
-    result: external_exports.object({ ok: external_exports.literal(true) })
-  }),
-  "session.activate": defineMethod({
-    description: "Make this session one that receives work: the code from its check and a short description. In `pull` mode (no channel flag) no code is needed and nothing is pushed: it reads with inbox.",
-    callers: ["agent"],
-    params: external_exports.object({
-      mode: DeliveryMode.default("push"),
-      code: external_exports.string().min(1).max(20).optional(),
-      description: external_exports.string().min(1).max(200)
-    }).refine((p) => p.mode === "pull" || p.code !== void 0, {
-      message: 'Pass the code from the test message, or mode "pull".'
-    }),
-    result: SessionView
-  }),
-  "session.deactivate": defineMethod({
-    description: "Stop receiving work in this session.",
-    callers: ["agent"],
-    params: external_exports.object({}),
-    result: SessionView
-  }),
-  "session.describe": defineMethod({
-    description: "Change this session description.",
-    callers: ["agent"],
-    params: external_exports.object({ description: external_exports.string().min(1).max(200) }),
-    result: SessionView
-  }),
-  "session.take": defineMethod({
-    description: "Take over a thread or task from the session that owns it.",
-    callers: ["agent"],
-    params: external_exports.object({ threadId: IdRef.optional(), taskId: IdRef.optional() }).refine((p) => p.threadId === void 0 !== (p.taskId === void 0), {
-      message: "Pass exactly one of `threadId` and `taskId`."
-    }),
-    result: external_exports.object({ threadId: external_exports.string(), previousSession: external_exports.string().nullable() })
-  }),
-  "presence.set": defineMethod({
-    description: "Declare your status (online, busy, away) with an optional note.",
-    callers: ["agent"],
-    params: external_exports.object({
-      status: DeclaredStatus,
-      note: external_exports.string().max(200).optional(),
-      repo: GitRef.optional(),
-      branch: GitRef.optional()
-    }),
-    result: PeerInfo
-  }),
-  "peers.list": defineMethod({
-    description: "List every participant with presence and current load.",
-    callers: ANY_CALLER,
-    params: external_exports.object({ kind: external_exports.enum(["agent", "human", "all"]).default("all") }),
-    result: external_exports.object({ peers: external_exports.array(PeerInfo) })
-  })
-};
-
-// ../../packages/protocol/src/rpc/tasks.ts
-var TaskCreateParams = external_exports.object({
-  title: external_exports.string().min(3).max(200),
-  description: external_exports.string().max(16e3).default(""),
-  repo: GitRef.optional(),
-  area: IdRef.optional(),
-  assignee: IdRef.optional(),
-  priority: Priority.default("normal"),
-  labels: external_exports.array(Label).max(20).default([]),
-  doneWhen: external_exports.string().max(2e3).optional(),
-  dependsOn: external_exports.array(IdRef).max(50).default([]),
-  baseBranch: GitRef.optional(),
-  workflow: IdRef.optional(),
-  parentThreadId: IdRef.optional()
-});
-var taskMethods = {
-  "task.create": defineMethod({
-    description: "Create a task. Without an assignee the hub routes it by area ownership and load.",
-    callers: ANY_CALLER,
-    params: TaskCreateParams,
-    result: TaskDetail
-  }),
-  "task.get": defineMethod({
-    description: "Fetch a task with its history, reviews and the actions you can take.",
-    callers: ANY_CALLER,
-    params: external_exports.object({ taskId: IdRef }),
-    result: TaskDetail
-  }),
-  "task.list": defineMethod({
-    description: 'List tasks. `assignee: "me"` means the caller; `unassigned` lists the board.',
-    callers: ANY_CALLER,
-    params: external_exports.object({
-      assignee: IdRef.optional(),
-      state: external_exports.array(IdRef).max(20).optional(),
-      area: IdRef.optional(),
-      planId: IdRef.optional(),
-      includeTerminal: external_exports.boolean().default(false),
-      limit: external_exports.number().int().min(1).max(200).default(50)
-    }),
-    result: external_exports.object({ tasks: external_exports.array(Task) })
-  }),
-  "task.act": defineMethod({
-    description: "Apply a workflow action (accept, decline, start, block, unblock, submit, complete, handoff, claim, cancel\u2026). Valid actions depend on the workflow and current state.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({
-      taskId: IdRef,
-      action: external_exports.string().min(1).max(60),
-      note: external_exports.string().max(8e3).optional(),
-      prUrl: external_exports.string().max(500).optional(),
-      /** The PR's branch, with `submit`: a reviewer's mesh window diffs it. */
-      branch: GitRef.optional(),
-      /** Target participant for `handoff` / `assign`. */
-      to: IdRef.optional()
-    }),
-    result: TaskDetail
-  }),
-  "review.request": defineMethod({
-    description: "Ask for a review of a pull request; creates a review task and picks reviewers.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({
-      prUrl: external_exports.string().min(1).max(500),
-      title: external_exports.string().max(200).optional(),
-      focus: external_exports.string().max(4e3).optional(),
-      reviewers: external_exports.array(IdRef).max(5).optional(),
-      repo: GitRef.optional(),
-      /** The PR's branch, shown to the reviewers. */
-      branch: GitRef.optional(),
-      area: IdRef.optional()
-    }),
-    result: TaskDetail
-  }),
-  "review.submit": defineMethod({
-    description: "Submit your review verdict for a task you were asked to review.",
-    callers: PARTICIPANTS,
-    params: external_exports.object({
-      taskId: IdRef,
-      verdict: ReviewVerdict,
-      body: external_exports.string().min(1).max(16e3)
-    }),
-    result: TaskDetail
-  })
-};
-
-// ../../packages/protocol/src/rpc/envelope.ts
-var PROTOCOL_VERSION = 1;
-var RpcRequestEnvelope = external_exports.object({
-  v: external_exports.literal(PROTOCOL_VERSION),
-  params: external_exports.unknown(),
-  /** Honored only for services allowed to act on behalf of humans. */
-  actAs: external_exports.string().max(64).optional(),
-  /** Retrying a request with the same key returns the original result. */
-  idempotencyKey: external_exports.string().min(1).max(120).optional(),
-  /** Calling session id; the hub validates it against the caller's live sessions. */
-  session: external_exports.string().max(64).optional()
-});
-
-// ../../packages/protocol/src/rpc/index.ts
-var RPC_METHODS = {
-  ...sessionMethods,
-  ...messagingMethods,
-  ...taskMethods,
-  ...planningMethods,
-  ...leaseMethods,
-  ...adminMethods,
-  ...enrollmentMethods
-};
-
 // src/agent-id.ts
 function usable(value) {
   const trimmed = value?.trim();
@@ -49037,6 +49039,22 @@ ${formatLeases(r.granted)}`;
   })
 ];
 
+// src/inbox/closed-asker.ts
+function closedAskerNotice(threadId, released, minutes) {
+  const reopen = released.claudeSessionId ? `- Reopen that session: they run claude --resume ${released.claudeSessionId} in that project's folder, and the thread goes back to it.` : "- Reopen that session: not possible, its conversation id is unknown.";
+  return [
+    `AgentMesh: the session that asked this (${released.bySession}) has closed. Don't act on this answer: ask your human which they want.`,
+    `- Continue it here: take(thread_id: "${threadId}"), then work on it in a fresh worktree.`,
+    reopen,
+    `- Drop it: take(thread_id: "${threadId}") and stay quiet.`,
+    `If they don't answer within ${minutes} minutes, the hub pings them on Discord.`
+  ].join("\n");
+}
+function threadNotice(thread, minutes, selfId) {
+  const last = closedAsker(thread, selfId);
+  return last?.released && closedAskerNotice(last.threadId, last.released, minutes);
+}
+
 // src/tools/messaging.ts
 var Status = external_exports.enum([
   "answer",
@@ -49050,6 +49068,12 @@ var Status = external_exports.enum([
 ]);
 var OneOrMany = external_exports.union([external_exports.string(), external_exports.array(external_exports.string()).min(1)]);
 var list = (v) => Array.isArray(v) ? v : [v];
+function closedAsker2(text3, messages, deps) {
+  const notice = threadNotice(messages, deps.closedAskerMinutes(), deps.agentId);
+  return notice ? `${text3}
+
+${notice}` : text3;
+}
 var messagingTools = [
   defineTool({
     name: "peers",
@@ -49156,12 +49180,16 @@ var messagingTools = [
     description: "Unread messages from every thread you are in: threads that need you first, then FYI (status only); marks them read. Once this session is active, call it at session start and after compaction.",
     input: external_exports.object({ limit: external_exports.number().int().min(1).max(50).optional() }),
     mutating: false,
-    run: async (args, { hub, agentId }) => {
+    run: async (args, deps) => {
+      const { hub, agentId } = deps;
       const r = await hub.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
       if (r.threads.length === 0 && others.length === 0 && !r.waiting)
         return "Inbox zero \u2014 nothing unread.";
-      const needs = r.threads.filter((t) => !t.fyi).map((t) => `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages, agentId)}`);
+      const needs = r.threads.filter((t) => !t.fyi).map((t) => {
+        const read = `${t.unread} unread \xB7 ${formatThread(t.thread, t.messages, agentId)}`;
+        return closedAsker2(read, t.messages, deps);
+      });
       const fyi = r.threads.filter((t) => t.fyi).map((t) => {
         const latest = firstLine(t.messages.at(-1)?.body ?? "", 100);
         return `\xB7 ${t.unread} unread \xB7 ${formatThreadHeader(t.thread)} \u2014 ${latest}`;
@@ -49187,9 +49215,12 @@ ${fyi.join("\n")}`);
     description: "Read a thread (most recent messages). Use it instead of re-asking after a compaction.",
     input: external_exports.object({ thread_id: external_exports.string(), limit: external_exports.number().int().min(1).max(200).optional() }),
     mutating: false,
-    run: async (args, { hub, agentId }) => {
-      const r = await hub.call("thread.get", { threadId: args.thread_id, limit: args.limit ?? 30 });
-      return formatThread(r.thread, r.messages, agentId);
+    run: async (args, deps) => {
+      const r = await deps.hub.call("thread.get", {
+        threadId: args.thread_id,
+        limit: args.limit ?? 30
+      });
+      return closedAsker2(formatThread(r.thread, r.messages, deps.agentId), r.messages, deps);
     }
   }),
   defineTool({
@@ -51960,22 +51991,6 @@ var HubClient = class {
   }
 };
 
-// src/inbox/closed-asker.ts
-function closedAskerNotice(threadId, released, minutes) {
-  const reopen = released.claudeSessionId ? `- Reopen that session: they run claude --resume ${released.claudeSessionId} in that project's folder, and the thread goes back to it.` : "- Reopen that session: not possible, its conversation id is unknown.";
-  return [
-    `AgentMesh: the session that asked this (${released.bySession}) has closed. Don't act on this answer: ask your human which they want.`,
-    `- Continue it here: take(thread_id: "${threadId}"), then work on it in a fresh worktree.`,
-    reopen,
-    `- Drop it: take(thread_id: "${threadId}") and stay quiet.`,
-    `If they don't answer within ${minutes} minutes, the hub pings them on Discord.`
-  ].join("\n");
-}
-function threadNotice(thread, minutes, selfId) {
-  const last = closedAsker(thread, selfId);
-  return last?.released && closedAskerNotice(last.threadId, last.released, minutes);
-}
-
 // src/inbox/recent-ids.ts
 var RecentIds = class {
   #max;
@@ -52591,7 +52606,8 @@ function toolDeps(session, agentId) {
     notices: session.notices,
     listening: session.listening.promise,
     window: session.window,
-    teamPolicy: () => session.hello?.policy.instructions ?? null
+    teamPolicy: () => session.hello?.policy.instructions ?? null,
+    closedAskerMinutes: () => session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES
   };
 }
 function watchLifecycle(logger) {

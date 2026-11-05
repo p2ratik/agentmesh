@@ -7,10 +7,11 @@ import type { SessionsRepo } from './sessions.repo';
 
 /**
  * The first conversation id a session reports resumes that conversation (design §4.2): the
- * agent's latest closed or away session with the same id gives back the threads it released that
- * nobody owned since (an away one is closed first, as a conversation runs in one process), and
- * their decision timers stop. Scoped to the agent the NATS caller proved, like
- * `previousSessionId`. Once per session; returns the reclaimed thread ids. DB only.
+ * agent's latest private asker with the same id (`resumable`: closed private, or away, inactive
+ * and not the window) gives back the threads it released that nobody owned since (an away one is
+ * closed first, as a conversation runs in one process), and their decision timers stop. Scoped
+ * to the agent the NATS caller proved, like `previousSessionId`. Once per session; returns the
+ * reclaimed thread ids. DB only.
  */
 export function learnClaudeSession(
   ctx: HubContext,

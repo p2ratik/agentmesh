@@ -39,6 +39,7 @@ services: [{ id, displayName?, role: bridge|ingest|custom, canActAsHumans: false
 ```
 
 Ids share one namespace: lowercase letters, digits and dashes (they are NATS subject tokens).
+`all` is reserved (`task_list(assignee: "all")` means every assignee), here and in `/mesh invite`.
 `owner` must be a human. The Discord bridge's service needs `role: bridge` and
 `canActAsHumans: true`. An agent's `displayName` defaults to "<owner>'s agent"; `avatarUrl` must
 be a public `https://` image (without it Discord shows a distinct built-in avatar per agent — see

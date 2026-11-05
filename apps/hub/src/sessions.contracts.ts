@@ -2,6 +2,7 @@
 import type {
   DeliveryMode,
   MeshMessage,
+  ReleasedMarker,
   RpcMethodName,
   SessionDelivery,
   SessionSummary,
@@ -74,6 +75,17 @@ export interface SessionsService {
   relay(agentId: string, message: SessionDelivery): RelayTarget | null;
   /** After the session acked the message: a claiming route makes it own the thread. DB only. */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void;
+  /**
+   * A 0.6.0 mesh window's read of a thread whose private asker closed: the marker its push would
+   * carry, and that push's orphan bookkeeping for the action items the read `handed` over.
+   * Null for any other read.
+   */
+  readReleased(
+    agentId: string,
+    sessionId: string,
+    threadId: number,
+    handed: MeshMessage[],
+  ): ReleasedMarker | null;
   /** Tick: silent live sessions go away; away ones past the grace period close and release. */
   expire(now: Date): { away: number; closed: number };
   take(agentId: string, sessionId: string, threadId: number): { previous: string | null };

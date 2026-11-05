@@ -104,6 +104,41 @@ describe('resuming a conversation', () => {
     expect(h.sessions.ownerOf(t2, 'bob-agent')).toBe(n.session.id);
   });
 
+  // Final review I1: only a private asker's conversation resumes; team work stays where it is.
+  it("resuming a closed mesh window's conversation reclaims nothing", () => {
+    const h = setup();
+    const w = h.open({ claudeSessionId: FORK, meshWindow: true }).session.id;
+    h.sessions.activate('bob-agent', w, 'mesh window');
+    const t = h.thread();
+    h.sessions.take('bob-agent', w, t);
+    h.sessions.close('bob-agent', w);
+    expect(h.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBeNull();
+  });
+
+  it("resuming an away mesh window's conversation neither closes it nor reclaims anything", () => {
+    const h = setup();
+    const w = h.open({ claudeSessionId: FORK, meshWindow: true }).session.id;
+    h.sessions.activate('bob-agent', w, 'mesh window');
+    const t = h.thread();
+    h.sessions.take('bob-agent', w, t);
+    h.sessions.unreachable(w);
+    expect(h.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(h.liveness(w)).toBe('away');
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBe(w);
+  });
+
+  it('resuming an active, closed non-window session reclaims nothing', () => {
+    const h = setup();
+    const a = h.open({ claudeSessionId: FORK }).session.id;
+    h.sessions.activate('bob-agent', a, 'billing api');
+    const t = h.thread();
+    h.sessions.take('bob-agent', a, t);
+    h.sessions.close('bob-agent', a);
+    expect(h.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBeNull();
+  });
+
   it('logs a resume only when it gave something back', () => {
     const resumed = (h: ReturnType<typeof setup>) =>
       vi.mocked(h.ctx.logger.info).mock.calls.filter(([, m]) => m === 'conversation resumed');

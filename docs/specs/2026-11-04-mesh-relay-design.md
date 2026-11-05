@@ -284,8 +284,10 @@ model's report: the row stays pending and the note stays on until the owner read
 - **Resume.**
   - Migration 008 adds `sessions.claude_session_id`. `session.hello` and the presence heartbeat
     both gain an optional `claudeSessionId` (a UUID).
-  - When the hub **first learns** a session's id, it matches the agent's most recent **closed or
-    away** session with that id, other than the caller.
+  - When the hub **first learns** a session's id, it matches the agent's most recent **private
+    asker** with that id, other than the caller: closed with `private_at_close = 1`, or away,
+    inactive and not a mesh window. A window's or an activated session's conversation never
+    resumes (final review I1), so resuming it in a plain terminal takes no team work.
     - An away match is closed first with `releaseAndClose`, because a conversation runs in one
       process.
     - The hub then runs the existing `reclaimReleased`, which also hands back orphan threads that
@@ -583,7 +585,8 @@ No live hub is needed (my call).
    the window posting an `info` reply.
 7. **Part B scope.** Part B applies only to threads released by a *private* session, so a window
    restart is untouched. "Drop it" means take the thread and stay quiet; there is no close tool.
-8. **Resume** reclaims from a closed *or away* session with the same Claude session id. A `/clear`
+8. **Resume** reclaims from a closed *or away* private asker with the same Claude session id
+   (never a window or an activated session; final review I1). A `/clear`
    in a private session ends its hub session, so relays never wake a conversation that didn't ask.
 9. **Timer.** The closed-asker timer is a hub tick with an `orphan_decisions` table.
 10. **Escalation fix.** The escalation-ping bug is fixed at the root, so escalations stay inside

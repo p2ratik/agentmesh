@@ -1,4 +1,4 @@
-import { PARTICIPANT_ID_PATTERN } from '@agentmesh/common';
+import { PARTICIPANT_ID_PATTERN, RESERVED_PARTICIPANT_IDS } from '@agentmesh/common';
 import { z } from 'zod';
 
 export const IsoDate = z.string().min(1);
@@ -21,9 +21,10 @@ export const Label = z.string().max(60);
 
 export const ParticipantId = z
   .string()
-  .regex(
-    PARTICIPANT_ID_PATTERN,
-    'lowercase letters, digits and dashes; starts with a letter/digit',
+  .regex(PARTICIPANT_ID_PATTERN, 'lowercase letters, digits and dashes; starts with a letter/digit')
+  .refine(
+    (id) => !RESERVED_PARTICIPANT_IDS.includes(id),
+    'reserved: "all" means every participant',
   );
 
 export const ParticipantKind = z.enum(['agent', 'human', 'service']);

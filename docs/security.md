@@ -298,7 +298,8 @@ to its session, and `session.check` then fails (see the upgrade notes in
   check clears it), or the stamp is fresh; so, as for an active window, the guard isn't re-checked.
   Otherwise, or if the hub refuses, Claude gets the check. A deactivate while it runs wins: nothing
   is recorded or pushed, and the plugin turns the hub session off again (the same for a renewed
-  pull session's re-activation). A human's
+  pull session's re-activation). The hub also forgets the session's pending code on
+  `session.deactivate`, so a check pushed before the human's off can't be finished after it. A human's
   `/agentmesh:activate` during a renewal is never answered this way: Claude gets the check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
@@ -368,9 +369,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
     (`fwd-`, see [Reply pointers](#reply-pointers-the-relay)); or a resume of another of the
     agent's conversations (`cc-`), which any session of the agent can already do with `take`.
 - **Resume trusts the agent, not the conversation.** `session.hello`'s `claudeSessionId` takes back
-  the threads that the agent's latest closed or away session with that id released and nobody
-  took since. It is scoped to the agent the NATS caller proved, like `previousSessionId`. Only the
-  first id a session reports counts.
+  the threads that the agent's latest private asker with that id (closed private, or away while
+  inactive and not a window) released and nobody took since. A window's or an activated session's
+  team work never resumes into another session. It is scoped to the agent the NATS caller proved,
+  like `previousSessionId`. Only the first id a session reports counts.
 - **`task_get`'s local sessions line is a count, not a census.** In the mesh window it counts the
   human's private sessions in the task's repo that have used the mesh, and how many have unread
   mesh replies. Sessions that never made a mesh call, and anything running without the plugin,

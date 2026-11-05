@@ -1,5 +1,5 @@
 import { createLogger, type Logger } from '@agentmesh/common';
-import type { RpcResult } from '@agentmesh/protocol';
+import { CLOSED_ASKER_DEFAULT_MINUTES, type RpcResult } from '@agentmesh/protocol';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { type PluginConfig, resolveConfig } from './config';
 import { buildInstructions } from './instructions';
@@ -141,6 +141,8 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
     listening: session.listening.promise,
     window: session.window,
     teamPolicy: () => session.hello?.policy.instructions ?? null,
+    closedAskerMinutes: () =>
+      session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
   };
 }
 

@@ -31,6 +31,14 @@ describe('configFromObject', () => {
     expect(() => configFromObject(zero)).toThrow(ConfigError);
   });
 
+  // Final review M6: task_list(assignee: "all") means everyone, so no participant is called that.
+  it('refuses the reserved participant id "all"', () => {
+    const agent = { ...minimal, agents: [{ id: 'all', owner: 'alice' }] };
+    const human = { ...minimal, humans: [{ id: 'all', displayName: 'All', roles: [] }] };
+    for (const config of [agent, human])
+      expect(() => configFromObject(config)).toThrow(ConfigError);
+  });
+
   // Removed with per-session delivery; existing mesh.yaml files that still set it must load.
   it('ignores the retired limits.deliveryRetentionDays', () => {
     const { config } = configFromObject({ ...minimal, limits: { deliveryRetentionDays: 14 } });

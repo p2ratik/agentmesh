@@ -75,7 +75,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300), `previousSessionId` (a hub-issued id), `meshWindow` (optional; true when the launcher's marker matched, see [Routing](#routing)) and `claudeSessionId` (optional; Claude Code's conversation id, a UUID, see [Sessions and liveness](#sessions-and-liveness)). The hub stores `meshWindow` when it creates the session. A hello that reuses its session can set the stored flag (a window started before the hub had migration 007) but never clears it, and it updates the stored `clientVersion`. The result has self, git policy, team policy, `policy.closedAskerEscalationMinutes` (`relay.closedAskerEscalationMinutes`; read as 15 from an older hub), `unreadThreads`, `sessionId` and `reclaimed` (the threads given back to this session). Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
 | `session.activate` | agent | Turn this session on: `{ mode, code, description }`. `mode` is `push` (default) or `pull`. Push needs the code from the latest check; a wrong or stale code is refused with `invalid_request`. Pull needs no code (see [Pull mode](#pull-mode)). The result's `delivery` says which. |
-| `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once), or change its description |
+| `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once, and the hub forgets its pending activation code), or change its description |
 | `session.take` | agent | Move a thread or task (`threadId` or `taskId`, exactly one) to this session |
 | `session.bye` | agent, service | Close this session and release what it owns |
 | `presence.set` | agent | Declare online / busy / away with a note |
@@ -242,15 +242,18 @@ The hub tracks each session as:
   agent keeps at most `limits.maxSessionsPerAgent` open sessions, and a hello that opens one more
   first closes the stalest (away before live, then least recently seen). Its threads are
   released, and the hub records whether it was private when it closed (inactive and not a mesh
-  window; see [Closed askers](#closed-askers)). A `session.hello` that names it in
+  window; see [Closed askers](#closed-askers)). An evicted session never counts as private: its
+  process may still be running, and its next hello reclaims. A `session.hello` that names it in
   `previousSessionId` reclaims the released threads nobody else took. Closed sessions are deleted
   after 30 days.
 
 **Resume.** Claude Code's `SessionStart` hook writes the conversation id, and the plugin sends it
 in `session.hello` as `claudeSessionId`; a heartbeat never carries it. The hub keeps the first id
-a session reports. When it learns it, the agent's latest closed or away session with the same id
-(other than the caller) gives back the threads it released that nobody owned since, and their
-closed-asker timers stop. An away match is closed first, since a conversation runs in one process.
+a session reports. When it learns it, the agent's latest private asker with the same id (other
+than the caller) gives back the threads it released that nobody owned since, and their closed-asker
+timers stop. A private asker is a session that closed private, or one that is away while inactive
+and not a mesh window; an away match is closed first, since a conversation runs in one process. A
+mesh window's or an activated session's conversation never resumes: its team work stays put.
 `reclaimed` in the hello result lists them, and the plugin tells Claude at the end of its next tool
 result. A `/clear` (a new id) in an inactive session ends its hub session with `session.bye` and
 says hello as a new one, so a pointer never wakes a conversation that didn't ask. An active session
@@ -279,8 +282,12 @@ Who may read, and mark read, which threads ([ADR 0009](adr/0009-mesh-window.md))
   other session reads only the threads it owns (by the owner chain below). The rest are counted in
   `waiting` on `inbox.get` and `inbox.peek`.
 - **`inbox.get`** by an active session claims the non-FYI threads it returns, in the same
-  transaction as the read.
+  transaction as the read, except a closed asker's thread read by the mesh window (below).
 - **`thread.get`** by a session marks read only a thread that session owns. It claims nothing.
+- **A closed asker's thread** (see [Closed askers](#closed-askers)), read by an active 0.6.0 mesh
+  window with `inbox.get` or `thread.get`, comes back with each message marked `released`, as its
+  push would be, and claims nothing. The unread action items the read hands over count as that
+  push: the same notice and timer (none while paused).
 - **Notes.** `inbox.get` adds the call note "N team thread(s) are waiting for an active session of this agent; this session can't take them right now." when `waiting > 0`, and "The mesh is paused: nothing was marked read." when `paused` is true. Plugins show notes, so even one older than 0.4.4 (which drops `waiting` and `paused`) tells the user.
 - **While paused,** a read by a caller with a session only looks: `inbox.get` returns `paused: true`
   and advances and claims nothing. Callers without a session are unaffected.
@@ -362,7 +369,8 @@ and that nobody owns now, goes to the longest-active mesh window unclaimed, its 
 `released`, when that window is on 0.6.0 or later. An older window gets it claimed, as before, and
 without a ready window the other routing rules apply as before.
 
-When the window acks the first such action, the hub, in the same commit:
+When the window acks the first such action, or first reads it with `inbox.get` or `thread.get`
+(see [Reads](#reads)), the hub, in the same commit:
 - posts one status notice in the thread: "The session that asked this has closed; the follow-up
   waits for <owner>'s decision.";
 - starts a timer in `orphan_decisions` (migration 008), one per thread and agent.

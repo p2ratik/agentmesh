@@ -21,6 +21,8 @@ export interface ToolDeps {
   window: MeshWindowContext;
   /** The team policy in full, from the latest hello (the instructions clip it); null without one. */
   teamPolicy(): string | null;
+  /** How long the hub waits on a closed asker's answer before it pings the owner (from hello). */
+  closedAskerMinutes(): number;
 }
 
 /** A refusal shown to Claude verbatim as an error (no code prefix). */

@@ -1,4 +1,5 @@
 import { MINUTE_MS } from '@agentmesh/common';
+import type { MeshMessage, ReleasedMarker } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { MessagingService } from '../../contracts';
 import { threadKey } from '../../core/ids';
@@ -42,6 +43,15 @@ export class OrphanDecisions {
       deliveryClass: 'status',
       body: `The session that asked this has closed; the follow-up waits for ${this.#ownerName(agentId)}'s decision.`,
     });
+  }
+
+  /**
+   * A closed asker's answer reached the mesh window, pushed (`delivered`) or read (`readReleased`):
+   * the owner's own reply is the decision and settles a running timer; anything else starts it.
+   */
+  reached(agentId: string, threadId: number, released: ReleasedMarker, message: MeshMessage): void {
+    if (message.refs.decidesFor?.includes(agentId)) this.answered(agentId, threadId);
+    else this.record(agentId, threadId, released.bySession);
   }
 
   /** The owner answered in the thread: a running timer is settled without a ping. */

@@ -1,6 +1,6 @@
 import type { ReleasedMarker } from '@agentmesh/protocol';
 import { toRouteSession } from './mappers';
-import type { RouteInput } from './routing';
+import { chainOwner, type RouteInput, takesReleased } from './routing';
 import type { SessionsRepo } from './sessions.repo';
 import type { SessionsDeps } from './sessions.service';
 
@@ -38,4 +38,21 @@ export function releasedMarker(
   const by = threadOwner === null ? repo.releasedBy(agentId, threadId) : undefined;
   if (by?.private_at_close !== 1) return null;
   return { bySession: by.id, closedAt: by.closed_at, claudeSessionId: by.claude_session_id };
+}
+
+/**
+ * The marker a read of the thread by `sessionId` shows, as its push carries it: only for an
+ * active 0.6.0 mesh window (push or pull), and only while no session holds the thread.
+ */
+export function releasedForRead(
+  repo: SessionsRepo,
+  deps: SessionsDeps,
+  agentId: string,
+  sessionId: string,
+  threadId: number,
+): ReleasedMarker | null {
+  const input = routeInput(repo, deps, agentId, threadId, deps.messaging.thread(threadId).taskId);
+  const self = input.sessions.find((s) => s.id === sessionId);
+  if (!self?.active || !takesReleased(self) || chainOwner(input)) return null;
+  return releasedMarker(repo, agentId, threadId, input.threadOwner);
 }

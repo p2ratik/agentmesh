@@ -173,7 +173,8 @@ follow, as built.
 
 **B. The asker has closed.**
 - Migration 008 records whether a session was private when it closed (`private_at_close`: inactive
-  and not a mesh window).
+  and not a mesh window). An eviction under `limits.maxSessionsPerAgent` never records it, because
+  that session may still be open.
 - A thread such a session released, and nobody owns now, goes to a 0.6.0 window unclaimed. The
   messages carry `released: { bySession, closedAt, claudeSessionId }`. An older window gets it as
   before.
@@ -185,9 +186,11 @@ follow, as built.
   the thread is owned or closed by then.
 - **Resume.** The `SessionStart` hook records Claude Code's conversation id by process
   (`cc-<pid>.json`), and `SessionEnd` deletes it. The MCP server sends the id in `session.hello`.
-  The first id a session reports takes back what the agent's latest closed or away session of that
-  conversation released and nobody took since. An away one is closed first. Claude is told which
-  threads came back.
+  The first id a session reports takes back what the agent's latest private asker of that
+  conversation released and nobody took since: a session closed private, or one away while
+  inactive and not a window (closed first). A window's or an activated session's conversation
+  never resumes, so `claude --resume` of the window's conversation takes no team work. Claude is
+  told which threads came back.
 - In an inactive session, a `/clear` (or a `/resume` inside the session) ends its hub session and
   opens a new one. Its threads go back as a closed private asker's, so a pointer never wakes a
   conversation that didn't ask.
@@ -374,8 +377,9 @@ Part 3:
 - Resume is best effort. It misses when the MCP server restarted inside a long-lived Claude Code
   process (the record is then more than 60 s older than the server); the note and the window still
   cover the answer.
-- The closed-asker notice comes with a push. A window that reads the answer with `inbox` instead
-  claims the thread, as any active read does, so it is owned work and no timer runs.
+- The closed-asker notice comes with a push, or with the window's `inbox` or `thread` read of the
+  answer if that comes first. Both go through the same bookkeeping (`OrphanDecisions.reached`): the
+  read shows the `released` marker, claims nothing, and starts the timer and the hub's notice.
 - Known gap: if the human chose to reopen the session but hasn't yet, the ping still fires.
 - An owner's Discord account is now a way to command their agents. The risk of a hijacked account
   is accepted; see

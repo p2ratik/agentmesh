@@ -112,6 +112,7 @@ export function createDispatchHarness(): DispatchHarness {
   sessionsService = sessions;
   h.presence.setReadyReader((id) => sessions.reach(id));
   h.messaging.setOwnerReader(ownerReader(sessions));
+  h.messaging.setReleasedReader((...read) => sessions.readReleased(...read));
   dispatcher = new SessionDispatcher({
     sessions,
     messaging: h.messaging,

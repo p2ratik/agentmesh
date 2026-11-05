@@ -72,6 +72,14 @@ describe('enrollment invites', () => {
     expect(() => invite(params)).toThrowError(MeshError);
   });
 
+  // Final review M6: task_list(assignee: "all") means everyone, so no participant is called that.
+  it('refuses the reserved id "all" for the person and for the agent', () => {
+    const { invite } = setup();
+    for (const params of [{ humanId: 'all' }, { agentId: 'all' }]) {
+      expect(() => invite(params)).toThrowError(/"all" is not a usable id/);
+    }
+  });
+
   it("refuses an active member's ids and Discord account, and a removed member's agent id", async () => {
     const s = setup();
     await s.redeemCode(s.invite().code);

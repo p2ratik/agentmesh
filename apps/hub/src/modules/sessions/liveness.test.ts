@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildModules } from '../../runtime/modules';
 import { testTeamConfig } from '../../testing/fixtures';
 import { createTestHarness } from '../../testing/harness';
+import { createBobDispatchHarness } from '../../testing/services';
 
 function setup() {
   const h = createTestHarness();
@@ -118,6 +119,24 @@ describe('session limits', () => {
     const s2 = open();
     expect(open(s1)).toBe(s1);
     expect(openIds()).toEqual([s1, s2].sort());
+  });
+
+  // Final review M3: an evicted session may still be open, so it is not a closed asker.
+  it('an evicted live private session records no private_at_close, and no orphan decision follows', async () => {
+    const h = createBobDispatchHarness();
+    h.ctx.loaded.config.limits.maxSessionsPerAgent = 2;
+    const p = h.sessions.open('bob-agent', { clientVersion: '0.6.0' }).session.id;
+    const t = h.thread();
+    h.sessions.take('bob-agent', p, t);
+    h.clock.advance(1000);
+    h.meshWindow();
+    h.sessions.open('bob-agent', { clientVersion: '0.6.0' });
+    expect(
+      h.ctx.db.get('SELECT liveness, private_at_close FROM sessions WHERE id = $p', { p }),
+    ).toEqual({ liveness: 'closed', private_at_close: 0 });
+    h.reply(t);
+    await h.outbox.flush();
+    expect(h.ctx.db.all('SELECT thread_id FROM orphan_decisions')).toEqual([]);
   });
 
   it('deletes sessions closed more than 30 days ago', () => {

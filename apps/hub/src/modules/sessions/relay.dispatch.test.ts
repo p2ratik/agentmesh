@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBobDispatchHarness } from '../../testing/services';
 
 /** Bob's mesh window at `version`, and a private session `p` (opened, never activated) owning `t`. */
@@ -38,12 +38,18 @@ describe('SessionDispatcher, the relay to the mesh window', () => {
     expect(h.pushedTo(h.w)).not.toContain(r2.id);
   });
 
-  it('does not resend after forwarded: false', async () => {
+  it('does not resend after forwarded: false, and logs the answer as such', async () => {
     const h = setup();
+    const info = vi.spyOn(h.ctx.logger, 'info');
     h.transport.relayAnswer = { forwarded: false, reason: 'no record' };
     h.reply(h.t);
     for (let i = 0; i < 3; i += 1) await h.outbox.flush();
     expect(h.transport.relays).toHaveLength(1);
+    const answered = info.mock.calls.filter(([, m]) => m === 'relay answered');
+    expect(answered).toEqual([
+      [expect.objectContaining({ forwarded: false, reason: 'no record' }), 'relay answered'],
+    ]);
+    expect(info.mock.calls.map(([, m]) => m)).not.toContain('relay pointer sent');
   });
 
   it("the owner's read publishes the replies, and the next reply relays again", async () => {

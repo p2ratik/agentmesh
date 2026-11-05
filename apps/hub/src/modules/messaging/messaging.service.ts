@@ -14,6 +14,7 @@ import type {
   PostInput,
   PostResult,
   PresenceService,
+  SessionsService,
   ThreadOwner,
   ThreadRecord,
 } from '../../contracts';
@@ -36,6 +37,8 @@ export interface MessagingDeps {
 
 const MAX_SUBJECT = 120;
 
+type ReleasedReader = SessionsService['readReleased'];
+
 /** Threads, messages and read state. The single writer of messaging tables. */
 export class MessagingServiceImpl implements MessagingService {
   readonly hubId: string;
@@ -46,6 +49,7 @@ export class MessagingServiceImpl implements MessagingService {
   readonly reads: ReadsRepo;
   readonly #post: PostContext;
   #ownerOf: (threadId: number, agentId: string) => ThreadOwner | null = () => null;
+  #releasedRead: ReleasedReader = () => null;
 
   constructor(ctx: HubContext, deps: MessagingDeps) {
     this.ctx = ctx;
@@ -204,6 +208,19 @@ export class MessagingServiceImpl implements MessagingService {
 
   setOwnerReader(reader: (threadId: number, agentId: string) => ThreadOwner | null): void {
     this.#ownerOf = reader;
+  }
+
+  setReleasedReader(reader: ReleasedReader): void {
+    this.#releasedRead = reader;
+  }
+
+  /**
+   * What a session's read shows of a closed asker's thread (sessions.readReleased), null for
+   * nothing; the action items among `handed` (the unread ones it hands over) reached the window.
+   */
+  releasedRead(agentId: string, sessionId: string, threadId: number, handed: MeshMessage[]) {
+    const actions = handed.filter((m) => this.classFor(m.id, agentId) === 'action');
+    return this.#releasedRead(agentId, sessionId, threadId, actions);
   }
 
   /** The session that owns the agent's side of a thread (or its parent or task), as routing does. */

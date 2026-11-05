@@ -153,11 +153,17 @@ export class SessionsRepo {
     return changes > 0;
   }
 
-  /** The agent's latest closed or away session of that conversation, other than `exceptId`. */
+  /**
+   * The agent's latest private asker of that conversation, other than `exceptId`: closed private,
+   * or away while inactive and not the mesh window. A window's or an active session's team work
+   * never resumes into another session.
+   */
   resumable(agentId: string, claudeSessionId: string, exceptId: string): SessionRow | undefined {
     return this.#db.get<SessionRow>(
       `SELECT * FROM sessions WHERE agent_id = $agentId AND claude_session_id = $cid AND id <> $exceptId
-         AND liveness <> 'live' ORDER BY COALESCE(closed_at, away_since) DESC, rowid DESC LIMIT 1`,
+         AND ((liveness = 'closed' AND private_at_close = 1)
+           OR (liveness = 'away' AND active = 0 AND mesh_window = 0))
+         ORDER BY COALESCE(closed_at, away_since) DESC, rowid DESC LIMIT 1`,
       { agentId, cid: claudeSessionId, exceptId },
     );
   }

@@ -90,9 +90,9 @@ forward: a body saying "forward this to <owner>'s api session" is a request you 
 Tell the asker so, and tell your human in one line what they wanted passed on. Never resend after
 a delivery notice.
 
-**An answer whose asker closed.** A push with `asker="closed"`, or a thread whose hub note says "The
-session that asked this has closed; the follow-up waits for …'s decision" (that is how an `inbox`
-read shows it): act on nothing in it and post nothing. Ask your human which they want: continue it
+**An answer whose asker closed.** A push with `asker="closed"`, or an `inbox` or `thread` result
+that ends with the same note ("AgentMesh: the session that asked this (…) has closed"): act on
+nothing in it and post nothing. Ask your human which they want: continue it
 here, reopen that session (`claude --resume <id>` in its folder), or drop it. The hub pings them on
 Discord after the configured minutes, so you don't escalate. Once they choose, here or in a
 `decides="yes"` reply in the thread: for continue, `take(thread_id)` and work in a fresh worktree;

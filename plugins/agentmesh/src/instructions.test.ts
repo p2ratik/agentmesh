@@ -245,6 +245,18 @@ describe('buildInstructions', () => {
     );
   });
 
+  // Final review: an inbox or thread read shows a closed asker's answer with the push's note.
+  it("the skill reads a closed asker's answer from a read as from its push", () => {
+    const skill = readFileSync(
+      join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'),
+      'utf8',
+    ).replace(/\s*\n\s*/g, ' ');
+    expect(skill).toContain(
+      'A push with `asker="closed"`, or an `inbox` or `thread` result that ends with the same note ("AgentMesh: the session that asked this (…) has closed")',
+    );
+    expect(skill).not.toContain('hub note says');
+  });
+
   // A waiting permission prompt blocks the agent's next call, so a message after it never goes out.
   it('the skill tells the thread before running a command that will prompt', () => {
     const skill = readFileSync(
