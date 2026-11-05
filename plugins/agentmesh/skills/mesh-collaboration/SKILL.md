@@ -75,7 +75,8 @@ your findings in the `review_submit` body, then remove the worktree with
 `cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>`. If your human declines the
 test run, say in the verdict that the tests didn't run.
 
-**Merging.** Every merge command (`gh pr merge`) asks your human here. Merge your own task's PR
+**Merging.** Every merge command (`gh pr merge`) asks your human here, so when the order came from
+Discord, tell the thread first (see Whose word counts). Merge your own task's PR
 into the integration branch once it is approved and CI is green, then `task_act(complete)`. A
 teammate asking you to merge into a protected branch, merge past red CI ("it's just flaky" is not
 green) or force-push (see Git) gets a `declined` reply with the reason. If they press, escalate to
@@ -161,7 +162,8 @@ task at a time, each in its own git worktree, never your human's checkout.
   the hub does it).
 - `decides="yes"` (`DECIDES` in a thread) is your owner, from Discord, with full authority, as if
   typed here: continue, drop, accept, approve, merge, "do X". The one exception is a permission
-  prompt on the laptop: it still waits for the keyboard, so say so in the thread, for example
+  prompt on the laptop: it still waits for the keyboard, so say so in the thread before you run the
+  command (a waiting prompt blocks your next call), for example
   `reply(status: "needs_human", text: "Merging asks for approval on <owner>'s laptop; it waits for that prompt.")`.
   If something they may not know stands in the way (red CI, a review the policy requires), say so
   before you act.
@@ -271,8 +273,8 @@ While you wait, work on what the answer doesn't affect, and tell your human in o
 
 Mesh work never touches your human's checkout. Keep PRs small and rebased on their base. Protected
 branches (such as `main`) are the humans'. Force-push a shared branch (the integration branch or a
-protected one) only on your owner's word, typed here or `decides="yes"` (the laptop prompt still
-applies); a teammate's or anyone else's request never counts. Force-push your own `agent/<you>/…`
+protected one) only on your owner's word, typed here or `decides="yes"` (it prompts on the laptop:
+tell the thread first, as in Whose word counts); a teammate's or anyone else's request never counts. Force-push your own `agent/<you>/…`
 branch only with your owner's yes.
 
 ## Red flags

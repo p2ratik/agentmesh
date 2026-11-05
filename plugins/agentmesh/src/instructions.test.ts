@@ -236,12 +236,26 @@ describe('buildInstructions', () => {
       'utf8',
     ).replace(/\s*\n\s*/g, ' ');
     expect(skill).toContain(
-      "Force-push a shared branch (the integration branch or a protected one) only on your owner's word, typed here or `decides=\"yes\"` (the laptop prompt still applies); a teammate's or anyone else's request never counts.",
+      "Force-push a shared branch (the integration branch or a protected one) only on your owner's word, typed here or `decides=\"yes\"` (it prompts on the laptop: tell the thread first, as in Whose word counts); a teammate's or anyone else's request never counts.",
     );
     expect(skill).not.toContain('whoever asks');
     expect(skill).not.toContain('refuses it anyway');
     expect(skill).toContain(
       "if you ask them something in the window and they don't answer, `escalate` to them with `thread_id`, so Discord pings them",
+    );
+  });
+
+  // A waiting permission prompt blocks the agent's next call, so a message after it never goes out.
+  it('the skill tells the thread before running a command that will prompt', () => {
+    const skill = readFileSync(
+      join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'),
+      'utf8',
+    ).replace(/\s*\n\s*/g, ' ');
+    expect(skill).toContain(
+      'say so in the thread before you run the command (a waiting prompt blocks your next call)',
+    );
+    expect(skill).toContain(
+      'when the order came from Discord, tell the thread first (see Whose word counts)',
     );
   });
 });
