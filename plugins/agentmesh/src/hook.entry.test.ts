@@ -12,8 +12,10 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { windowFiles } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WINDOW_LABEL } from './hook/prompt';
+import { HINT_SETUP, HINT_START } from './window/session-start';
 
 // The prompt hook as Claude Code runs it: a process with the event on stdin. tsx stands in for the
 // bundle; home and plugin data are temp folders, never the real ones.
@@ -94,5 +96,32 @@ describe('dist/hook.js (from source)', () => {
     const end = { hook_event_name: 'SessionEnd', reason: 'exit', session_id: id };
     expect(await hook(JSON.stringify(end), env)).toEqual({ status: 0, stdout: '' });
     expect(readdirSync(data)).toEqual([]);
+  }, 30_000);
+
+  it("hints to start the window only when the policy file is this agent's", async () => {
+    const policy = windowFiles(join(base, 'home'), process.platform).policy;
+    mkdirSync(join(policy, '..'), { recursive: true });
+    const start = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' });
+    const env = { CLAUDE_PLUGIN_OPTION_AGENT_ID: 'alice-agent' };
+    const hint = async () => JSON.parse((await hook(start, env)).stdout).systemMessage;
+    const write = (agentId: string) =>
+      writeFileSync(
+        policy,
+        JSON.stringify({
+          version: 1,
+          agentId,
+          token: 'a'.repeat(32),
+          ownBranchPrefix: null,
+          integrationBranch: 'agents',
+          testCommands: [],
+        }),
+      );
+    expect(await hint()).toBe(HINT_SETUP);
+    write('alice-agent');
+    expect(await hint()).toBe(HINT_START);
+    write('bob-agent');
+    expect(await hint()).toBe(HINT_SETUP);
+    writeFileSync(policy, '{not json');
+    expect(await hint()).toBe(HINT_SETUP);
   }, 30_000);
 });

@@ -177,4 +177,26 @@ describe('agentmesh window init', () => {
       `Warning: ${join(work, 'web')} doesn't ignore .claude/worktrees/; add it to .gitignore so the window's worktrees don't show up as untracked files.`,
     ]);
   });
+
+  it('warns about a claude-mesh function in a shell profile, and still succeeds', async () => {
+    const t = setup();
+    const bashrc = join(t.home, '.bashrc');
+    const profile =
+      platform === 'win32' ? join(t.home, 'Documents', 'WindowsPowerShell', 'profile.ps1') : bashrc;
+    mkdirSync(join(profile, '..'), { recursive: true });
+    writeFileSync(profile, '# old\nfunction claude-mesh {\n  claude --x\n}\n');
+    writeFileSync(bashrc, 'export A=1\nalias claude-mesh=claude\n');
+    const warn = (file: string, line: number) =>
+      `Warning: ${file}:${line} defines claude-mesh, which runs instead of the launcher in that shell. Remove or rename it, then open a new terminal.`;
+    const expected = profile === bashrc ? [warn(bashrc, 2)] : [warn(profile, 2), warn(bashrc, 2)];
+    expect(await t.run('--agent', 'alice-agent')).toBe(0);
+    expect(t.out.filter((l) => l.includes('defines claude-mesh'))).toEqual(expected);
+  });
+
+  it('prints no shadow warning for a clean home', async () => {
+    const t = setup();
+    writeFileSync(join(t.home, '.bashrc'), 'export A=1\nalias ll=ls\n');
+    expect(await t.run('--agent', 'alice-agent')).toBe(0);
+    expect(t.out.filter((l) => l.includes('defines claude-mesh'))).toEqual([]);
+  });
 });

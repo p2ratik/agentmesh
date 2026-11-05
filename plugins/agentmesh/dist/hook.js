@@ -358,7 +358,7 @@ function sessionStartOutput(i) {
   const hint = i.source === "startup" && i.enrolled && !i.hintOff && !i.listening;
   return {
     additionalContext: null,
-    systemMessage: hint ? i.launcherExists ? HINT_START : HINT_SETUP : null
+    systemMessage: hint ? i.setUp ? HINT_START : HINT_SETUP : null
   };
 }
 
@@ -406,11 +406,22 @@ function readJsonFiles(dir, filter) {
     }
   });
 }
+function thisAgent(env, home) {
+  const usable = (v) => typeof v === "string" && v && !v.startsWith("${") ? v : void 0;
+  const option = usable(env.CLAUDE_PLUGIN_OPTION_AGENT_ID);
+  if (option) return option;
+  try {
+    return usable(JSON.parse(readFileSync3(join3(home, ".agentmesh", "agent.json"), "utf8")).agentId);
+  } catch {
+    return void 0;
+  }
+}
 function sessionStart(source) {
   const env = process.env;
   const home = homedir();
   const { policy } = readMarker(env, home, process.platform);
   const dir = pullStateDirs(env, home)[0];
+  const agentId = thisAgent(env, home);
   return sessionStartOutput({
     source: typeof source === "string" ? source : void 0,
     marked: !!env.AGENTMESH_MESH_WINDOW,
@@ -418,7 +429,8 @@ function sessionStart(source) {
     enrolled: existsSync(join3(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
-    launcherExists: existsSync(windowFiles(home, process.platform).launcher)
+    // The same rule as activate: the policy file parses and names this agent.
+    setUp: !!agentId && readWindowPolicy(home, process.platform)?.agentId === agentId
   });
 }
 function promptLine(prompt, dirs) {

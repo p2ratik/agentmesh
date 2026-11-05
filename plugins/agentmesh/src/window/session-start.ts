@@ -13,7 +13,7 @@ export interface SessionStartInput {
   enrolled: boolean;
   hintOff: boolean;
   listening: boolean;
-  launcherExists: boolean;
+  setUp: boolean;
 }
 
 /** The mesh window gets its rules every start; other sessions hear about a missing window once, at startup. */
@@ -25,6 +25,6 @@ export function sessionStartOutput(i: SessionStartInput): {
   const hint = i.source === 'startup' && i.enrolled && !i.hintOff && !i.listening;
   return {
     additionalContext: null,
-    systemMessage: hint ? (i.launcherExists ? HINT_START : HINT_SETUP) : null,
+    systemMessage: hint ? (i.setUp ? HINT_START : HINT_SETUP) : null,
   };
 }

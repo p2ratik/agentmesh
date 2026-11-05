@@ -23,7 +23,7 @@ const base: SessionStartInput = {
   enrolled: true,
   hintOff: false,
   listening: false,
-  launcherExists: true,
+  setUp: true,
 };
 
 describe('sessionStartOutput', () => {
@@ -41,7 +41,7 @@ describe('sessionStartOutput', () => {
       additionalContext: null,
       systemMessage: HINT_START,
     });
-    expect(sessionStartOutput({ ...base, launcherExists: false }).systemMessage).toBe(HINT_SETUP);
+    expect(sessionStartOutput({ ...base, setUp: false }).systemMessage).toBe(HINT_SETUP);
   });
 
   it('names claude-mesh, the same start command on every platform', () => {

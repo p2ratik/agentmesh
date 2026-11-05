@@ -12,6 +12,7 @@ import { parseCommandArgs, usageError } from '../args';
 import { type CliContext, type Command, resolveFrom } from '../context';
 import { writeFileAtomic } from '../lib/files';
 import { findOnPath, isRegularFile } from '../lib/path-lookup';
+import { shellShadowWarnings } from '../lib/shell-shadow-scan';
 import { installShim, isOwnShim } from '../lib/shim';
 import { bakeable, launcherScript, shimScripts, windowSettings } from '../render/window';
 import { printStart } from './window-start';
@@ -99,6 +100,7 @@ const present = (p: string): boolean => {
 /** What follows the start line: a re-run note, then the warnings. */
 function printNotes(
   ctx: CliContext,
+  platform: NodeJS.Platform,
   n: { rerun: boolean; prefix: string | null; dir: string; emptyHooks: string },
 ): void {
   if (n.rerun) {
@@ -111,6 +113,7 @@ function printNotes(
       "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask.",
     );
   }
+  for (const w of shellShadowWarnings(ctx, platform)) ctx.stdout(w);
   for (const line of worktreeWarnings(n.dir)) ctx.stdout(line);
   if (readdirSync(n.emptyHooks).length > 0) {
     ctx.stdout(
@@ -232,7 +235,7 @@ that Claude account.
       reached,
       reachesOurs: reached !== null && isOwnShim(reached),
     });
-    printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
+    printNotes(ctx, platform, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   },
 };
