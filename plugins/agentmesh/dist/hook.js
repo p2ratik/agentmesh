@@ -1,83 +1,59 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/hook.ts
-import { existsSync, readdirSync as readdirSync2, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync, readdirSync as readdirSync2, readFileSync as readFileSync4 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 
-// ../../packages/common/src/window.ts
+// src/agent-id.ts
 import { readFileSync } from "node:fs";
-import { posix, win32 } from "node:path";
-var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
-var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
-var RESTART = `claude ${CHANNEL_FLAG}`;
-var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
-var START_COMMAND = "claude-mesh";
-function windowFiles(home, platform) {
-  const { join: join4 } = platform === "win32" ? win32 : posix;
-  const dir = join4(home, ".agentmesh");
-  return {
-    dir,
-    policy: join4(dir, "mesh-window.json"),
-    settings: join4(dir, "mesh-window.settings.json"),
-    launcher: join4(dir, launcherName(platform)),
-    emptyHooks: join4(dir, "empty-git-hooks"),
-    bin: join4(dir, "bin")
+import { join } from "node:path";
+function usable(value) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("${")) return void 0;
+  return trimmed;
+}
+function fileApplies(options, saved) {
+  const agrees = (option, value) => {
+    const a = usable(option);
+    const b = usable(value);
+    return a === void 0 || b === void 0 || a === b;
   };
+  return agrees(options.agentId, saved.agentId) && agrees(options.natsUrl, saved.natsUrl);
 }
-var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
-var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
-var MAX_TEST_COMMANDS = 10;
-function isBranchName(v) {
-  return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(v) && !v.includes("..");
+function resolveAgentId(options, saved) {
+  const file = saved && fileApplies(options, saved) ? saved : {};
+  return usable(options.agentId) ?? usable(file.agentId) ?? null;
 }
-var endsAsPrefix = (v) => /[/_.]$/.test(v);
-function isTestCommand(v) {
-  return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
+function parseSavedAgent(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value;
+  const saved = {};
+  for (const key of FIELDS) {
+    const v = record[key];
+    if (v === void 0) continue;
+    if (typeof v !== "string") return null;
+    saved[key] = v;
+  }
+  return saved;
 }
-function parseWindowPolicy(text) {
-  let v;
+function hookAgentId(env, home) {
+  let saved = null;
   try {
-    v = JSON.parse(text);
+    saved = parseSavedAgent(
+      JSON.parse(readFileSync(join(home, ".agentmesh", "agent.json"), "utf8"))
+    );
   } catch {
-    return null;
   }
-  if (typeof v !== "object" || v === null) return null;
-  const p = v;
-  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
-  if (p.version !== 1) return null;
-  if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
-  if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
-  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
-  if (prefix !== null && !prefixOk) return null;
-  if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
-  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
-    return null;
-  }
-  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
-}
-function readWindowPolicy(home, platform) {
-  try {
-    return parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, "utf8"));
-  } catch {
-    return null;
-  }
-}
-function markerState(env, policy, agentId) {
-  const value = env[MESH_WINDOW_ENV];
-  if (!value) return { state: "none", policy: null };
-  if (policy && policy.token === value && (agentId === void 0 || policy.agentId === agentId)) {
-    return { state: "verified", policy };
-  }
-  return { state: "marked", policy: null };
-}
-function readMarker(env, home, platform, agentId) {
-  if (!env[MESH_WINDOW_ENV]) return { state: "none", policy: null };
-  return markerState(env, readWindowPolicy(home, platform), agentId);
+  return resolveAgentId(
+    { agentId: env.CLAUDE_PLUGIN_OPTION_AGENT_ID, natsUrl: env.CLAUDE_PLUGIN_OPTION_NATS_URL },
+    saved ?? {}
+  );
 }
 
 // src/pull/state.ts
-import { join } from "node:path";
+import { join as join2 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
@@ -85,7 +61,7 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
   return age >= 0 && age <= maxAge;
 }
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".agentmesh", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join2(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 var isStateFile = (name) => name.startsWith("pull-") && name.endsWith(".json");
@@ -242,7 +218,7 @@ import {
   statSync,
   writeFileSync
 } from "node:fs";
-import { join as join2 } from "node:path";
+import { join as join3 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var RECORD_MAX_AGE_MS = 24 * 36e5;
 var RECORD_FILE = /^cc-\d{1,10}\.json(?:\.tmp)?$/;
@@ -256,7 +232,7 @@ function writeClaudeSession(dir, pid, input, now) {
   const id = input.session_id;
   if (!name || typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return;
   const source = typeof input.source === "string" ? input.source.slice(0, 32) : null;
-  const file = join2(dir, name);
+  const file = join3(dir, name);
   mkdirSync(dir, { recursive: true, mode: 448 });
   writeFileSync(`${file}.tmp`, JSON.stringify({ session_id: id, source, at: now.toISOString() }), {
     mode: 384
@@ -273,7 +249,7 @@ function readRecord(file) {
 function deleteClaudeSession(dir, pid, sessionId) {
   const name = claudeSessionFile(pid);
   if (!name || typeof sessionId !== "string" || !CLAUDE_SESSION_ID.test(sessionId)) return;
-  const file = join2(dir, name);
+  const file = join3(dir, name);
   if (readRecord(file)?.session_id === sessionId) rmSync(file, { force: true });
 }
 function pruneClaudeSessions(dir, now) {
@@ -285,7 +261,7 @@ function pruneClaudeSessions(dir, now) {
   }
   for (const name of names) {
     try {
-      const file = join2(dir, name);
+      const file = join3(dir, name);
       if (now - statSync(file).mtimeMs > RECORD_MAX_AGE_MS) rmSync(file, { force: true });
     } catch {
     }
@@ -303,6 +279,73 @@ function windowAddresses(values, prefix, agentId, now) {
     const ok = b?.meshWindow === true && b.prefix === prefix && b.agentId === agentId && typeof b.uds === "string" && b.uds !== "" && isFresh(b.updatedAt, now);
     return ok ? [b.uds] : [];
   });
+}
+
+// ../../packages/common/src/window.ts
+import { readFileSync as readFileSync3 } from "node:fs";
+import { posix, win32 } from "node:path";
+var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
+var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
+var RESTART = `claude ${CHANNEL_FLAG}`;
+var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
+var START_COMMAND = "claude-mesh";
+function windowFiles(home, platform) {
+  const { join: join5 } = platform === "win32" ? win32 : posix;
+  const dir = join5(home, ".agentmesh");
+  return {
+    dir,
+    policy: join5(dir, "mesh-window.json"),
+    settings: join5(dir, "mesh-window.settings.json"),
+    launcher: join5(dir, launcherName(platform)),
+    emptyHooks: join5(dir, "empty-git-hooks"),
+    bin: join5(dir, "bin")
+  };
+}
+var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
+var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+var MAX_TEST_COMMANDS = 10;
+function isBranchName(v) {
+  return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(v) && !v.includes("..");
+}
+var endsAsPrefix = (v) => /[/_.]$/.test(v);
+function isTestCommand(v) {
+  return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
+}
+function parseWindowPolicy(text) {
+  let v;
+  try {
+    v = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof v !== "object" || v === null) return null;
+  const p = v;
+  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  if (p.version !== 1) return null;
+  if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
+  if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
+  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
+  if (prefix !== null && !prefixOk) return null;
+  if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
+  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
+    return null;
+  }
+  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+}
+function readWindowPolicy(home, platform) {
+  try {
+    return parseWindowPolicy(readFileSync3(windowFiles(home, platform).policy, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function markerState(env, policy, agentId) {
+  const value = env[MESH_WINDOW_ENV];
+  if (!value) return { state: "none", policy: null };
+  if (policy && policy.token === value && (agentId === void 0 || policy.agentId === agentId)) {
+    return { state: "verified", policy };
+  }
+  return { state: "marked", policy: null };
 }
 
 // src/window/rules.ts
@@ -362,6 +405,13 @@ function sessionStartOutput(i) {
   };
 }
 
+// src/window/start-state.ts
+function windowStartState(env, agentId, home, platform, readPolicy = readWindowPolicy) {
+  const file = readPolicy(home, platform);
+  const { policy } = markerState(env, file);
+  return { policy, setUp: !!agentId && file?.agentId === agentId };
+}
+
 // src/hook.ts
 var EVENTS = /* @__PURE__ */ new Set(["UserPromptSubmit", "SessionStart", "SessionEnd"]);
 var STDIN_WAIT_MS = 1e3;
@@ -400,37 +450,25 @@ function readJsonFiles(dir, filter) {
   }
   return names.map((name) => {
     try {
-      return parse(readFileSync3(join3(dir, name), "utf8"));
+      return parse(readFileSync4(join4(dir, name), "utf8"));
     } catch {
       return null;
     }
   });
 }
-function thisAgent(env, home) {
-  const usable = (v) => typeof v === "string" && v && !v.startsWith("${") ? v : void 0;
-  const option = usable(env.CLAUDE_PLUGIN_OPTION_AGENT_ID);
-  if (option) return option;
-  try {
-    return usable(JSON.parse(readFileSync3(join3(home, ".agentmesh", "agent.json"), "utf8")).agentId);
-  } catch {
-    return void 0;
-  }
-}
 function sessionStart(source) {
   const env = process.env;
   const home = homedir();
-  const { policy } = readMarker(env, home, process.platform);
+  const { policy, setUp } = windowStartState(env, hookAgentId(env, home), home, process.platform);
   const dir = pullStateDirs(env, home)[0];
-  const agentId = thisAgent(env, home);
   return sessionStartOutput({
     source: typeof source === "string" ? source : void 0,
     marked: !!env.AGENTMESH_MESH_WINDOW,
     policy,
-    enrolled: existsSync(join3(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
+    enrolled: existsSync(join4(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
-    // The same rule as activate: the policy file parses and names this agent.
-    setUp: !!agentId && readWindowPolicy(home, process.platform)?.agentId === agentId
+    setUp
   });
 }
 function promptLine(prompt, dirs) {

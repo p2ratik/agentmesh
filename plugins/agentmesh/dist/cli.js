@@ -50352,56 +50352,56 @@ import { readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
 
 // ../../apps/cli/src/lib/shell-shadow.ts
 import { join as join16 } from "node:path";
-var NAME = START_COMMAND.replace(/[-]/g, "\\-");
+var NAME = START_COMMAND;
 var END = "(?![\\w-])";
 var QUOTE = `['"]?`;
+var FUNCTION = `^\\s*function\\s+(?:\\w+:)?${QUOTE}${NAME}${END}`;
+var FUNCTION_EXACT = new RegExp(FUNCTION);
+var FUNCTION_ANY_CASE = new RegExp(FUNCTION, "i");
+var ALIAS_CMDLET = "(?:set-alias|new-alias|sal|nal)";
 var PATTERNS = [
-  // PowerShell, sh, bash, zsh and fish: function claude-mesh (PowerShell also function global:claude-mesh)
-  new RegExp(`^\\s*function\\s+(?:\\w+:)?${QUOTE}${NAME}${END}`, "i"),
-  // PowerShell: Set-Alias / New-Alias with the name first or as -Name
-  new RegExp(`^\\s*(?:set|new)-alias\\s+(?:-name[\\s:]+)?${QUOTE}${NAME}${END}`, "i"),
-  new RegExp(`^\\s*(?:set|new)-alias\\b.*\\s-name[\\s:]+${QUOTE}${NAME}${END}`, "i"),
-  // sh, bash, zsh: alias claude-mesh=…; fish: alias claude-mesh …
+  // PowerShell: Set-Alias / New-Alias (or sal / nal) with the name first or as -Name
+  new RegExp(`^\\s*${ALIAS_CMDLET}\\s+${QUOTE}${NAME}${END}`, "i"),
+  new RegExp(`^\\s*${ALIAS_CMDLET}\\b.*\\s-name[\\s:]+${QUOTE}${NAME}${END}`, "i"),
+  // sh, bash, zsh: alias claude-mesh=...; fish: alias claude-mesh ...
   new RegExp(`^\\s*alias\\s+(?:-\\w+\\s+)*${QUOTE}${NAME}${END}`),
-  // sh, bash, zsh: claude-mesh() { … }
+  // sh, bash, zsh: claude-mesh() { ... }
   new RegExp(`^\\s*${NAME}\\s*\\(\\s*\\)`)
 ];
-function shadowLines(text) {
+function shadowLines(text, powershell = false) {
+  const fn = powershell ? FUNCTION_ANY_CASE : FUNCTION_EXACT;
   const hits = [];
   text.split(/\r?\n/).forEach((line, i) => {
-    if (/^\s*#/.test(line)) return;
-    if (PATTERNS.some((p) => p.test(line))) hits.push(i + 1);
+    if (fn.test(line) || PATTERNS.some((p) => p.test(line))) hits.push(i + 1);
   });
   return hits;
 }
 var POWERSHELL_PROFILES = [
   ["WindowsPowerShell", "profile.ps1"],
   ["WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"],
+  ["WindowsPowerShell", "Microsoft.VSCode_profile.ps1"],
   ["PowerShell", "profile.ps1"],
-  ["PowerShell", "Microsoft.PowerShell_profile.ps1"]
+  ["PowerShell", "Microsoft.PowerShell_profile.ps1"],
+  ["PowerShell", "Microsoft.VSCode_profile.ps1"]
 ];
 function startupFiles(platform, home, env, isFolder3) {
   const files = [];
   if (platform === "win32") {
-    const roots = [
-      env.USERPROFILE || home,
-      env.OneDrive,
-      env.OneDriveConsumer,
-      env.OneDriveCommercial
-    ];
-    const docs = /* @__PURE__ */ new Set();
-    roots.forEach((root, i) => {
-      if (!root) return;
-      if (i > 0 && !isFolder3(root)) return;
-      const d = join16(root, "Documents");
-      if (i === 0 || isFolder3(d)) docs.add(d);
-    });
+    const docs = /* @__PURE__ */ new Set([join16(env.USERPROFILE || home, "Documents")]);
+    for (const root of [env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial]) {
+      if (root && isFolder3(join16(root, "Documents"))) docs.add(join16(root, "Documents"));
+    }
     for (const d of docs) for (const p of POWERSHELL_PROFILES) files.push(join16(d, ...p));
   }
-  for (const p of [".bashrc", ".bash_profile", ".profile", ".zshrc"]) files.push(join16(home, p));
+  for (const p of [".bashrc", ".bash_profile", ".profile", ".bash_aliases", ".zshrc"]) {
+    files.push(join16(home, p));
+  }
   files.push(join16(home, ".config", "fish", "config.fish"));
   return files;
 }
+var definingFiles = (home) => [
+  join16(home, ".config", "fish", "functions", `${START_COMMAND}.fish`)
+];
 var shadowWarning = (file2, line) => `Warning: ${file2}:${line} defines ${START_COMMAND}, which runs instead of the launcher in that shell. Remove or rename it, then open a new terminal.`;
 
 // ../../apps/cli/src/lib/shell-shadow-scan.ts
@@ -50412,16 +50412,25 @@ var isFolder = (p) => {
     return false;
   }
 };
+function readText(file2) {
+  try {
+    const buf = readFileSync12(file2);
+    return buf[0] === 255 && buf[1] === 254 ? buf.toString("utf16le") : buf.toString("utf8");
+  } catch {
+    return null;
+  }
+}
 function shellShadowWarnings(ctx, platform) {
   const warnings = [];
   for (const file2 of startupFiles(platform, ctx.homeDir, ctx.env, isFolder)) {
-    let text;
-    try {
-      text = readFileSync12(file2, "utf8");
-    } catch {
-      continue;
+    const text = readText(file2);
+    if (text === null) continue;
+    for (const line of shadowLines(text, file2.endsWith(".ps1"))) {
+      warnings.push(shadowWarning(file2, line));
     }
-    for (const line of shadowLines(text)) warnings.push(shadowWarning(file2, line));
+  }
+  for (const file2 of definingFiles(ctx.homeDir)) {
+    if (readText(file2) !== null) warnings.push(shadowWarning(file2, 1));
   }
   return warnings;
 }

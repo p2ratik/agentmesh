@@ -31,7 +31,13 @@ afterEach(() => rmSync(base, { recursive: true, force: true }));
 /** Runs the hook with `stdin`; the hook may stop reading a long one, so a broken pipe is fine. */
 async function hook(stdin: string, env: Record<string, string>) {
   const clean = { ...process.env };
-  for (const k of ['AGENTMESH_MESH_WINDOW', 'CLAUDE_PLUGIN_DATA', 'CLAUDE_PID']) delete clean[k];
+  for (const k of [
+    'AGENTMESH_MESH_WINDOW',
+    'AGENTMESH_MESH_WINDOW_HINT',
+    'CLAUDE_PLUGIN_DATA',
+    'CLAUDE_PID',
+  ])
+    delete clean[k];
   const home = join(base, 'home');
   const child = spawn(process.execPath, ARGS, {
     cwd: ROOT,
@@ -123,5 +129,35 @@ describe('dist/hook.js (from source)', () => {
     expect(await hint()).toBe(HINT_SETUP);
     writeFileSync(policy, '{not json');
     expect(await hint()).toBe(HINT_SETUP);
+  }, 30_000);
+  it('finds this agent as the server does: options first, then an agent.json that applies', async () => {
+    const home = join(base, 'home');
+    const policy = windowFiles(home, process.platform).policy;
+    mkdirSync(join(policy, '..'), { recursive: true });
+    writeFileSync(
+      policy,
+      JSON.stringify({
+        version: 1,
+        agentId: 'alice-agent',
+        token: 'a'.repeat(32),
+        ownBranchPrefix: null,
+        integrationBranch: 'agents',
+        testCommands: [],
+      }),
+    );
+    const saved = (text: string) => writeFileSync(join(home, '.agentmesh', 'agent.json'), text);
+    mkdirSync(join(home, '.agentmesh'), { recursive: true });
+    const start = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' });
+    const hint = async (env: Record<string, string>) =>
+      JSON.parse((await hook(start, env)).stdout).systemMessage;
+    const file = JSON.stringify({ agentId: 'alice-agent', natsUrl: 'tls://hub:4222' });
+    saved(file);
+    // an invited teammate: empty options, agent.json written by join
+    expect(await hint({})).toBe(HINT_START);
+    expect(await hint({ CLAUDE_PLUGIN_OPTION_AGENT_ID: '  alice-agent  ' })).toBe(HINT_START);
+    // options for another hub: the server ignores the file, so this agent is not alice's
+    expect(await hint({ CLAUDE_PLUGIN_OPTION_NATS_URL: 'tls://other:4222' })).toBe(HINT_SETUP);
+    saved('{"agentId":5}');
+    expect(await hint({})).toBe(HINT_SETUP);
   }, 30_000);
 });

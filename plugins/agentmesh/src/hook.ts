@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readMarker, readWindowPolicy } from '@agentmesh/common/window';
+import { hookAgentId } from './agent-id';
 import { promptContext, unreadInput } from './hook/prompt';
 import { announce, isStateFile, pullStateDirs, selectStates } from './pull/state';
 import { isLocalSessionFile, ownLocalSession } from './relay/local-session';
@@ -12,6 +12,7 @@ import {
 } from './resume/claude-session';
 import { anyFresh, isHeartbeatFile, windowAddresses } from './window/heartbeat';
 import { sessionStartOutput } from './window/session-start';
+import { windowStartState } from './window/start-state';
 
 /**
  * The plugin's UserPromptSubmit / SessionStart / SessionEnd hook (dist/hook.js, ADR 0008):
@@ -72,19 +73,6 @@ function readJsonFiles(dir: string, filter: (name: string) => boolean): unknown[
   });
 }
 
-/** This plugin's agent: its option, else the one ~/.agentmesh/agent.json names. */
-function thisAgent(env: NodeJS.ProcessEnv, home: string): string | undefined {
-  const usable = (v: unknown) =>
-    typeof v === 'string' && v && !v.startsWith('${') ? v : undefined;
-  const option = usable(env.CLAUDE_PLUGIN_OPTION_AGENT_ID);
-  if (option) return option;
-  try {
-    return usable(JSON.parse(readFileSync(join(home, '.agentmesh', 'agent.json'), 'utf8')).agentId);
-  } catch {
-    return undefined;
-  }
-}
-
 /** SessionStart: the window's rules, or a one-time hint that nothing is listening. */
 function sessionStart(source: unknown): {
   additionalContext: string | null;
@@ -92,9 +80,8 @@ function sessionStart(source: unknown): {
 } {
   const env = process.env;
   const home = homedir();
-  const { policy } = readMarker(env, home, process.platform);
+  const { policy, setUp } = windowStartState(env, hookAgentId(env, home), home, process.platform);
   const dir = pullStateDirs(env, home)[0];
-  const agentId = thisAgent(env, home);
   return sessionStartOutput({
     source: typeof source === 'string' ? source : undefined,
     marked: !!env.AGENTMESH_MESH_WINDOW,
@@ -103,8 +90,7 @@ function sessionStart(source: unknown): {
       existsSync(join(home, '.agentmesh', 'agent.json')) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === 'off',
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
-    // The same rule as activate: the policy file parses and names this agent.
-    setUp: !!agentId && readWindowPolicy(home, process.platform)?.agentId === agentId,
+    setUp,
   });
 }
 

@@ -47877,6 +47877,25 @@ var RPC_METHODS = {
   ...enrollmentMethods
 };
 
+// src/agent-id.ts
+function usable(value) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("${")) return void 0;
+  return trimmed;
+}
+function fileApplies(options, saved) {
+  const agrees = (option, value) => {
+    const a = usable(option);
+    const b = usable(value);
+    return a === void 0 || b === void 0 || a === b;
+  };
+  return agrees(options.agentId, saved.agentId) && agrees(options.natsUrl, saved.natsUrl);
+}
+function resolveAgentId(options, saved) {
+  const file2 = saved && fileApplies(options, saved) ? saved : {};
+  return usable(options.agentId) ?? usable(file2.agentId) ?? null;
+}
+
 // src/config.ts
 var FileConfig = external_exports.object({
   agentId: external_exports.string().optional(),
@@ -47887,9 +47906,10 @@ var FileConfig = external_exports.object({
 var DEFAULT_CONFIG_FILE = join3(homedir3(), ".agentmesh", "agent.json");
 function resolveConfig(env = process.env, file2 = DEFAULT_CONFIG_FILE) {
   const saved = readFileConfig(file2);
-  const fromFile = fileApplies(env, saved) ? saved : {};
+  const options = { agentId: env.AGENTMESH_AGENT_ID, natsUrl: env.AGENTMESH_NATS_URL };
+  const fromFile = fileApplies(options, saved) ? saved : {};
   const pick2 = (key, fallback) => usable(env[key]) ?? usable(fallback);
-  const agentId = pick2("AGENTMESH_AGENT_ID", fromFile.agentId);
+  const agentId = resolveAgentId(options, saved) ?? void 0;
   const urls = pick2("AGENTMESH_NATS_URL", fromFile.natsUrl);
   const { prefix, warnings } = resolvePrefix(env, fromFile);
   const seed = pick2("AGENTMESH_NKEY_SEED", fromFile.nkeySeed);
@@ -47912,14 +47932,6 @@ function resolveConfig(env = process.env, file2 = DEFAULT_CONFIG_FILE) {
     }
   };
 }
-function fileApplies(env, saved) {
-  const agrees = (option, value) => {
-    const a = usable(option);
-    const b = usable(value);
-    return a === void 0 || b === void 0 || a === b;
-  };
-  return agrees(env.AGENTMESH_AGENT_ID, saved.agentId) && agrees(env.AGENTMESH_NATS_URL, saved.natsUrl);
-}
 function resolvePrefix(env, fromFile) {
   const option = usable(env.AGENTMESH_PREFIX);
   const saved = usable(fromFile.prefix);
@@ -47935,11 +47947,6 @@ function configProblems(agentId, urls, prefix, heartbeat) {
   if (!Number.isFinite(heartbeat) || heartbeat < 5)
     problems.push("AGENTMESH_HEARTBEAT_SECONDS must be >= 5");
   return problems;
-}
-function usable(value) {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed.startsWith("${")) return void 0;
-  return trimmed;
 }
 function readFileConfig(file2) {
   if (!existsSync2(file2)) return {};

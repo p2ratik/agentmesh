@@ -1,16 +1,19 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { shadowLines, startupFiles } from './shell-shadow';
+import { definingFiles, shadowLines, startupFiles } from './shell-shadow';
 
 describe('shadowLines', () => {
   it.each([
     'function claude-mesh { claude --dangerously-load-development-channels x }',
-    'Function Claude-Mesh {',
     '  function global:claude-mesh() {',
     'Set-Alias claude-mesh C:\\x\\y.exe',
     'New-Alias -Name claude-mesh -Value claude',
     'set-alias -Value claude -Name "claude-mesh"',
+    'Set-Alias -Name:claude-mesh -Value claude',
+    'sal claude-mesh claude',
+    'NAL -Name claude-mesh -Value claude',
     "alias claude-mesh='claude --x'",
+    'alias -g claude-mesh=claude',
     'claude-mesh() { claude "$@"; }',
     'claude-mesh ( ) { claude; }',
     'function claude-mesh() { claude; }',
@@ -18,6 +21,13 @@ describe('shadowLines', () => {
     'function claude-mesh',
   ])('matches %s', (line) => {
     expect(shadowLines(line)).toEqual([1]);
+    expect(shadowLines(line, true)).toEqual([1]);
+  });
+
+  it('matches PowerShell function names in any case, other shells only exactly', () => {
+    expect(shadowLines('Function Claude-Mesh {', true)).toEqual([1]);
+    expect(shadowLines('Function Claude-Mesh {')).toEqual([]);
+    expect(shadowLines('function CLAUDE-MESH {')).toEqual([]);
   });
 
   it('gives 1-based line numbers, across CRLF too', () => {
@@ -33,24 +43,29 @@ describe('shadowLines', () => {
     'alias claude-meshy=x',
     'my-claude-mesh() { x; }',
     'Set-Alias cm claude-mesh',
+    'sal cm claude-mesh',
     'claude-mesh --help',
     'echo function claude-mesh',
     '',
   ])('ignores %s', (line) => {
-    expect(shadowLines(line)).toEqual([]);
+    expect(shadowLines(line, true)).toEqual([]);
   });
 });
 
 describe('startupFiles', () => {
   const home = join('h', 'me');
-  const posix = ['.bashrc', '.bash_profile', '.profile', '.zshrc'].map((f) => join(home, f));
+  const posix = ['.bashrc', '.bash_profile', '.profile', '.bash_aliases', '.zshrc'].map((f) =>
+    join(home, f),
+  );
   posix.push(join(home, '.config', 'fish', 'config.fish'));
   const ps = (docs: string) =>
     [
       ['WindowsPowerShell', 'profile.ps1'],
       ['WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1'],
+      ['WindowsPowerShell', 'Microsoft.VSCode_profile.ps1'],
       ['PowerShell', 'profile.ps1'],
       ['PowerShell', 'Microsoft.PowerShell_profile.ps1'],
+      ['PowerShell', 'Microsoft.VSCode_profile.ps1'],
     ].map((p) => join(docs, ...p));
 
   it('lists only the POSIX files off Windows', () => {
@@ -62,6 +77,12 @@ describe('startupFiles', () => {
     expect(files).toEqual([...ps(join(home, 'Documents')), ...posix]);
   });
 
+  it('takes USERPROFILE over the home folder', () => {
+    const files = startupFiles('win32', home, { USERPROFILE: join('u', 'p') }, () => false);
+    expect(files.slice(0, 6)).toEqual(ps(join('u', 'p', 'Documents')));
+    expect(files.slice(6)).toEqual(posix);
+  });
+
   it('adds Documents under each OneDrive folder that is set and exists', () => {
     const env = {
       USERPROFILE: home,
@@ -69,7 +90,7 @@ describe('startupFiles', () => {
       OneDriveConsumer: join('od', 'b'),
       OneDriveCommercial: join('od', 'gone'),
     };
-    const docs = (p: string) => p !== join('od', 'gone');
+    const docs = (p: string) => !p.startsWith(join('od', 'gone'));
     expect(startupFiles('win32', home, env, docs)).toEqual([
       ...ps(join(home, 'Documents')),
       ...ps(join('od', 'a', 'Documents')),
@@ -78,9 +99,24 @@ describe('startupFiles', () => {
     ]);
   });
 
-  it('skips a OneDrive folder without a Documents folder, and repeats nothing', () => {
-    const env = { USERPROFILE: home, OneDrive: home, OneDriveConsumer: join('od', 'c') };
+  it('skips a OneDrive folder without a Documents folder', () => {
+    const env = { USERPROFILE: home, OneDriveConsumer: join('od', 'c') };
     const files = startupFiles('win32', home, env, (p) => p === join('od', 'c'));
     expect(files).toEqual([...ps(join(home, 'Documents')), ...posix]);
+  });
+
+  it('lists a Documents folder once when OneDrive variables repeat', () => {
+    const od = join('od', 'a');
+    const env = { USERPROFILE: home, OneDrive: od, OneDriveConsumer: od, OneDriveCommercial: od };
+    const files = startupFiles('win32', home, env, () => true);
+    expect(files).toEqual([...ps(join(home, 'Documents')), ...ps(join(od, 'Documents')), ...posix]);
+  });
+});
+
+describe('definingFiles', () => {
+  it('names the fish per-function file, whose existence defines claude-mesh', () => {
+    expect(definingFiles(join('h', 'me'))).toEqual([
+      join('h', 'me', '.config', 'fish', 'functions', 'claude-mesh.fish'),
+    ]);
   });
 });
