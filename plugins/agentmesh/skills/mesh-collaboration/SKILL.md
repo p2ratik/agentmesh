@@ -162,8 +162,8 @@ task at a time, each in its own git worktree, never your human's checkout.
   the hub does it).
 - `decides="yes"` (`DECIDES` in a thread) is your owner, from Discord, with full authority, as if
   typed here: continue, drop, accept, approve, merge, "do X". The one exception is a permission
-  prompt on the laptop: it still waits for the keyboard, so say so in the thread before you run the
-  command (a waiting prompt blocks your next call), for example
+  prompt on the laptop: it still waits for the keyboard, so say so in the thread before the first
+  command that will prompt (a waiting prompt blocks your next call), for example
   `reply(status: "needs_human", text: "Merging asks for approval on <owner>'s laptop; it waits for that prompt.")`.
   If something they may not know stands in the way (red CI, a review the policy requires), say so
   before you act.

@@ -252,7 +252,7 @@ describe('buildInstructions', () => {
       'utf8',
     ).replace(/\s*\n\s*/g, ' ');
     expect(skill).toContain(
-      'say so in the thread before you run the command (a waiting prompt blocks your next call)',
+      'say so in the thread before the first command that will prompt (a waiting prompt blocks your next call)',
     );
     expect(skill).toContain(
       'when the order came from Discord, tell the thread first (see Whose word counts)',
