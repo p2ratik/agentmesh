@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { GitRef } from './primitives';
+import { GitRef, SessionSummary } from './primitives';
 
 describe('GitRef', () => {
   it('takes repos and branch names', () => {
     for (const ref of [
       'acme/web',
       'Acme/Web.git',
-      'agent/pratik/task-3-login',
+      'agent/alice/task-3-login',
       'café/web',
       'x'.repeat(300),
     ]) {
@@ -28,5 +28,19 @@ describe('GitRef', () => {
     ]) {
       expect([ref, GitRef.safeParse(ref).success]).toEqual([ref, false]);
     }
+  });
+});
+
+describe('SessionSummary', () => {
+  it('defaults the liveness fields, so old hubs still parse', () => {
+    const s = SessionSummary.parse({
+      id: 's-aaaaaaaaaaaa',
+      description: '',
+      repo: null,
+      branch: null,
+      activeSince: '2026-11-04T09:00:00.000Z',
+      tasks: [],
+    });
+    expect([s.liveness, s.awaySince, s.closesAt]).toEqual(['live', null, null]);
   });
 });

@@ -1,7 +1,9 @@
 import { MeshError } from '@agentmesh/common';
-import type { Actor, RpcHandlerMap } from '../../contracts';
+import type { ReadMessage } from '@agentmesh/protocol';
+import type { Actor, CallContext, RpcHandlerMap } from '../../contracts';
 import { internalId } from '../../core/ids';
 import { peekInbox, readInbox } from './inbox';
+import type { MessageRow } from './messages.repo';
 import type { MessagingServiceImpl } from './messaging.service';
 
 type ThreadHandlers = Pick<
@@ -18,11 +20,31 @@ function listParticipant(requested: string | undefined, actor: Actor): string | 
   return actor.kind === 'agent' ? actor.id : null;
 }
 
+/**
+ * The rows as a session's read shows them: the mesh window sees a closed asker's thread marked,
+ * and the read hands over the messages still unread for it (none while paused).
+ */
+function readMessages(
+  messaging: MessagingServiceImpl,
+  call: CallContext,
+  threadId: number,
+  rows: MessageRow[],
+  paused: boolean,
+): ReadMessage[] {
+  const messages = rows.map((row) => messaging.toMessage(row));
+  if (call.session === null || rows.length === 0) return messages;
+  const unread = paused ? [] : messaging.reads.unreadMessages(threadId, call.actor.id, rows.length);
+  const handed = unread.map((row) => messaging.toMessage(row));
+  const released = messaging.releasedRead(call.actor.id, call.session, threadId, handed);
+  return released ? messages.map((m) => ({ ...m, released })) : messages;
+}
+
 export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers {
   return {
     /**
      * The team is trusted: anyone may read any thread. A call without a session marks it
      * read; a session does so only for a thread it owns, and not while the mesh is paused.
+     * A closed asker's thread read by the mesh window is marked as in `inbox.get`.
      */
     'thread.get': (params, call) => {
       const threadId = internalId('thread', params.threadId);
@@ -41,11 +63,9 @@ export function threadHandlers(messaging: MessagingServiceImpl): ThreadHandlers 
       const paused = call.session !== null && messaging.deps.control.isPaused();
       if (paused) call.notes.push(PAUSED_NOTE);
       const mayMarkRead = call.session === null || (owner?.sessionId === call.session && !paused);
+      const messages = readMessages(messaging, call, thread.id, rows, paused);
       if (last && mayMarkRead) messaging.reads.advance(thread.id, call.actor.id, last.seq);
-      return {
-        thread: messaging.summary(thread.id),
-        messages: rows.map((row) => messaging.toMessage(row)),
-      };
+      return { thread: messaging.summary(thread.id), messages };
     },
     'thread.list': (params, call) => {
       const threads = messaging.threads.list({

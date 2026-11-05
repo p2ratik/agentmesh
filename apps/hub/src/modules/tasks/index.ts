@@ -9,5 +9,5 @@ export type { TaskModuleDeps } from './types';
 /** Tasks, configurable workflows, routing and reviews. */
 export function createTaskModule(ctx: HubContext, deps: TaskModuleDeps): HubModule<TaskService> {
   const service = new TaskServiceImpl(ctx, deps);
-  return { service, handlers: taskHandlers(service) };
+  return { service, handlers: taskHandlers(service, deps.isActiveSessionOf) };
 }

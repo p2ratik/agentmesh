@@ -1,7 +1,9 @@
 import { homedir } from 'node:os';
+import { VERSION } from '@agentmesh/common/version';
 import { MESH_WINDOW_ENV, readMarker } from '@agentmesh/common/window';
 import { decide } from './guard/decide';
 import { hookOutput, readAll } from './guard/io';
+import { forwardReader } from './guard/send';
 import { pullStateDirs } from './pull/state';
 import { writeGuardStamp } from './window/guard-stamp';
 
@@ -32,9 +34,13 @@ async function main(marked: boolean): Promise<0 | 2> {
   const home = homedir();
   const platform = process.platform;
   const { policy } = readMarker(env, home, platform);
-  const decision = decide(parse(text), { marked, policy, home, platform });
-  // The folder activate reads (MeshWindowContext.dataDir); pullStateDirs always lists one.
-  if (decision.kind === 'stamp') writeGuardStamp(pullStateDirs(env, home)[0] ?? '.', new Date());
+  // The window's data folder (MeshWindowContext.dataDir): activate reads the stamp there and the
+  // window writes its forward records there. pullStateDirs always lists one.
+  const dir = pullStateDirs(env, home)[0] ?? '.';
+  const forwards = forwardReader(dir);
+  const decision = decide(parse(text), { marked, policy, home, platform, forwards });
+  // The stamp carries this guard's version: the window relays only behind a SendMessage-aware one.
+  if (decision.kind === 'stamp') writeGuardStamp(dir, new Date(), VERSION);
   const out = hookOutput(decision);
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);

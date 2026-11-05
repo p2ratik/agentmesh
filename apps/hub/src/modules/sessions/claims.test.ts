@@ -37,6 +37,18 @@ describe('claimTargets', () => {
     expect(claimTargets('inbox.get', {}, result)).toEqual([{ kind: 'thread', key: 'thr-1' }]);
   });
 
+  it("claims nothing for a closed asker's thread, as its push wouldn't", () => {
+    const released = { bySession: 's-aaaaaaaaaaaa' };
+    const result = {
+      threads: [
+        { thread: { id: 'thr-1' }, fyi: false, messages: [{ id: 'm1' }, { id: 'm2', released }] },
+        { thread: { id: 'thr-2' }, fyi: false, messages: [null, 'x', { id: 'm3' }] },
+      ],
+      paused: false,
+    };
+    expect(claimTargets('inbox.get', {}, result)).toEqual([{ kind: 'thread', key: 'thr-2' }]);
+  });
+
   it('claims nothing for a paused inbox read', () => {
     const result = { threads: [{ thread: { id: 'thr-1' }, fyi: false }], paused: true };
     expect(claimTargets('inbox.get', {}, result)).toEqual([]);

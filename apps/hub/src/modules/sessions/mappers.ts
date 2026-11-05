@@ -34,8 +34,15 @@ export function toView(row: SessionRow, owns: string[]): SessionView {
   };
 }
 
-/** `tasks`: keys of the tasks whose threads the session owns. */
-export function toSummary(row: SessionRow, tasks: string[]): SessionSummary {
+/**
+ * `tasks`: keys of the tasks whose threads the session owns. `graceMinutes`:
+ * `presence.ownershipGraceMinutes`, after which an away session closes.
+ */
+export function toSummary(row: SessionRow, tasks: string[], graceMinutes: number): SessionSummary {
+  const awaySince = row.liveness === 'away' ? row.away_since : null;
+  const closesAt = awaySince
+    ? new Date(Date.parse(awaySince) + graceMinutes * 60_000).toISOString()
+    : null;
   return {
     id: row.id,
     delivery: row.delivery,
@@ -44,6 +51,9 @@ export function toSummary(row: SessionRow, tasks: string[]): SessionSummary {
     branch: row.branch,
     activeSince: row.activated_at ?? row.created_at,
     meshWindow: row.mesh_window === 1,
+    liveness: awaySince ? 'away' : 'live',
+    awaySince,
+    closesAt,
     tasks,
   };
 }
@@ -58,5 +68,6 @@ export function toRouteSession(row: SessionRow): RouteSession {
     repo: row.repo,
     activatedAt: row.activated_at,
     meshWindow: row.mesh_window === 1,
+    clientVersion: row.client_version,
   };
 }

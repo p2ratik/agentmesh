@@ -6,6 +6,7 @@ import { MIGRATION_004 } from './migrations/004-sessions';
 import { MIGRATION_005 } from './migrations/005-delivery-class';
 import { MIGRATION_006 } from './migrations/006-session-delivery';
 import { MIGRATION_007 } from './migrations/007-mesh-window';
+import { MIGRATION_008 } from './migrations/008-relay';
 
 /** Append-only. Never edit a shipped migration; add a new one. */
 const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
@@ -16,6 +17,7 @@ const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
   { version: 5, sql: MIGRATION_005 },
   { version: 6, sql: MIGRATION_006 },
   { version: 7, sql: MIGRATION_007 },
+  { version: 8, sql: MIGRATION_008 },
 ];
 
 export function migrate(db: Db, now: () => Date = () => new Date()): number {

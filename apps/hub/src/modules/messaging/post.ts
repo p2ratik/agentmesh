@@ -10,6 +10,7 @@ import type { HubContext } from '../../context';
 import type { ControlService, PostInput, PostResult, ThreadRecord } from '../../contracts';
 import { threadKey } from '../../core/ids';
 import { toJson } from '../../db/database';
+import { decidesFor } from './decides';
 import { clipBody, postLimitViolation } from './limits';
 import { messageRefs } from './mappers';
 import type { MessagesRepo } from './messages.repo';
@@ -52,6 +53,8 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
 
     const recipients = resolveRecipients(pc, thread, input, at);
     const statusFor = recipients.filter((id) => classOf(input, id) === 'status');
+    const { decidesFor: _callerMark, ...refs } = messageRefs(thread, input.refs);
+    const owned = decidesFor(index, input.senderId, recipients);
     const message: MeshMessage = {
       id: newMessageId(),
       threadId: threadKey(thread.id),
@@ -63,7 +66,7 @@ export function postMessage(pc: PostContext, input: PostInput): PostResult {
       status: input.status ?? null,
       trust: input.trust ?? 'team',
       depth: thread.depth,
-      refs: messageRefs(thread, input.refs),
+      refs: owned.length > 0 ? { ...refs, decidesFor: owned } : refs,
       createdAt: at,
     };
     pc.messages.insert({

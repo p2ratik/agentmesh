@@ -91,6 +91,11 @@ describe('decide', () => {
     expect(decide(call('Glob', { pattern: '**' }), ctx)).toEqual(
       deny('mesh window: the guard does not know Glob, so it is refused'),
     );
+    for (const tool of ['constructor', '__proto__', 'toString']) {
+      expect(decide(call(tool, {}), ctx)).toEqual(
+        deny(`mesh window: the guard does not know ${tool}, so it is refused`),
+      );
+    }
   });
 
   it('refuses an edit outside a task worktree', () => {
@@ -157,11 +162,11 @@ describe('decide', () => {
 
   it('places Bash with the call’s cwd and the real worktree reader', () => {
     const wt = mesh(repo, 'mesh-task-1-a', 'agent/pratik/task-1-a');
-    const theirs = mesh(repo, 'mesh-review-2', 'agent/sagar/task-2-x');
+    const theirs = mesh(repo, 'mesh-review-2', 'agent/bob/task-2-x');
     expect(decide(call('Bash', { command: 'pnpm check' }, wt), ctx)).toEqual(PASS);
     expect(decide(call('Bash', { command: 'pnpm check' }, theirs), ctx)).toEqual(
       ask(
-        "mesh window: agent/sagar/task-2-x isn't your branch, so running its tests needs your human's approval",
+        "mesh window: agent/bob/task-2-x isn't your branch, so running its tests needs your human's approval",
       ),
     );
     expect(decide(call('Bash', { command: 'pnpm check' }), ctx)).toEqual(
@@ -185,7 +190,7 @@ describe('decide', () => {
     const review = (b: string) =>
       `git worktree add .claude/worktrees/mesh-r refs/remotes/origin/${b}`;
     expect(decide(call('Bash', { command: review('agents') }), ctx)).toEqual(PASS);
-    expect(decide(call('Bash', { command: review('agent/sagar/none') }), ctx)).toEqual(UNLISTED);
+    expect(decide(call('Bash', { command: review('agent/bob/none') }), ctx)).toEqual(UNLISTED);
   });
 
   it('asks when a reader throws, and never throws itself', () => {

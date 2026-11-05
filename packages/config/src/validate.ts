@@ -50,6 +50,23 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
 }
 
 /**
+ * Valid but risky settings: `agentmesh validate` prints them and still passes. A service that can act
+ * as humans can send as any owner, and an owner's message is a decision for their agents.
+ */
+export function configWarnings(config: MeshConfig): ConfigIssue[] {
+  return config.services.flatMap((s, i) =>
+    s.canActAsHumans && s.id !== config.discord.serviceId
+      ? [
+          {
+            path: `services[${i}].canActAsHumans`,
+            message: `service "${s.id}" can act as any human, so it could send owner-marked commands to every agent; only the Discord bridge (discord.serviceId) should`,
+          },
+        ]
+      : [],
+  );
+}
+
+/**
  * People mesh.yaml refers to without listing them (area owners, human reviewers,
  * the planning facilitator, rule notify targets): people expected to join by
  * invite. The hub skips them until they do; `agentmesh validate` lists them so a

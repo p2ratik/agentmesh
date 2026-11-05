@@ -6,6 +6,7 @@ import type { WindowPolicy } from '@agentmesh/common/window';
 import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
 import { classifyCommand, UNLISTED } from './commands';
 import { editTarget, meshWorktreeOf, type PathOptions } from './paths';
+import { type ForwardReader, LIST_AGENTS, sendMessage } from './send';
 
 export const ACTIVATE_TOOL = 'mcp__plugin_agentmesh_mesh__activate';
 export const FILE_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'];
@@ -15,6 +16,9 @@ export interface GuardContext {
   policy: WindowPolicy | null;
   home: string;
   platform: NodeJS.Platform;
+  /** The window's forward records; without them every SendMessage is refused. */
+  forwards?: ForwardReader;
+  now?: number;
 }
 
 export type GuardDecision =
@@ -34,6 +38,14 @@ const ENTER =
 const ISOLATED =
   'mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-…';
 const WORKFLOW = "mesh window: workflows need your human's approval here";
+
+/** Tools the window answers the same way every time (a Map: a tool name can't hit a prototype). */
+const FIXED = new Map<string, GuardDecision>([
+  [ACTIVATE_TOOL, { kind: 'stamp' }],
+  ['EnterWorktree', deny(ENTER)],
+  ['Workflow', ask(WORKFLOW)],
+  ['ListAgents', deny(LIST_AGENTS)],
+]);
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -83,11 +95,9 @@ export function decide(input: unknown, ctx: GuardContext): GuardDecision {
   if (tool === 'PowerShell' || tool === 'Monitor') {
     return ask(`mesh window: ${tool} commands need your human's approval here`);
   }
-  if (tool === 'EnterWorktree') return deny(ENTER);
   // A plain subagent's own tool calls come back through this guard; an isolated one runs as a cloud
   // agent outside every local hook, or in a worktree Claude Code makes without asking.
   if (tool === 'Agent') return 'isolation' in args ? deny(ISOLATED) : PASS;
-  if (tool === 'Workflow') return ask(WORKFLOW);
-  if (tool === ACTIVATE_TOOL) return { kind: 'stamp' };
-  return deny(`mesh window: the guard does not know ${tool}, so it is refused`);
+  if (tool === 'SendMessage') return sendMessage(args, ctx);
+  return FIXED.get(tool) ?? deny(`mesh window: the guard does not know ${tool}, so it is refused`);
 }

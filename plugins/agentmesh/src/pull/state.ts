@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -22,12 +23,35 @@ export interface PullState {
 export const STATE_MAX_AGE_MS = 2 * 60_000;
 
 /** PARTICIPANT_ID_PATTERN from @agentmesh/common, copied so the hook bundle stays tiny. */
-const PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+export const PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/** Whether an ISO timestamp is at most `maxAge` old and not in the future. */
+export function isFresh(at: unknown, now: number, maxAge = STATE_MAX_AGE_MS): boolean {
+  const age = now - (typeof at === 'string' ? Date.parse(at) : Number.NaN);
+  return age >= 0 && age <= maxAge;
+}
 
 /** Where state files live: the plugin's data dir, then the fallback; the writer uses the first. */
 export function pullStateDirs(env: NodeJS.ProcessEnv, home: string): string[] {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, '.agentmesh', 'run')];
   return [...new Set(dirs.filter((d): d is string => !!d))];
+}
+
+/** Every matching file in a folder, parsed; a missing folder or a bad file is skipped (null). */
+export function readJsonFiles(dir: string, filter: (name: string) => boolean): unknown[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir).filter(filter);
+  } catch {
+    return [];
+  }
+  return names.map((name) => {
+    try {
+      return JSON.parse(readFileSync(join(dir, name), 'utf8'));
+    } catch {
+      return null;
+    }
+  });
 }
 
 export const isStateFile = (name: string): boolean =>
@@ -88,9 +112,7 @@ export function selectStates(
   const newest = new Map<string, PullState>();
   for (const value of values) {
     const state = asState(value);
-    if (!state) continue;
-    const age = now - Date.parse(state.updatedAt);
-    if (!(age >= 0 && age <= STATE_MAX_AGE_MS)) continue;
+    if (!state || !isFresh(state.updatedAt, now)) continue;
     if (projectDir && state.projectDir && !sameDir(projectDir, state.projectDir, windows)) continue;
     const kept = newest.get(state.agentId);
     if (!kept || kept.updatedAt < state.updatedAt) newest.set(state.agentId, state);

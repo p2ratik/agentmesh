@@ -8,13 +8,21 @@ export interface ToolDeps {
   /** Hub calls; each tool call gets its own view, so its result carries only its own notes. */
   hub: Pick<HubClient, 'call' | 'reportSeen'>;
   agentId: string;
+  /** The mesh's subject prefix (`session.config.prefix`); it names the local session records. */
+  prefix: string;
   activation: ActivationState;
   /** Status items that ride along at the end of the next tool result. */
   fyi: FyiBuffer;
+  /** The session's notices (reclaimed threads), shown once after the next tool result's notes. */
+  notices: string[];
   /** Resolves once this session listens on its subject, where the hub sends the activation check. */
   listening: Promise<void>;
   /** Whether this session is the user's mesh window (spec §3). */
   window: MeshWindowContext;
+  /** The team policy in full, from the latest hello (the instructions clip it); null without one. */
+  teamPolicy(): string | null;
+  /** How long the hub waits on a closed asker's answer before it pings the owner (from hello). */
+  closedAskerMinutes(): number;
 }
 
 /** A refusal shown to Claude verbatim as an error (no code prefix). */

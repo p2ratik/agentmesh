@@ -5,10 +5,17 @@ import type { SessionRow, SessionsRepo } from './sessions.repo';
 /** Closed sessions are kept this long (a returning process reclaims from its closed one), then deleted. */
 const CLOSED_RETENTION_MS = 30 * DAY_MS;
 
-/** Releases the session's threads and closes it; shared by `session.bye` and expiry. */
+/**
+ * Releases the session's threads and closes it; shared by `session.bye` and expiry. A private
+ * session (inactive, not the mesh window) is recorded as one: its threads' answers then go to
+ * the window as a closed asker's. A window restart or an active session's close is not. An
+ * eviction counts too: a live private process it closes may cause one spurious notice before its
+ * next hello reclaims its threads.
+ */
 export function releaseAndClose(repo: SessionsRepo, sessionId: string, at: string): number[] {
+  const row = repo.get(sessionId);
   const released = repo.releaseOwned(sessionId);
-  repo.close(sessionId, at);
+  repo.close(sessionId, at, row?.active === 0 && row.mesh_window === 0);
   return released;
 }
 

@@ -13,12 +13,25 @@ const messages = (n: number, body = 'x') =>
 
 const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
 
-/** Acks what `ack` says; like nats.js, refuses a payload over max_payload. */
-function fakeNats(ack: (ids: string[], call: number) => string[], maxPayload = 1024 * 1024) {
+const relay = {
+  type: 'relay',
+  threadId: 'thr-3',
+  messageId: 'msg-01JC0000000000000000000000',
+  from: 'alice-agent',
+  forSession: 's-abc123def456',
+} as const;
+
+/** Acks what `ack` says, plus `extra`; like nats.js, refuses a payload over max_payload. */
+function fakeNats(
+  ack: (ids: string[], call: number) => string[],
+  maxPayload = 1024 * 1024,
+  extra: Record<string, unknown> = {},
+) {
   const requests: Array<{
     subject: string;
     type: string;
     messages: SessionDelivery[];
+    body: unknown;
     bytes: number;
     noMux: boolean;
     reply: string;
@@ -28,16 +41,22 @@ function fakeNats(ack: (ids: string[], call: number) => string[], maxPayload = 1
     async request(subject: string, data: string, opts: { noMux: boolean; reply: string }) {
       const bytes = Buffer.byteLength(data);
       if (bytes > maxPayload) throw new Error('max_payload size exceeded');
-      const { type, messages: sent = [] } = JSON.parse(data) as {
-        type: string;
-        messages?: SessionDelivery[];
-      };
-      requests.push({ subject, type, messages: sent, bytes, noMux: opts.noMux, reply: opts.reply });
+      const body = JSON.parse(data) as { type: string; messages?: SessionDelivery[] };
+      const { type, messages: sent = [] } = body;
+      requests.push({
+        subject,
+        type,
+        messages: sent,
+        body,
+        bytes,
+        noMux: opts.noMux,
+        reply: opts.reply,
+      });
       const delivered = ack(
         sent.map((m) => m.id),
         requests.length,
       );
-      return { json: () => ({ delivered }) };
+      return { json: () => ({ delivered, ...extra }) };
     },
   };
   return { nc: nc as unknown as NatsConnection, requests };
@@ -124,6 +143,47 @@ describe('NatsSessionTransport', () => {
     });
     const unanswered = new NatsSessionTransport(silent.nc, 'mesh', logger);
     await expect(unanswered.check('bob-agent', 'ses-1', 'K7Q2ZP')).rejects.toThrow('no responders');
+  });
+
+  it('sends a relay and reads forwarded and reason', async () => {
+    const { nc, requests } = fakeNats(() => [], undefined, { forwarded: true, reason: 'sent' });
+    const transport = new NatsSessionTransport(nc, 'mesh', logger);
+    expect(await transport.relay('bob-agent', 's-win000000001', relay)).toEqual({
+      forwarded: true,
+      reason: 'sent',
+    });
+    expect(requests[0]).toMatchObject({
+      subject: 'mesh.session.bob-agent.s-win000000001',
+      noMux: true,
+    });
+    expect(requests[0]?.reply).toMatch(/^mesh\.ack\.bob-agent\./);
+    expect(requests[0]?.body).toEqual(relay);
+    const bare = new NatsSessionTransport(fakeNats(() => []).nc, 'mesh', logger);
+    expect(await bare.relay('bob-agent', 's-win000000001', relay)).toEqual({
+      forwarded: false,
+      reason: 'no reason given',
+    });
+  });
+
+  it('counts an ack it cannot read as answered, not forwarded', async () => {
+    const answering = (json: () => unknown) =>
+      ({
+        info: { max_payload: 1024 * 1024 },
+        request: async () => ({ json }),
+      }) as unknown as NatsConnection;
+    const unreadable = [
+      () => ({ delivered: [], forwarded: true, reason: 'x'.repeat(201) }),
+      () => {
+        throw new Error('not JSON');
+      },
+    ];
+    for (const json of unreadable) {
+      const transport = new NatsSessionTransport(answering(json), 'mesh', logger);
+      expect(await transport.relay('bob-agent', 's-win000000001', relay)).toEqual({
+        forwarded: false,
+        reason: 'unreadable ack',
+      });
+    }
   });
 
   it('keeps each delivery under the payload limit', () => {

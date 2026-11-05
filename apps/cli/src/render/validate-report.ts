@@ -12,6 +12,11 @@ export function renderIssues(file: string, issues: ConfigIssue[]): string {
   return [`${file}: ${issues.length} ${noun}`, ...lines].join('\n');
 }
 
+/** One `warning: <path>: <message>` line per issue. */
+export function renderWarnings(issues: ConfigIssue[]): string {
+  return issues.map((i) => `warning: ${i.path}: ${i.message}`).join('\n');
+}
+
 export function renderMissingEnv(names: string[]): string {
   return (
     `warning: environment variables without a value or fallback: ${names.join(', ')}\n` +

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { checkoutLine } from '../window/checkouts';
+import { checkoutLine, isOwnerName } from '../window/checkouts';
+import { localSessionsLine } from '../window/local-sessions';
 import { formatTask, formatTaskLine } from './format';
 import { defineTool, withKey } from './types';
 
@@ -12,7 +13,13 @@ export const taskTools = [
       'Create a task for the team. Without an assignee the hub routes it to the least-loaded owner of its area (or the board). Use depends_on for ordering.',
     input: z.object({
       title: z.string().min(3).max(200),
-      description: z.string().optional(),
+      description: z
+        .string()
+        .max(16_000)
+        .optional()
+        .describe(
+          'Up to 16,000 characters. From a private session, the handoff note: what you learned, files and lines, decisions made, what is open and who to ask. Everyone in the Discord server can read it.',
+        ),
       repo: z.string().optional(),
       area: z.string().optional(),
       assignee: z.string().optional(),
@@ -48,7 +55,7 @@ export const taskTools = [
   defineTool({
     name: 'task_list',
     description:
-      'List tasks. Defaults to yours ("me"); use "unassigned" for the board or an agent id.',
+      'List tasks. Defaults to yours ("me"); "all" for everyone, "unassigned" for the board, or an agent id.',
     input: z.object({
       assignee: z.string().optional(),
       state: z.array(z.string()).optional(),
@@ -58,8 +65,10 @@ export const taskTools = [
     }),
     mutating: false,
     run: async (args, { hub }) => {
+      const assignee = args.assignee ?? 'me';
       const { tasks } = await hub.call('task.list', {
-        assignee: args.assignee ?? 'me',
+        // The hub lists every task when the assignee is absent.
+        ...(assignee === 'all' ? {} : { assignee }),
         ...(args.state ? { state: args.state } : {}),
         ...(args.area ? { area: args.area } : {}),
         ...(args.plan_id ? { planId: args.plan_id } : {}),
@@ -74,12 +83,16 @@ export const taskTools = [
       'Full task details: state, branch, PR, reviews, history and the actions you can take now.',
     input: z.object({ task_id: z.string() }),
     mutating: false,
-    run: async (args, { hub, window }) => {
+    run: async (args, { hub, window, prefix, agentId }) => {
       const task = await hub.call('task.get', { taskId: args.task_id });
       const out = formatTask(task);
-      return window.state === 'verified'
-        ? `${out}\n${checkoutLine(task.repo, window.folder)}`
-        : out;
+      if (window.state !== 'verified') return out;
+      const lines = [out, checkoutLine(task.repo, window.folder)];
+      if (task.repo && isOwnerName(task.repo)) {
+        const deps = { dataDir: window.dataDir, prefix, agentId, now: Date.now() };
+        lines.push(localSessionsLine(task.repo, deps));
+      }
+      return lines.join('\n');
     },
   }),
   defineTool({

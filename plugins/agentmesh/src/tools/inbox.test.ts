@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { closedAskerNotice } from '../inbox/closed-asker';
+import { message } from '../inbox/session-inbox.fixture';
 import { fakeHub, text } from './fake-hub';
 import { callTool } from './registry';
 
@@ -42,6 +44,31 @@ describe('inbox tool', () => {
       'inbox.get': { ...base, threads: [unreadThread], waiting: 0, paused: true },
     });
     expect(text(await callTool('inbox', {}, deps))).not.toContain('paused');
+  });
+
+  // Final review: a read shows a closed asker's answer as its push does.
+  it("shows a closed asker's thread with the push's notice, in inbox and thread", async () => {
+    const released = {
+      bySession: 's-bbbbbbbbbbbb',
+      closedAt: '2026-11-04T09:30:00Z',
+      claudeSessionId: null,
+    };
+    const answer = { ...message('m1', 'thr-1'), kind: 'reply', released };
+    const thread = { ...unreadThread, fyi: false, messages: [answer] };
+    const { deps } = fakeHub({
+      'inbox.get': { ...base, threads: [thread], waiting: 0 },
+      'thread.get': { thread: unreadThread.thread, messages: [answer] },
+    });
+    deps.closedAskerMinutes = () => 20;
+    const notice = closedAskerNotice('thr-1', released, 20);
+    expect(text(await callTool('inbox', {}, deps))).toContain(notice);
+    expect(text(await callTool('thread', { thread_id: 'thr-1' }, deps))).toContain(notice);
+    const plain = fakeHub({
+      'thread.get': { thread: unreadThread.thread, messages: [message('m2', 'thr-1')] },
+    });
+    expect(text(await callTool('thread', { thread_id: 'thr-1' }, plain.deps))).not.toContain(
+      'AgentMesh:',
+    );
   });
 
   it('inbox is zero only with no threads, no other sessions and nothing waiting', async () => {

@@ -10,6 +10,7 @@ import {
   LimitsConfig,
   PolicyConfig,
   PresenceConfig,
+  RelayConfig,
   ReviewConfig,
 } from './policy';
 import { RuleConfig } from './rules';
@@ -87,6 +88,7 @@ export const MeshConfigSchema = z.object({
   review: ReviewConfig.prefault({}),
   leases: LeaseConfig.prefault({}),
   presence: PresenceConfig.prefault({}),
+  relay: RelayConfig.prefault({}),
   enrollment: EnrollmentConfig.prefault({}),
   planning: PlanningConfig.prefault({}),
   tasks: z.object({ defaultWorkflow: z.string().default('feature') }).prefault({}),

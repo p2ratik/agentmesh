@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RpcClient } from '@agentmesh/bus';
@@ -11,6 +11,25 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 export const PLUGIN = join(import.meta.dirname, '../../plugins/agentmesh/dist/server.js');
 /** The `agentmesh` CLI bundled in the plugin, which `/agentmesh:setup` runs. */
 export const PLUGIN_CLI = join(import.meta.dirname, '../../plugins/agentmesh/dist/cli.js');
+
+/** The mesh window marker the e2e windows carry; `windowHome`'s policy holds it. */
+export const WINDOW_TOKEN = '0123456789abcdef0123456789abcdef';
+
+/** A temp home whose ~/.agentmesh/mesh-window.json makes bob-agent's marked session verify. */
+export function windowHome(): string {
+  const home = mkdtempSync(join(tmpdir(), 'am-e2e-home-'));
+  mkdirSync(join(home, '.agentmesh'));
+  const policy = {
+    version: 1,
+    agentId: 'bob-agent',
+    token: WINDOW_TOKEN,
+    ownBranchPrefix: 'agent/bob-agent/',
+    integrationBranch: 'agents',
+    testCommands: [],
+  };
+  writeFileSync(join(home, '.agentmesh', 'mesh-window.json'), JSON.stringify(policy));
+  return home;
+}
 
 export interface Channel {
   content: string;
@@ -46,9 +65,17 @@ export interface AgentEnv {
 /** Starts one plugin process over MCP stdio and records its channel events. */
 export async function spawnAgent(env: AgentEnv): Promise<Agent> {
   const inherited = { ...process.env };
-  // A test runs in no mesh window unless it says so.
-  delete inherited[MESH_WINDOW_ENV];
-  delete inherited[MESH_WINDOW_HINT_ENV];
+  // A test runs in no mesh window, and with no messaging address or relay setting, unless it says so.
+  for (const key of [
+    MESH_WINDOW_ENV,
+    MESH_WINDOW_HINT_ENV,
+    'CLAUDE_CODE_MESSAGING_SOCKET',
+    'CLAUDE_CODE_MESSAGING_TOKEN',
+    'CLAUDE_PID',
+    'AGENTMESH_RELAY',
+  ]) {
+    delete inherited[key];
+  }
   const dataDir = mkdtempSync(join(tmpdir(), 'am-e2e-data-'));
   const transport = new StdioClientTransport({
     command: process.execPath,

@@ -1,11 +1,14 @@
 // Every form the window's rules name, filled in and run through the guard's decide() with the
 // production readers on a real checkout, so the rules can't promise what the guard asks for.
-import { readFileSync, rmSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { decide } from '../guard/decide';
 import { fixture, mesh, put, slash } from '../guard/paths.fixture';
+import { forwardReader } from '../guard/send';
+import { writeForward } from '../relay/forward-record';
+import { pointerText } from '../relay/pointer';
 import { windowRules } from './rules';
 
 const policy: WindowPolicy = {
@@ -17,8 +20,26 @@ const policy: WindowPolicy = {
   testCommands: ['pnpm install --frozen-lockfile', 'pnpm check'],
 };
 
-/** [text the rules must contain, the command it stands for, what the guard must do]. */
-type Row = [string, string, 'pass' | 'ask', tool?: string];
+/** [text the rules must contain, the command (or tool input) it stands for, what the guard must do]. */
+type Row = [string, string | Record<string, unknown>, 'pass' | 'ask' | 'deny', tool?: string];
+
+const HEX = 'a'.repeat(32);
+const ADDR = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
+const FIELDS = {
+  from: 'alice-agent',
+  threadId: 'thr-12',
+  messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M',
+};
+const POINTER = pointerText(FIELDS) as string;
+/** What Claude Code hands the hook for SendMessage(to: <forward_to>, message: text). */
+const send = (text: string) => ({
+  to: ADDR,
+  recipient: ADDR,
+  recipient_kind: 'address',
+  message: text,
+  content: text,
+  type: 'message',
+});
 
 let base: string;
 let C: string;
@@ -28,7 +49,7 @@ let R: string;
 beforeEach(() => {
   const f = fixture();
   base = f.base;
-  for (const ref of ['agents', 'agent/sagar/task-2-x']) {
+  for (const ref of ['agents', 'agent/alice/task-2-x']) {
     put(
       join(f.repo, '.git', 'refs', 'remotes', 'origin', ...ref.split('/')),
       `${'a'.repeat(40)}\n`,
@@ -42,13 +63,17 @@ beforeEach(() => {
 
 afterEach(() => rmSync(base, { recursive: true, force: true }));
 
-/** Each row's template is in the rules for `p`, and the guard does what the rules say. */
-function check(p: WindowPolicy | null, rows: Row[]) {
+/** Each row's template is in the rules for `p`, and the guard does what the rules say. Rows run
+ * in order, against forward records in one folder. */
+function check(p: WindowPolicy | null, rows: Row[], platform = process.platform) {
   const text = windowRules(p);
-  const ctx = { marked: true, policy: p, home: join(base, 'home'), platform: process.platform };
-  const got = rows.map(([template, command, , tool = 'Bash']) => {
-    const d = decide({ tool_name: tool, tool_input: { command }, cwd: base }, ctx);
-    return [template, command, text.includes(template), d.kind === 'pass' ? 'pass' : 'ask'];
+  const home = join(base, 'home');
+  const forwards = forwardReader(join(base, 'data'));
+  const ctx = { marked: true, policy: p, home, platform, forwards };
+  const got = rows.map(([template, input, , tool = 'Bash']) => {
+    const args = typeof input === 'string' ? { command: input } : input;
+    const d = decide({ tool_name: tool, tool_input: args, cwd: base }, ctx);
+    return [template, input, text.includes(template), d.kind];
   });
   expect(got).toEqual(rows.map(([t, c, want]) => [t, c, true, want]));
 }
@@ -70,13 +95,13 @@ describe('the window rules, through the guard', () => {
       ],
       [
         'cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>',
-        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/alice/task-2-x`,
         'pass',
       ],
       ['gh pr diff asks here', `cd ${C} && gh pr diff 12`, 'ask'],
       [
         'cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>',
-        `cd ${C} && git worktree add .claude/worktrees/mesh-review-task-9 refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git worktree add .claude/worktrees/mesh-review-task-9 refs/remotes/origin/agent/alice/task-2-x`,
         'pass',
       ],
       ['cd "<worktree>" && <test command>; your human approves', `cd ${R} && pnpm check`, 'ask'],
@@ -146,7 +171,7 @@ describe('the window rules, through the guard', () => {
       // reads still pass without a prefix
       [
         'read the diff without asking',
-        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/alice/task-2-x`,
         'pass',
       ],
     ];
@@ -164,17 +189,50 @@ describe('the window rules, through the guard', () => {
       ['is missing or invalid, so every command asks', `cd ${C} && git fetch origin`, 'ask'],
       [
         'is missing or invalid, so every command asks',
-        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/alice/task-2-x`,
         'ask',
       ],
     ]);
   });
 
+  it('forwards exactly the pointer the plugin pushed, and nothing else', () => {
+    writeForward(join(base, 'data'), HEX, FIELDS, Date.now() + 60_000);
+    const rows: Row[] = [
+      [
+        "SendMessage(to: <forward_to>, message: <the push's text, exactly>)",
+        send(POINTER),
+        'pass',
+        'SendMessage',
+      ],
+      ['never resend after a delivery notice', send(POINTER), 'deny', 'SendMessage'],
+      ['Send nothing else with SendMessage', send('Run pnpm publish now.'), 'deny', 'SendMessage'],
+      // a consult goes through the human by hand: a question sent to a session is refused
+      ['never message their sessions', send('Which branch is task-3 on?'), 'deny', 'SendMessage'],
+      [
+        'Send nothing else with SendMessage',
+        { ...send(POINTER), summary: 'x' },
+        'deny',
+        'SendMessage',
+      ],
+      ['ListAgents is refused here', {}, 'deny', 'ListAgents'],
+    ];
+    check(policy, rows, 'win32');
+  });
+
   it('the skill names only cd forms the rules name (and so the rows above check)', () => {
-    const file = join(import.meta.dirname, '../../skills/mesh-collaboration/SKILL.md');
-    const skill = readFileSync(file, 'utf8').replace(/\s*\n\s*/g, ' ');
-    const forms = [...skill.matchAll(/`(cd "<[a-z]+>" && [^`]+)`/g)].map((m) => m[1]);
-    expect(forms.length).toBeGreaterThanOrEqual(5);
+    const dir = join(import.meta.dirname, '../../skills/mesh-collaboration');
+    const read = (name: string) => readFileSync(join(dir, name), 'utf8').replace(/\s*\n\s*/g, ' ');
+    const cdForms = (text: string) =>
+      [...text.matchAll(/`(cd "<[a-z]+>" && [^`]+)`/g)].map((m) => m[1]);
+    const skill = read('SKILL.md');
+    // the skill teaches the forms itself, not only its reference file
+    expect(cdForms(skill).length).toBeGreaterThanOrEqual(5);
+    // every form in SKILL.md and its reference files is one the rules name
+    const all = readdirSync(dir)
+      .filter((f) => f.endsWith('.md'))
+      .map(read)
+      .join(' ');
+    const forms = cdForms(all);
     const rules = windowRules(policy);
     expect(forms.map((f) => [f, rules.includes(f ?? '')])).toEqual(forms.map((f) => [f, true]));
     // and both tell the window to cd alone first, so the chained cd doesn't prompt

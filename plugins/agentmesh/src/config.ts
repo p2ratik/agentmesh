@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { isValidParticipantId } from '@agentmesh/common';
 import { PREFIX_PATTERN } from '@agentmesh/protocol';
 import { z } from 'zod';
+import { fileApplies, resolveAgentId, usable } from './agent-id';
 
 export interface PluginConfig {
   agentId: string;
@@ -41,9 +42,10 @@ export const DEFAULT_CONFIG_FILE = join(homedir(), '.agentmesh', 'agent.json');
  */
 export function resolveConfig(env: Env = process.env, file = DEFAULT_CONFIG_FILE): ConfigResult {
   const saved = readFileConfig(file);
-  const fromFile = fileApplies(env, saved) ? saved : {};
+  const options = { agentId: env.AGENTMESH_AGENT_ID, natsUrl: env.AGENTMESH_NATS_URL };
+  const fromFile = fileApplies(options, saved) ? saved : {};
   const pick = (key: string, fallback: string | undefined) => usable(env[key]) ?? usable(fallback);
-  const agentId = pick('AGENTMESH_AGENT_ID', fromFile.agentId);
+  const agentId = resolveAgentId(options, saved) ?? undefined;
   const urls = pick('AGENTMESH_NATS_URL', fromFile.natsUrl);
   const { prefix, warnings } = resolvePrefix(env, fromFile);
   const seed = pick('AGENTMESH_NKEY_SEED', fromFile.nkeySeed);
@@ -70,23 +72,6 @@ export function resolveConfig(env: Env = process.env, file = DEFAULT_CONFIG_FILE
       ...(logFile ? { logFile } : {}),
     },
   };
-}
-
-/**
- * agent.json is for this agent unless the options name another agent or hub.
- * A field the file lacks never conflicts (hand-written files may hold only a
- * seed). One file serves every Claude account on the laptop, so another
- * account's options must not pick up this file's prefix or seed.
- */
-export function fileApplies(env: Env, saved: FileConfig): boolean {
-  const agrees = (option: string | undefined, value: string | undefined) => {
-    const a = usable(option);
-    const b = usable(value);
-    return a === undefined || b === undefined || a === b;
-  };
-  return (
-    agrees(env.AGENTMESH_AGENT_ID, saved.agentId) && agrees(env.AGENTMESH_NATS_URL, saved.natsUrl)
-  );
 }
 
 /**
@@ -122,12 +107,6 @@ function configProblems(
   if (!Number.isFinite(heartbeat) || heartbeat < 5)
     problems.push('AGENTMESH_HEARTBEAT_SECONDS must be >= 5');
   return problems;
-}
-
-function usable(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed.startsWith('${')) return undefined;
-  return trimmed;
 }
 
 function readFileConfig(file: string): FileConfig {

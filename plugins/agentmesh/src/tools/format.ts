@@ -10,7 +10,7 @@ import {
   type TaskDetail,
   type ThreadSummary,
 } from '@agentmesh/protocol';
-import { EXTERNAL_TAG, oneLine, quoteBody } from '../inbox/render';
+import { decides, EXTERNAL_TAG, oneLine, quoteBody } from '../inbox/render';
 
 /** Compact text renderings of hub results, written for Claude to read. */
 
@@ -43,12 +43,30 @@ function formatSession(s: SessionSummary): string {
   const owns = s.tasks.length > 0 ? ` owns ${s.tasks.join(', ')}` : '';
   const pull = s.delivery === 'pull' ? ' [pull: reads on its next prompt]' : '';
   const window = s.meshWindow ? ' [mesh window]' : '';
-  return `    · ${s.id} — ${s.description}${where}${owns}${pull}${window}`;
+  const away =
+    s.liveness === 'away' && s.awaySince && s.closesAt
+      ? ` [away: no heartbeat since ${hhmm(s.awaySince)}; closes ${hhmm(s.closesAt)} unless it returns]`
+      : '';
+  return `    · ${s.id} — ${s.description}${where}${owns}${pull}${window}${away}`;
 }
 
-/** A header line, then the body quoted (`│ `), so no body line can pass for another entry. */
-export function formatMessage(m: MeshMessage): string {
-  const tags = [m.kind, m.status, m.trust === 'external' ? 'EXTERNAL' : null]
+/** Local time, `HH:MM`. */
+function hhmm(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * A header line, then the body quoted (`│ `), so no body line can pass for another entry. DECIDES:
+ * the hub marked it as from `selfId`'s owner.
+ */
+export function formatMessage(m: MeshMessage, selfId?: string): string {
+  const tags = [
+    m.kind,
+    m.status,
+    m.trust === 'external' ? 'EXTERNAL' : null,
+    decides(m, selfId) ? 'DECIDES' : null,
+  ]
     .filter(Boolean)
     .join(', ');
   return `--- ${m.from.displayName} [${m.from.id}] (${tags}) ${m.createdAt.slice(0, 16).replace('T', ' ')} UTC · ${m.id}\n${quoteBody(m)}`;
@@ -56,21 +74,28 @@ export function formatMessage(m: MeshMessage): string {
 
 export function formatThreadHeader(t: ThreadSummary): string {
   const links = [t.taskId, t.planId].filter(Boolean).join(', ');
-  return `${t.id} «${oneLine(t.subject)}» · ${t.kind} · ${t.status} · participants: ${t.participants.join(', ')}${links ? ` · ${links}` : ''}`;
+  return `${t.id} «${oneLine(t.subject)}» · ${t.kind} · ${t.status} · participants: ${t.participants.join(', ')}${links ? ` · ${links}` : ''}${t.parentId ? ` · parent ${t.parentId}` : ''}`;
 }
 
 /** An external task's title comes from outside the team: tagged, and kept on one line. */
 const titleOf = (t: Task): string =>
   `${t.trust === 'external' ? `${EXTERNAL_TAG} · ` : ''}${oneLine(t.title)}`;
 
-export function formatThread(thread: ThreadSummary, messages: readonly MeshMessage[]): string {
-  const body = messages.length > 0 ? messages.map(formatMessage).join('\n\n') : '(no messages)';
+export function formatThread(
+  thread: ThreadSummary,
+  messages: readonly MeshMessage[],
+  selfId?: string,
+): string {
+  const entries = messages.map((m) => formatMessage(m, selfId));
+  const body = entries.length > 0 ? entries.join('\n\n') : '(no messages)';
   return `${formatThreadHeader(thread)}\n\n${body}`;
 }
 
 export function formatTaskLine(t: Task): string {
   const who = t.assignee ? `→ ${t.assignee}` : '→ unassigned';
-  return `- ${t.id} [${t.state}] ${titleOf(t)} ${who} · ${t.priority}${t.area ? ` · ${t.area}` : ''}${t.prUrl ? ` · ${t.prUrl}` : ''}`;
+  const repo = t.repo ? ` · repo ${ref(t.repo)}` : '';
+  const branch = t.branch ? ` · branch ${ref(t.branch)}` : '';
+  return `- ${t.id} [${t.state}] ${titleOf(t)} ${who} · ${t.priority}${t.area ? ` · ${t.area}` : ''}${repo}${branch}${t.prUrl ? ` · ${t.prUrl}` : ''}`;
 }
 
 export function formatTask(t: TaskDetail): string {

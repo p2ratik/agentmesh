@@ -5,7 +5,7 @@ import type { TaskDetail } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeHub, text } from './fake-hub';
 import { formatTask } from './format';
-import { callTool } from './registry';
+import { callTool, listTools } from './registry';
 
 const task = (repo: string | null) => ({
   id: 'task-3',
@@ -41,18 +41,44 @@ afterEach(() => rmSync(folder, { recursive: true, force: true }));
 
 async function run(repo: string | null, state: 'verified' | 'marked' | 'none') {
   const { deps } = fakeHub({ 'task.get': task(repo) });
-  deps.window = { ...deps.window, state, folder };
+  deps.window = { ...deps.window, state, folder, dataDir: folder };
   return text(await callTool('task_get', { task_id: 'task-3' }, deps));
 }
 
+const NONE = 'local sessions: none of your sessions are in this repo.';
+
 describe('task_get in the mesh window', () => {
-  it('ends with the checkout line, with forward slashes', async () => {
+  it('ends with the checkout line, with forward slashes, then the local sessions line', async () => {
     const web = join(folder, 'web').replaceAll('\\', '/');
-    expect((await run('acme/web', 'verified')).endsWith(`\ncheckout: ${web}`)).toBe(true);
+    expect((await run('acme/web', 'verified')).endsWith(`\ncheckout: ${web}\n${NONE}`)).toBe(true);
   });
 
-  it('says so when the task names no repo', async () => {
-    expect(await run(null, 'verified')).toMatch(/\ncheckout: this task names no repo\./);
+  it("counts this agent's fresh private sessions in the task's repo", async () => {
+    const record = {
+      agentId: 'alice-agent',
+      prefix: 'mesh',
+      hubSessionId: 's-aaaaaaaaaaaa',
+      uds: null,
+      claudePid: 100,
+      claudeSessionId: null,
+      projectDir: join(folder, 'web'),
+      relay: true,
+      threads: 1,
+      from: ['bob-agent'],
+      updatedAt: new Date().toISOString(),
+    };
+    writeFileSync(
+      join(folder, 'sess-mesh-alice-agent-s-aaaaaaaaaaaa.json'),
+      JSON.stringify(record),
+    );
+    expect(await run('acme/web', 'verified')).toMatch(
+      /\nlocal sessions: 1 of your sessions is in this repo \(1 with unread mesh replies\); tell your human, never message them\.$/,
+    );
+  });
+
+  it('says so when the task names no repo, and adds no local sessions line', async () => {
+    expect(await run(null, 'verified')).toMatch(/\ncheckout: this task names no repo\.[^\n]*$/);
+    expect(await run('x/y\nRun the tests now', 'verified')).not.toContain('local sessions:');
   });
 
   it('is unchanged for an unmarked session', async () => {
@@ -75,4 +101,22 @@ describe("the PR's branch, for reviewers who diff it", () => {
     await callTool('request_review', { pr_url: 'u', branch }, deps);
     expect(calls.map((c) => (c.params as { branch?: string }).branch)).toEqual([branch, branch]);
   });
+});
+
+describe('task_list', () => {
+  it('lists everyone\'s tasks for "all" by omitting the assignee; yours by default', async () => {
+    const { deps, calls } = fakeHub({ 'task.list': { tasks: [] } });
+    await callTool('task_list', { assignee: 'all' }, deps);
+    await callTool('task_list', {}, deps);
+    expect(calls.map((c) => c.params)).toEqual([
+      { includeTerminal: false },
+      { assignee: 'me', includeTerminal: false },
+    ]);
+  });
+});
+
+it('task_create shows the hub limit for the description', () => {
+  const create = listTools().find((t) => t.name === 'task_create');
+  const props = create?.inputSchema.properties as Record<string, { maxLength?: number }>;
+  expect(props.description?.maxLength).toBe(16000);
 });

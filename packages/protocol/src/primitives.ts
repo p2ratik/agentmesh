@@ -1,4 +1,4 @@
-import { PARTICIPANT_ID_PATTERN } from '@agentmesh/common';
+import { PARTICIPANT_ID_PATTERN, RESERVED_PARTICIPANT_IDS } from '@agentmesh/common';
 import { z } from 'zod';
 
 export const IsoDate = z.string().min(1);
@@ -21,9 +21,10 @@ export const Label = z.string().max(60);
 
 export const ParticipantId = z
   .string()
-  .regex(
-    PARTICIPANT_ID_PATTERN,
-    'lowercase letters, digits and dashes; starts with a letter/digit',
+  .regex(PARTICIPANT_ID_PATTERN, 'lowercase letters, digits and dashes; starts with a letter/digit')
+  .refine(
+    (id) => !RESERVED_PARTICIPANT_IDS.includes(id),
+    'reserved: "all" means every participant',
   );
 
 export const ParticipantKind = z.enum(['agent', 'human', 'service']);
@@ -45,6 +46,11 @@ export type PresenceStatus = z.infer<typeof PresenceStatus>;
 export const SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 export const SessionId = z.string().regex(SESSION_ID_PATTERN);
 
+/** Claude Code's own id for a conversation (`claude --resume <uuid>`). */
+export const ClaudeSessionId = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
 /**
  * How work reaches an active session: `push` (channel events) or `pull` (no channel flag, e.g.
  * Claude Desktop: nothing is pushed, the session reads with `inbox` on its next prompt).
@@ -62,6 +68,10 @@ export const SessionSummary = z.object({
   activeSince: IsoDate,
   /** Started by the mesh window launcher; routing prefers it for team work. */
   meshWindow: z.boolean().default(false),
+  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
+  liveness: z.enum(['live', 'away']).default('live'),
+  awaySince: IsoDate.nullable().default(null),
+  closesAt: IsoDate.nullable().default(null),
   tasks: z.array(z.string()),
 });
 export type SessionSummary = z.infer<typeof SessionSummary>;
