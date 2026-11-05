@@ -121,22 +121,36 @@ describe('session limits', () => {
     expect(openIds()).toEqual([s1, s2].sort());
   });
 
-  // Final review M3: an evicted session may still be open, so it is not a closed asker.
-  it('an evicted live private session records no private_at_close, and no orphan decision follows', async () => {
+  // Final re-review N1: an evicted private asker is still a closed asker (a crashed, away one is
+  // evicted first); a live one's next hello reclaims its thread, which settles the timer.
+  it('an evicted private session keeps the closed-asker marker, and its next hello reclaims', async () => {
     const h = createBobDispatchHarness();
     h.ctx.loaded.config.limits.maxSessionsPerAgent = 2;
     const p = h.sessions.open('bob-agent', { clientVersion: '0.6.0' }).session.id;
     const t = h.thread();
     h.sessions.take('bob-agent', p, t);
     h.clock.advance(1000);
-    h.meshWindow();
+    const w = h.meshWindow();
     h.sessions.open('bob-agent', { clientVersion: '0.6.0' });
     expect(
       h.ctx.db.get('SELECT liveness, private_at_close FROM sessions WHERE id = $p', { p }),
-    ).toEqual({ liveness: 'closed', private_at_close: 0 });
-    h.reply(t);
+    ).toEqual({ liveness: 'closed', private_at_close: 1 });
+    const r = h.reply(t);
     await h.outbox.flush();
-    expect(h.ctx.db.all('SELECT thread_id FROM orphan_decisions')).toEqual([]);
+    const pushed = h.transport.batches.flat().find((m) => m.id === r.id);
+    expect(pushed?.released).toMatchObject({ bySession: p });
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBeNull();
+    const rows = () => h.ctx.db.all('SELECT thread_id FROM orphan_decisions');
+    expect(rows()).toEqual([{ thread_id: t }]);
+    // The live process says hello again (room for it, so the window isn't evicted in turn).
+    h.ctx.loaded.config.limits.maxSessionsPerAgent = 20;
+    const back = h.sessions.open('bob-agent', { clientVersion: '0.6.0', previousSessionId: p });
+    expect(back.reclaimed).toEqual([t]);
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBe(back.session.id);
+    expect(h.liveness(w)).toBe('live');
+    h.clock.advance(15 * 60_000);
+    expect(h.orphans.tick(h.clock.now())).toBe(0);
+    expect(rows()).toEqual([]);
   });
 
   it('deletes sessions closed more than 30 days ago', () => {

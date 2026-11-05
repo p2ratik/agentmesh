@@ -309,9 +309,10 @@ to its session, and `session.check` then fails (see the upgrade notes in
   it: when the hub runs the deactivate first, a push renewal's activate is refused. Still, for
   about one round trip the hub session can be active: until the human's deactivate lands, when the
   hub ran the activate first; or, for a pull renewal (which needs no code), until the plugin's
-  second deactivate. In that moment it can be delivered to and claim a thread; the deactivate then
-  releases it. A human's `/agentmesh:activate` during a renewal is never answered this way: Claude
-  gets the check.
+  second deactivate. In that moment a push session can be delivered to and claim a thread, and a
+  pull session (never delivered to) can claim one only by reading it; the deactivate then releases
+  it. A human's `/agentmesh:activate` during a renewal is never answered this way: Claude gets the
+  check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own

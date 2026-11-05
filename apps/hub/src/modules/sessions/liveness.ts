@@ -8,18 +8,14 @@ const CLOSED_RETENTION_MS = 30 * DAY_MS;
 /**
  * Releases the session's threads and closes it; shared by `session.bye` and expiry. A private
  * session (inactive, not the mesh window) is recorded as one: its threads' answers then go to
- * the window as a closed asker's. A window restart or an active session's close is not, and nor
- * is an eviction: that session may still be open, and its process reclaims on its next hello.
+ * the window as a closed asker's. A window restart or an active session's close is not. An
+ * eviction counts too: a live private process it closes may cause one spurious notice before its
+ * next hello reclaims its threads.
  */
-export function releaseAndClose(
-  repo: SessionsRepo,
-  sessionId: string,
-  at: string,
-  { evicted = false } = {},
-): number[] {
+export function releaseAndClose(repo: SessionsRepo, sessionId: string, at: string): number[] {
   const row = repo.get(sessionId);
   const released = repo.releaseOwned(sessionId);
-  repo.close(sessionId, at, !evicted && row?.active === 0 && row.mesh_window === 0);
+  repo.close(sessionId, at, row?.active === 0 && row.mesh_window === 0);
   return released;
 }
 
@@ -73,6 +69,6 @@ export function evictStalest(
 ): number {
   const keep = ctx.loaded.config.limits.maxSessionsPerAgent - 1;
   const evicted = stalest(repo.listLive(agentId), keep);
-  for (const row of evicted) releaseAndClose(repo, row.id, at, { evicted: true });
+  for (const row of evicted) releaseAndClose(repo, row.id, at);
   return evicted.length;
 }

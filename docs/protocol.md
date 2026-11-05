@@ -243,10 +243,11 @@ The hub tracks each session as:
   agent keeps at most `limits.maxSessionsPerAgent` open sessions, and a hello that opens one more
   first closes the stalest (away before live, then least recently seen). Its threads are
   released, and the hub records whether it was private when it closed (inactive and not a mesh
-  window; see [Closed askers](#closed-askers)). An evicted session never counts as private: its
-  process may still be running, and its next hello reclaims. A `session.hello` that names it in
-  `previousSessionId` reclaims the released threads nobody else took. Closed sessions are deleted
-  after 30 days.
+  window; see [Closed askers](#closed-askers)), an evicted one included. A `session.hello` that
+  names it in `previousSessionId` reclaims the released threads nobody else took. So a live
+  private session that eviction closes may cause one spurious closed-asker notice for an answer
+  that waits, before its next hello reclaims its threads (which settles the timer). Closed
+  sessions are deleted after 30 days.
 
 **Resume.** Claude Code's `SessionStart` hook writes the conversation id, and the plugin sends it
 in `session.hello` as `claudeSessionId`; a heartbeat never carries it. The hub keeps the first id

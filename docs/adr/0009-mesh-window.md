@@ -173,8 +173,9 @@ follow, as built.
 
 **B. The asker has closed.**
 - Migration 008 records whether a session was private when it closed (`private_at_close`: inactive
-  and not a mesh window). An eviction under `limits.maxSessionsPerAgent` never records it, because
-  that session may still be open.
+  and not a mesh window), an eviction under `limits.maxSessionsPerAgent` included. A live private
+  session that eviction closes may cause one spurious closed-asker notice for an answer that
+  waits, before its next hello reclaims its threads.
 - A thread such a session released, and nobody owns now, goes to a 0.6.0 window unclaimed. The
   messages carry `released: { bySession, closedAt, claudeSessionId }`. An older window gets it as
   before.
