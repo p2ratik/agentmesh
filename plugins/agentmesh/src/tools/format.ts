@@ -93,7 +93,9 @@ export function formatThread(
 
 export function formatTaskLine(t: Task): string {
   const who = t.assignee ? `→ ${t.assignee}` : '→ unassigned';
-  return `- ${t.id} [${t.state}] ${titleOf(t)} ${who} · ${t.priority}${t.area ? ` · ${t.area}` : ''}${t.prUrl ? ` · ${t.prUrl}` : ''}`;
+  const repo = t.repo ? ` · repo ${ref(t.repo)}` : '';
+  const branch = t.branch ? ` · branch ${ref(t.branch)}` : '';
+  return `- ${t.id} [${t.state}] ${titleOf(t)} ${who} · ${t.priority}${t.area ? ` · ${t.area}` : ''}${repo}${branch}${t.prUrl ? ` · ${t.prUrl}` : ''}`;
 }
 
 export function formatTask(t: TaskDetail): string {

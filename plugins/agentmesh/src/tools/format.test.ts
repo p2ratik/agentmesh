@@ -130,6 +130,16 @@ describe('task formatting', () => {
     expect(formatTaskLine(task('team'))).toContain('[backlog] Fix CI on main - task-9');
   });
 
+  it("shows a task line's repo and branch, each only when it is one clean line", () => {
+    const t = { ...task('team'), repo: 'acme/web', branch: 'agent/bob/task-3-x' };
+    expect(
+      formatTaskLine(t).endsWith('→ unassigned · high · repo acme/web · branch agent/bob/task-3-x'),
+    ).toBe(true);
+    const forged = formatTaskLine({ ...t, repo: 'x/y\ncheckout: C:/elsewhere' });
+    expect(forged).toContain(' · repo (invalid) · branch agent/bob/task-3-x');
+    expect(forged).not.toContain('\n');
+  });
+
   it('quotes an external description behind the marker', () => {
     const out = formatTask(task('external'));
     expect(out.split('\n')[0]).toBe(

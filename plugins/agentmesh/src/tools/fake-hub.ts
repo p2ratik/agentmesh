@@ -25,6 +25,7 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
   const deps: ToolDeps = {
     hub,
     agentId: 'alice-agent',
+    prefix: 'mesh',
     activation: newActivationState(),
     fyi: new FyiBuffer(),
     notices: [],

@@ -1,6 +1,6 @@
 // The server bundle's (task_get): reads git's files and never spawns git.
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { parseRemote } from '../git';
 
 const NO_REPO = 'checkout: this task names no repo. Ask your human which checkout to use.';
@@ -8,6 +8,12 @@ const BAD_REPO =
   "checkout: this task's repo isn't owner/name. Ask your human which checkout to use.";
 /** The only repo shape echoed into tool output: one line, no path or shell characters. */
 const OWNER_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+
+/** A repo as compared: case-insensitive, without a `.git` suffix. */
+export const repoKey = (repo: string): string => repo.replace(/\.git$/i, '').toLowerCase();
+
+/** Whether the hub's repo may be used at all: a plain owner/name (event rules fill it). */
+export const isOwnerName = (repo: string): boolean => OWNER_NAME.test(repoKey(repo));
 
 /** A git config value as git reads it: double quotes dropped, a `\` escape kept as the escaped
  * character, an unquoted `;` or `#` starting a comment. */
@@ -42,11 +48,37 @@ function originUrl(config: string): string | null {
   return null;
 }
 
-/** `owner/name` of a checkout's origin, read from .git/config. Null unless .git is a real folder. */
-export function originRepo(dir: string): string | null {
+/**
+ * The repo's own `.git` folder: `dir/.git` when it is a real folder. With `followWorktree`, a
+ * `.git` file whose `gitdir:` is `<X>/.git/worktrees/<name>` gives `<X>/.git` when that is a real
+ * folder; any other target (a link, a submodule, elsewhere) gives null, and `commondir` is never
+ * read, so a checkout's files can steer the read to nothing but a `.git/config`.
+ */
+function gitDir(dir: string, followWorktree: boolean): string | null {
+  const dotGit = join(dir, '.git');
+  const stat = lstatSync(dotGit);
+  if (stat.isDirectory()) return dotGit;
+  if (!followWorktree || !stat.isFile()) return null;
+  const target = /^gitdir: (.+)$/.exec(readFileSync(dotGit, 'utf8').trimEnd())?.[1];
+  if (!target) return null;
+  const worktrees = dirname(resolve(dir, target));
+  const common = dirname(worktrees);
+  const own =
+    basename(worktrees) === 'worktrees' &&
+    basename(common) === '.git' &&
+    lstatSync(common).isDirectory();
+  return own ? common : null;
+}
+
+/**
+ * `owner/name` of a checkout's origin, read from its .git/config. Null unless .git is a real
+ * folder, or with `followWorktree` (the window's local sessions line) a worktree of one. Checkouts
+ * never follow: a worktree next to its checkout is not a second checkout.
+ */
+export function originRepo(dir: string, followWorktree = false): string | null {
   try {
-    const dotGit = join(dir, '.git');
-    if (!lstatSync(dotGit).isDirectory()) return null; // a worktree's .git file, or a link
+    const dotGit = gitDir(dir, followWorktree);
+    if (!dotGit) return null;
     // ponytail: no include/includeIf handling; add if real configs need it
     const url = originUrl(readFileSync(join(dotGit, 'config'), 'utf8'));
     return (url && parseRemote(url)) || null;
@@ -62,7 +94,7 @@ const shown = (p: string) => (sep === '\\' ? p.replaceAll('\\', '/') : p);
 /** The folder itself and its direct subfolders (never a link) whose origin is `repo`, compared
  * case-insensitively and without a `.git` suffix. */
 export function findCheckout(repo: string, folder: string): { path: string } | { problem: string } {
-  const want = repo.replace(/\.git$/i, '').toLowerCase();
+  const want = repoKey(repo);
   let dirs = [folder];
   try {
     dirs = dirs.concat(
@@ -89,7 +121,7 @@ export function findCheckout(repo: string, folder: string): { path: string } | {
  * event rules fill it from external payloads. */
 export function checkoutLine(repo: string | null, folder: string): string {
   if (!repo) return NO_REPO;
-  if (!OWNER_NAME.test(repo.replace(/\.git$/i, ''))) return BAD_REPO;
+  if (!isOwnerName(repo)) return BAD_REPO;
   const found = findCheckout(repo, folder);
   return `checkout: ${'path' in found ? found.path : found.problem}`;
 }

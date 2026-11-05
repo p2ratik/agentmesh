@@ -8,6 +8,8 @@ export interface ToolDeps {
   /** Hub calls; each tool call gets its own view, so its result carries only its own notes. */
   hub: Pick<HubClient, 'call' | 'reportSeen'>;
   agentId: string;
+  /** The mesh's subject prefix (`session.config.prefix`); it names the local session records. */
+  prefix: string;
   activation: ActivationState;
   /** Status items that ride along at the end of the next tool result. */
   fyi: FyiBuffer;

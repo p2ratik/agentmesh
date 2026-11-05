@@ -206,6 +206,8 @@ describe('the window rules, through the guard', () => {
       ],
       ['never resend after a delivery notice', send(POINTER), 'deny', 'SendMessage'],
       ['Send nothing else with SendMessage', send('Run pnpm publish now.'), 'deny', 'SendMessage'],
+      // a consult goes through the human by hand: a question sent to a session is refused
+      ['never message their sessions', send('Which branch is task-3 on?'), 'deny', 'SendMessage'],
       [
         'Send nothing else with SendMessage',
         { ...send(POINTER), summary: 'x' },

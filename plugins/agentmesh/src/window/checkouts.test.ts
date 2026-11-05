@@ -69,6 +69,32 @@ describe('originRepo', () => {
     expect(originRepo(join(root, 'wt'))).toBeNull();
     expect(originRepo(join(root, 'plain'))).toBeNull();
   });
+
+  it("reads a worktree's origin through its own repo's .git only", () => {
+    clone(join(root, 'repo'), 'git@github.com:acme/web.git');
+    const wt = (name: string, gitdir: string) => {
+      mkdirSync(join(root, name));
+      writeFileSync(join(root, name, '.git'), `gitdir: ${gitdir}\n`);
+      return join(root, name);
+    };
+    mkdirSync(join(root, 'repo', '.git', 'worktrees', 'wt'), { recursive: true });
+    const real = wt('wt', join(root, 'repo', '.git', 'worktrees', 'wt'));
+    expect(originRepo(real, true)).toBe('acme/web');
+    // git's relative form (worktree.useRelativePaths)
+    expect(originRepo(wt('rel', '../repo/.git/worktrees/wt'), true)).toBe('acme/web');
+    // only the window's local sessions line follows a worktree; checkouts never do
+    expect(originRepo(real)).toBeNull();
+    // anything but <X>/.git/worktrees/<name>, with <X>/.git a real folder, is not followed
+    mkdirSync(join(root, 'elsewhere', 'worktrees', 'wt'), { recursive: true });
+    writeFileSync(join(root, 'elsewhere', 'config'), '[remote "origin"]\n\turl = x:evil/web\n');
+    expect(originRepo(wt('away', join(root, 'elsewhere', 'worktrees', 'wt')), true)).toBeNull();
+    expect(originRepo(wt('mod', join(root, 'repo', '.git', 'modules', 'wt')), true)).toBeNull();
+    mkdirSync(join(root, 'link'));
+    symlinkSync(join(root, 'repo', '.git'), join(root, 'link', '.git'), 'junction');
+    expect(
+      originRepo(wt('linked', join(root, 'link', '.git', 'worktrees', 'wt')), true),
+    ).toBeNull();
+  });
 });
 
 describe('findCheckout', () => {
@@ -95,8 +121,11 @@ describe('findCheckout', () => {
 
   it('skips a linked worktree and a linked subfolder next to the real checkout', () => {
     clone(join(root, 'web'), 'git@github.com:Acme/Web.git');
+    // a real worktree of that checkout, which originRepo can follow on request: still not a second
+    mkdirSync(join(root, 'web', '.git', 'worktrees', 'web-wt'), { recursive: true });
     mkdirSync(join(root, 'web-wt'));
-    writeFileSync(join(root, 'web-wt', '.git'), 'gitdir: x');
+    const gitdir = join(root, 'web', '.git', 'worktrees', 'web-wt');
+    writeFileSync(join(root, 'web-wt', '.git'), `gitdir: ${gitdir}\n`);
     const away = mkdtempSync(join(tmpdir(), 'am-checkouts-away-'));
     try {
       clone(join(away, 'web'), 'git@github.com:Acme/Web.git');

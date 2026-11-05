@@ -134,6 +134,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
   return {
     hub: session.hub,
     agentId,
+    prefix: session.config.prefix,
     activation: session.activation,
     fyi: session.fyi,
     notices: session.notices,
