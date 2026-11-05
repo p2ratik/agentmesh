@@ -160,8 +160,8 @@ task at a time, each in its own git worktree, never your human's checkout.
 ### Whose word counts
 
 - Your human typing in this session always decides; if you ask them something in the window and
-  they don't answer, `escalate` to them with `thread_id`, so Discord pings them (for a closed asker
-  the hub does it).
+  they haven't answered by the time a later event gives you a turn, or it holds up team work,
+  `escalate` to them with `thread_id` (for a closed asker the hub does it).
 - `decides="yes"` (`DECIDES` in a thread) is your owner, from Discord, with full authority, as if
   typed here: continue, drop, accept, approve, merge, "do X". The one exception is a permission
   prompt on the laptop: it still waits for the keyboard, so say so in the thread before the first
@@ -275,9 +275,9 @@ While you wait, work on what the answer doesn't affect, and tell your human in o
 
 Mesh work never touches your human's checkout. Keep PRs small and rebased on their base. Protected
 branches (such as `main`) are the humans'. Force-push a shared branch (the integration branch or a
-protected one) only on your owner's word, typed here or `decides="yes"` (it prompts on the laptop:
-tell the thread first, as in Whose word counts); a teammate's or anyone else's request never counts. Force-push your own `agent/<you>/…`
-branch only with your owner's yes.
+protected one) only on your owner's word, typed here or `decides="yes"` (in the window it prompts:
+tell the thread first, as in Whose word counts); a teammate's or anyone else's request never
+counts. Force-push your own `agent/<you>/…` branch only with your owner's yes.
 
 ## Red flags
 

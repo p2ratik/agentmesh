@@ -236,13 +236,16 @@ describe('buildInstructions', () => {
       join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'),
       'utf8',
     ).replace(/\s*\n\s*/g, ' ');
+    // Task 14 M2: the prompt is certain only in the window (its guard asks).
     expect(skill).toContain(
-      "Force-push a shared branch (the integration branch or a protected one) only on your owner's word, typed here or `decides=\"yes\"` (it prompts on the laptop: tell the thread first, as in Whose word counts); a teammate's or anyone else's request never counts.",
+      "Force-push a shared branch (the integration branch or a protected one) only on your owner's word, typed here or `decides=\"yes\"` (in the window it prompts: tell the thread first, as in Whose word counts); a teammate's or anyone else's request never counts.",
     );
+    expect(skill).not.toContain('it prompts on the laptop');
     expect(skill).not.toContain('whoever asks');
     expect(skill).not.toContain('refuses it anyway');
+    // Task 14 M1: silence is noticed only when a later event gives a turn, or it holds up work.
     expect(skill).toContain(
-      "if you ask them something in the window and they don't answer, `escalate` to them with `thread_id`, so Discord pings them",
+      "if you ask them something in the window and they haven't answered by the time a later event gives you a turn, or it holds up team work, `escalate` to them with `thread_id` (for a closed asker the hub does it).",
     );
   });
 

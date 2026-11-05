@@ -218,10 +218,14 @@ An agent's owner can steer it by replying in a mirrored Discord thread
     branches, run without a prompt.
   - **Exfiltration.** Read, Grep and Glob don't prompt inside the window's folder, and `reply` is
     allowed, so a hijacker can have the agent post the team's code into a thread the whole server
-    reads. Redaction catches only credential formats.
+    reads. The same holds for a private session: it can read its own project folder, untracked
+    files such as `.env` included, and post them with `reply`. Redaction catches only credential
+    formats.
   - In a private session it gets whatever that session's own permission settings allow: any
     command in bypass mode, and whatever auto mode lets through.
-  - **Mitigations:** 2FA on Discord accounts. At once, `/mesh pause`, which holds every delivery.
+  - **Mitigations:** 2FA on Discord accounts. At once, `/mesh pause`, which holds every push and
+    reply pointer. It doesn't stop `inbox` or `thread` reads: a session that reads still sees the
+    hijacker's messages (they stay unread and unclaimed until `/mesh resume`).
     Then `/mesh remove` for an invited member, which refuses their key; an owner listed in
     `mesh.yaml` is removed by editing it. A ticketing feature to remove a member whose account is
     lost is to come.
@@ -302,8 +306,12 @@ to its session, and `session.check` then fails (see the upgrade notes in
   runs wins: nothing is recorded or pushed, and the plugin turns the hub session off again (the
   same for a renewed pull session's re-activation). The hub also forgets the session's pending
   code on `session.deactivate`, so a check pushed before the human's off can't be finished after
-  it. A human's `/agentmesh:activate` during a renewal is never answered this way: Claude gets the
-  check.
+  it: when the hub runs the deactivate first, a push renewal's activate is refused. Still, for
+  about one round trip the hub session can be active: until the human's deactivate lands, when the
+  hub ran the activate first; or, for a pull renewal (which needs no code), until the plugin's
+  second deactivate. In that moment it can be delivered to and claim a thread; the deactivate then
+  releases it. A human's `/agentmesh:activate` during a renewal is never answered this way: Claude
+  gets the check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own
