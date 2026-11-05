@@ -286,6 +286,19 @@ the task lifecycle, splitting work by area and skill, reviews, settling a disagr
 reach past the group to a role owner or to escalate. Each team's own names, owners and rules stay in
 `mesh.yaml` and the team policy, which the skill defers to.
 
+## Cross-session messaging on Linux and macOS
+
+The relay is only checked on Windows so far. To learn what the address looks like on Linux, run
+the probe once, from any folder:
+
+```
+node <plugin dir>/scripts/probe-messaging.mjs
+```
+
+It starts one non-interactive `claude -p` that loads no settings or plugins, so nothing reaches the
+mesh. Claude Code records a project entry for the probe's temp folder in `~/.claude.json`. Paste the
+output into the thread. Never run it inside a Claude Code session, because it starts Claude Code.
+
 ## Troubleshooting
 
 - **Nothing arrives**: the session must be started with the channel flag above and activated
