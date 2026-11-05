@@ -30,7 +30,17 @@ const CONTEXT_LINES = [
 const SKILL_LINE =
   '- Load the agentmesh:mesh-collaboration skill for how this team works; it has a section for the mesh window.';
 
+/** A send cut off by a restart or compaction may already be out: retries make a second one. */
+const RESTART_LINE =
+  '- After a restart, call task_list and resume each task still in progress in its existing worktree (cd "<checkout>" && git worktree list shows them). Before you answer a reply that arrived for an earlier session, read its thread with thread. A send whose result a restart or compaction lost may have gone out: check thread or task_get before you repeat it.';
+
 describe('windowRules', () => {
+  it('says a send a restart cut off may have gone out, with or without a policy', () => {
+    for (const p of [policy, { ...policy, ownBranchPrefix: null }, null]) {
+      expect(windowRules(p).split('\n')).toContain(RESTART_LINE);
+    }
+  });
+
   it('points to the skill right after the title line, with or without a policy', () => {
     for (const p of [policy, { ...policy, ownBranchPrefix: null }, null]) {
       const lines = windowRules(p).split('\n');
@@ -67,7 +77,7 @@ describe('windowRules', () => {
       "- Never clone a repo. If its checkout isn't in this folder, ask your human for the path.",
       ...CONTEXT_LINES,
       '- Every task gets its own worktree: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> --track origin/agents. Edits anywhere else are refused.',
-      '- After a restart, call task_list and resume each task still in progress in its existing worktree (cd "<checkout>" && git worktree list shows them). Before you answer a reply that arrived for an earlier session, read its thread with thread.',
+      RESTART_LINE,
       '- Reviews: read the diff without asking: cd "<checkout>" && git fetch origin, then cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>. <branch> is the review request\'s Branch: line (task_get\'s branch:), <base> task_get\'s base: or else agents; if no branch is named, ask the author in the task thread (gh pr diff asks here). Before you run the tests of a branch that isn\'t yours, reply in the task thread with status "working": "Running the tests on <branch> needs my human\'s approval; my verdict waits for it." Then fetch again, cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>, cd "<worktree>", and run cd "<worktree>" && <test command>; your human approves the prompt.',
       '- Remove a worktree once its PR is merged, and a review worktree after review_submit: cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>. If git refuses because of untracked files, tell your human (--force asks).',
       '- In a worktree on your own branch (agent/bob/…), run without asking: pnpm install --frozen-lockfile, pnpm check (as cd "<worktree>" && <test>, exactly as written). Any other test command asks.',

@@ -92,7 +92,8 @@ export function buildInstructions(input: InstructionsInput): string {
     }
     parts.push(PROTOCOL, gitLine(input.hello));
     const used = parts.join('\n\n').length + '\n\nTeam policy:\n'.length;
-    parts.push(`Team policy:\n${clip(input.hello.policy.instructions, MAX_INSTRUCTIONS - used)}`);
+    const budget = MAX_INSTRUCTIONS - used;
+    parts.push(`Team policy:\n${clip(input.hello.policy.instructions, budget, input.meshWindow)}`);
   } else {
     parts.push(
       `You are ${input.agentId ?? 'an agent'} on the AgentMesh. The hub was unreachable when this session started; the tools work once it is back.`,
@@ -104,8 +105,12 @@ export function buildInstructions(input: InstructionsInput): string {
 }
 
 const TRUNCATED = '\n… (policy truncated: ask your human for the full team policy)';
+/** The window's activate result carries the whole policy. */
+const TRUNCATED_WINDOW = '\n… (policy truncated: the full team policy arrives with activation)';
 
-function clip(text: string, budget: number): string {
+/** The policy cut to `budget`, ending with where the rest is. */
+function clip(text: string, budget: number, meshWindow = false): string {
   if (text.length <= budget) return text;
-  return `${text.slice(0, Math.max(0, budget - TRUNCATED.length))}${TRUNCATED}`;
+  const suffix = meshWindow ? TRUNCATED_WINDOW : TRUNCATED;
+  return `${text.slice(0, Math.max(0, budget - suffix.length))}${suffix}`;
 }

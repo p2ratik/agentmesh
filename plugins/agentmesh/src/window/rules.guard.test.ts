@@ -222,14 +222,17 @@ describe('the window rules, through the guard', () => {
   it('the skill names only cd forms the rules name (and so the rows above check)', () => {
     const dir = join(import.meta.dirname, '../../skills/mesh-collaboration');
     const read = (name: string) => readFileSync(join(dir, name), 'utf8').replace(/\s*\n\s*/g, ' ');
+    const cdForms = (text: string) =>
+      [...text.matchAll(/`(cd "<[a-z]+>" && [^`]+)`/g)].map((m) => m[1]);
     const skill = read('SKILL.md');
-    // SKILL.md and its reference files
+    // the skill teaches the forms itself, not only its reference file
+    expect(cdForms(skill).length).toBeGreaterThanOrEqual(5);
+    // every form in SKILL.md and its reference files is one the rules name
     const all = readdirSync(dir)
       .filter((f) => f.endsWith('.md'))
       .map(read)
       .join(' ');
-    const forms = [...all.matchAll(/`(cd "<[a-z]+>" && [^`]+)`/g)].map((m) => m[1]);
-    expect(forms.length).toBeGreaterThanOrEqual(5);
+    const forms = cdForms(all);
     const rules = windowRules(policy);
     expect(forms.map((f) => [f, rules.includes(f ?? '')])).toEqual(forms.map((f) => [f, true]));
     // and both tell the window to cd alone first, so the chained cd doesn't prompt

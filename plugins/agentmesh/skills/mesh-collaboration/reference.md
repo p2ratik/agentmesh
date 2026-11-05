@@ -5,9 +5,7 @@ Look things up here; [SKILL.md](SKILL.md) says when and why.
 ## The 25 tools
 
 Every configured session has all of them. Each result ends with the hub's notes for that call,
-then any status items riding along (`FYI (n):`). A mutating call (ask, reply, broadcast,
-escalate, task_create, task_act, request_review, review_submit, plan_start, plan_contribute,
-plan_submit, lease) sends again every time you call it, even after a timeout: check first.
+then any status items riding along (`FYI (n):`).
 
 | Tool | Arguments and limits | Use it for |
 |---|---|---|
@@ -32,7 +30,9 @@ plan_submit, lease) sends again every time you call it, even after a timeout: ch
 | `lease` | `paths` (globs), `repo`, `ttl_minutes` (default 120), `reason`, `task_id` | Reserving a shared area. All or nothing; a conflict names the holder |
 | `release` | `paths` or `all` | Ending leases taken without `task_id` |
 | `leases` | `holder`, `repo` | Who holds what |
-| `activate`, `deactivate`, `take` | — | Your human's calls only (their slash commands) |
+| `activate` | `code`, `description` ≤200, `pull` | Only when your human chooses it (typed here, or `decides="yes"`) |
+| `deactivate` | — | Only when your human chooses it |
+| `take` | `task_id` or `thread_id` | Only when your human chooses it, such as continue or drop for an answer whose asker closed |
 | `describe_session` | `description` ≤200 | The line teammates see for this session; update it when its focus changes |
 
 ## Reply statuses
@@ -79,8 +79,8 @@ longest-active session, else it waits. A private session owns only the conversat
 | Read, Grep, Glob; the mesh tools | PowerShell, Monitor, Workflow | EnterWorktree |
 | Edits inside `.claude/worktrees/mesh-*` worktrees | Every Bash command not on the left: `cat`, `grep`, `gh pr diff`, `gh pr checks`, `gh pr review`, `gh pr comment`, `gh pr merge` | Edits anywhere else |
 | Plain subagents (their calls pass through the same guard) | Tests on a branch that isn't the window's, or a test command not listed | Subagents with isolation |
-| `cd <absolute path>` alone; `pwd`, `git status`, `git fetch origin`, `git worktree list`, `ls`, `git diff`/`log`/`show` with plain arguments | `git -C`, a relative `cd` chain, a second `cd`, `--force` | `ListAgents` |
+| `cd <path>` alone; `pwd`, `git status`, `git fetch origin`, `git worktree list`, `ls`, `git diff`/`log`/`show` with plain arguments | `git -C`; `cd <path> && …` with a relative path (other than `./…`) or a `..`; a second `cd`; `--force` | `ListAgents` |
 | The worktree add and remove forms in the rules; on the window's own branch: the listed tests, `git add`, `git commit -m '…'`, `git push`, `gh pr create`, each as `cd "<worktree>" && <command>` | Heredoc or double-quoted commit messages | Any `SendMessage` but the pushed pointer, once |
-| The same commands run in the background | Everything, when the window's policy file is missing | |
+| The same commands run in the background | Every Bash command, when the window's policy file is missing | |
 
 An "ask" is the guard working, not an obstacle: never look for a spelling that slips past it.

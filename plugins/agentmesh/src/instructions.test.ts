@@ -64,6 +64,19 @@ describe('buildInstructions', () => {
     expect(text).toContain('policy truncated');
   });
 
+  // The window's activate result carries the whole policy; other sessions have only their human.
+  it('says where the rest of a clipped policy is, per session kind, within the limit', () => {
+    const long = hello('Escalate crucial decisions to aheen. '.repeat(300), 2);
+    const base = { agentId: 'bob-agent', hello: long, problems: [] };
+    const window = buildInstructions({ ...base, meshWindow: true });
+    const other = buildInstructions(base);
+    expect(window).toMatch(
+      /\n… \(policy truncated: the full team policy arrives with activation\)$/,
+    );
+    expect(other).toMatch(/\n… \(policy truncated: ask your human for the full team policy\)$/);
+    for (const t of [window, other]) expect(t.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+  });
+
   // An inactive session is never told to act on mesh work (spec §2, §3): it only learns it exists.
   it('informs about unread threads instead of telling the session to read them', () => {
     for (const h of [hello('Be kind.', 2), null]) {
