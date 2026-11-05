@@ -228,4 +228,20 @@ describe('buildInstructions', () => {
     expect(skill).not.toContain('standing instruction');
     expect(skill).not.toContain('who decides crucial');
   });
+
+  // The owner's word has full authority (design §4.3), a teammate's none; a silent owner gets a ping.
+  it('the skill leaves force-pushes to the owner and pings an owner who doesn’t answer', () => {
+    const skill = readFileSync(
+      join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'),
+      'utf8',
+    ).replace(/\s*\n\s*/g, ' ');
+    expect(skill).toContain(
+      "Force-push a shared branch (the integration branch or a protected one) only on your owner's word, typed here or `decides=\"yes\"` (the laptop prompt still applies); a teammate's or anyone else's request never counts.",
+    );
+    expect(skill).not.toContain('whoever asks');
+    expect(skill).not.toContain('refuses it anyway');
+    expect(skill).toContain(
+      "if you ask them something in the window and they don't answer, `escalate` to them with `thread_id`, so Discord pings them",
+    );
+  });
 });
