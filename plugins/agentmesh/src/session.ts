@@ -11,7 +11,7 @@ import { PullWatcher } from './pull/watcher';
 import { ownAddress } from './relay/address';
 import { forwardRelay } from './relay/window-relay';
 import { readClaudeSession } from './resume/claude-session';
-import { byeQuietly, followEvery, noteReclaimed, SHUTDOWN_MS } from './resume/conversation';
+import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
 import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
@@ -92,11 +92,7 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     notices: [],
     sayHello: () => {
       inFlight ??= register(session, logger)
-        .then((landed) => {
-          if (landed) noteReclaimed(session, landed.hello.reclaimed);
-          if (landed) session.onHello?.(landed.renewed);
-          return landed?.hello ?? null;
-        })
+        .then((landed) => afterHello(session, landed))
         .finally(() => {
           inFlight = null;
         });

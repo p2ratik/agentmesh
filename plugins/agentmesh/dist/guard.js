@@ -56,18 +56,24 @@ function parseWindowPolicy(text) {
   }
   return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
 }
-function readMarker(env, home, platform, agentId) {
+function readWindowPolicy(home, platform) {
+  try {
+    return parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function markerState(env, policy, agentId) {
   const value = env[MESH_WINDOW_ENV];
   if (!value) return { state: "none", policy: null };
-  let policy = null;
-  try {
-    policy = parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, "utf8"));
-  } catch {
-  }
   if (policy && policy.token === value && (agentId === void 0 || policy.agentId === agentId)) {
     return { state: "verified", policy };
   }
   return { state: "marked", policy: null };
+}
+function readMarker(env, home, platform, agentId) {
+  if (!env[MESH_WINDOW_ENV]) return { state: "none", policy: null };
+  return markerState(env, readWindowPolicy(home, platform), agentId);
 }
 
 // src/guard/checkout.ts

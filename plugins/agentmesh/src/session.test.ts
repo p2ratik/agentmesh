@@ -5,6 +5,7 @@ import { connectBus, type NatsConnection } from '@agentmesh/bus';
 import { createLogger } from '@agentmesh/common';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { message } from './inbox/session-inbox.fixture';
 import { PullWatcher } from './pull/watcher';
 import { writeClaudeSession } from './resume/claude-session';
 import { openSession, startSession } from './session';
@@ -38,6 +39,8 @@ type Callback = (err: Error | null, msg: unknown) => void;
  * check with code K7Q2ZP to the calling session's subject.
  */
 function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
+  /** What later hellos answer in `policy` (older hubs send no closedAskerEscalationMinutes). */
+  const policy: { closedAskerEscalationMinutes?: number } = {};
   const hellos: Array<Record<string, unknown>> = [];
   const wire: string[] = [];
   const listeners = new Map<string, Callback>();
@@ -78,6 +81,7 @@ function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
             branchTemplate: 'agent/{owner}/{task}-{slug}',
             agentsMayMergeInto: ['agents'],
           },
+          ...policy,
         },
         unreadThreads,
         sessionId: ids.shift(),
@@ -86,7 +90,7 @@ function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
     },
   } as unknown as NatsConnection;
   vi.mocked(connectBus).mockResolvedValue(nc);
-  return { hellos, wire };
+  return { hellos, wire, listeners, policy };
 }
 
 const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
@@ -227,6 +231,37 @@ describe('session renewal', () => {
     await session.sayHello();
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(notification).toHaveBeenCalledOnce();
+    await stop();
+  });
+});
+
+describe("a closed asker's notice", () => {
+  let data: string;
+  beforeEach(() => {
+    data = mkdtempSync(join(tmpdir(), 'am-session-'));
+    vi.stubEnv('CLAUDE_PLUGIN_DATA', data);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(data, { recursive: true, force: true });
+  });
+
+  it("uses the hub's minutes from a hello that landed after the startup wait", async () => {
+    const { listeners, policy } = fakeHub(['s-aaaaaaaaaaaa', 's-aaaaaaaaaaaa']);
+    const session = await openSession(config, logger);
+    session.hello = null; // what openSession keeps when the first hello misses HELLO_WAIT_MS
+    policy.closedAskerEscalationMinutes = 30;
+    await session.sayHello();
+    const notification = vi.fn(async () => undefined);
+    const stop = startSession({ notification } as unknown as Server, session, logger, 0);
+    const subject = 'mesh.session.alice-agent.s-aaaaaaaaaaaa';
+    await vi.waitFor(() => expect(listeners.has(subject)).toBe(true));
+    const marker = { bySession: 's-bbbbbbbbbbbb', closedAt: '2026-11-04T09:30:00.000Z' };
+    const released = { ...message('a1', 'thr-7'), released: { ...marker, claudeSessionId: null } };
+    const json = () => ({ type: 'deliver', messages: [released] });
+    listeners.get(subject)?.(null, { subject, json, respond: () => true });
+    await vi.waitFor(() => expect(notification).toHaveBeenCalledOnce());
+    expect(pushes(notification)[0]?.content).toContain('within 30 minutes');
     await stop();
   });
 });

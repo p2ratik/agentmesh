@@ -98,6 +98,18 @@ describe('activate and the mesh window', () => {
     for (const t of [pushed, pulled]) expect(t).not.toContain('/agentmesh:window');
   });
 
+  // One ~/.agentmesh serves every Claude account on the laptop (a test agent beside alice-agent).
+  it("another agent's policy, or a corrupt one, isn't a window set up for this agent", async () => {
+    mkdirSync(join(dataDir, '.agentmesh'));
+    const file = join(dataDir, '.agentmesh', 'mesh-window.json');
+    for (const content of [JSON.stringify({ ...policy, agentId: 'alice-test-agent' }), '{ "v']) {
+      writeFileSync(file, content);
+      const [pushed, pulled] = await ordinary();
+      expect(pushed).toBe(`This session is active on the mesh as “web client”. ${NOT_WINDOW}`);
+      expect(pulled.endsWith(NOT_WINDOW)).toBe(true);
+    }
+  });
+
   it('the mesh window never activates pull-only', async () => {
     const { deps, calls } = fakeHub(answers('x'));
     verified(deps);

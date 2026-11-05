@@ -1,9 +1,8 @@
-import { existsSync } from 'node:fs';
 import {
   type MarkerState,
-  readMarker,
+  markerState,
+  readWindowPolicy,
   type WindowPolicy,
-  windowFiles,
 } from '@agentmesh/common/window';
 import { pullStateDirs } from '../pull/state';
 
@@ -11,7 +10,7 @@ import { pullStateDirs } from '../pull/state';
 export interface MeshWindowContext {
   state: MarkerState;
   policy: WindowPolicy | null;
-  /** The window's policy file exists: a mesh window is set up on this laptop. */
+  /** The window's policy file is valid and this agent's: its mesh window is set up here. */
   setUp: boolean;
   dataDir: string;
   folder: string;
@@ -32,9 +31,10 @@ export function meshWindowContext(
   folder: string,
   agentId: string,
 ): MeshWindowContext {
-  const { state, policy } = readMarker(env, home, platform, agentId);
-  // Without the marker readMarker doesn't open the file; an ordinary session only needs to know
-  // it exists, to say how to start the window rather than how to set one up.
-  const setUp = policy !== null || existsSync(windowFiles(home, platform).policy);
+  // One read serves the marker's check and the set-up question. One ~/.agentmesh serves every
+  // Claude account on the laptop, so another agent's policy is no window of this one's.
+  const file = readWindowPolicy(home, platform);
+  const { state, policy } = markerState(env, file, agentId);
+  const setUp = file?.agentId === agentId;
   return { state, policy, setUp, dataDir: pullStateDirs(env, home)[0] ?? '.', folder };
 }

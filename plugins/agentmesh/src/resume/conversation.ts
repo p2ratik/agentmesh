@@ -54,6 +54,23 @@ export function followEvery(session: Following, read: () => string | null): () =
   return () => clearInterval(timer);
 }
 
+type Hello = NonNullable<Session['hello']>;
+
+/**
+ * After each hello that landed: the session keeps it (one that missed openSession's wait too, so
+ * its policy, such as the closed-asker minutes, holds), notes reclaimed threads and runs onHello.
+ */
+export function afterHello(
+  session: Pick<Session, 'hello' | 'notices' | 'pull' | 'onHello'>,
+  landed: { hello: Hello; renewed: boolean } | null,
+): Hello | null {
+  if (!landed) return null;
+  session.hello = landed.hello;
+  noteReclaimed(session, landed.hello.reclaimed);
+  session.onHello?.(landed.renewed);
+  return landed.hello;
+}
+
 /**
  * After a hello that gave threads back: Claude reads where after its next tool result, and the
  * session counts as one that used the mesh (it keeps its private record).

@@ -2552,7 +2552,7 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync6 } = __require("node:fs");
+    var { existsSync: existsSync5 } = __require("node:fs");
     var getCallers = require_caller();
     var { join: join13, isAbsolute, sep: sep2 } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute(path) && !existsSync6(path);
+      return isAbsolute(path) && !existsSync5(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -48181,6 +48181,13 @@ function followEvery(session, read) {
   timer.unref();
   return () => clearInterval(timer);
 }
+function afterHello(session, landed) {
+  if (!landed) return null;
+  session.hello = landed.hello;
+  noteReclaimed(session, landed.hello.reclaimed);
+  session.onHello?.(landed.renewed);
+  return landed.hello;
+}
 function noteReclaimed(session, reclaimed) {
   if (reclaimed.length === 0) return;
   session.notices.push(reclaimedLines(reclaimed));
@@ -49319,14 +49326,16 @@ function parseWindowPolicy(text3) {
   }
   return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
 }
-function readMarker(env, home, platform2, agentId) {
+function readWindowPolicy(home, platform2) {
+  try {
+    return parseWindowPolicy(readFileSync6(windowFiles(home, platform2).policy, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function markerState(env, policy, agentId) {
   const value = env[MESH_WINDOW_ENV];
   if (!value) return { state: "none", policy: null };
-  let policy = null;
-  try {
-    policy = parseWindowPolicy(readFileSync6(windowFiles(home, platform2).policy, "utf8"));
-  } catch {
-  }
   if (policy && policy.token === value && (agentId === void 0 || policy.agentId === agentId)) {
     return { state: "verified", policy };
   }
@@ -52122,10 +52131,10 @@ function checkEvent(code, previous) {
 }
 
 // src/window/context.ts
-import { existsSync as existsSync5 } from "node:fs";
 function meshWindowContext(env, home, platform2, folder, agentId) {
-  const { state, policy } = readMarker(env, home, platform2, agentId);
-  const setUp = policy !== null || existsSync5(windowFiles(home, platform2).policy);
+  const file2 = readWindowPolicy(home, platform2);
+  const { state, policy } = markerState(env, file2, agentId);
+  const setUp = file2?.agentId === agentId;
   return { state, policy, setUp, dataDir: pullStateDirs(env, home)[0] ?? ".", folder };
 }
 
@@ -52172,11 +52181,7 @@ async function openSession(config2, logger) {
     claudeSessionId: readClaudeSession(window.dataDir, process.ppid, startedAt),
     notices: [],
     sayHello: () => {
-      inFlight ??= register(session, logger).then((landed) => {
-        if (landed) noteReclaimed(session, landed.hello.reclaimed);
-        if (landed) session.onHello?.(landed.renewed);
-        return landed?.hello ?? null;
-      }).finally(() => {
+      inFlight ??= register(session, logger).then((landed) => afterHello(session, landed)).finally(() => {
         inFlight = null;
       });
       return inFlight;

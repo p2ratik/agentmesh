@@ -112,22 +112,38 @@ export function ownBranchPrefix(template: string, owner: string, agent: string):
 
 export type MarkerState = 'none' | 'marked' | 'verified';
 
+type Marker = { state: MarkerState; policy: WindowPolicy | null };
+
+/** The window's policy file, parsed; null when it is missing, unreadable or invalid. */
+export function readWindowPolicy(home: string, platform: NodeJS.Platform): WindowPolicy | null {
+  try {
+    return parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** What the marker in `env` makes of the policy already read: verified only with its token. */
+export function markerState(
+  env: Record<string, string | undefined>,
+  policy: WindowPolicy | null,
+  agentId?: string,
+): Marker {
+  const value = env[MESH_WINDOW_ENV];
+  if (!value) return { state: 'none', policy: null };
+  if (policy && policy.token === value && (agentId === undefined || policy.agentId === agentId)) {
+    return { state: 'verified', policy };
+  }
+  return { state: 'marked', policy: null };
+}
+
+/** The marker and its policy. An unmarked session (most guard and hook calls) skips the file. */
 export function readMarker(
   env: Record<string, string | undefined>,
   home: string,
   platform: NodeJS.Platform,
   agentId?: string,
-): { state: MarkerState; policy: WindowPolicy | null } {
-  const value = env[MESH_WINDOW_ENV];
-  if (!value) return { state: 'none', policy: null };
-  let policy: WindowPolicy | null = null;
-  try {
-    policy = parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, 'utf8'));
-  } catch {
-    // missing or unreadable: the window is marked but cannot be verified
-  }
-  if (policy && policy.token === value && (agentId === undefined || policy.agentId === agentId)) {
-    return { state: 'verified', policy };
-  }
-  return { state: 'marked', policy: null };
+): Marker {
+  if (!env[MESH_WINDOW_ENV]) return { state: 'none', policy: null };
+  return markerState(env, readWindowPolicy(home, platform), agentId);
 }
