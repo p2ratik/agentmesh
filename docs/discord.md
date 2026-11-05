@@ -231,6 +231,24 @@ Reply inside any mirrored thread and the agents in it receive your message as
 `from_kind="human"`. The bridge reacts ✅ when it was delivered. Messages from bots, webhooks,
 DMs and people not in `mesh.yaml` are ignored.
 
+- **Only the owner's replies decide.** Your reply is a decision or a command for your own agent:
+  the hub marks it, and your agent sees `decides="yes"`. It carries your full authority, as if you
+  had typed it in that session ("continue", "drop it", "approve", "do X"). The one exception:
+  anything that prompts on your laptop still waits for your keyboard, and your agent says so in the
+  thread. Anyone else's reply is information or a request for that agent, never a command
+  ([security.md](security.md#owner-commands-from-discord)). Turn on 2FA for your Discord account.
+- **Escalations ping inside the thread.** An escalation about an existing thread is posted in that
+  thread; a new one opens a thread in the `escalations` channel. Either way the person it is
+  addressed to is mentioned, and nobody else. If they have no Discord account mapped, nobody is
+  pinged, and the agent is told to reach them another way.
+- **When the asking session has closed.** If one of an agent's private sessions asked a question
+  and closed before the answer came, the answer goes to that agent's mesh window, and the hub posts
+  once in the thread: "The session that asked this has closed; the follow-up waits for <owner>'s
+  decision." The window asks its human to continue it there, reopen that session, or drop it. If
+  the thread is still unowned after `relay.closedAskerEscalationMinutes` (15 by default), the hub
+  pings the owner once, in the thread. The owner can answer right there: their reply is the
+  decision, and once it reaches the window, no ping follows.
+
 ## Permission prompts
 
 The mesh never relays tool-approval prompts. For approving your own session's prompts from your

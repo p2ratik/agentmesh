@@ -56,7 +56,7 @@ function originUrl(config: string): string | null {
 /**
  * `<X>/.git` for a worktree's `gitdir:` target `<X>/.git/worktrees/<name>`, from the text alone
  * (`..` folded): null for any other target, and for a UNC, device or stream spelling
- * (guard/paths.ts `badInput`), so no network host is ever contacted.
+ * (guard/paths.ts `badInput`), so no UNC or device spelling is opened.
  */
 export function worktreeCommonDir(
   dir: string,

@@ -119,16 +119,24 @@ file is gitignored and is never committed.
     runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. Its worktree guard (`dist/guard.js`, a
     `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*` worktrees and asks before
     commands that aren't on its list.
+  - The relay (ADR 0009 part 3): a reply for an inactive private session makes the hub send the
+    window a body-less `relay` pointer; the window forwards one fixed pointer text with
+    `SendMessage` to that session's messaging address (Windows only), and the guard passes exactly
+    that send, once. Every private session that used the mesh also gets an AgentMesh line on its
+    next prompt while answers wait. An answer whose private asker closed goes to the window
+    unclaimed, and the hub pings the owner in the thread if nobody decides.
   - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI),
-    `dist/hook.js` (prompt and session-start hook) and `dist/guard.js`, all committed so
-    marketplace installs need no build.
+    `dist/hook.js` (prompt, session-start and session-end hook) and `dist/guard.js`, all committed
+    so marketplace installs need no build.
   - `/agentmesh:setup` (`skills/setup`) has Claude interview the admin and run the bundled CLI's
     `setup` steps, from "plugin installed" to a live mesh (ADR 0007).
 - **Discord bridge** (`apps/discord-bridge`):
   - Pure renderers turn feed events into `PostIntent`s; an executor performs them with
     discord.js.
   - Webhooks give each agent its own name and avatar. Slash commands `/plan /task /ask /mesh`.
-  - Human replies in mirrored threads are relayed to agents as `from_kind="human"`.
+  - Human replies in mirrored threads are relayed to agents as `from_kind="human"`. The hub marks
+    a human's message as a decision for the agents that human owns (`refs.decidesFor`); only the
+    owner commands an agent.
 - **CLI** (`apps/cli`, run as `pnpm mesh …`, or `node <plugin dir>/dist/cli.js …` from the
   plugin): `init`, `validate`, `keys add|list`, `nats-config [--tls|--dev]`, `agent-setup`, and
   for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`, plus
@@ -146,9 +154,9 @@ packages/common     errors, ids, clock, logger, retry, paths
 apps/hub            hub service (src/modules/<module>/{repo,service,handlers,index}.ts, db, rpc, runtime)
 apps/discord-bridge render/ (pure), feed/, discord/, commands/, inbound/
 apps/cli            commands/ (incl. setup/), render/, lib/, setup/ (answers, renderers, checks, deploy)
-plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard}/, skills/
-                    (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js (MCP
-                    server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
+plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull}/,
+                    skills/ (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js
+                    (MCP server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
 deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup,github-deploy-setup}.sh,
                     auto-deploy/ (agentmesh-deploy.sh: the deploy key's forced command; install.sh)
@@ -186,10 +194,20 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
   compose, the hub reaches NATS through a network alias equal to the public hostname.
 - **Windows dev box:** `python3` is a Store stub, so use node. Writing files through bash heredocs
   mangles template literals; use the Write/Edit tools.
-- **Plugin hooks:** the guard's `onFailure: "block"` needs Claude Code 2.1.295+. It applies in
-  every session, so a `hooks.json` that names a `dist/*.js` the commit doesn't ship blocks every
-  edit and shell call for whoever installs it. Ship `hooks.json` and the bundles together. The hook
-  and guard bundles stay built-ins only (no zod), because they start on every call.
+- **Plugin hooks:** `hooks/hooks.json` runs `dist/hook.js` on `UserPromptSubmit`, `SessionStart`
+  and `SessionEnd`, and `dist/guard.js` on `PreToolUse` (edits, Bash, PowerShell, Monitor,
+  `EnterWorktree`, `Agent`, `Workflow`, `SendMessage`, `ListAgents`, and `activate`). The guard's
+  `onFailure: "block"` needs Claude Code 2.1.295+. It applies in every session, so a `hooks.json`
+  that names a `dist/*.js` the commit doesn't ship blocks every edit and shell call for whoever
+  installs it. Ship `hooks.json` and the bundles together. The hook and guard bundles stay
+  built-ins only (no zod), because they start on every call.
+  - **Built-ins only:** these import only `node:*`, each other and type-only imports:
+    `src/hook.ts`, `src/guard.ts`, `src/guard/**`, `src/hook/**`,
+    `src/relay/{pointer,address,local-session,forward-record}.ts`, `src/resume/claude-session.ts`,
+    `src/agent-id.ts`, `src/window/{rules,heartbeat,session-start,guard-stamp,start-state}.ts`,
+    `src/pull/state.ts` (all under `plugins/agentmesh`), and
+    `packages/common/src/{window,version}.ts`.
+  - Cross-session messaging (the relay) needs Claude Code 2.1.234+ on native Windows.
 
 ## Commands
 
@@ -209,9 +227,9 @@ node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plu
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-11-03)
+## Status (as of 2026-11-05)
 
-**Built (v1, release 0.5.0):**
+**Built (v1, release 0.5.0; plan 3 built for 0.6.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
@@ -263,14 +281,40 @@ Run `pnpm check` before calling anything done.
     including tests on branches the window didn't write. It fails closed.
   - The `SessionStart` hook gives the window its rules and tells other sessions when no window
     is listening.
+- **Answers for private sessions, owner commands and context (plan 3, for 0.6.0)** (ADR 0009,
+  part 3):
+  - The relay: a reply held for an inactive, live private session makes the hub send the agent's
+    0.6.0 mesh window a body-less `relay` pointer (`sessions/relay.ts`). The window forwards the
+    fixed pointer text with `SendMessage` to that session's messaging address, from its local
+    record (`sess-*.json`). The guard passes exactly that send, once, and denies every other
+    `SendMessage` and `ListAgents`. Windows only; everywhere, the AgentMesh line on the next prompt
+    says an answer waits.
+  - Closed askers (migration 008: `sessions.private_at_close`, `sessions.claude_session_id`,
+    `orphan_decisions`): a thread a closed private session released goes to a 0.6.0 window
+    unclaimed, marked `released`. The hub posts one notice and pings the owner in the thread after
+    `relay.closedAskerEscalationMinutes` (15). `claude --resume` takes the threads back through
+    the conversation id the `SessionStart` hook records (`SessionEnd` deletes it).
+  - Owner commands: the hub marks a human's message `refs.decidesFor` for the agents that human
+    owns, and the plugin shows `DECIDES` and meta `decides="yes"`. Escalations ping their target
+    inside the thread. `mesh validate` warns about other services that can act as humans.
+  - Context: a private session's `task_create` reaches the window, its description a redacted
+    handoff note. Thread headers show `parent`, `task_list` takes `all`, and the window's
+    `task_get` counts the human's private sessions in the task's repo.
+  - `peers` shows away sessions and when they close; closing a terminal says `session.bye`; a new
+    mesh window takes over away windows' threads; `window init` warns about a shell function or
+    alias named `claude-mesh`.
+  - The `mesh-collaboration` skill, rewritten around the three session kinds and tested against
+    15 scenarios with fresh agents.
 
 **Tested and passing:**
-- **Unit tests (about 960):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 1,330):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
   autocomplete gating, every setup step with fakes for ssh, Docker and Discord, and a secret-leak
-  test over the whole setup flow.
+  test over the whole setup flow. Plan 3: the relay rule and marks, the pointer text, the guard's
+  `SendMessage` check (with a parallel-claim race), the local records, the prompt labels,
+  closed-asker routing and its timer, resume, the decides mark and escalation pings.
 - **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
   - nkey auth rendered by the CLI.
   - Impersonation is refused.
@@ -306,9 +350,23 @@ Run `pnpm check` before calling anything done.
 - Slash commands invoked by a human, plan approval buttons, human replies relayed to agents.
 - Planning end to end with several live agents; the Hermes integration (not built; only the
   ingest side exists).
+- Plan 3 end to end against real NATS (its e2e test comes with the 0.6.0 release), and live:
+  - a pointer reaching an idle and a busy private session (auto and default modes), and the note
+    when messaging is held; the window's model copying `forward_to` byte for byte;
+  - whether Claude Code shows a prompt for a hook's "ask" on `SendMessage` (it gates
+    human-approved consults), and the value it sends in `recipient_kind`;
+  - `--resume <id>` and `/clear` keeping the MCP environment and the messaging socket, and
+    whether the `SessionStart` record lands before or after the MCP server starts (the 60 s
+    slack);
+  - an owner's Discord reply showing `decides="yes"` and another member's not; the closed-asker
+    ping after the configured minutes;
+  - each teammate's Claude Code version, permission mode and `crossSessionInbound`;
+  - closing a terminal window dropping the session from `peers`;
+  - the Linux address pattern, which needs `scripts/probe-messaging.mjs` run on Linux.
 
 **Known limits:** Claude Code keeps only the first 4096 characters of MCP instructions, so a long
-team policy is cut off (agents see "policy truncated").
+team policy is cut off (agents see "policy truncated"). The mesh window's `activate` result now
+carries the full team policy.
 
 **Decided:**
 - The mesh channels are readable by everyone in the Discord server (see `docs/security.md`);

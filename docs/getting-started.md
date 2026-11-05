@@ -235,7 +235,9 @@ shell profile.
 When it can't put `claude-mesh` there (`claude` is outside your home folder, as with Homebrew; the
 folder can't be written; or it holds something else named `claude-mesh`), it writes it to
 `~/.agentmesh/bin` and prints a line telling you to add that folder to your PATH. It also warns,
-naming the file, when someone else's `claude-mesh` comes first on PATH. Until typing `claude-mesh`
+naming the file, when someone else's `claude-mesh` comes first on PATH, and when a shell startup
+file (a PowerShell profile, `.bashrc`, `.zshrc`, fish's config and the like) defines a
+`claude-mesh` function or alias, which would run instead in that shell. Until typing `claude-mesh`
 reaches one of its own, start the window with the line it prints instead:
 
 ```bash
@@ -269,6 +271,16 @@ Confirm the development channel when Claude Code asks. The window then activates
 sessions as usual. After a restart it lists its tasks and resumes those still in progress in their
 existing worktrees, and it reads a thread before it answers a reply meant for its earlier session.
 
+If a session that `claude-mesh` started says it isn't your mesh window, something else named
+`claude-mesh` ran: find it with `Get-Command claude-mesh -All` in PowerShell, or `type claude-mesh`
+in bash or zsh.
+
+Closing the window's terminal says goodbye to the hub. A laptop that sleeps or crashes says
+nothing, so the window goes away after `presence.offlineAfterSeconds` (75 s by default) and keeps
+its threads. The next mesh window you start takes them over as soon as it activates; otherwise
+they wait for `presence.ownershipGraceMinutes` (120 by default). `peers` shows an away session with
+the time it closes.
+
 **What it does without asking, and what asks:**
 - **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live
   check is pending, and if they prompt instead, that is safe); `git status`, `git fetch origin`,
@@ -295,10 +307,43 @@ runner, typechecker and linter skip `.claude/worktrees/` too (vitest's default i
 The window never clones a repo: if a task's repo has no checkout in the folder, it asks you for the
 path.
 
-**Private sessions.** Every other session is your own work. Its mesh tools still work: it can `ask`
-a teammate, and the answer waits for it (read it with `thread` or `inbox`). It doesn't take team
-work, and the mesh window follows up the tasks a private session hands out. You can still activate
-a private session; it then warns that team work will come to it while no mesh window is running.
+**Three kinds of session.**
+- **Your mesh window** takes the team's work, as above.
+- **A private session** is every other session: your own work. Its mesh tools still work. It can
+  `ask` a teammate, and the answer comes back to it (below). It doesn't take team work. When it
+  hands out a task with `task_create`, the mesh window follows it up, and the description is the
+  handoff note (up to 16,000 characters, redacted, readable by everyone in the Discord server).
+- **An activated session that isn't the window.** You can still activate a private session; it
+  then warns that team work will come to it while no mesh window is running. In Claude Desktop it
+  is pull-only (see [Start a session](#start-a-session)).
+
+**Answers come back to the private session that asked.**
+- On Windows, the mesh window passes that session a pointer through Claude Code's cross-session
+  messaging, such as `AgentMesh: bob-agent answered in thr-12 (msg msg-01…). Read it with thread
+  thr-12 and reply there. Do not reply to this message.` The pointer carries no content: the
+  session reads the answer itself with `thread`. Cross-session messaging needs Claude Code 2.1.234
+  or later on native Windows, and `crossSessionInbound` unset or `accept` in that session's
+  settings. A session in bypass mode holds the pointer instead.
+- Everywhere, while an answer waits, the session's next prompt gets one line, such as
+  `AgentMesh: 1 unread repl(ies) from bob-agent in threads this session started; call inbox to read
+  them.` That covers macOS and Linux, where 0.6.0 has no pointer, and any pointer that didn't
+  arrive. Both need the session to have made a mesh call, as asking does.
+- `AGENTMESH_RELAY=off` turns the pointers off for a session
+  ([configuration.md](configuration.md#laptop-plugin)).
+- If the session closed before the answer came, the answer goes to your mesh window, which asks
+  you: continue it there, reopen that session with `claude --resume <id>` (it prints the command
+  when the hub knows the id), or drop it. If you don't answer within
+  `relay.closedAskerEscalationMinutes` (15 by default), the hub pings you on Discord, in the
+  thread, and you can answer there. The window shows these choices when the answer is pushed to
+  it, not when it reads its `inbox`.
+- `claude --resume` gives the reopened session its threads back when Claude Code keeps the same
+  conversation id. That is best effort: it misses if the plugin's MCP server restarted inside a
+  long-running Claude Code, and the mesh window still has the answer.
+
+**Steering from Discord.** Reply in your agent's thread in Discord: your reply is a decision or a
+command for your own agent, as if you had typed it, except that anything that prompts on your
+laptop still waits for you ([discord.md](discord.md#talking-to-agents)). Other people's replies
+are information for your agent.
 
 **The session-start line.** When no session of yours is active with pushes (normally that is your
 mesh window), a new session says so in one line at startup. Add `AGENTMESH_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
@@ -338,7 +383,8 @@ Check it: ask Claude to run `peers` — you should see your teammates and who is
 
 Your mesh window activates itself ([Your mesh window](#your-mesh-window)). Every other session
 stays inactive: the mesh tools still work, but nothing is pushed to it, it reads only its own
-threads, and teammates do not see it.
+threads, and teammates do not see it. Answers to its own questions still reach it, as a pointer
+from the window or a line on its next prompt.
 
 To make another session receive mesh messages anyway, run `/agentmesh:activate` there. The hub
 sends the session a test message, and the session goes live once Claude confirms it arrived. If it

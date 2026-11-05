@@ -231,6 +231,12 @@ window:
 - `AGENTMESH_MESH_WINDOW_HINT=off`, in the `env` of your Claude Code `settings.json`, hides the
   session-start line that says no mesh window is running.
 
+One knob belongs to private sessions:
+- `AGENTMESH_RELAY=off` stops the mesh window from sending reply pointers to the sessions that
+  have it set (in the `env` of `settings.json`, or the shell that starts Claude Code). Their
+  answers still wait for them, and the AgentMesh line on their next prompt still says so. The
+  window refuses the relay and tells the hub why.
+
 `/agentmesh:window` copies two values from this file, through the `Git:` line of the agent's
 instructions, into the window's policy: `git.integrationBranch`, and the own-branch prefix from
 `git.branchTemplate`. Run it again after either changes. The prefix is the

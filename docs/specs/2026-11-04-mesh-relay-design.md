@@ -1,6 +1,7 @@
 # Mesh window, plan 3: relay, closed askers, owner commands, context and the skill
 
-Status: design, awaiting Pratik's approval. It builds on plans 1 and 2
+Status: approved; implemented by plan 3 (0.6.0). Where the build changed the design,
+[ADR 0009](../adr/0009-mesh-window.md) part 3 records the ruling. It builds on plans 1 and 2
 ([design](2026-11-01-mesh-window-design.md), [ADR 0009](../adr/0009-mesh-window.md)), which are
 merged and deployed (hub and plugin 0.5.0).
 
@@ -204,8 +205,9 @@ answers a cross-session message and never resends after a delivery notice.
   - Only the keys `to`, `recipient`, `recipient_kind`, `message`, `content` and `type` may be
     present. `summary`, `notify_when_idle` and any unknown key deny.
 
-  The guard **claims the record** by renaming it, and denies if the rename fails. Only then does it
-  pass, so a replayed or parallel send is denied.
+  The guard **claims the record** by creating `<record>.claimed` exclusively (`wx`), and denies if
+  that fails. Only then does it pass, so a replayed or parallel send is denied. (Amended in the
+  build: the first design renamed the record, but a rename isn't exclusive on Windows.)
 - **Any other SendMessage is denied in 0.6.0 (my call).** Part D's consult works by hand for now:
   the window drafts the one question and the human pastes it into the private session.
   - Allowing a human-approved send (an "ask") is a later one-line change, made only after live

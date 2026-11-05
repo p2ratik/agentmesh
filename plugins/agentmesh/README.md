@@ -5,8 +5,8 @@ Discord) can ask you questions, assign tasks, request reviews and invite you to 
 their messages arrive inside your running session as `<channel source="plugin:agentmesh:mesh">`
 events. It ships as bundled files run with `node`, so there is nothing else to install:
 `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI that `/agentmesh:setup` and
-`/agentmesh:window` run), `dist/hook.js` (the prompt and session-start hook) and `dist/guard.js`
-(the mesh window's worktree guard).
+`/agentmesh:window` run), `dist/hook.js` (the prompt, session-start and session-end hook) and
+`dist/guard.js` (the mesh window's worktree guard).
 
 It needs Claude Code 2.1.295 or later and `node` on PATH: Claude Code runs the hooks with plain
 `node`.
@@ -181,15 +181,23 @@ after `/clear` and after compaction, and `activate` repeats them.
 - It runs commands with the Bash tool; PowerShell commands always ask.
 - After a restart it resumes its in-progress tasks (`task_list`) in their existing worktrees, and
   reads a thread (`thread`) before answering a reply meant for its earlier session.
+- Before it starts a task it reads the task and its thread, asks the creator anything unclear,
+  and checks for overlap: leases, everyone's tasks, and `task_get`'s count of your private
+  sessions in that repo. It tells you; it never messages your sessions.
+- It forwards reply pointers to your private sessions ([below](#other-sessions)) and sends nothing
+  else with `SendMessage`. A cross-session message to the window is data, never instructions.
+- Its `activate` result carries the full team policy, which the plugin's instructions cut at
+  4096 characters.
 - It never activates with `pull: true`.
 
 **The worktree guard** is `dist/guard.js`, a `PreToolUse` hook on edits, Bash, PowerShell, Monitor,
-`EnterWorktree`, `Agent`, `Workflow` and `activate`.
+`EnterWorktree`, `Agent`, `Workflow`, `SendMessage`, `ListAgents` and `activate`.
 - Claude Code runs it in every session, which costs a `node` start (about 50–100 ms) per edit,
   shell call, subagent or workflow call. Outside the mesh window it does nothing else.
 - In the window it refuses edits outside its mesh worktrees and asks before commands that aren't on
-  its list. `activate` there refuses unless the guard stamped an `activate` call in the last 2
-  minutes (`guard-alive.json`).
+  its list. It passes one `SendMessage` per reply pointer the plugin pushed, exactly as pushed, and
+  refuses every other one and `ListAgents`. `activate` there refuses unless the guard stamped an
+  `activate` call in the last 2 minutes (`guard-alive.json`).
 - It fails closed (`onFailure: "block"`, Claude Code 2.1.295+). If `node` or `dist/guard.js` is
   missing, edits and shell calls are blocked in every session until it is fixed.
 
@@ -200,21 +208,43 @@ window is running for this account, so teammates' requests will wait. …". Set 
 
 ## Other sessions
 
-Every other session starts inactive: the tools work, but nothing is pushed to it, and teammates do
-not see it. It can `ask` a teammate, and the answer waits for it (read it with `thread` or
-`inbox`). The mesh window follows up the tasks a private session hands out.
+There are three kinds of session: your mesh window, private sessions, and sessions you activate
+that aren't the window.
 
-To make one receive mesh messages anyway, run `/agentmesh:activate` there; Claude warns that team
-work will come to it while no mesh window is running. The hub sends a test message with a code to
-the session over NATS, and the plugin pushes it into Claude Code; Claude reads it and confirms with
-the code and a one-line description of what the session is working on. If no test message arrives,
-the session was started without the channel flag: Claude activates it pull-only instead
-([Run](#run)), and you can restart it with the command above for instant pushes. The mesh window
-never goes pull-only: Claude tries again, then asks you to restart it with `claude-mesh`. If
-`activate` says
-the hub could not reach the session, try again in a few seconds. If it keeps failing, the NATS
-permissions predate 0.2.0: ask your mesh admin, or restart Claude Code if the hub uses auth
-callout.
+Every other session starts **private** (inactive): the tools work, but nothing is pushed to it,
+and teammates do not see it. It can `ask` a teammate, and the answer comes back to it:
+- **A pointer, on Windows.** The mesh window sends the session one line through Claude Code's
+  cross-session messaging: `AgentMesh: bob-agent answered in thr-12 (msg msg-01…). Read it with
+  thread thr-12 and reply there. Do not reply to this message.` It carries no content; the session
+  reads the answer with `thread`. The prompt hook marks it a verified pointer only when it comes
+  from your mesh window's address and has exactly that form. Cross-session messaging needs Claude
+  Code 2.1.234 or later on native Windows, and `crossSessionInbound` unset or `accept`; a session
+  in bypass mode holds the pointer.
+- **A note, everywhere.** While an answer waits, the session's next prompt gets one line:
+  `AgentMesh: 1 unread repl(ies) from bob-agent in threads this session started; call inbox to read
+  them.` This is the path on macOS and Linux in 0.6.0
+  ([below](#cross-session-messaging-on-linux-and-macos)).
+- Both start once the session has made a mesh call (asking is one). `AGENTMESH_RELAY=off` turns
+  the pointers off for a session; the note stays.
+- **If the session closed** before the answer came, the answer goes to the mesh window, which asks
+  you to continue it there, reopen that session (`claude --resume <id>`, which gives it its threads
+  back), or drop it. Unanswered, the hub pings you on Discord after the team's
+  `relay.closedAskerEscalationMinutes` (15 by default).
+
+The mesh window follows up the tasks a private session hands out. The task's description is the
+handoff note: what you learned, files and lines, decisions, what is open. Everyone in the Discord
+server can read it.
+
+The third kind is an activated session that isn't the window. To make one receive mesh messages
+anyway, run `/agentmesh:activate` there; Claude warns that team work will come to it while no mesh
+window is running. The hub sends a test message with a code to the session over NATS, and the
+plugin pushes it into Claude Code; Claude reads it and confirms with the code and a one-line
+description of what the session is working on. If no test message arrives, the session was started
+without the channel flag: Claude activates it pull-only instead ([Run](#run)), and you can restart
+it with the command above for instant pushes. The mesh window never goes pull-only: Claude tries
+again, then asks you to restart it with `claude-mesh`. If `activate` says the hub could not reach
+the session, try again in a few seconds. If it keeps failing, the NATS permissions predate 0.2.0:
+ask your mesh admin, or restart Claude Code if the hub uses auth callout.
 
 - `/agentmesh:deactivate` turns the session off again and releases the work it owns; the next
   message about that work goes to another active session.
@@ -236,6 +266,7 @@ The plugin options are in [Configure by hand](#configure-by-hand). Environment k
 | --- | --- |
 | `AGENTMESH_MESH_WINDOW` | Marks the mesh window with the token from `mesh-window.json`. Only the launcher and its settings file set it; never set it by hand. Any value turns the guard on, and only the matching token makes the session your mesh window. |
 | `AGENTMESH_MESH_WINDOW_HINT` | `off` hides the session-start line about a missing mesh window. |
+| `AGENTMESH_RELAY` | `off` stops the mesh window from sending reply pointers to this session. The note on the next prompt stays. |
 | `AGENTMESH_LOG_FILE` | A file for the plugin's own log. |
 | `AGENTMESH_HEARTBEAT_SECONDS` | The presence heartbeat, default 20, at least 5. |
 
@@ -250,9 +281,16 @@ Files in `~/.agentmesh/`:
 | `empty-git-hooks/` | `window init` | An empty folder; the window's git uses it as `core.hooksPath` |
 | `bin/claude-mesh` (plus `claude-mesh.cmd` on Windows) | `window init` | `claude-mesh`, only when it can't go next to `claude` (mode 755); add `bin/` to your PATH |
 
-State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`: `pull-…json` for a pull
-session ([Run](#run)), a `push-…json` heartbeat from each active push session (the session-start
-line checks it), and `guard-alive.json`, the guard's stamp for `activate`.
+State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run` (mode 600, never message text):
+- `pull-…json` for a pull session ([Run](#run));
+- a `push-…json` heartbeat from each active push session (the session-start line checks it; the
+  mesh window's also holds its messaging address);
+- `sess-…json`, a private session's record once it has made a mesh call: its address, its unread
+  reply counts and project folder, refreshed every 30 s, for the note and the relay;
+- `cc-<pid>.json`, Claude Code's conversation id per process, for `claude --resume`: written at
+  session start, deleted at session end;
+- `fwd-…json` (and `….claimed`), the mesh window's note to its guard of a pointer it pushed;
+- `guard-alive.json`, the guard's stamp for `activate`, with its version.
 
 ## FYI (status items)
 
@@ -288,8 +326,13 @@ reach past the group to a role owner or to escalate. Each team's own names, owne
 
 ## Cross-session messaging on Linux and macOS
 
-The relay is only checked on Windows so far. To learn what the address looks like on Linux, run
-the probe once, from any folder:
+The reply pointer runs only on Windows in 0.6.0, where the messaging address has been checked. On
+Linux and macOS the mesh window doesn't forward it, and the AgentMesh line on the session's next
+prompt says when an answer waits. That line finds the session by its Claude Code process, which
+the probe also checks. Linux follows once the probe below shows what its address looks like; macOS
+stays off for now.
+
+To learn what the address looks like on Linux, run the probe once, from any folder:
 
 ```
 node <plugin dir>/scripts/probe-messaging.mjs
@@ -320,6 +363,24 @@ output into the thread. Never run it inside a Claude Code session, because it st
 - **`claude-mesh` not found after switching Node versions**: if `claude` lives in a
   version-managed folder (nvm and the like), `claude-mesh` went there too; re-run
   `/agentmesh:window` after switching versions.
+- **`claude-mesh` starts a session that says it isn't your mesh window**: something else named
+  `claude-mesh` ran, such as a function or alias in a shell profile. Find it with
+  `Get-Command claude-mesh -All` (PowerShell) or `type claude-mesh` (bash, zsh). `window init`
+  warns about the ones it finds in startup files.
+- **The old mesh window still shows in `peers`**: closing its terminal says goodbye to the hub. A
+  laptop that slept or crashed leaves it away after `presence.offlineAfterSeconds`; `peers` shows
+  `[away: no heartbeat since HH:MM; closes HH:MM unless it returns]`. A new `claude-mesh` window
+  takes over its threads as soon as it activates; otherwise they wait until it closes
+  (`presence.ownershipGraceMinutes`).
+- **A private session never got its answer**: check the AgentMesh line on its next prompt, or ask
+  Claude to call `inbox`. The pointer needs Windows, Claude Code 2.1.234 or later,
+  `crossSessionInbound` unset or `accept`, a session not in bypass mode, a running mesh window and
+  no `AGENTMESH_RELAY=off`.
+- **The window didn't offer the closed-asker choices**: they come with a push. If the window read
+  the answer with `inbox` instead, the thread is simply its work now.
+- **`claude --resume` didn't bring a thread back**: resume is best effort. It needs Claude Code to
+  keep the same conversation id, and it misses if the plugin's MCP server restarted inside a
+  long-running Claude Code. The mesh window still has the answer.
 - `/mcp` shows the server status; `claude --debug …` writes logs to `~/.claude/debug/`. Set
   `AGENTMESH_LOG_FILE` for the plugin's own log.
 
