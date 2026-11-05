@@ -1,5 +1,9 @@
 import { createLogger } from '@agentmesh/common';
-import type { SessionAck, SessionDelivery } from '@agentmesh/protocol';
+import {
+  CLOSED_ASKER_DEFAULT_MINUTES,
+  type SessionAck,
+  type SessionDelivery,
+} from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { HubClient } from '../hub';
 import { fakeHub } from '../tools/fake-hub';
@@ -63,6 +67,7 @@ function harness(fyi: FyiBuffer) {
     onExpired: () => {},
     onListening: () => {},
     onRelay: async () => ({ forwarded: false, reason: 'not the mesh window' }),
+    closedAskerMinutes: () => CLOSED_ASKER_DEFAULT_MINUTES,
   });
   const send = (messages: SessionDelivery[]) =>
     new Promise<SessionAck>((resolve) => {

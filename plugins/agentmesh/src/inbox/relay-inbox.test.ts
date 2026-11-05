@@ -14,7 +14,7 @@ const RELAY: SessionRelay = {
 describe('a relay on the session subject', () => {
   it('hands a relay to onRelay and acks its answer, sharing nothing with deliveries', async () => {
     const onRelay = vi.fn(async () => ({ forwarded: true, reason: 'forwarded' }));
-    const h = harness(undefined, onRelay);
+    const h = harness(undefined, { onRelay });
     await h.send({ type: 'deliver', messages: [status('s1', 'thr-3')] }).acked;
     const buffered = h.fyi.take();
     h.fyi.putBack(buffered);

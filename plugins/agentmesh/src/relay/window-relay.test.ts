@@ -48,7 +48,7 @@ function writeRecord(over: Partial<LocalSession> = {}, at = now): void {
 
 function deps(over: Partial<WindowRelayDeps> = {}): WindowRelayDeps {
   return {
-    window: { state: 'verified', policy: null, dataDir, folder: '.' },
+    window: { state: 'verified', policy: null, setUp: true, dataDir, folder: '.' },
     agentId: 'bob-agent',
     prefix: 'mesh',
     ownUds: WINDOW,
@@ -145,7 +145,7 @@ describe('the guard version recorded at activation', () => {
       'session.activate': { ...view, repo: null, branch: null, owns: [] },
       'session.deactivate': { ok: true },
     });
-    tool.window = { state: 'verified', policy: null, dataDir, folder: '.' };
+    tool.window = { state: 'verified', policy: null, setUp: true, dataDir, folder: '.' };
     return tool;
   }
   /** Activates the verified window over this stamp; resolves with the version it recorded. */

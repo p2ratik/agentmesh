@@ -1,4 +1,4 @@
-import type { Msg, NatsConnection } from '@agentmesh/bus';
+import type { Msg } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
 import {
   type RelayAnswer,
@@ -6,12 +6,13 @@ import {
   type SessionDelivery,
   SessionInbound,
   type SessionRelay,
-  subjects,
 } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
+import { threadNotice } from './closed-asker';
 import { anyExternal, type FyiBuffer, formatFyi, seenIds, type TakenFyi } from './fyi';
 import { RecentIds } from './recent-ids';
 import { type ChannelEvent, decides, renderEvent } from './render';
+import { followSessionSubject, type SessionSubscription } from './session-subscription';
 
 export interface SessionInboxOptions {
   hub: HubClient;
@@ -32,33 +33,25 @@ export interface SessionInboxOptions {
   onListening(): void;
   /** The mesh window's answer to a relay: a pointer for one of its human's private sessions. */
   onRelay(relay: SessionRelay): Promise<RelayAnswer>;
+  /** How long the hub waits on a closed asker's answer before it pings the owner (from hello). */
+  closedAskerMinutes(): number;
 }
 
 /**
- * Takes the hub's deliveries on `{p}.session.{agent}.{session}`. Status items
- * go into the FYI buffer, never into a push of their own (a push starts a
- * turn); each id once per process, though the hub carries a thread's unread
- * status along with later deliveries. Action items are pushed into Claude
- * Code, one event per thread in arrival order; the first push that works takes
- * the FYI buffer as its footer, and those ids are reported seen. The reply
- * (`SessionAck`) lists the ids buffered or pushed now or before; the hub
+ * Takes the hub's deliveries on `{p}.session.{agent}.{session}` (see
+ * `followSessionSubject`). Status items go into the FYI buffer, never into a
+ * push of their own (a push starts a turn); each id once per process, though
+ * the hub carries a thread's unread status along with later deliveries. Action
+ * items are pushed into Claude Code, one event per thread in arrival order; the
+ * first push that works takes the FYI buffer as its footer, and those ids are
+ * reported seen. A thread with a closed asker's answer carries its notice. The
+ * reply (`SessionAck`) lists the ids buffered or pushed now or before; the hub
  * retries the rest. An activation check is pushed, then acked; a relay is
- * acked with `onRelay`'s answer. Batches are
- * handled one at a time, so pushes keep the hub's order. `resubscribe` follows
- * `hub.sessionId`; `retryFailed` resubscribes after the server refused or
- * ended the subscription (a permissions violation).
+ * acked with `onRelay`'s answer.
  */
-export function runSessionInbox(options: SessionInboxOptions): {
-  stop(): void;
-  resubscribe(): void;
-  retryFailed(): void;
-} {
+export function runSessionInbox(options: SessionInboxOptions): SessionSubscription {
   const { hub, logger } = options;
   const seen = new RecentIds();
-  let sub: ReturnType<NatsConnection['subscribe']> | null = null;
-  let stopped = false;
-  let failed = false;
-  let queue = Promise.resolve();
 
   const handle = async (msg: Msg): Promise<void> => {
     let inbound: SessionInbound;
@@ -112,7 +105,8 @@ export function runSessionInbox(options: SessionInboxOptions): {
     delivered: string[],
   ): Promise<boolean> => {
     try {
-      const footer = { footer: formatFyi(fyi), footerExternal: anyExternal(fyi) };
+      const notice = threadNotice(fresh, options.closedAskerMinutes());
+      const footer = { footer: formatFyi(fyi), footerExternal: anyExternal(fyi), notice };
       await options.push(renderEvent(fresh, { selfId: hub.config.agentId, ...footer }));
     } catch (err) {
       logger.warn(
@@ -126,49 +120,5 @@ export function runSessionInbox(options: SessionInboxOptions): {
     return true;
   };
 
-  const resubscribe = (): void => {
-    sub?.unsubscribe();
-    sub = null;
-    failed = false;
-    const { connection: nc, sessionId } = hub;
-    if (stopped || !nc || !sessionId) return;
-    const subject = subjects(hub.config.prefix).session(hub.config.agentId, sessionId);
-    try {
-      sub = nc.subscribe(subject, {
-        callback: (err, msg) => {
-          if (err) {
-            // NATS closes the subscription after this (a permissions violation, say).
-            failed = true;
-            logger.error(
-              { err, subject },
-              'session subscription failed; retrying on the next beat',
-            );
-            return;
-          }
-          queue = queue
-            .then(() => handle(msg))
-            .catch((error) => logger.error({ err: error }, 'session delivery failed'));
-        },
-      });
-      logger.debug({ subject }, 'listening for deliveries');
-      // NATS keeps one connection's SUB and PUB in order: the server has the subscription first.
-      options.onListening();
-    } catch (err) {
-      // A closed or draining connection refuses new subscriptions.
-      failed = true;
-      logger.error({ err, subject }, 'could not listen for deliveries');
-    }
-  };
-
-  const stop = (): void => {
-    stopped = true;
-    sub?.unsubscribe();
-    sub = null;
-  };
-  options.signal.addEventListener('abort', stop, { once: true });
-  resubscribe();
-  const retryFailed = (): void => {
-    if (failed) resubscribe();
-  };
-  return { stop, resubscribe, retryFailed };
+  return followSessionSubject(options, handle);
 }

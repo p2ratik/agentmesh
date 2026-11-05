@@ -1,6 +1,6 @@
 import { homedir, platform } from 'node:os';
 import type { Logger } from '@agentmesh/common';
-import type { RpcResult } from '@agentmesh/protocol';
+import { CLOSED_ASKER_DEFAULT_MINUTES, type RpcResult } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { PluginConfig } from './config';
 import { HubClient } from './hub';
@@ -175,6 +175,8 @@ export function startSession(
           push: (event) => pushEvent(server, event),
           logger,
         }),
+      closedAskerMinutes: () =>
+        session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
     });
     if (!hub.sessionId) rehello();
   };

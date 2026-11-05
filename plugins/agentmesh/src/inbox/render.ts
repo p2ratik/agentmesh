@@ -1,4 +1,5 @@
 import type { MeshMessage } from '@agentmesh/protocol';
+import type { Released } from './closed-asker';
 
 /** One `notifications/claude/channel` payload. */
 export interface ChannelEvent {
@@ -24,6 +25,8 @@ export interface RenderOptions {
   maxChars?: number;
   /** This session's agent: a message the hub marked for it came from its owner. */
   selfId?: string;
+  /** The plugin's own note (a closed asker's choices): after the body, before the FYI footer. */
+  notice?: string;
 }
 
 /** Whether the hub marked `m` as a decision for `selfId`: its owner sent it. */
@@ -36,11 +39,12 @@ export function decides(m: MeshMessage, selfId: string | undefined): boolean {
  * its quoted body; several become a compact transcript. Meta describes the
  * latest message (plus `count`), and `trust` is `external` if any part,
  * footer included, is external. `decides` is `yes` only if every message is
- * the owner's; the FYI footer never carries the mark.
+ * the owner's; the FYI footer never carries the mark. `asker` is `closed`
+ * if the hub released any message from its closed private asker.
  */
 export function renderEvent(
-  messages: readonly MeshMessage[],
-  { footer = '', footerExternal = false, maxChars = MAX_CONTENT, selfId }: RenderOptions = {},
+  messages: readonly Released[],
+  { footer, footerExternal = false, maxChars = MAX_CONTENT, selfId, notice }: RenderOptions = {},
 ): ChannelEvent {
   const last = messages.at(-1);
   if (!last) throw new Error('renderEvent needs at least one message');
@@ -51,7 +55,8 @@ export function renderEvent(
   );
   const meta = buildMeta(messages, last, selfId);
   if (footerExternal) meta.trust = 'external';
-  return { content: escapeChannelTags(footer ? `${body}\n\n${footer}` : body), meta };
+  const content = [body, notice, footer].filter(Boolean).join('\n\n');
+  return { content: escapeChannelTags(content), meta };
 }
 
 /**
@@ -93,7 +98,7 @@ function escapeChannelTags(text: string): string {
 }
 
 export function buildMeta(
-  messages: readonly MeshMessage[],
+  messages: readonly Released[],
   last: MeshMessage,
   selfId?: string,
 ): Record<string, string> {
@@ -115,6 +120,7 @@ export function buildMeta(
     depth: last.depth,
     count: messages.length > 1 ? messages.length : undefined,
     subject: oneLine(last.subject),
+    asker: messages.some((m) => m.released) ? 'closed' : undefined,
   };
   return sanitizeMeta(raw);
 }

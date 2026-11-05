@@ -15,10 +15,17 @@ const CHECK_SENT = `Sent a test message to this session. If it arrives, call act
 
 const PULL_ACTIVE = `Nothing is pushed to this pull-only session: new mesh messages are announced on each prompt, and the inbox tool reads them. Tell your human; for instant pushes, restart the session with ${RESTART}.`;
 
+const LAUNCHER = START_COMMAND;
+
 const NOT_WINDOW =
   "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
 
-const LAUNCHER = START_COMMAND;
+/** With a window set up, setting one up again won't help; a stale `claude-mesh` (an old shell
+ * function, say) can shadow the launcher. */
+const WINDOW_NOT_STARTED = `This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate. The mesh window is set up: your human starts it in a terminal with ${LAUNCHER}, because a session that's already running can't become the window. If ${LAUNCHER} started this session, something else named ${LAUNCHER} ran instead: check Get-Command ${LAUNCHER} -All (PowerShell) or type ${LAUNCHER} (bash).`;
+
+const notWindow = (window: MeshWindowContext): string =>
+  window.setUp ? WINDOW_NOT_STARTED : NOT_WINDOW;
 
 const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
 
@@ -80,7 +87,7 @@ export const sessionTools = [
         activation.lastDescription = view.description ?? args.description;
         activation.renewedFrom = null;
         activation.pull = true;
-        return `This session is active on the mesh as “${activation.lastDescription}”, pull-only. ${PULL_ACTIVE} ${NOT_WINDOW}`;
+        return `This session is active on the mesh as “${activation.lastDescription}”, pull-only. ${PULL_ACTIVE} ${notWindow(window)}`;
       }
       if (args.code === undefined) {
         // The hub sends the code over this session's subject; only the push shows it to Claude,
@@ -103,7 +110,7 @@ export const sessionTools = [
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
       return isWindow
         ? `${active} It is your mesh window.\n\n${windowRules(window.policy)}`
-        : `${active} ${NOT_WINDOW}`;
+        : `${active} ${notWindow(window)}`;
     },
   }),
   defineTool({

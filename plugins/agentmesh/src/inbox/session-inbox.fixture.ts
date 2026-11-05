@@ -1,10 +1,14 @@
 import { createLogger } from '@agentmesh/common';
-import type { RelayAnswer, SessionAck, SessionDelivery, SessionRelay } from '@agentmesh/protocol';
+import {
+  CLOSED_ASKER_DEFAULT_MINUTES,
+  type SessionAck,
+  type SessionDelivery,
+} from '@agentmesh/protocol';
 import { vi } from 'vitest';
 import type { HubClient } from '../hub';
 import { FyiBuffer } from './fyi';
 import type { ChannelEvent } from './render';
-import { runSessionInbox } from './session-inbox';
+import { runSessionInbox, type SessionInboxOptions } from './session-inbox';
 
 export const message = (
   id: string,
@@ -32,10 +36,10 @@ type Callback = (err: Error | null, msg: unknown) => void;
 /** A hub whose connection records subscriptions, and an inbox running on it. */
 export function harness(
   failThread?: string,
-  onRelay: (relay: SessionRelay) => Promise<RelayAnswer> = async () => ({
-    forwarded: false,
-    reason: 'not the mesh window',
-  }),
+  {
+    onRelay = async () => ({ forwarded: false, reason: 'not the mesh window' }),
+    closedAskerMinutes = () => CLOSED_ASKER_DEFAULT_MINUTES,
+  }: Partial<Pick<SessionInboxOptions, 'onRelay' | 'closedAskerMinutes'>> = {},
 ) {
   const subs: Array<{ subject: string; callback: Callback; closed: boolean }> = [];
   const nc = {
@@ -80,6 +84,7 @@ export function harness(
     onExpired,
     onListening,
     onRelay,
+    closedAskerMinutes,
   });
   /** Hands the live subscription one inbound NATS message; resolves with its ack, if any. */
   const send = (payload: unknown) => {

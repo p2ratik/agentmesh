@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VERSION } from '@agentmesh/common/version';
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { meshWindowContext } from '../window/context';
 import { writeGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
 import { fakeHub, text } from './fake-hub';
@@ -11,6 +12,8 @@ import { callTool } from './registry';
 
 const NOT_WINDOW =
   "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window.";
+const WINDOW_SET_UP =
+  "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate. The mesh window is set up: your human starts it in a terminal with claude-mesh, because a session that's already running can't become the window. If claude-mesh started this session, something else named claude-mesh ran instead: check Get-Command claude-mesh -All (PowerShell) or type claude-mesh (bash).";
 /** The start command, the same on every platform. */
 const LAUNCHER = 'claude-mesh';
 const PULL_REFUSED = `This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ${LAUNCHER}.`;
@@ -68,13 +71,31 @@ describe('activate and the mesh window', () => {
     expect(calls).toEqual([]);
   });
 
-  it('activating an ordinary session warns that team work will come here', async () => {
+  /** Activates an ordinary session (no marker) with `dataDir` as home, pushed and pull-only. */
+  async function ordinary(): Promise<[string, string]> {
+    const window = meshWindowContext({}, dataDir, process.platform, '.', 'alice-agent');
     const { deps } = fakeHub(answers('web client'));
+    deps.window = window;
     const result = await callTool('activate', { code: 'c-1', description: 'web client' }, deps);
-    expect(text(result)).toBe(`This session is active on the mesh as “web client”. ${NOT_WINDOW}`);
     const pull = fakeHub({ 'session.activate': { ...view('web client'), delivery: 'pull' } });
+    pull.deps.window = window;
     const pulled = await callTool('activate', { pull: true, description: 'web client' }, pull.deps);
-    expect(text(pulled).endsWith(NOT_WINDOW)).toBe(true);
+    return [text(result), text(pulled)];
+  }
+
+  it('activating an ordinary session warns that team work will come here', async () => {
+    const [pushed, pulled] = await ordinary();
+    expect(pushed).toBe(`This session is active on the mesh as “web client”. ${NOT_WINDOW}`);
+    expect(pulled.endsWith(NOT_WINDOW)).toBe(true);
+  });
+
+  it('with a mesh window set up, an ordinary session says how to start it and what can shadow it', async () => {
+    mkdirSync(join(dataDir, '.agentmesh'));
+    writeFileSync(join(dataDir, '.agentmesh', 'mesh-window.json'), JSON.stringify(policy));
+    const [pushed, pulled] = await ordinary();
+    expect(pushed).toBe(`This session is active on the mesh as “web client”. ${WINDOW_SET_UP}`);
+    expect(pulled.endsWith(WINDOW_SET_UP)).toBe(true);
+    for (const t of [pushed, pulled]) expect(t).not.toContain('/agentmesh:window');
   });
 
   it('the mesh window never activates pull-only', async () => {
