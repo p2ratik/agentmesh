@@ -54,6 +54,15 @@ describe('RPC params caps', () => {
     expect(hello.safeParse({ ...ok, previousSessionId: 'x'.repeat(65) }).success).toBe(false);
   });
 
+  it("takes Claude Code's conversation id in session.hello only as a UUID", () => {
+    const hello = RPC_METHODS['session.hello'].params;
+    const uuid = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
+    const parsed = hello.safeParse({ clientVersion: '0.6.0', claudeSessionId: uuid });
+    expect(parsed.data).toMatchObject({ claudeSessionId: uuid });
+    const bad = hello.safeParse({ clientVersion: '0.6.0', claudeSessionId: 'not-a-uuid' });
+    expect(bad.success).toBe(false);
+  });
+
   it('takes every branch and repo a caller names as a one-line GitRef', () => {
     const act = RPC_METHODS['task.act'].params;
     const review = RPC_METHODS['review.request'].params;

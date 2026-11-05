@@ -10,12 +10,13 @@ import { Presence } from './presence';
 import { PullWatcher } from './pull/watcher';
 import { ownAddress } from './relay/address';
 import { forwardRelay } from './relay/window-relay';
+import { readClaudeSession } from './resume/claude-session';
+import { byeQuietly, followEvery, noteReclaimed, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
 import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
 
 const HELLO_WAIT_MS = 4000;
-const SHUTDOWN_MS = 250;
 
 type Hello = RpcResult<'session.hello'>;
 
@@ -40,10 +41,17 @@ export interface Session {
   pull: PullWatcher;
   /** This session's messaging address: local data, never logged or sent to the hub. */
   uds: string | null;
+  /** When this server started; an older conversation record belongs to a dead process. */
+  startedAt: number;
+  /** Claude Code's conversation, from the SessionStart record; every hello reports it. */
+  claudeSessionId: string | null;
+  /** Lines that end the next tool result: threads the hub gave back to this session. */
+  notices: string[];
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
 export async function openSession(config: PluginConfig, logger: Logger): Promise<Session> {
+  const startedAt = Date.now();
   const hub = new HubClient(config, logger);
   const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
   const presence = new Presence(hub, logger, projectDir);
@@ -74,13 +82,18 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
       marked: window.state !== 'none',
       uds,
       claudePid: process.ppid,
+      claudeSessionId: () => session.claudeSessionId,
       relay: process.env.AGENTMESH_RELAY !== 'off',
       logger,
     }),
     uds,
+    startedAt,
+    claudeSessionId: readClaudeSession(window.dataDir, process.ppid, startedAt),
+    notices: [],
     sayHello: () => {
-      inFlight ??= register(hub, presence, logger, window.state === 'verified')
+      inFlight ??= register(session, logger)
         .then((landed) => {
+          if (landed) noteReclaimed(session, landed.hello.reclaimed);
           if (landed) session.onHello?.(landed.renewed);
           return landed?.hello ?? null;
         })
@@ -125,6 +138,9 @@ export function startSession(
   };
   presence.start();
   session.pull.start();
+  const stopFollowing = followEvery(session, () =>
+    readClaudeSession(session.window.dataDir, process.ppid, session.startedAt),
+  );
   // Without a session the hub delivers nothing, so keep asking until it answers; a refused
   // subscription (NATS permissions, say) is retried on the same beat.
   const retry = setInterval(
@@ -165,6 +181,7 @@ export function startSession(
   // ponytail: fixed delay, no ready signal exists; missed pushes still show up via inbox.
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
+    stopFollowing();
     session.pull.stop();
     abort.abort();
     clearInterval(retry);
@@ -172,12 +189,7 @@ export function startSession(
     session.onHello = null;
     presence.stop();
     // Without a session there is nothing to close, and the call would open one.
-    if (hub.sessionId) {
-      await Promise.race([
-        hub.call('session.bye', {}, { timeoutMs: SHUTDOWN_MS }).catch(() => undefined),
-        new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS)),
-      ]);
-    }
+    if (hub.sessionId) await byeQuietly(hub);
     await hub.close(SHUTDOWN_MS);
   };
 }
@@ -208,24 +220,25 @@ function recheck(session: Session, logger: Logger): void {
 }
 
 /**
- * Registers with the hub, offering this process's current session so the hub
- * keeps it (or reclaims its work) after sleep or expiry. Null if it failed;
- * `renewed` when the hub answered with a new session instead.
+ * Registers with the hub, offering this process's current session (so the hub keeps it, or
+ * reclaims its work, after sleep or expiry) and its conversation once connected. Null if it
+ * failed; `renewed` when the hub answered with a new session instead.
  */
 async function register(
-  hub: HubClient,
-  presence: Presence,
+  session: Pick<Session, 'hub' | 'presence' | 'window' | 'claudeSessionId'>,
   logger: Logger,
-  meshWindow: boolean,
 ): Promise<{ hello: Hello; renewed: boolean } | null> {
+  const { hub, presence } = session;
   try {
     await hub.whenConnected();
     const previous = hub.sessionId;
+    const { claudeSessionId } = session;
     const hello = await hub.call('session.hello', {
       clientVersion: VERSION,
       ...presence.git,
-      ...(meshWindow ? { meshWindow: true } : {}),
+      ...(session.window.state === 'verified' ? { meshWindow: true } : {}),
       ...(previous ? { previousSessionId: previous } : {}),
+      ...(claudeSessionId ? { claudeSessionId } : {}),
     });
     hub.sessionId = hello.sessionId;
     logger.info({ session: hello.sessionId, previous, reclaimed: hello.reclaimed }, 'hub session');

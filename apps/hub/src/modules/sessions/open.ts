@@ -2,44 +2,57 @@ import { newSessionId } from '@agentmesh/common';
 import type { HubContext } from '../../context';
 import type { OpenInput } from '../../contracts';
 import { evictStalest } from './liveness';
+import type { OrphanDecisions } from './orphans';
 import { reclaimReleased } from './ownership';
+import { learnClaudeSession } from './resume';
 import type { SessionsRepo } from './sessions.repo';
 
 /**
  * `session.hello`: reuses this process's open previous session; after a closed one, a new session
- * reclaims what nobody took since. Returns the session's id and the reclaimed thread ids.
+ * reclaims what nobody took since. The first conversation id the session reports takes back what
+ * that conversation's closed or away session released (resume.ts). Returns the session's id and
+ * the reclaimed thread ids.
  */
 export function openSession(
   ctx: HubContext,
   repo: SessionsRepo,
+  orphans: OrphanDecisions,
   agentId: string,
   input: OpenInput,
 ): { sessionId: string; reclaimed: number[] } {
   const at = ctx.clock.now().toISOString();
+  const { clientVersion, meshWindow, claudeSessionId } = input;
   const git = { repo: input.repo ?? null, branch: input.branch ?? null };
   const result = ctx.db.transaction(() => {
     const previous = input.previousSessionId ? repo.get(input.previousSessionId) : undefined;
     const mine = previous?.agent_id === agentId ? previous : undefined;
+    let sessionId: string;
+    let reclaimed: number[] = [];
+    let evicted = 0;
+    let back = false;
     if (mine && mine.liveness !== 'closed') {
-      repo.touch(mine.id, at, git);
+      sessionId = mine.id;
+      // A plugin updated in place says so: the relay's version gate reads this row.
+      repo.touch(sessionId, at, { ...git, clientVersion });
       // A window started before the hub upgrade (migration 007) says so on its next hello.
-      if (input.meshWindow) repo.markMeshWindow(mine.id);
-      if (repo.markLive(mine.id)) ctx.outbox.kick();
-      return { sessionId: mine.id, reclaimed: [] as number[], evicted: 0 };
+      if (meshWindow) repo.markMeshWindow(sessionId);
+      back = repo.markLive(sessionId);
+    } else {
+      sessionId = newSessionId();
+      evicted = evictStalest(ctx, repo, agentId, at);
+      repo.insert({ id: sessionId, agentId, clientVersion, meshWindow, ...git, at });
+      if (mine) reclaimed = reclaimReleased(repo, mine, sessionId, at);
     }
-    const id = newSessionId();
-    const evicted = evictStalest(ctx, repo, agentId, at);
-    const { clientVersion, meshWindow } = input;
-    repo.insert({ id, agentId, clientVersion, meshWindow, ...git, at });
-    const reclaimed = mine ? reclaimReleased(repo, mine, id, at) : [];
-    return { sessionId: id, reclaimed, evicted };
+    const s = { agentId, sessionId, claudeSessionId, at };
+    reclaimed.push(...learnClaudeSession(ctx, repo, orphans, s));
+    return { sessionId, reclaimed, evicted, back };
   });
-  const { sessionId, reclaimed, evicted } = result;
+  const { sessionId, reclaimed, evicted, back } = result;
   ctx.logger.info(
     { agent: agentId, session: sessionId, reclaimed: reclaimed.length, evicted },
     'session opened',
   );
-  // What the closed sessions owned goes elsewhere now.
-  if (evicted) ctx.outbox.kick();
+  // Back from away, or what the closed sessions owned goes elsewhere (or here) now.
+  if (back || evicted || reclaimed.length > 0) ctx.outbox.kick();
   return { sessionId, reclaimed };
 }

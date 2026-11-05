@@ -36,6 +36,7 @@ function setup({
     },
   } as unknown as Pick<HubClient, 'call' | 'sessionId'>;
   const activation = newActivationState();
+  const conversation = { id: null as string | null };
   const watcher = new PullWatcher({
     hub,
     activation,
@@ -47,13 +48,14 @@ function setup({
     marked,
     uds: UDS,
     claudePid: 4242,
+    claudeSessionId: () => conversation.id,
     relay,
     logger: createLogger('test', { level: 'silent', destination: 'stderr' }),
   });
   const file = join(dir, 'pull-mesh-alice-agent-s-aaaaaaaaaaaa.json');
   const beat = join(dir, 'push-mesh-alice-agent-s-aaaaaaaaaaaa.json');
   const sess = join(dir, SESS);
-  return { beat, dir, hub, activation, watcher, calls, file, sess };
+  return { beat, dir, hub, activation, watcher, calls, file, sess, conversation };
 }
 
 describe('PullWatcher', () => {
@@ -167,6 +169,18 @@ describe('PullWatcher', () => {
     await watcher.refresh();
     expect(readdirSync(dir)).toEqual([]);
     expect(calls).toEqual([]);
+  });
+
+  it("the record's claudeSessionId follows the session's conversation", async () => {
+    const { watcher, sess, conversation } = setup();
+    watcher.markUsed();
+    await watcher.refresh();
+    expect(JSON.parse(readFileSync(sess, 'utf8'))).toMatchObject({ claudeSessionId: null });
+    conversation.id = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
+    await watcher.refresh();
+    expect(JSON.parse(readFileSync(sess, 'utf8'))).toMatchObject({
+      claudeSessionId: conversation.id,
+    });
   });
 
   it('records relay off', async () => {

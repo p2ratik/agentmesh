@@ -1,9 +1,9 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/hook.ts
-import { existsSync, readdirSync, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync, readdirSync as readdirSync2, readFileSync as readFileSync3 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join2 } from "node:path";
+import { join as join3 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
@@ -14,15 +14,15 @@ var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform) {
-  const { join: join3 } = platform === "win32" ? win32 : posix;
-  const dir = join3(home, ".agentmesh");
+  const { join: join4 } = platform === "win32" ? win32 : posix;
+  const dir = join4(home, ".agentmesh");
   return {
     dir,
-    policy: join3(dir, "mesh-window.json"),
-    settings: join3(dir, "mesh-window.settings.json"),
-    launcher: join3(dir, launcherName(platform)),
-    emptyHooks: join3(dir, "empty-git-hooks"),
-    bin: join3(dir, "bin")
+    policy: join4(dir, "mesh-window.json"),
+    settings: join4(dir, "mesh-window.settings.json"),
+    launcher: join4(dir, launcherName(platform)),
+    emptyHooks: join4(dir, "empty-git-hooks"),
+    bin: join4(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -226,6 +226,57 @@ function promptContext({
   return pointer ? VERIFIED(pointer.threadId) : NOT_MESH;
 }
 
+// src/resume/claude-session.ts
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync as readFileSync2,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from "node:fs";
+import { join as join2 } from "node:path";
+var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+var RECORD_MAX_AGE_MS = 24 * 36e5;
+var RECORD_FILE = /^cc-\d{1,10}\.json(?:\.tmp)?$/;
+function claudeSessionFile(pid) {
+  if (typeof pid !== "string" && typeof pid !== "number") return null;
+  const text = String(pid);
+  return /^\d{1,10}$/.test(text) ? `cc-${text}.json` : null;
+}
+function writeClaudeSession(dir, pid, input, now) {
+  const name = claudeSessionFile(pid);
+  const id = input.session_id;
+  if (!name || typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return;
+  const source = typeof input.source === "string" ? input.source.slice(0, 32) : null;
+  const file = join2(dir, name);
+  mkdirSync(dir, { recursive: true, mode: 448 });
+  writeFileSync(`${file}.tmp`, JSON.stringify({ session_id: id, source, at: now.toISOString() }), {
+    mode: 384
+  });
+  renameSync(`${file}.tmp`, file);
+}
+function deleteClaudeSession(dir, pid) {
+  const name = claudeSessionFile(pid);
+  if (name) rmSync(join2(dir, name), { force: true });
+}
+function pruneClaudeSessions(dir, now) {
+  let names;
+  try {
+    names = readdirSync(dir).filter((name) => RECORD_FILE.test(name));
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    try {
+      const file = join2(dir, name);
+      if (now - statSync(file).mtimeMs > RECORD_MAX_AGE_MS) rmSync(file, { force: true });
+    } catch {
+    }
+  }
+}
+
 // src/window/heartbeat.ts
 var isHeartbeatFile = (name) => name.startsWith("push-") && name.endsWith(".json");
 function anyFresh(values, now) {
@@ -295,7 +346,7 @@ function sessionStartOutput(i) {
 }
 
 // src/hook.ts
-var EVENTS = /* @__PURE__ */ new Set(["UserPromptSubmit", "SessionStart"]);
+var EVENTS = /* @__PURE__ */ new Set(["UserPromptSubmit", "SessionStart", "SessionEnd"]);
 var STDIN_WAIT_MS = 1e3;
 var MAX_STDIN = 1e6;
 function readStdin() {
@@ -326,13 +377,13 @@ function parse(text) {
 function readJsonFiles(dir, filter) {
   let names;
   try {
-    names = readdirSync(dir).filter(filter);
+    names = readdirSync2(dir).filter(filter);
   } catch {
     return [];
   }
   return names.map((name) => {
     try {
-      return parse(readFileSync2(join2(dir, name), "utf8"));
+      return parse(readFileSync3(join3(dir, name), "utf8"));
     } catch {
       return null;
     }
@@ -347,7 +398,7 @@ function sessionStart(source) {
     source: typeof source === "string" ? source : void 0,
     marked: !!env.AGENTMESH_MESH_WINDOW,
     policy,
-    enrolled: existsSync(join2(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
+    enrolled: existsSync(join3(home, ".agentmesh", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.AGENTMESH_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
     launcherExists: existsSync(windowFiles(home, process.platform).launcher)
@@ -363,6 +414,23 @@ function promptLine(prompt, dirs) {
   const addresses = own ? windowAddresses(read(isHeartbeatFile), own.prefix, own.agentId, now) : [];
   return promptContext({ prompt, marked, own, windowAddresses: addresses });
 }
+function recordConversation(event, dir, input) {
+  const pid = process.env.CLAUDE_PID;
+  try {
+    if (event === "SessionEnd") {
+      deleteClaudeSession(dir, pid);
+      return;
+    }
+    pruneClaudeSessions(dir, Date.now());
+    writeClaudeSession(
+      dir,
+      pid,
+      { session_id: input?.session_id, source: input?.source },
+      /* @__PURE__ */ new Date()
+    );
+  } catch {
+  }
+}
 async function main() {
   const text = await readStdin();
   const input = parse(text);
@@ -370,6 +438,9 @@ async function main() {
   const event = unread ? "UserPromptSubmit" : input?.hook_event_name;
   if (typeof event !== "string" || !EVENTS.has(event)) return;
   const dirs = pullStateDirs(process.env, homedir());
+  const [dir] = dirs;
+  if (event !== "UserPromptSubmit" && dir) recordConversation(event, dir, input);
+  if (event === "SessionEnd") return;
   const values = dirs.flatMap((d) => readJsonFiles(d, isStateFile));
   const states = selectStates(
     values,

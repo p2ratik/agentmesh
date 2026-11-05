@@ -9,7 +9,7 @@ import { type Heartbeat, heartbeatFile } from '../window/heartbeat';
 import { type PullState, pullStateFile } from './state';
 
 /** How often an active pull session refreshes its state file (the hook ignores files past 2 min). */
-const POLL_MS = 30_000;
+export const POLL_MS = 30_000;
 
 export interface PullWatcherDeps {
   hub: Pick<HubClient, 'call' | 'sessionId'>;
@@ -30,6 +30,8 @@ export interface PullWatcherDeps {
   uds: string | null;
   /** The Claude Code process (the prompt hook's `CLAUDE_PID`). */
   claudePid: number;
+  /** Its current conversation, once the SessionStart record named it. */
+  claudeSessionId: () => string | null;
   /** False when the human set AGENTMESH_RELAY=off. */
   relay: boolean;
   logger: Logger;
@@ -124,7 +126,7 @@ export class PullWatcher {
     // Activated, or a new hub session, while the call was out: the next refresh handles it.
     if (activation.lastDescription !== null || activation.pull) return;
     if (hub.sessionId !== hubSessionId) return;
-    const base = { ...this.#deps, hubSessionId, claudeSessionId: null };
+    const base = { ...this.#deps, hubSessionId, claudeSessionId: this.#deps.claudeSessionId() };
     const record = localSessionRecord(base, peek, new Date().toISOString());
     await this.#writeFile(join(dir, name), record);
   }

@@ -5,19 +5,25 @@ import { readMarker, windowFiles } from '@agentmesh/common/window';
 import { promptContext, unreadInput } from './hook/prompt';
 import { announce, isStateFile, pullStateDirs, selectStates } from './pull/state';
 import { isLocalSessionFile, ownLocalSession } from './relay/local-session';
+import {
+  deleteClaudeSession,
+  pruneClaudeSessions,
+  writeClaudeSession,
+} from './resume/claude-session';
 import { anyFresh, isHeartbeatFile, windowAddresses } from './window/heartbeat';
 import { sessionStartOutput } from './window/session-start';
 
 /**
- * The plugin's UserPromptSubmit / SessionStart hook (dist/hook.js, ADR 0008):
+ * The plugin's UserPromptSubmit / SessionStart / SessionEnd hook (dist/hook.js, ADR 0008):
  * when a pull-only session in this project has unread mesh work, it adds one line
  * of context saying so. A private session that used the mesh gets its reply note, or
  * on a cross-session turn a label saying whether it is a verified pointer from its
- * mesh window. It prints nothing otherwise, never fails the prompt and always exits
+ * mesh window. Session start records the conversation id for the MCP server and session
+ * end deletes it. It prints nothing otherwise, never fails the prompt and always exits
  * 0. Node built-ins only: it runs on every prompt.
  */
 
-const EVENTS = new Set(['UserPromptSubmit', 'SessionStart']);
+const EVENTS = new Set(['UserPromptSubmit', 'SessionStart', 'SessionEnd']);
 const STDIN_WAIT_MS = 1000;
 const MAX_STDIN = 1_000_000;
 
@@ -99,8 +105,34 @@ function promptLine(prompt: unknown, dirs: readonly string[]): string | null {
   return promptContext({ prompt, marked, own, windowAddresses: addresses });
 }
 
+/** The conversation id by `CLAUDE_PID`, for this process's MCP server (resume); best effort. */
+function recordConversation(event: string, dir: string, input: Input | null): void {
+  const pid = process.env.CLAUDE_PID;
+  try {
+    if (event === 'SessionEnd') {
+      deleteClaudeSession(dir, pid);
+      return;
+    }
+    pruneClaudeSessions(dir, Date.now());
+    writeClaudeSession(
+      dir,
+      pid,
+      { session_id: input?.session_id, source: input?.source },
+      new Date(),
+    );
+  } catch {
+    // A full disk or a locked folder must not cost the session its start-up context.
+  }
+}
+
+type Input = {
+  hook_event_name?: unknown;
+  source?: unknown;
+  prompt?: unknown;
+  session_id?: unknown;
+};
+
 async function main(): Promise<void> {
-  type Input = { hook_event_name?: unknown; source?: unknown; prompt?: unknown };
   const text = await readStdin();
   const input = parse(text) as Input | null;
   // Cut at MAX_STDIN or the wait, or not JSON: a sender controls a cross-session turn's length,
@@ -109,6 +141,9 @@ async function main(): Promise<void> {
   const event = unread ? 'UserPromptSubmit' : input?.hook_event_name;
   if (typeof event !== 'string' || !EVENTS.has(event)) return;
   const dirs = pullStateDirs(process.env, homedir());
+  const [dir] = dirs;
+  if (event !== 'UserPromptSubmit' && dir) recordConversation(event, dir, input);
+  if (event === 'SessionEnd') return;
   const values = dirs.flatMap((d) => readJsonFiles(d, isStateFile));
   const states = selectStates(
     values,

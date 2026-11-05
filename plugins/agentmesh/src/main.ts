@@ -136,6 +136,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
     agentId,
     activation: session.activation,
     fyi: session.fyi,
+    notices: session.notices,
     listening: session.listening.promise,
     window: session.window,
   };

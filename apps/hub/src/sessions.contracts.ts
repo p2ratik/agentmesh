@@ -39,6 +39,8 @@ export interface OpenInput {
   previousSessionId?: string;
   /** Set at insert only: a process keeps its marker. */
   meshWindow?: boolean;
+  /** Claude Code's conversation id; the first one a session reports resumes that conversation. */
+  claudeSessionId?: string;
 }
 
 /** One Claude Code session per plugin process; each thread is owned per agent by one session. */

@@ -46437,7 +46437,9 @@ var sessionMethods = {
       /** This process's session before a reconnect: reused if still open, else reclaimed from. */
       previousSessionId: SessionId.optional(),
       /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
-      meshWindow: external_exports.boolean().optional()
+      meshWindow: external_exports.boolean().optional(),
+      /** Claude Code's conversation id, from the SessionStart hook: the hub resumes its closed session. */
+      claudeSessionId: ClaudeSessionId.optional()
     }),
     result: external_exports.object({
       self: PeerInfo,

@@ -1,7 +1,12 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { connectBus, type NatsConnection } from '@agentmesh/bus';
 import { createLogger } from '@agentmesh/common';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PullWatcher } from './pull/watcher';
+import { writeClaudeSession } from './resume/claude-session';
 import { openSession, startSession } from './session';
 
 vi.mock('@agentmesh/bus', async (importOriginal) => ({
@@ -32,7 +37,7 @@ type Callback = (err: Error | null, msg: unknown) => void;
  * their session) in the order sent. Like the real hub, `session.check` sends a
  * check with code K7Q2ZP to the calling session's subject.
  */
-function fakeHub(ids: string[], unreadThreads = 0) {
+function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
   const hellos: Array<Record<string, unknown>> = [];
   const wire: string[] = [];
   const listeners = new Map<string, Callback>();
@@ -76,7 +81,7 @@ function fakeHub(ids: string[], unreadThreads = 0) {
         },
         unreadThreads,
         sessionId: ids.shift(),
-        reclaimed: [],
+        reclaimed,
       });
     },
   } as unknown as NatsConnection;
@@ -147,6 +152,43 @@ describe('session listening', () => {
     await session.hub.call('session.check', {});
     expect(hellos).toHaveLength(2);
     expect(wire).toContain('req mesh.rpc.alice-agent.session.check s-bbbbbbbbbbbb');
+  });
+});
+
+describe("the session's conversation", () => {
+  const id = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
+  let data: string;
+  // Never the real ~/.agentmesh/run: the record and anything the watcher writes go to a temp folder.
+  beforeEach(() => {
+    data = mkdtempSync(join(tmpdir(), 'am-session-'));
+    vi.stubEnv('CLAUDE_PLUGIN_DATA', data);
+    vi.stubEnv('CLAUDE_CODE_MESSAGING_SOCKET', '');
+    vi.stubEnv('AGENTMESH_RELAY', '');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(data, { recursive: true, force: true });
+  });
+
+  it('hello carries claudeSessionId when the record exists', async () => {
+    const { hellos } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
+    expect((await openSession(config, logger)).claudeSessionId).toBeNull();
+    expect(hellos[0]).not.toHaveProperty('claudeSessionId');
+    writeClaudeSession(data, process.ppid, { session_id: id, source: 'startup' }, new Date());
+    const session = await openSession(config, logger);
+    expect(session.claudeSessionId).toBe(id);
+    expect(hellos[1]).toMatchObject({ claudeSessionId: id });
+  });
+
+  it('a hello that reclaims threads leaves a notice and counts the session as used', async () => {
+    fakeHub(['s-aaaaaaaaaaaa'], 0, ['thr-12']);
+    const used = vi.spyOn(PullWatcher.prototype, 'markUsed');
+    const session = await openSession(config, logger);
+    expect(session.notices).toEqual([
+      'Your earlier question in thr-12 has come back to this session; read it with thread thr-12 for its answer.',
+    ]);
+    expect(used).toHaveBeenCalledOnce();
+    used.mockRestore();
   });
 });
 

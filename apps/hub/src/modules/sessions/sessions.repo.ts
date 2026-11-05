@@ -40,12 +40,9 @@ export interface NewSession {
 }
 
 /** A closed session that released a thread. */
-export interface ReleasedBy {
-  id: string;
+export type ReleasedBy = Pick<SessionRow, 'id' | 'private_at_close' | 'claude_session_id'> & {
   closed_at: string;
-  private_at_close: number;
-  claude_session_id: string | null;
-}
+};
 
 const NOT_CLOSED = "liveness <> 'closed'";
 
@@ -89,12 +86,13 @@ export class SessionsRepo {
     );
   }
 
-  /** Heartbeat: bumps last_seen; repo/branch are replaced only when given. */
-  touch(id: string, at: string, git: { repo?: string | null; branch?: string | null } = {}): void {
+  /** Heartbeat or hello: bumps last_seen; repo, branch and client version are replaced when given. */
+  touch(id: string, at: string, seen: Partial<NewSession> = {}): void {
+    const { repo = null, branch = null, clientVersion = null } = seen;
     this.#db.run(
-      `UPDATE sessions SET last_seen = $at, repo = COALESCE($repo, repo), branch = COALESCE($branch, branch)
-       WHERE id = $id`,
-      { id, at, repo: git.repo ?? null, branch: git.branch ?? null },
+      `UPDATE sessions SET last_seen = $at, repo = COALESCE($repo, repo), branch = COALESCE($branch, branch),
+         client_version = COALESCE($clientVersion, client_version) WHERE id = $id`,
+      { id, at, repo, branch, clientVersion },
     );
   }
 
@@ -143,6 +141,24 @@ export class SessionsRepo {
       `UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at,
          private_at_close = $private WHERE id = $id`,
       { id, at, private: privateAtClose ? 1 : 0 },
+    );
+  }
+
+  /** Records the session's conversation id once; true when this call set it. */
+  setClaudeSession(id: string, claudeSessionId: string): boolean {
+    const { changes } = this.#db.run(
+      'UPDATE sessions SET claude_session_id = $cid WHERE id = $id AND claude_session_id IS NULL',
+      { id, cid: claudeSessionId },
+    );
+    return changes > 0;
+  }
+
+  /** The agent's latest closed or away session of that conversation, other than `exceptId`. */
+  resumable(agentId: string, claudeSessionId: string, exceptId: string): SessionRow | undefined {
+    return this.#db.get<SessionRow>(
+      `SELECT * FROM sessions WHERE agent_id = $agentId AND claude_session_id = $cid AND id <> $exceptId
+         AND liveness <> 'live' ORDER BY COALESCE(closed_at, away_since) DESC, rowid DESC LIMIT 1`,
+      { agentId, cid: claudeSessionId, exceptId },
     );
   }
 

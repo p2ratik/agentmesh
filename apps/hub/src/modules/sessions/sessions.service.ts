@@ -53,7 +53,13 @@ export class SessionsServiceImpl implements SessionsService {
 
   /** Reuses an open previous session; after a closed one, reclaims what nobody took since. */
   open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] } {
-    const { sessionId, reclaimed } = openSession(this.#ctx, this.repo, agentId, input);
+    const { sessionId, reclaimed } = openSession(
+      this.#ctx,
+      this.repo,
+      this.orphans,
+      agentId,
+      input,
+    );
     return { session: this.verify(agentId, sessionId), reclaimed };
   }
 
@@ -168,16 +174,19 @@ export class SessionsServiceImpl implements SessionsService {
     return expireSessions(this.#ctx, this.repo, now);
   }
 
-  /** Moves a thread the agent takes part in to this session. */
+  /** Moves a thread the agent takes part in to this session (the owner and release lists at once). */
   take(agentId: string, sessionId: string, threadId: number): { previous: string | null } {
-    this.#row(agentId, sessionId);
-    const { messaging } = this.#deps;
-    messaging.thread(threadId);
-    if (!messaging.participants(threadId).includes(agentId)) {
-      throw new MeshError('forbidden', `You are not a participant of ${threadKey(threadId)}`);
-    }
-    const previous = this.repo.owner(threadId, agentId);
-    if (previous !== sessionId) this.repo.setOwner(threadId, agentId, sessionId, this.#now());
+    const previous = this.#ctx.db.transaction(() => {
+      this.#row(agentId, sessionId);
+      const { messaging } = this.#deps;
+      messaging.thread(threadId);
+      if (!messaging.participants(threadId).includes(agentId)) {
+        throw new MeshError('forbidden', `You are not a participant of ${threadKey(threadId)}`);
+      }
+      const owner = this.repo.owner(threadId, agentId);
+      if (owner !== sessionId) this.repo.setOwner(threadId, agentId, sessionId, this.#now());
+      return owner;
+    });
     this.#ctx.logger.info(
       { agent: agentId, session: sessionId, thread: threadKey(threadId), previous },
       'thread taken',

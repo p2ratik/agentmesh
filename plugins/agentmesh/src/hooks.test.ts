@@ -25,9 +25,10 @@ describe('hooks.json', () => {
     expect(hooks.description).toMatch(/guard/);
   });
 
-  it('keeps the pull-mode hook', () => {
-    for (const event of ['UserPromptSubmit', 'SessionStart']) {
-      expect(hooks.hooks[event][0].hooks[0].args).toEqual([`${ROOT}/dist/hook.js`]);
+  it('runs the prompt and session hook on prompts, session start and session end', () => {
+    for (const event of ['UserPromptSubmit', 'SessionStart', 'SessionEnd']) {
+      const hook = { type: 'command', command: 'node', args: [`${ROOT}/dist/hook.js`], timeout: 5 };
+      expect(hooks.hooks[event]).toEqual([{ hooks: [hook] }]);
     }
   });
 });

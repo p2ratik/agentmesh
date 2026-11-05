@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ClaudeSessionId,
   DeclaredStatus,
   DeliveryMode,
   GitPolicy,
@@ -23,6 +24,8 @@ export const sessionMethods = {
       previousSessionId: SessionId.optional(),
       /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
       meshWindow: z.boolean().optional(),
+      /** Claude Code's conversation id, from the SessionStart hook: the hub resumes its closed session. */
+      claudeSessionId: ClaudeSessionId.optional(),
     }),
     result: z.object({
       self: PeerInfo,

@@ -1,5 +1,14 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,5 +71,23 @@ describe('dist/hook.js (from source)', () => {
       JSON.parse(r.stdout),
     );
     expect(await hook(big, {})).toEqual({ status: 0, stdout: '' });
+  }, 30_000);
+
+  it('keeps the conversation id by CLAUDE_PID from session start to session end', async () => {
+    const data = join(base, 'data');
+    mkdirSync(data, { recursive: true });
+    const stale = join(data, 'cc-1.json');
+    writeFileSync(stale, '{}');
+    utimesSync(stale, new Date(0), new Date(0));
+    const id = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
+    const env = { CLAUDE_PID: '4242' };
+    const start = { hook_event_name: 'SessionStart', source: 'clear', session_id: id };
+    expect((await hook(JSON.stringify(start), env)).status).toBe(0);
+    const record = JSON.parse(readFileSync(join(data, 'cc-4242.json'), 'utf8'));
+    expect(record).toEqual({ session_id: id, source: 'clear', at: expect.any(String) });
+    expect(existsSync(stale)).toBe(false);
+    const end = { hook_event_name: 'SessionEnd', reason: 'exit', session_id: id };
+    expect(await hook(JSON.stringify(end), env)).toEqual({ status: 0, stdout: '' });
+    expect(readdirSync(data)).toEqual([]);
   }, 30_000);
 });

@@ -1,4 +1,5 @@
 import type { RpcResult } from '@agentmesh/protocol';
+import { reclaimedLines } from './resume/conversation';
 import { DECIDES_RULE } from './window/rules';
 
 export interface InstructionsInput {
@@ -79,8 +80,9 @@ export function buildInstructions(input: InstructionsInput): string {
     ? [WINDOW_OPT_IN]
     : [OPT_IN, ...(input.agentId ? [FROM_WINDOW(input.agentId)] : [])];
   if (input.hello) {
-    const { unreadThreads } = input.hello;
+    const { unreadThreads, reclaimed } = input.hello;
     parts.push(identityLine(input.hello), ...optIn);
+    if (reclaimed.length > 0) parts.push(reclaimedLines(reclaimed));
     if (unreadThreads > 0) {
       parts.push(
         `${unreadThreads} mesh thread(s) have unread messages; ${

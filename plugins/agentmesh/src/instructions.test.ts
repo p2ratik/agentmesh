@@ -96,6 +96,18 @@ describe('buildInstructions', () => {
     }
   });
 
+  it('says which threads came back to this session, near the top', () => {
+    const h = {
+      ...hello('Escalate crucial decisions to aheen. '.repeat(300), 2),
+      reclaimed: ['thr-12'],
+    };
+    const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
+    expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
+    expect(text.slice(0, 900)).toContain(
+      'Your earlier question in thr-12 has come back to this session; read it with thread thr-12 for its answer.',
+    );
+  });
+
   it('keeps a short policy whole', () => {
     const text = buildInstructions({
       agentId: 'bob-agent',
