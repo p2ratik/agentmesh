@@ -38,6 +38,8 @@ async function hook(stdin: string, env: Record<string, string>) {
     'CLAUDE_PID',
   ])
     delete clean[k];
+  // Task 10b: options inherited from a Claude Code session running these tests are stubbed empty.
+  for (const k of Object.keys(clean)) if (k.startsWith('CLAUDE_PLUGIN_OPTION_')) clean[k] = '';
   const home = join(base, 'home');
   const child = spawn(process.execPath, ARGS, {
     cwd: ROOT,

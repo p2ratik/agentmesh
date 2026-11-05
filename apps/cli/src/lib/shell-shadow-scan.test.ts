@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { CliContext } from '../context';
 import { shellShadowWarnings } from './shell-shadow-scan';
 
@@ -12,7 +12,15 @@ const ctxFor = (home: string): CliContext => ({
   stdout: () => undefined,
   stderr: () => undefined,
 });
-const temp = () => mkdtempSync(join(tmpdir(), 'am-shadow-'));
+const temps: string[] = [];
+const temp = () => {
+  const dir = mkdtempSync(join(tmpdir(), 'am-shadow-'));
+  temps.push(dir);
+  return dir;
+};
+afterEach(() => {
+  for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
 const put = (file: string, content: string | Buffer) => {
   mkdirSync(join(file, '..'), { recursive: true });
   writeFileSync(file, content);

@@ -36,8 +36,10 @@ describe('resolveAgentId', () => {
     expect(resolveAgentId({}, {})).toBeNull();
   });
 
-  it('agrees with resolveConfig on the same inputs', () => {
-    const file = join(mkdtempSync(join(tmpdir(), 'am-agentid-')), 'agent.json');
+  it('agrees with resolveConfig on the same inputs', (ctx) => {
+    const dir = mkdtempSync(join(tmpdir(), 'am-agentid-'));
+    ctx.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, 'agent.json');
     writeFileSync(file, JSON.stringify({ ...saved, nkeySeed: 'S' }));
     const cases = [
       {},
