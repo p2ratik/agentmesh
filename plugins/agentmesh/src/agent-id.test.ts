@@ -7,6 +7,9 @@ import { hookAgentId, parseSavedAgent, resolveAgentId } from './agent-id';
 import { resolveConfig } from './config';
 import { windowStartState } from './window/start-state';
 
+// What Claude Code leaves in an unset option; built so it is not mistaken for a template string.
+const placeholder = (name: string) => ['$', '{user_config.', name, '}'].join('');
+
 describe('resolveAgentId', () => {
   const saved = { agentId: 'alice-agent', natsUrl: 'tls://hub:4222' };
 
@@ -17,10 +20,10 @@ describe('resolveAgentId', () => {
     );
   });
 
-  it('falls back to the file when the option is empty or a ${…} placeholder', () => {
+  it('falls back to the file when the option is empty or an unexpanded placeholder', () => {
     expect(resolveAgentId({}, saved)).toBe('alice-agent');
     expect(resolveAgentId({ agentId: '', natsUrl: ' ' }, saved)).toBe('alice-agent');
-    expect(resolveAgentId({ agentId: '${user_config.agent_id}' }, saved)).toBe('alice-agent');
+    expect(resolveAgentId({ agentId: placeholder('agent_id') }, saved)).toBe('alice-agent');
   });
 
   it("ignores a file for another hub, like the server's fileApplies", () => {
@@ -40,7 +43,7 @@ describe('resolveAgentId', () => {
       {},
       { AGENTMESH_AGENT_ID: ' bob-agent ', AGENTMESH_NATS_URL: 'tls://hub:4222' },
       { AGENTMESH_NATS_URL: 'tls://other:4222' },
-      { AGENTMESH_AGENT_ID: '${user_config.agent_id}', AGENTMESH_NATS_URL: '${x}' },
+      { AGENTMESH_AGENT_ID: placeholder('agent_id'), AGENTMESH_NATS_URL: placeholder('x') },
     ];
     for (const env of cases) {
       const r = resolveConfig(env, file);
@@ -76,7 +79,7 @@ describe('hookAgentId', () => {
   it('reads agent.json when the options are empty, and ignores one of the wrong shape', () => {
     withFile('{"agentId":"alice-agent"}');
     expect(hookAgentId({}, home)).toBe('alice-agent');
-    expect(hookAgentId({ CLAUDE_PLUGIN_OPTION_AGENT_ID: '${user_config.agent_id}' }, home)).toBe(
+    expect(hookAgentId({ CLAUDE_PLUGIN_OPTION_AGENT_ID: placeholder('agent_id') }, home)).toBe(
       'alice-agent',
     );
     expect(hookAgentId({ CLAUDE_PLUGIN_OPTION_NATS_URL: 'tls://x:4222' }, home)).toBe(
