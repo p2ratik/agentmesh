@@ -2,7 +2,8 @@ import { MINUTE_MS } from '@agentmesh/common';
 import type { HubContext } from '../../context';
 import type { MessagingService } from '../../contracts';
 import { threadKey } from '../../core/ids';
-import type { OrphanRow, SessionsRepo } from './sessions.repo';
+import { type OrphanRow, OrphansRepo } from './orphans.repo';
+import type { SessionsRepo } from './sessions.repo';
 
 /**
  * Answers whose private asker closed (spec part B). The mesh window took the answer unclaimed and
@@ -15,11 +16,13 @@ import type { OrphanRow, SessionsRepo } from './sessions.repo';
 export class OrphanDecisions {
   readonly #ctx: HubContext;
   readonly #repo: SessionsRepo;
+  readonly #rows: OrphansRepo;
   readonly #messaging: MessagingService;
 
   constructor(ctx: HubContext, repo: SessionsRepo, messaging: MessagingService) {
     this.#ctx = ctx;
     this.#repo = repo;
+    this.#rows = new OrphansRepo(ctx.db);
     this.#messaging = messaging;
   }
 
@@ -30,7 +33,7 @@ export class OrphanDecisions {
   record(agentId: string, threadId: number, releasedBy: string): void {
     if (this.#repo.owner(threadId, agentId) !== null) return;
     const dueAt = new Date(this.#ctx.clock.now().getTime() + this.#minutes() * MINUTE_MS);
-    if (!this.#repo.insertOrphan(threadId, agentId, releasedBy, dueAt.toISOString())) return;
+    if (!this.#rows.insertOrphan(threadId, agentId, releasedBy, dueAt.toISOString())) return;
     this.#messaging.post({
       threadId,
       senderId: this.#messaging.hubId,
@@ -43,7 +46,7 @@ export class OrphanDecisions {
 
   /** The owner answered in the thread: a running timer is settled without a ping. */
   answered(agentId: string, threadId: number): void {
-    this.#repo.markOrphanEscalated(threadId, agentId, this.#ctx.clock.now().toISOString());
+    this.#rows.markOrphanEscalated(threadId, agentId, this.#ctx.clock.now().toISOString());
   }
 
   /** Settles every due row, each in its own transaction; returns how many escalated. */
@@ -52,7 +55,7 @@ export class OrphanDecisions {
     // cheaper sweep if abandoned orphan threads ever pile up.
     const at = now.toISOString();
     let escalated = 0;
-    for (const row of this.#repo.dueOrphans(at)) {
+    for (const row of this.#rows.dueOrphans(at)) {
       try {
         if (this.#ctx.db.transaction(() => this.#settle(row, at))) escalated += 1;
       } catch (err) {
@@ -65,7 +68,7 @@ export class OrphanDecisions {
 
   /** Stops the timers of these threads (their asker took them back). */
   forget(agentId: string, threadIds: readonly number[]): void {
-    for (const threadId of threadIds) this.#repo.deleteOrphan(threadId, agentId);
+    for (const threadId of threadIds) this.#rows.deleteOrphan(threadId, agentId);
   }
 
   /**
@@ -76,11 +79,11 @@ export class OrphanDecisions {
     const { thread_id: threadId, agent_id: agent } = row;
     const owned = this.#repo.owner(threadId, agent) !== null;
     if (owned || this.#messaging.thread(threadId).status === 'closed') {
-      this.#repo.deleteOrphan(threadId, agent);
+      this.#rows.deleteOrphan(threadId, agent);
       return false;
     }
     if (row.escalated_at !== null) return false;
-    this.#repo.markOrphanEscalated(threadId, agent, at);
+    this.#rows.markOrphanEscalated(threadId, agent, at);
     const { index, logger } = this.#ctx;
     const owner = index.agent(agent)?.owner;
     if (!owner) return false;

@@ -1,4 +1,4 @@
-import { MeshError, newSessionId, parseId, redactSecrets } from '@agentmesh/common';
+import { MeshError, parseId, redactSecrets } from '@agentmesh/common';
 import type {
   DeliveryMode,
   MeshMessage,
@@ -16,10 +16,11 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { evictStalest, expireSessions, releaseAndClose } from './liveness';
+import { expireSessions, releaseAndClose } from './liveness';
 import { toRecord, toSummary, toView } from './mappers';
+import { openSession } from './open';
 import { OrphanDecisions } from './orphans';
-import { claimThread, reclaimReleased } from './ownership';
+import { claimThread } from './ownership';
 import { recordClaims } from './record-claims';
 import { type RelayTarget, relayFor } from './relay';
 import { releasedMarker, routeInput } from './route-input';
@@ -52,33 +53,8 @@ export class SessionsServiceImpl implements SessionsService {
 
   /** Reuses an open previous session; after a closed one, reclaims what nobody took since. */
   open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] } {
-    const at = this.#now();
-    const git = { repo: input.repo ?? null, branch: input.branch ?? null };
-    const result = this.#ctx.db.transaction(() => {
-      const previous = input.previousSessionId ? this.repo.get(input.previousSessionId) : undefined;
-      const mine = previous?.agent_id === agentId ? previous : undefined;
-      if (mine && mine.liveness !== 'closed') {
-        this.repo.touch(mine.id, at, git);
-        // A window started before the hub upgrade (migration 007) says so on its next hello.
-        if (input.meshWindow) this.repo.markMeshWindow(mine.id);
-        if (this.repo.markLive(mine.id)) this.#ctx.outbox.kick();
-        return { session: this.verify(agentId, mine.id), reclaimed: [] };
-      }
-      const id = newSessionId();
-      const evicted = evictStalest(this.#ctx, this.repo, agentId, at);
-      const { clientVersion, meshWindow } = input;
-      this.repo.insert({ id, agentId, clientVersion, meshWindow, ...git, at });
-      const reclaimed = mine ? reclaimReleased(this.repo, mine, id, at) : [];
-      return { session: this.verify(agentId, id), reclaimed, evicted };
-    });
-    const { session, reclaimed, evicted = 0 } = result;
-    this.#ctx.logger.info(
-      { agent: agentId, session: session.id, reclaimed: reclaimed.length, evicted },
-      'session opened',
-    );
-    // What the closed sessions owned goes elsewhere now.
-    if (evicted) this.#ctx.outbox.kick();
-    return result;
+    const { sessionId, reclaimed } = openSession(this.#ctx, this.repo, agentId, input);
+    return { session: this.verify(agentId, sessionId), reclaimed };
   }
 
   verify(agentId: string, sessionId: string): SessionRecord {
