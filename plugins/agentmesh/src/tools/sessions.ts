@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
-import { type ActivationState, activateWithCode } from './activation';
+import { type ActivationState, activateWithCode, endRenewal } from './activation';
 import { defineTool, ToolRefusal } from './types';
 
 const Description = z.string().min(1).max(200);
@@ -90,6 +90,7 @@ export const sessionTools = [
         return `This session is active on the mesh as “${activation.lastDescription}”, pull-only. ${PULL_ACTIVE} ${notWindow(window)}`;
       }
       if (args.code === undefined) {
+        endRenewal(activation);
         // The hub sends the code over this session's subject; only the push shows it to Claude,
         // so getting it back proves both legs. In the first seconds nobody listens there yet;
         // if that never changes, the hub's failure says why.
@@ -98,7 +99,9 @@ export const sessionTools = [
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
-      await activateWithCode(hub, activation, args.code, args.description, stamp);
+      if (!(await activateWithCode(hub, activation, args.code, args.description, stamp))) {
+        return 'This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.';
+      }
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
       // The instructions clip a long policy at 4096 characters; the window gets it whole here.
@@ -114,11 +117,13 @@ export const sessionTools = [
     input: z.object({}),
     mutating: false,
     run: async (_args, { hub, activation }) => {
-      await hub.call('session.deactivate', {});
+      // Before the hub call: an activation still out (a renewal answering its check) then loses.
+      activation.epoch += 1;
       activation.lastDescription = null;
       activation.renewedFrom = null;
       activation.pull = false;
       activation.guardVersion = null;
+      await hub.call('session.deactivate', {});
       return 'This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.';
     },
   }),

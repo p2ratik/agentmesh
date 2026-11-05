@@ -292,10 +292,13 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **A renewed session re-uses its process's proof.** When the hub replaces an active push session
   (a long sleep), the same plugin process answers the new check itself with the previous line:
   Claude Code fixes the channel flag per process, so its pushes are already proven. The hub still
-  requires the code. A mesh window does it only while its marker verifies and the guard version its
-  last `activate` recorded stands (a failed guard check clears it) or the stamp is fresh, so, as for
-  an active window, the guard isn't re-checked. Otherwise, or if the hub refuses, Claude gets the
-  check.
+  requires the code, which arrives over NATS, so that leg is proven fresh. A mesh window does it
+  only while the marker it verified at process start (as for the `activate` tool; it isn't
+  re-checked at renewal) and the guard version its last `activate` recorded stand (a failed guard
+  check clears it), or the stamp is fresh; so, as for an active window, the guard isn't re-checked.
+  Otherwise, or if the hub refuses, Claude gets the check. A deactivate while it runs wins: nothing
+  is recorded or pushed, and the plugin turns the hub session off again. A human's
+  `/agentmesh:activate` during a renewal is never answered this way: Claude gets the check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own

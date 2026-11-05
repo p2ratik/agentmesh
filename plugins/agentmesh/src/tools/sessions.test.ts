@@ -69,6 +69,7 @@ describe('session tools', () => {
       renewedFrom: null,
       pull: false,
       guardVersion: null,
+      epoch: 0,
     });
   });
 
@@ -120,6 +121,7 @@ describe('session tools', () => {
       renewedFrom: null,
       pull: false,
       guardVersion: null,
+      epoch: 1,
     });
     const took = await callTool('take', { task_id: 'task-9' }, deps);
     expect(text(took)).toContain('thr-9');

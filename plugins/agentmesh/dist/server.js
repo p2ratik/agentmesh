@@ -49403,8 +49403,14 @@ var newActivationState = () => ({
   lastDescription: null,
   renewedFrom: null,
   pull: false,
-  guardVersion: null
+  guardVersion: null,
+  epoch: 0
 });
+function endRenewal(activation) {
+  if (activation.renewedFrom === null) return;
+  activation.renewedFrom = null;
+  activation.lastDescription = null;
+}
 function checkEvent(code, previous) {
   const intro = previous ? "This session reconnected to the mesh after a long absence. Your human activated it earlier; finishing this check continues that activation. " : "";
   const description = previous ?? "<one line: what this session is working on>";
@@ -49415,11 +49421,17 @@ function checkEvent(code, previous) {
   };
 }
 async function activateWithCode(hub, activation, code, description, stamp) {
+  const epoch = activation.epoch;
   const view = await hub.call("session.activate", { code, description });
+  if (activation.epoch !== epoch) {
+    await hub.call("session.deactivate", {});
+    return false;
+  }
   activation.lastDescription = view.description ?? description;
   activation.renewedFrom = null;
   activation.pull = false;
   if (stamp) activation.guardVersion = stamp.version;
+  return true;
 }
 function renewalRefused(window, activation, stamp) {
   if (window.state === "marked") return "the mesh window marker does not verify";
@@ -49440,11 +49452,16 @@ async function answerCheck(code, deps) {
     logger.warn({ session, reason: refused }, "could not re-activate the new hub session");
     return deps.push(checkEvent(code, previous));
   }
+  const epoch = activation.epoch;
   try {
-    await activateWithCode(hub, activation, code, previous, stamp);
+    if (!await activateWithCode(hub, activation, code, previous, stamp)) {
+      logger.warn({ session }, "deactivated while re-activating the new hub session; it stays off");
+      return;
+    }
   } catch (err) {
     logger.warn({ session, err }, "could not re-activate the new hub session");
-    return deps.push(checkEvent(code, previous));
+    if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
+    return;
   }
   logger.info({ session }, "new hub session; re-activated it in the same process");
   void deps.refresh();
@@ -49508,12 +49525,15 @@ var sessionTools = [
         return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D, pull-only. ${PULL_ACTIVE} ${notWindow(window)}`;
       }
       if (args.code === void 0) {
+        endRenewal(activation);
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
         await hub.call("session.check", {});
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
-      await activateWithCode(hub, activation, args.code, args.description, stamp);
+      if (!await activateWithCode(hub, activation, args.code, args.description, stamp)) {
+        return "This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.";
+      }
       const active = `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
       const policy = teamPolicy();
@@ -49532,11 +49552,12 @@ ${windowRules(window.policy)}${full}`;
     input: external_exports.object({}),
     mutating: false,
     run: async (_args, { hub, activation }) => {
-      await hub.call("session.deactivate", {});
+      activation.epoch += 1;
       activation.lastDescription = null;
       activation.renewedFrom = null;
       activation.pull = false;
       activation.guardVersion = null;
+      await hub.call("session.deactivate", {});
       return "This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.";
     }
   }),

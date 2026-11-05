@@ -9,6 +9,7 @@ import type { ChannelEvent } from '../inbox/render';
 import { writeGuardStamp } from '../window/guard-stamp';
 import { answerCheck, checkEvent } from './activation';
 import { fakeHub } from './fake-hub';
+import { callTool } from './registry';
 
 const SYSTEM = { kind: 'system', from: 'agentmesh' };
 const ACTIVE_AGAIN =
@@ -63,6 +64,16 @@ describe('answerCheck', () => {
 
   const view = { id: 's-bbbbbbbbbbbb', active: true, description: 'checkout redesign' };
 
+  // The human's activate is theirs: their typed line, and the window's rules with the result.
+  it('a manual activate during a renewal sends Claude the check, unanswered', async () => {
+    const { deps, answer, calls, pushed } = setup({ 'session.check': { ok: true } });
+    await callTool('activate', {}, deps);
+    await answerCheck('K7Q2ZP', answer);
+    expect(calls.map((c) => c.method)).toEqual(['session.check']);
+    expect(pushed).toEqual([checkEvent('K7Q2ZP')]);
+    expect(deps.activation).toMatchObject({ lastDescription: null, renewedFrom: null });
+  });
+
   it('a first activation pushes the check to Claude, untouched', async () => {
     const { answer, calls, pushed } = setup({}, false);
     await answerCheck('K7Q2ZP', answer);
@@ -82,6 +93,7 @@ describe('answerCheck', () => {
       renewedFrom: null,
       pull: false,
       guardVersion: null,
+      epoch: 0,
     });
     expect(refresh).toHaveBeenCalledOnce();
     expect(logger.info).toHaveBeenCalledWith(

@@ -22,6 +22,8 @@ export interface ActivationState {
    * finds the guard did not run. Relays gate on it.
    */
   guardVersion: string | null;
+  /** Bumped by each deactivate, before its hub call: an activation still out then must not stand. */
+  epoch: number;
 }
 
 export const newActivationState = (): ActivationState => ({
@@ -29,7 +31,19 @@ export const newActivationState = (): ActivationState => ({
   renewedFrom: null,
   pull: false,
   guardVersion: null,
+  epoch: 0,
 });
+
+/**
+ * The human's own activate is a first activation: a renewal in progress (the session is inactive
+ * on the hub) ends, so its check goes to Claude, with the human's line, and is never answered with
+ * the old one (`answerCheck`).
+ */
+export function endRenewal(activation: ActivationState): void {
+  if (activation.renewedFrom === null) return;
+  activation.renewedFrom = null;
+  activation.lastDescription = null;
+}
 
 /**
  * The channel event that carries a code. `previous` is set when the hub gave
@@ -50,7 +64,9 @@ export function checkEvent(code: string, previous?: string): ChannelEvent {
 /**
  * Activates this session for pushes with the code from its check, and records it: the line, push
  * mode, and the guard version from the mesh window's fresh stamp when one is given. The activate
- * tool and a renewal (`answerCheck`) both go through here.
+ * tool and a renewal (`answerCheck`) both go through here. A deactivate while the call was out
+ * wins: nothing is recorded, the hub (which may have run the deactivate first) is turned off
+ * again, and the result is false.
  */
 export async function activateWithCode(
   hub: Pick<HubClient, 'call'>,
@@ -58,13 +74,19 @@ export async function activateWithCode(
   code: string,
   description: string,
   stamp: { version: string | null } | null,
-): Promise<void> {
+): Promise<boolean> {
+  const epoch = activation.epoch;
   const view = await hub.call('session.activate', { code, description });
+  if (activation.epoch !== epoch) {
+    await hub.call('session.deactivate', {});
+    return false;
+  }
   activation.lastDescription = view.description ?? description;
   activation.renewedFrom = null;
   activation.pull = false;
   // From the stamp this call checked: relays gate on it for the life of the process.
   if (stamp) activation.guardVersion = stamp.version;
+  return true;
 }
 
 /**
@@ -101,7 +123,7 @@ export interface CheckDeps {
  * what the human started. After a renewal in this process (`renewedFrom`: its last activation was
  * a push one that succeeded), the push leg the code proves was already proven, since Claude Code
  * fixes the channel flag per process: the plugin answers the code itself. If that fails, Claude
- * gets the check after all.
+ * gets the check after all, unless the human deactivated meanwhile: their off stands.
  */
 export async function answerCheck(code: string, deps: CheckDeps): Promise<void> {
   const { hub, activation, logger } = deps;
@@ -109,18 +131,23 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
   if (previous === null) return deps.push(checkEvent(code));
   const session = hub.sessionId;
   const { window } = deps;
-  // As in the activate tool: a fresh stamp (the human's activate just ran) records its version.
+  // As in the activate tool: a fresh stamp records its version.
   const stamp = window.state === 'verified' ? freshGuardStamp(window.dataDir, Date.now()) : null;
   const refused = renewalRefused(window, activation, stamp);
   if (refused) {
     logger.warn({ session, reason: refused }, 'could not re-activate the new hub session');
     return deps.push(checkEvent(code, previous));
   }
+  const epoch = activation.epoch;
   try {
-    await activateWithCode(hub, activation, code, previous, stamp);
+    if (!(await activateWithCode(hub, activation, code, previous, stamp))) {
+      logger.warn({ session }, 'deactivated while re-activating the new hub session; it stays off');
+      return;
+    }
   } catch (err) {
     logger.warn({ session, err }, 'could not re-activate the new hub session');
-    return deps.push(checkEvent(code, previous));
+    if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
+    return;
   }
   logger.info({ session }, 'new hub session; re-activated it in the same process');
   void deps.refresh();

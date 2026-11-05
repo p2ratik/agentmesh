@@ -205,9 +205,11 @@ describe("the session's conversation", () => {
 describe('session renewal', () => {
   let data: string;
   // An active session writes its heartbeat (and a pull one its state): never in the real home.
+  // Not a mesh window either, even when the tests run in one.
   beforeEach(() => {
     data = mkdtempSync(join(tmpdir(), 'am-session-'));
     vi.stubEnv('CLAUDE_PLUGIN_DATA', data);
+    vi.stubEnv('AGENTMESH_MESH_WINDOW', '');
   });
   afterEach(() => {
     vi.unstubAllEnvs();
