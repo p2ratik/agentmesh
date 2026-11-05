@@ -1,4 +1,5 @@
 import type { MeshMessage, ReleasedMarker } from '@agentmesh/protocol';
+import { closedAsker } from './render';
 
 /** A message as the hub delivers it to a mesh window: `released` when its private asker closed. */
 export type Released = MeshMessage & { released?: ReleasedMarker };
@@ -24,8 +25,15 @@ export function closedAskerNotice(
   ].join('\n');
 }
 
-/** The notice for one pushed thread, from its last released message; undefined if none was. */
-export function threadNotice(thread: readonly Released[], minutes: number): string | undefined {
-  const last = thread.findLast((m) => m.released);
+/**
+ * The notice for one pushed thread, from its last released message (`closedAsker`); undefined if
+ * none was, or if `selfId`'s owner sent the whole push: that reply is the decision.
+ */
+export function threadNotice(
+  thread: readonly Released[],
+  minutes: number,
+  selfId: string,
+): string | undefined {
+  const last = closedAsker(thread, selfId);
   return last?.released && closedAskerNotice(last.threadId, last.released, minutes);
 }

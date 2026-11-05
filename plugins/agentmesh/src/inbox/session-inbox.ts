@@ -44,7 +44,8 @@ export interface SessionInboxOptions {
  * the hub carries a thread's unread status along with later deliveries. Action
  * items are pushed into Claude Code, one event per thread in arrival order; the
  * first push that works takes the FYI buffer as its footer, and those ids are
- * reported seen. A thread with a closed asker's answer carries its notice. The
+ * reported seen. A closed asker's answer carries its notice (the owner's own
+ * reply doesn't: it is the decision). The
  * reply (`SessionAck`) lists the ids buffered or pushed now or before; the hub
  * retries the rest. An activation check is pushed, then acked; a relay is
  * acked with `onRelay`'s answer.
@@ -105,7 +106,7 @@ export function runSessionInbox(options: SessionInboxOptions): SessionSubscripti
     delivered: string[],
   ): Promise<boolean> => {
     try {
-      const notice = threadNotice(fresh, options.closedAskerMinutes());
+      const notice = threadNotice(fresh, options.closedAskerMinutes(), hub.config.agentId);
       const footer = { footer: formatFyi(fyi), footerExternal: anyExternal(fyi), notice };
       await options.push(renderEvent(fresh, { selfId: hub.config.agentId, ...footer }));
     } catch (err) {

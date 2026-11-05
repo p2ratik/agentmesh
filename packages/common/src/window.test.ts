@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   launcherDisplay,
   MESH_WINDOW_ENV,
@@ -11,6 +11,12 @@ import {
   type WindowPolicy,
   windowFiles,
 } from './window';
+
+// The real readFileSync, spied on: readMarker must not read the policy without the marker.
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>();
+  return { ...fs, readFileSync: vi.fn(fs.readFileSync) };
+});
 
 const TOKEN = 'a'.repeat(32);
 const policy: WindowPolicy = {
@@ -102,6 +108,17 @@ describe('readMarker', () => {
       state: 'marked',
       policy: null,
     });
+  });
+
+  // The guard and the hook call readMarker on every tool call and prompt, in every session.
+  it('never reads the policy file without the marker', () => {
+    write();
+    vi.mocked(readFileSync).mockClear();
+    expect(readMarker({}, home, 'linux')).toEqual({ state: 'none', policy: null });
+    expect(readMarker({ [MESH_WINDOW_ENV]: '' }, home, 'linux').state).toBe('none');
+    expect(readFileSync).not.toHaveBeenCalled();
+    readMarker({ [MESH_WINDOW_ENV]: TOKEN }, home, 'linux');
+    expect(readFileSync).toHaveBeenCalledOnce();
   });
 
   it('is marked, never throwing, when the policy file is missing', () => {

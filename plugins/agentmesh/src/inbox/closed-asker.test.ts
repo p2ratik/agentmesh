@@ -15,6 +15,12 @@ const released = (id: string, bySession = 's-bbbbbbbbbbbb'): SessionDelivery => 
   kind: 'reply',
   released: marker(bySession),
 });
+/** The owner answering from Discord: the hub marks it for alice-agent, and still releases it. */
+const ownerReply = (id: string): SessionDelivery => ({
+  ...released(id),
+  from: { id: 'alice', kind: 'human', displayName: 'Alice' },
+  refs: { decidesFor: ['alice-agent'] },
+});
 
 describe('closedAskerNotice', () => {
   it('asks the human to continue, reopen or drop, in exactly these lines', () => {
@@ -55,6 +61,7 @@ describe('renderEvent with a notice', () => {
     expect(renderEvent([released('m1')]).meta.asker).toBe('closed');
     expect(renderEvent([released('m1'), message('m2', 'thr-7')]).meta.asker).toBe('closed');
     expect(renderEvent([message('m1', 'thr-7')]).meta.asker).toBeUndefined();
+    expect(renderEvent([ownerReply('m1')], { selfId: 'alice-agent' }).meta.asker).toBeUndefined();
   });
 });
 
@@ -76,5 +83,33 @@ describe('a closed asker in the session inbox', () => {
     await h.send({ type: 'deliver', messages: [message('a1', 'thr-7')] }).acked;
     expect(h.pushed[0]?.content).toBe('│ body a1');
     expect(h.pushed[0]?.meta.asker).toBeUndefined();
+  });
+
+  it("pushes the owner's own reply as the decision it is: no notice, no asker", async () => {
+    const h = harness();
+    await h.send({ type: 'deliver', messages: [ownerReply('a1')] }).acked;
+    expect(h.pushed[0]?.meta.decides).toBe('yes');
+    expect(h.pushed[0]?.meta.asker).toBeUndefined();
+    expect(h.pushed[0]?.content).toBe('│ body a1');
+    // Beside a teammate's answer, the push is no longer the owner's alone: the notice stays.
+    await h.send({ type: 'deliver', messages: [ownerReply('a2'), released('a3')] }).acked;
+    expect(h.pushed[1]?.meta.decides).toBeUndefined();
+    expect(h.pushed[1]?.meta.asker).toBe('closed');
+    expect(h.pushed[1]?.content).toContain("Don't act on this answer: ask your human");
+  });
+
+  it("keeps the hub's own notice post (status class, released) in the FYI buffer: no push", async () => {
+    const h = harness();
+    const post: SessionDelivery = {
+      ...released('n1'),
+      kind: 'system',
+      class: 'status',
+      from: { id: 'agentmesh-hub', kind: 'service', displayName: 'AgentMesh' },
+      body: "The session that asked this has closed; the follow-up waits for Alice's decision.",
+    };
+    const ack = await h.send({ type: 'deliver', messages: [post] }).acked;
+    expect(ack.delivered).toEqual(['n1']);
+    expect(h.pushed).toEqual([]);
+    expect(h.fyi.take().items.map((m) => m.id)).toEqual(['n1']);
   });
 });

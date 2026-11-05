@@ -48697,6 +48697,10 @@ var LINE_BREAK = /\r\n?|[\n\v\f\u0085\u2028\u2029]/;
 function decides(m, selfId) {
   return selfId !== void 0 && (m.refs.decidesFor?.includes(selfId) ?? false);
 }
+function closedAsker(messages, selfId) {
+  if (messages.every((m) => decides(m, selfId))) return void 0;
+  return messages.findLast((m) => m.released);
+}
 function renderEvent(messages, { footer, footerExternal = false, maxChars = MAX_CONTENT, selfId, notice } = {}) {
   const last = messages.at(-1);
   if (!last) throw new Error("renderEvent needs at least one message");
@@ -48756,7 +48760,7 @@ function buildMeta(messages, last, selfId) {
     depth: last.depth,
     count: messages.length > 1 ? messages.length : void 0,
     subject: oneLine(last.subject),
-    asker: messages.some((m) => m.released) ? "closed" : void 0
+    asker: closedAsker(messages, selfId) ? "closed" : void 0
   };
   return sanitizeMeta(raw);
 }
@@ -51780,8 +51784,8 @@ function closedAskerNotice(threadId, released, minutes) {
     `If they don't answer within ${minutes} minutes, the hub pings them on Discord.`
   ].join("\n");
 }
-function threadNotice(thread, minutes) {
-  const last = thread.findLast((m) => m.released);
+function threadNotice(thread, minutes, selfId) {
+  const last = closedAsker(thread, selfId);
   return last?.released && closedAskerNotice(last.threadId, last.released, minutes);
 }
 
@@ -51899,7 +51903,7 @@ function runSessionInbox(options) {
   };
   const pushThread = async (fresh, fyi, delivered) => {
     try {
-      const notice = threadNotice(fresh, options.closedAskerMinutes());
+      const notice = threadNotice(fresh, options.closedAskerMinutes(), hub.config.agentId);
       const footer = { footer: formatFyi(fyi), footerExternal: anyExternal(fyi), notice };
       await options.push(renderEvent(fresh, { selfId: hub.config.agentId, ...footer }));
     } catch (err) {

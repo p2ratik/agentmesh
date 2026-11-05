@@ -35,12 +35,24 @@ export function decides(m: MeshMessage, selfId: string | undefined): boolean {
 }
 
 /**
+ * The last message the hub released from its closed private asker, which makes the window ask
+ * its human. None when the owner sent every message (decides=yes): that reply is the decision.
+ */
+export function closedAsker(
+  messages: readonly Released[],
+  selfId: string | undefined,
+): Released | undefined {
+  if (messages.every((m) => decides(m, selfId))) return undefined;
+  return messages.findLast((m) => m.released);
+}
+
+/**
  * Renders messages of ONE thread as one channel event. A single message is
  * its quoted body; several become a compact transcript. Meta describes the
  * latest message (plus `count`), and `trust` is `external` if any part,
  * footer included, is external. `decides` is `yes` only if every message is
  * the owner's; the FYI footer never carries the mark. `asker` is `closed`
- * if the hub released any message from its closed private asker.
+ * when `closedAsker` finds a released message.
  */
 export function renderEvent(
   messages: readonly Released[],
@@ -120,7 +132,7 @@ export function buildMeta(
     depth: last.depth,
     count: messages.length > 1 ? messages.length : undefined,
     subject: oneLine(last.subject),
-    asker: messages.some((m) => m.released) ? 'closed' : undefined,
+    asker: closedAsker(messages, selfId) ? 'closed' : undefined,
   };
   return sanitizeMeta(raw);
 }
