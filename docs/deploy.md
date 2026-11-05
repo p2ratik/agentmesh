@@ -281,6 +281,16 @@ Each member then:
    ([getting-started.md](getting-started.md#your-mesh-window));
 3. deactivates the other sessions they had activated, and turns off any Desktop inbox poll.
 
+**To 0.6.0 (answers for private sessions).** The hub adds migration 008
+(`sessions.private_at_close`, `sessions.claude_session_id`, `orphan_decisions`) and the
+`relay.closedAskerEscalationMinutes` option (default 15). It still accepts plugins from 0.3.0 on;
+a 0.5.0 window gets no relay pointers and no closed-asker marks, so it works as before. Upgrade
+the hub first (with [automatic deploys](adr/0010-automatic-deploys.md), merging the release to
+`main` does it). Each member then updates the plugin and restarts their mesh window and open
+sessions, so the window runs the 0.6.0 guard and the sessions write their local records. The relay
+runs on Windows only; elsewhere a private session learns of an answer from the AgentMesh line on
+its next prompt.
+
 ## Checking and changing a setup deploy
 
 - **`agentmesh doctor --dir <workspace>`** prints a ✓ or ✗ line per check, with what to do for

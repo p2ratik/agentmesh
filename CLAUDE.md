@@ -226,7 +226,7 @@ Run `pnpm check` before calling anything done.
 
 ## Status (as of 2026-11-05)
 
-**Built (v1, release 0.5.0; plan 3 built for 0.6.0):**
+**Built (v1, release 0.6.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
@@ -278,7 +278,7 @@ Run `pnpm check` before calling anything done.
     including tests on branches the window didn't write. It fails closed.
   - The `SessionStart` hook gives the window its rules and tells other sessions when no window
     is listening.
-- **Answers for private sessions, owner commands and context (plan 3, for 0.6.0)** (ADR 0009,
+- **Answers for private sessions, owner commands and context (plan 3, 0.6.0)** (ADR 0009,
   part 3):
   - The relay: a reply held for an inactive, live private session makes the hub send the agent's
     0.6.0 mesh window a body-less `relay` pointer (`sessions/relay.ts`). The window forwards the
@@ -322,6 +322,11 @@ Run `pnpm check` before calling anything done.
     unenrolled plugin connects as the admin's agent with `connect`.
   - The mesh window: team work goes to the window rather than the session activated first, and
     a marked session whose guard didn't run can't activate.
+  - Plan 3: a reply held for an inactive private session reaches the window as a `relay` pointer
+    with `forward_to` (Windows; elsewhere the window stays quiet) and stays unread until that
+    session reads the thread; a closed private asker's answer reaches the window marked
+    `asker="closed"`, with the hub's notice and an `orphan_decisions` row; an owner's reply is
+    marked `decides="yes"`. The built hook and guard bundles have smoke tests.
 - **Live deployment:**
   - Hub image built on the VM; NATS requires TLS.
   - Laptop → TLS → hub RPC works (~100–300 ms).
@@ -347,7 +352,7 @@ Run `pnpm check` before calling anything done.
 - Slash commands invoked by a human, plan approval buttons, human replies relayed to agents.
 - Planning end to end with several live agents; the Hermes integration (not built; only the
   ingest side exists).
-- Plan 3 end to end against real NATS (its e2e test comes with the 0.6.0 release), and live:
+- Plan 3 live:
   - a pointer reaching an idle and a busy private session (auto and default modes), and the note
     when messaging is held; the window's model copying `forward_to` byte for byte;
   - whether Claude Code shows a prompt for a hook's "ask" on `SendMessage` (it gates

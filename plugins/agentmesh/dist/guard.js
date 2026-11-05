@@ -4,7 +4,7 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 import { homedir } from "node:os";
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.5.0";
+var VERSION = "0.6.0";
 
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";

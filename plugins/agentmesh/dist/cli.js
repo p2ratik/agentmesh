@@ -25695,7 +25695,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.5.0";
+var VERSION = "0.6.0";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
