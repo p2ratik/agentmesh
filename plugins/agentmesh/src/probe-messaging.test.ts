@@ -23,6 +23,14 @@ describe('maskSocket', () => {
     );
   });
 
+  it('does not treat a sibling folder as the home prefix', () => {
+    expect(maskSocket('/home/sagarx/run/a.sock', '/home/sagar')).toBe('/home/sagarx/run/a.sock');
+  });
+
+  it('masks an exact home match', () => {
+    expect(maskSocket('/home/sagar', '/home/sagar')).toBe('~');
+  });
+
   it('leaves a run of 7 hex digits alone', () => {
     expect(maskSocket('/home/sagar/x/abcdef0.sock', '/home/sagar')).toBe('~/x/abcdef0.sock');
   });

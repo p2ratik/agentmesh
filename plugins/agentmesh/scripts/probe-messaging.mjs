@@ -3,14 +3,24 @@
 // the server's parent the `claude` process? Run once: node <plugin dir>/scripts/probe-messaging.mjs
 // It starts one `claude -p` that loads no settings or plugins, so nothing reaches the mesh.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export function maskSocket(socket, home) {
-  const rel = home && socket.startsWith(home) ? `~${socket.slice(home.length)}` : socket;
+  const next = socket[home.length];
+  const inHome =
+    home && socket.startsWith(home) && (next === undefined || next === '/' || next === '\\');
+  const rel = inHome ? `~${socket.slice(home.length)}` : socket;
   return rel.replace(/[0-9a-fA-F]{8,}/g, (run) => `<${run.length} hex>`);
 }
 
@@ -54,6 +64,13 @@ function stub(logFile) {
 
 function main() {
   const dir = mkdtempSync(join(tmpdir(), 'agentmesh-probe-'));
+  const clean = () => rmSync(dir, { recursive: true, force: true });
+  const onSignal = (sig) => {
+    clean();
+    process.exit(sig === 'SIGINT' ? 130 : 143);
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
   try {
     const log = join(dir, 'probe.log');
     const config = join(dir, 'mcp.json');
@@ -77,7 +94,10 @@ function main() {
       { cwd: dir, timeout: 120_000, encoding: 'utf8' },
     );
     if (!existsSync(log)) {
+      const line = (run.stderr ?? '').split('\n').find((l) => l.trim());
       console.log(`The probe server never started (claude exit ${run.status ?? 'none'}).`);
+      if (run.error?.code) console.log(`error: ${run.error.code}`);
+      if (line) console.log(`stderr: ${maskSocket(line.trim(), homedir())}`);
       return;
     }
     const { socket, ppid, parentName } = JSON.parse(readFileSync(log, 'utf8'));
@@ -87,13 +107,24 @@ function main() {
     );
     console.log(parentVerdict(ppid, run.pid, parentName));
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    clean();
+    process.off('SIGINT', onSignal);
+    process.off('SIGTERM', onSignal);
   }
 }
 
-const i = process.argv.indexOf('--stub');
-if (i > 0 && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  stub(process.argv[i + 1]);
-} else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+function realOrRaw(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+const direct =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realOrRaw(process.argv[1])).href;
+if (direct) {
+  const i = process.argv.indexOf('--stub');
+  if (i > 0) stub(process.argv[i + 1]);
+  else main();
 }
