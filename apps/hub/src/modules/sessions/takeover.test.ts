@@ -83,11 +83,20 @@ describe('adoptAwayWindows', () => {
     expect(h.liveness(w1.id)).toBe('away');
   });
 
-  it('records no orphan decision for the adopted threads', () => {
+  it('closes the window as not private, so no answer is treated as a closed asker s', () => {
     const h = setup();
-    h.awayWindow();
+    const w1 = h.awayWindow();
     h.adopt(h.open('alice-agent', true));
+    expect(h.repo.get(w1.id)?.private_at_close).toBe(0);
     expect(h.orphanRows()).toEqual([]);
+  });
+
+  it('never closes the activating window itself, even when it is away', () => {
+    const h = setup();
+    const w = h.awayWindow();
+    expect(h.adopt(w.id)).toEqual({ closed: [], reclaimed: [] });
+    expect(h.liveness(w.id)).toBe('away');
+    expect(h.sessions.ownerOf(w.t1, 'alice-agent')).toBe(w.id);
   });
 });
 

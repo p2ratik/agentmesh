@@ -31,6 +31,7 @@ export function adoptAwayWindows(repo: SessionsRepo, window: SessionRow, at: str
   return result;
 }
 
+/** The only logging; adoptAwayWindows stays DB only. */
 export function logAdopted(log: Logger, agent: string, session: string, a: Adopted): void {
   if (a.closed.length === 0) return;
   const info = { agent, session, replaced: a.closed, reclaimed: a.reclaimed.map(threadKey) };
