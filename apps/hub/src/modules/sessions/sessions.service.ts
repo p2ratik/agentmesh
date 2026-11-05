@@ -26,6 +26,7 @@ import { type RelayTarget, relayFor } from './relay';
 import { releasedMarker, routeInput } from './route-input';
 import { chainOwner, type Route, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
+import { type Adopted, adoptAwayWindows, logAdopted } from './takeover';
 
 export interface SessionsDeps {
   messaging: MessagingService;
@@ -78,6 +79,7 @@ export class SessionsServiceImpl implements SessionsService {
     description: string,
     delivery: DeliveryMode = 'push',
   ): SessionRecord {
+    let adopted: Adopted = { closed: [], reclaimed: [] };
     const record = this.#change(
       agentId,
       sessionId,
@@ -86,8 +88,10 @@ export class SessionsServiceImpl implements SessionsService {
         if (row.active === 0) this.repo.setActive(sessionId, true, at);
         this.repo.setDelivery(sessionId, delivery);
         this.repo.setDescription(sessionId, redactSecrets(description));
+        adopted = adoptAwayWindows(this.repo, row, at);
       },
     );
+    logAdopted(this.#ctx.logger, agentId, sessionId, adopted);
     this.#ctx.outbox.kick();
     return record;
   }
