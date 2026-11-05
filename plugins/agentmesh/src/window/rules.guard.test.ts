@@ -1,6 +1,6 @@
 // Every form the window's rules name, filled in and run through the guard's decide() with the
 // production readers on a real checkout, so the rules can't promise what the guard asks for.
-import { readFileSync, rmSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -220,9 +220,15 @@ describe('the window rules, through the guard', () => {
   });
 
   it('the skill names only cd forms the rules name (and so the rows above check)', () => {
-    const file = join(import.meta.dirname, '../../skills/mesh-collaboration/SKILL.md');
-    const skill = readFileSync(file, 'utf8').replace(/\s*\n\s*/g, ' ');
-    const forms = [...skill.matchAll(/`(cd "<[a-z]+>" && [^`]+)`/g)].map((m) => m[1]);
+    const dir = join(import.meta.dirname, '../../skills/mesh-collaboration');
+    const read = (name: string) => readFileSync(join(dir, name), 'utf8').replace(/\s*\n\s*/g, ' ');
+    const skill = read('SKILL.md');
+    // SKILL.md and its reference files
+    const all = readdirSync(dir)
+      .filter((f) => f.endsWith('.md'))
+      .map(read)
+      .join(' ');
+    const forms = [...all.matchAll(/`(cd "<[a-z]+>" && [^`]+)`/g)].map((m) => m[1]);
     expect(forms.length).toBeGreaterThanOrEqual(5);
     const rules = windowRules(policy);
     expect(forms.map((f) => [f, rules.includes(f ?? '')])).toEqual(forms.map((f) => [f, true]));

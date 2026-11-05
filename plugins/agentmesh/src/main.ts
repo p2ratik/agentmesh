@@ -140,6 +140,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
     notices: session.notices,
     listening: session.listening.promise,
     window: session.window,
+    teamPolicy: () => session.hello?.policy.instructions ?? null,
   };
 }
 

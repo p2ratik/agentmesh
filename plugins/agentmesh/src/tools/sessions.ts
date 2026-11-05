@@ -68,7 +68,7 @@ export const sessionTools = [
       pull: z.boolean().optional(),
     }),
     mutating: false,
-    run: async (args, { hub, activation, listening, window, agentId }) => {
+    run: async (args, { hub, activation, listening, window, agentId, teamPolicy }) => {
       // Before any hub call: a marker that does not verify must not take team work.
       if (window.state === 'marked') {
         throw new ToolRefusal(
@@ -108,9 +108,11 @@ export const sessionTools = [
       // From the stamp this call checked: relays gate on it for the life of the process.
       if (stamp) activation.guardVersion = stamp.version;
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
-      return isWindow
-        ? `${active} It is your mesh window.\n\n${windowRules(window.policy)}`
-        : `${active} ${notWindow(window)}`;
+      if (!isWindow) return `${active} ${notWindow(window)}`;
+      // The instructions clip a long policy at 4096 characters; the window gets it whole here.
+      const policy = teamPolicy();
+      const full = policy ? `\n\nTeam policy (in full):\n${policy}` : '';
+      return `${active} It is your mesh window.\n\n${windowRules(window.policy)}${full}`;
     },
   }),
   defineTool({

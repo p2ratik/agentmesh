@@ -19,6 +19,8 @@ export interface ToolDeps {
   listening: Promise<void>;
   /** Whether this session is the user's mesh window (spec §3). */
   window: MeshWindowContext;
+  /** The team policy in full, from the latest hello (the instructions clip it); null without one. */
+  teamPolicy(): string | null;
 }
 
 /** A refusal shown to Claude verbatim as an error (no code prefix). */

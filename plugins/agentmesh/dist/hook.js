@@ -384,6 +384,7 @@ function windowRules(policy) {
   const freely = policy ? " without asking" : "";
   return [
     `AgentMesh: this session is ${who} mesh window. It takes the team's work: tasks, reviews and teammates' questions.`,
+    "- Load the agentmesh:mesh-collaboration skill for how this team works; it has a section for the mesh window.",
     ...policy ? [] : [NO_POLICY],
     "- One task at a time, in order. Answer teammates' questions between steps.",
     "- Run commands with the Bash tool; PowerShell commands always ask your human here.",

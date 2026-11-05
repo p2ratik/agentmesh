@@ -31,6 +31,7 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
     notices: [],
     listening: Promise.resolve(),
     window: NO_WINDOW,
+    teamPolicy: () => null,
   };
   return { deps, calls };
 }

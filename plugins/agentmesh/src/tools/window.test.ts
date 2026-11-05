@@ -75,10 +75,13 @@ describe('activate and the mesh window', () => {
   async function ordinary(): Promise<[string, string]> {
     const window = meshWindowContext({}, dataDir, process.platform, '.', 'alice-agent');
     const { deps } = fakeHub(answers('web client'));
+    // the policy goes only to the mesh window: these results must not carry it
     deps.window = window;
+    deps.teamPolicy = () => 'Be kind.';
     const result = await callTool('activate', { code: 'c-1', description: 'web client' }, deps);
     const pull = fakeHub({ 'session.activate': { ...view('web client'), delivery: 'pull' } });
     pull.deps.window = window;
+    pull.deps.teamPolicy = () => 'Be kind.';
     const pulled = await callTool('activate', { pull: true, description: 'web client' }, pull.deps);
     return [text(result), text(pulled)];
   }
@@ -144,6 +147,17 @@ describe('activate and the mesh window', () => {
     const result = await callTool('activate', { code: 'c-1', description: 'mesh window' }, deps);
     expect(text(result)).toBe(
       `This session is active on the mesh as “mesh window”. It is your mesh window.\n\n${windowRules(policy)}`,
+    );
+  });
+
+  // The instructions clip a long policy at Claude Code's 4096 characters; the window gets it whole.
+  it("the mesh window's activate result ends with the full team policy", async () => {
+    const { deps } = fakeHub(answers('mesh window'));
+    verified(deps);
+    deps.teamPolicy = () => 'Be kind.';
+    const result = await callTool('activate', { code: 'c-1', description: 'mesh window' }, deps);
+    expect(text(result)).toBe(
+      `This session is active on the mesh as “mesh window”. It is your mesh window.\n\n${windowRules(policy)}\n\nTeam policy (in full):\nBe kind.`,
     );
   });
 });

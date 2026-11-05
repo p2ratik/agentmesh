@@ -31,5 +31,9 @@ You ask a few questions and run one CLI step; the CLI writes the files.
    itself; if it does not, they type `/agentmesh:activate mesh window`.
 6. Tell them to deactivate any other session they had activated, and to turn off any inbox poll
    (Claude Desktop).
+7. Tell them how answers reach their private sessions: the window passes each one a pointer through
+   Claude Code's cross-session messaging, which needs Claude Code 2.1.234 or later on native
+   Windows and `crossSessionInbound` unset or `accept`; a private session in bypass mode holds
+   the pointer. Without it, an AgentMesh line on that session's next prompt says a reply waits.
 
 Never run the launcher yourself (nor `claude-mesh`), never edit the files it wrote, and never add permission rules.
