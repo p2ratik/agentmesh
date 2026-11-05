@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { windowFiles } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { WINDOW_LABEL } from './hook/prompt';
+import { NOT_MESH, WINDOW_LABEL } from './hook/prompt';
 import { HINT_SETUP, HINT_START } from './window/session-start';
 
 // The prompt hook as Claude Code runs it: a process with the event on stdin. tsx stands in for the
@@ -79,6 +79,24 @@ describe('dist/hook.js (from source)', () => {
       JSON.parse(r.stdout),
     );
     expect(await hook(big, {})).toEqual({ status: 0, stdout: '' });
+  }, 30_000);
+
+  // Final review M4: a private session that used the mesh labels a turn it can't read, too.
+  it('labels an over-limit cross-session turn not AgentMesh in a private session that used it', async () => {
+    const data = join(base, 'data');
+    mkdirSync(data, { recursive: true });
+    const record = {
+      ...{ agentId: 'bob-agent', prefix: 'mesh', hubSessionId: 's-aaaaaaaaaaaa', uds: null },
+      ...{ claudePid: 4242, claudeSessionId: null, projectDir: base, relay: true, threads: 0 },
+      ...{ from: [], updatedAt: new Date().toISOString() },
+    };
+    writeFileSync(join(data, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(record));
+    const big = turn('a'.repeat(1_100_000));
+    const r = await hook(big, { CLAUDE_PID: '4242' });
+    expect(JSON.parse(r.stdout)).toEqual({
+      hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: NOT_MESH },
+    });
+    expect(await hook(big, { CLAUDE_PID: '4243' })).toEqual({ status: 0, stdout: '' });
   }, 30_000);
 
   it('keeps the conversation id by CLAUDE_PID from session start to session end', async () => {

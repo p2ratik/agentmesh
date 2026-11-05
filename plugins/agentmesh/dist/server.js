@@ -48286,7 +48286,7 @@ Otherwise, to join, your human needs the invite code their mesh admin sent by Di
 2. Call join. It shows which hub the invite points at; ask your human to confirm that hub, then call join again with confirm_hub.
 After that the mesh tools appear in this session. A human who prefers a terminal can instead run \`node <plugin dir>/dist/server.js join\` and restart Claude Code.`;
 var OPT_IN = "This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session.";
-var FROM_WINDOW = (agentId) => `A message from your mesh window (mesh-${agentId}) is either a reply pointer (read the thread, never answer it) or one question your human approved (answer it once, take no action).`;
+var FROM_WINDOW = (agentId) => `A message from your mesh window (mesh-${agentId}) is only ever a reply pointer: read the thread it names, and never answer it.`;
 var WINDOW_OPT_IN = "This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only.";
 var MAX_INSTRUCTIONS = 4096;
 var PROTOCOL = `How the mesh works (load the agentmesh:mesh-collaboration skill when mesh work arrives or before you message a teammate; it has the details):
@@ -49464,10 +49464,12 @@ async function activateSession(hub, activation, params, stamp) {
   if (stamp) activation.guardVersion = stamp.version;
   return true;
 }
-function renewalRefused(window, activation, stamp) {
+function renewalRefused(window, activation, stamp, others) {
   if (window.state === "marked") return "the mesh window marker does not verify";
-  if (window.state === "verified" && activation.guardVersion === null && !stamp) {
-    return "no proof that the worktree guard runs";
+  if (window.state !== "verified") return null;
+  if (activation.guardVersion === null && !stamp) return "no proof that the worktree guard runs";
+  if (others.some((s) => s.meshWindow && s.liveness === "live")) {
+    return "another mesh window of this agent is live";
   }
   return null;
 }
@@ -49478,7 +49480,8 @@ async function answerCheck(code, deps) {
   const session = hub.sessionId;
   const { window } = deps;
   const stamp = window.state === "verified" ? freshGuardStamp(window.dataDir, Date.now()) : null;
-  const refused = renewalRefused(window, activation, stamp);
+  const others = deps.agentSessions().filter((s) => s.id !== session);
+  const refused = renewalRefused(window, activation, stamp, others);
   if (refused) {
     logger.warn({ session, reason: refused }, "could not re-activate the new hub session");
     return deps.push(checkEvent(code, previous));
@@ -52223,7 +52226,32 @@ function writeForward(dir, hex3, fields, expiresAt) {
   writeFileSync3(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
   renameSync3(staged, file2);
 }
+function candidate(dir, name, hex3, now) {
+  try {
+    const v = JSON.parse(readFileSync10(join11(dir, name), "utf8"));
+    const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
+    const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
+    v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex3, fields.messageId) === name;
+    return ok ? [{ name, fields }] : [];
+  } catch {
+    return [];
+  }
+}
+function readForwards(dir, hex3, now) {
+  if (!HEX.test(hex3)) return [];
+  let names;
+  try {
+    names = readdirSync3(dir);
+  } catch {
+    return [];
+  }
+  return names.filter((n) => n.startsWith(`fwd-${hex3}-`) && n.endsWith(".json")).flatMap((n) => candidate(dir, n, hex3, now));
+}
 var CLAIMED = ".claimed";
+function forwardedBefore(dir, hex3, name, now) {
+  if (existsSync4(join11(dir, `${name}${CLAIMED}`))) return true;
+  return readForwards(dir, hex3, now).some((c) => c.name === name);
+}
 function pruneClaimed(dir, now) {
   let names;
   try {
@@ -52266,6 +52294,9 @@ async function forwardRelay(relay, deps) {
   const text3 = pointerText(fields);
   const name = forwardFile(hex3, relay.messageId);
   if (!text3 || !name) return no("the pointer fields are invalid");
+  if (forwardedBefore(window.dataDir, hex3, name, now)) {
+    return { forwarded: true, reason: "already forwarded" };
+  }
   try {
     writeForward(window.dataDir, hex3, fields, now + FORWARD_TTL_MS);
   } catch {
@@ -52417,7 +52448,8 @@ function startSession(server, session, logger, pushDelayMs) {
         window: session.window,
         logger,
         push: (event2) => pushEvent(server, event2),
-        refresh: () => session.pull.refresh()
+        refresh: () => session.pull.refresh(),
+        agentSessions: () => session.hello?.self.sessions ?? []
       }),
       onExpired: rehello,
       onListening: () => {

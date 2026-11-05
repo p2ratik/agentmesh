@@ -4,7 +4,13 @@ import type { RelayAnswer, SessionRelay } from '@agentmesh/protocol';
 import type { ChannelEvent } from '../inbox/render';
 import type { MeshWindowContext } from '../window/context';
 import { relayPlatform, udsHex } from './address';
-import { FORWARD_TTL_MS, forwardFile, removeForward, writeForward } from './forward-record';
+import {
+  FORWARD_TTL_MS,
+  forwardedBefore,
+  forwardFile,
+  removeForward,
+  writeForward,
+} from './forward-record';
 import { readLocalSession } from './local-session';
 import { pointerText } from './pointer';
 
@@ -55,6 +61,10 @@ export async function forwardRelay(
   const text = pointerText(fields);
   const name = forwardFile(hex, relay.messageId);
   if (!text || !name) return no('the pointer fields are invalid');
+  // A resend (a hub restart, a slow ack) pushes nothing new; the ack stops the hub sending it.
+  if (forwardedBefore(window.dataDir, hex, name, now)) {
+    return { forwarded: true, reason: 'already forwarded' };
+  }
   try {
     writeForward(window.dataDir, hex, fields, now + FORWARD_TTL_MS);
   } catch {

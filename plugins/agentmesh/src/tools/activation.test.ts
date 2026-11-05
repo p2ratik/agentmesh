@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import type { Logger } from '@agentmesh/common';
 import { MeshError } from '@agentmesh/common';
 import { VERSION } from '@agentmesh/common/version';
+import { SessionSummary } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelEvent } from '../inbox/render';
 import { writeGuardStamp } from '../window/guard-stamp';
-import { answerCheck, checkEvent } from './activation';
+import { answerCheck, type CheckDeps, checkEvent } from './activation';
 import { fakeHub } from './fake-hub';
 import { callTool } from './registry';
 
@@ -51,13 +52,14 @@ describe('answerCheck', () => {
     const pushed: ChannelEvent[] = [];
     const logger = { info: vi.fn(), warn: vi.fn() };
     const refresh = vi.fn(async () => undefined);
-    const answer = {
+    const answer: CheckDeps = {
       hub: Object.assign(deps.hub, { sessionId: 's-bbbbbbbbbbbb' }),
       activation: deps.activation,
       window: deps.window,
       logger: logger as unknown as Logger,
       push: async (event: ChannelEvent) => void pushed.push(event),
       refresh,
+      agentSessions: () => [],
     };
     return { deps, answer, calls, pushed, logger, refresh };
   }
@@ -138,6 +140,30 @@ describe('answerCheck', () => {
       { content: RENEWED_CHECK, meta: SYSTEM },
     ]);
     expect(logger.warn).toHaveBeenCalledTimes(2);
+  });
+
+  // Final review M2: a window the takeover replaced doesn't come back on its own beside the new one.
+  it('a mesh window falls back to the check while another live mesh window is active', async () => {
+    const { deps, answer, calls, pushed, logger } = setup({ 'session.activate': view });
+    deps.activation.guardVersion = VERSION;
+    answer.window = { ...answer.window, state: 'verified', setUp: true, dataDir };
+    const w2 = SessionSummary.parse({
+      ...{ id: 's-wwwwwwwwwwww', description: 'mesh window', repo: null, branch: null },
+      ...{ activeSince: '2026-11-05T09:00:00Z', meshWindow: true, tasks: [] },
+    });
+    answer.agentSessions = () => [w2];
+    await answerCheck('K7Q2ZP', answer);
+    expect(calls).toEqual([]);
+    expect(pushed).toEqual([{ content: RENEWED_CHECK, meta: SYSTEM }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      { session: 's-bbbbbbbbbbbb', reason: 'another mesh window of this agent is live' },
+      'could not re-activate the new hub session',
+    );
+    // An away window, an ordinary session, or this session itself doesn't hold it back.
+    const others = [{ liveness: 'away' as const }, { meshWindow: false }, { id: view.id }];
+    answer.agentSessions = () => others.map((o) => ({ ...w2, ...o }));
+    await answerCheck('K7Q2ZP', answer);
+    expect(calls.map((c) => c.method)).toEqual(['session.activate']);
   });
 
   // After a fallback, the human's /agentmesh:activate stamps the guard; the check it asks for is

@@ -129,6 +129,26 @@ describe('the mesh window forwarding a relay', () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain(HEX);
   });
 
+  // Final review M1: a hub restart or a slow ack resends the relay; the window pushes it once.
+  it('pushes a pointer once: a fresh or claimed record answers already forwarded', async () => {
+    const again = { forwarded: true, reason: 'already forwarded' };
+    expect(await forwardRelay(RELAY, deps())).toEqual({ forwarded: true, reason: 'forwarded' });
+    expect(await forwardRelay(RELAY, deps())).toEqual(again);
+    writeFileSync(join(dataDir, `fwd-${HEX}-${ID}.json.claimed`), '');
+    rmSync(join(dataDir, `fwd-${HEX}-${ID}.json`));
+    expect(await forwardRelay(RELAY, deps())).toEqual(again);
+    expect(pushed).toHaveLength(1);
+    expect(forwards()).toEqual([`fwd-${HEX}-${ID}.json.claimed`]);
+  });
+
+  it('pushes again once the unclaimed record has expired', async () => {
+    await forwardRelay(RELAY, deps());
+    const later = now + 600_001;
+    writeRecord({}, later);
+    expect(await forwardRelay(RELAY, deps({ now: later }))).toMatchObject({ forwarded: true });
+    expect(pushed).toHaveLength(2);
+  });
+
   it('answers, and pushes nothing, when the guard record cannot be written', async () => {
     // Renaming the staged file onto a folder fails on Windows and POSIX alike.
     mkdirSync(join(dataDir, `fwd-${HEX}-${ID}.json`));

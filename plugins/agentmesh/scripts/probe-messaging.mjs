@@ -24,6 +24,11 @@ export function maskSocket(socket, home) {
   return rel.replace(/[0-9a-fA-F]{8,}/g, (run) => `<${run.length} hex>`);
 }
 
+/** A stderr line: the home folder becomes ~ wherever it appears, then hex runs are masked. */
+export function maskLine(line, home) {
+  return maskSocket(home ? line.split(home).join('~') : line, home);
+}
+
 export function parentVerdict(ppid, claudePid, parentName) {
   return `MCP server parent: ${parentName ?? 'unknown'} (pid ${ppid === claudePid ? 'matches' : 'does not match'} the claude process this probe started)`;
 }
@@ -97,7 +102,7 @@ function main() {
       const line = (run.stderr ?? '').split('\n').find((l) => l.trim());
       console.log(`The probe server never started (claude exit ${run.status ?? 'none'}).`);
       if (run.error?.code) console.log(`error: ${run.error.code}`);
-      if (line) console.log(`stderr: ${maskSocket(line.trim(), homedir())}`);
+      if (line) console.log(`stderr: ${maskLine(line.trim(), homedir())}`);
       return;
     }
     const { socket, ppid, parentName } = JSON.parse(readFileSync(log, 'utf8'));

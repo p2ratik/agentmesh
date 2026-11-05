@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskSocket, parentVerdict } from '../scripts/probe-messaging.mjs';
+import { maskLine, maskSocket, parentVerdict } from '../scripts/probe-messaging.mjs';
 
 describe('maskSocket', () => {
   it('swaps the home prefix for ~ and masks the random part', () => {
@@ -30,6 +30,16 @@ describe('maskSocket', () => {
 
   it('leaves a run of 7 hex digits alone', () => {
     expect(maskSocket('/home/bob/x/abcdef0.sock', '/home/bob')).toBe('~/x/abcdef0.sock');
+  });
+});
+
+// Task 12 (parked): a stderr line can name the home folder mid-line, not only at its start.
+describe('maskLine', () => {
+  it('masks the home folder anywhere in a stderr line, then the hex runs', () => {
+    const home = 'C:\\Users\\bob';
+    const line = `Error: ENOENT ${home}\\run\\cc-msg-0123456789abcdef.sock (cwd ${home})`;
+    expect(maskLine(line, home)).toBe('Error: ENOENT ~\\run\\cc-msg-<16 hex>.sock (cwd ~)');
+    expect(maskLine('spawn claude ENOENT', '')).toBe('spawn claude ENOENT');
   });
 });
 

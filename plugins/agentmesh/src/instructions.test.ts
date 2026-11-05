@@ -145,8 +145,9 @@ describe('buildInstructions', () => {
   });
 
   it('tells a private session what a message from its mesh window can be', () => {
+    // Final review: consults are by hand in 0.6.0, so the window only ever sends a pointer.
     const line =
-      'A message from your mesh window (mesh-bob-agent) is either a reply pointer (read the thread, never answer it) or one question your human approved (answer it once, take no action).';
+      'A message from your mesh window (mesh-bob-agent) is only ever a reply pointer: read the thread it names, and never answer it.';
     const long = hello('Escalate crucial decisions to dana. '.repeat(300), 2);
     for (const h of [long, hello('Be kind.', 0), null]) {
       const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { hookAgentId } from './agent-id';
 import { promptContext, unreadInput } from './hook/prompt';
 import { announce, isStateFile, pullStateDirs, readJsonFiles, selectStates } from './pull/state';
-import { ownLocalSession, readLocalSessions } from './relay/local-session';
+import { type LocalSession, ownLocalSession, readLocalSessions } from './relay/local-session';
 import {
   deleteClaudeSession,
   pruneClaudeSessions,
@@ -77,14 +77,26 @@ function sessionStart(source: unknown): {
   });
 }
 
+/** This private session's own fresh record (matched by `CLAUDE_PID`), if it used the mesh. */
+function ownSession(dirs: readonly string[], now: number): LocalSession | null {
+  const sessions = dirs.flatMap((d) => readLocalSessions(d, now));
+  return ownLocalSession(sessions, Number(process.env.CLAUDE_PID), now);
+}
+
+/**
+ * An input cut at MAX_STDIN or the wait, or not JSON: a sender controls a cross-session turn's
+ * length, so the mesh window, and a private session that used the mesh, still get their label.
+ */
+function unreadLine(text: string, dirs: readonly string[]): string | null {
+  const marked = !!process.env.AGENTMESH_MESH_WINDOW;
+  return unreadInput(text, marked, !marked && ownSession(dirs, Date.now()) !== null);
+}
+
 /** UserPromptSubmit: a private session's reply note, or the label of a cross-session turn. */
 function promptLine(prompt: unknown, dirs: readonly string[]): string | null {
-  const env = process.env;
-  const marked = !!env.AGENTMESH_MESH_WINDOW;
+  const marked = !!process.env.AGENTMESH_MESH_WINDOW;
   const now = Date.now();
-  const pid = Number(env.CLAUDE_PID);
-  const sessions = marked ? [] : dirs.flatMap((d) => readLocalSessions(d, now));
-  const own = ownLocalSession(sessions, pid, now);
+  const own = marked ? null : ownSession(dirs, now);
   const beats = own ? dirs.flatMap((d) => readJsonFiles(d, isHeartbeatFile)) : [];
   const addresses = own ? windowAddresses(beats, own.prefix, own.agentId, now) : [];
   return promptContext({ prompt, marked, own, windowAddresses: addresses });
@@ -120,12 +132,10 @@ type Input = {
 async function main(): Promise<void> {
   const text = await readStdin();
   const input = parse(text) as Input | null;
-  // Cut at MAX_STDIN or the wait, or not JSON: a sender controls a cross-session turn's length,
-  // so the mesh window still gets its label.
-  const unread = input === null ? unreadInput(text, !!process.env.AGENTMESH_MESH_WINDOW) : null;
+  const dirs = pullStateDirs(process.env, homedir());
+  const unread = input === null ? unreadLine(text, dirs) : null;
   const event = unread ? 'UserPromptSubmit' : input?.hook_event_name;
   if (typeof event !== 'string' || !EVENTS.has(event)) return;
-  const dirs = pullStateDirs(process.env, homedir());
   const [dir] = dirs;
   if (event !== 'UserPromptSubmit' && dir) recordConversation(event, dir, input);
   if (event === 'SessionEnd') return;

@@ -1,4 +1,5 @@
 import type { Logger } from '@agentmesh/common';
+import type { SessionSummary } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
 import type { ChannelEvent } from '../inbox/render';
 import type { MeshWindowContext } from '../window/context';
@@ -92,16 +93,20 @@ export async function activateSession(
  * Why a renewal can't answer its check itself, or null when it can: the activate tool's window
  * checks. The marker must verify, and the mesh window's guard must be known to run: by the version
  * its last activate in this process recorded (the guard stamps only an activate call, so after a
- * long sleep the stamp is stale; a failed check clears the version), or by a fresh `stamp`.
+ * long sleep the stamp is stale; a failed check clears the version), or by a fresh `stamp`. A
+ * window the takeover replaced leaves it to its human while another live window is active.
  */
 function renewalRefused(
   window: MeshWindowContext,
   activation: ActivationState,
   stamp: { version: string | null } | null,
+  others: readonly SessionSummary[],
 ): string | null {
   if (window.state === 'marked') return 'the mesh window marker does not verify';
-  if (window.state === 'verified' && activation.guardVersion === null && !stamp) {
-    return 'no proof that the worktree guard runs';
+  if (window.state !== 'verified') return null;
+  if (activation.guardVersion === null && !stamp) return 'no proof that the worktree guard runs';
+  if (others.some((s) => s.meshWindow && s.liveness === 'live')) {
+    return 'another mesh window of this agent is live';
   }
   return null;
 }
@@ -115,6 +120,8 @@ export interface CheckDeps {
   push(event: ChannelEvent): Promise<void>;
   /** Refreshes the hooks' local file (the heartbeat of an active session). */
   refresh(): Promise<void>;
+  /** The agent's active sessions, as the latest hello listed them (`hello.self.sessions`). */
+  agentSessions(): readonly SessionSummary[];
 }
 
 /**
@@ -132,7 +139,8 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
   const { window } = deps;
   // As in the activate tool: a fresh stamp records its version.
   const stamp = window.state === 'verified' ? freshGuardStamp(window.dataDir, Date.now()) : null;
-  const refused = renewalRefused(window, activation, stamp);
+  const others = deps.agentSessions().filter((s) => s.id !== session);
+  const refused = renewalRefused(window, activation, stamp, others);
   if (refused) {
     logger.warn({ session, reason: refused }, 'could not re-activate the new hub session');
     return deps.push(checkEvent(code, previous));

@@ -108,6 +108,12 @@ export function claimForward(dir: string, name: string): boolean {
   return true;
 }
 
+/** Whether this pointer was pushed already: its record was claimed, or is still unexpired. */
+export function forwardedBefore(dir: string, hex: string, name: string, now: number): boolean {
+  if (existsSync(join(dir, `${name}${CLAIMED}`))) return true;
+  return readForwards(dir, hex, now).some((c) => c.name === name);
+}
+
 /** Drops the window's claim markers older than the TTL, best effort: no live record needs them. */
 function pruneClaimed(dir: string, now: number): void {
   let names: string[];

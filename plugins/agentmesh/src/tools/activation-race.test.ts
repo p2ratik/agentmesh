@@ -59,6 +59,7 @@ function setup() {
     logger: logger as unknown as Logger,
     push: async (event: ChannelEvent) => void pushed.push(event),
     refresh: vi.fn(async () => undefined),
+    agentSessions: () => [],
   };
   return { state, run, deps, answer, pushed, logger };
 }

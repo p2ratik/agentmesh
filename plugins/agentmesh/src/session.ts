@@ -164,6 +164,7 @@ export function startSession(
           logger,
           push: (event) => pushEvent(server, event),
           refresh: () => session.pull.refresh(),
+          agentSessions: () => session.hello?.self.sessions ?? [],
         }),
       onExpired: rehello,
       onListening: () => {

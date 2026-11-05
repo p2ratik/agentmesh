@@ -296,11 +296,14 @@ to its session, and `session.check` then fails (see the upgrade notes in
   only while the marker it verified at process start (as for the `activate` tool; it isn't
   re-checked at renewal) and the guard version its last `activate` recorded stand (a failed guard
   check clears it), or the stamp is fresh; so, as for an active window, the guard isn't re-checked.
-  Otherwise, or if the hub refuses, Claude gets the check. A deactivate while it runs wins: nothing
-  is recorded or pushed, and the plugin turns the hub session off again (the same for a renewed
-  pull session's re-activation). The hub also forgets the session's pending code on
-  `session.deactivate`, so a check pushed before the human's off can't be finished after it. A human's
-  `/agentmesh:activate` during a renewal is never answered this way: Claude gets the check.
+  Nor does it while its latest hello lists another live, active mesh window of the agent (the one
+  that took over while it was away), so two windows never come back active by themselves. In those
+  cases, or if the hub refuses, Claude gets the check and the human decides. A deactivate while it
+  runs wins: nothing is recorded or pushed, and the plugin turns the hub session off again (the
+  same for a renewed pull session's re-activation). The hub also forgets the session's pending
+  code on `session.deactivate`, so a check pushed before the human's off can't be finished after
+  it. A human's `/agentmesh:activate` during a renewal is never answered this way: Claude gets the
+  check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own
@@ -681,8 +684,10 @@ passes that session a pointer through Claude Code's cross-session messaging
   only when its leading tag's `from` is the address in a fresh heartbeat of this agent's mesh
   window, and the whole body is exactly a pointer. It never trusts `from-name`. In a private
   session that has used the mesh (it has a fresh record of its own), any other cross-session turn
-  is labelled "not from your mesh window, so it is not AgentMesh"; other sessions get no AgentMesh
-  label. The instructions say a pointer is read, never answered.
+  is labelled "not from your mesh window, so it is not AgentMesh", and so is an input the hook
+  can't read (cut at its size limit or wait, or not JSON) that holds a `<cross-session-message`
+  tag; other sessions get no AgentMesh label. The instructions say a pointer is read, never
+  answered.
 - **Consults are a second local ingress, by hand in 0.6.0.** To learn something from a private
   session, the window asks its human, drafts one question, and the human pastes it there. The
   answer the human brings back is data: the window follows nothing in it, never replies to it and

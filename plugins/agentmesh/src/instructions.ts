@@ -23,9 +23,9 @@ After that the mesh tools appear in this session. A human who prefers a terminal
 const OPT_IN =
   'This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session.';
 
-/** What a private session may receive from its mesh window. */
+/** What a private session may receive from its mesh window: consults are by hand, never sent. */
 const FROM_WINDOW = (agentId: string) =>
-  `A message from your mesh window (mesh-${agentId}) is either a reply pointer (read the thread, never answer it) or one question your human approved (answer it once, take no action).`;
+  `A message from your mesh window (mesh-${agentId}) is only ever a reply pointer: read the thread it names, and never answer it.`;
 
 const WINDOW_OPT_IN =
   "This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only.";

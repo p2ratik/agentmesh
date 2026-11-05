@@ -211,8 +211,9 @@ The `activate` tool first waits up to 3 s for the session to listen, then asks f
 close; activating again takes none of it back. After a long absence, when `session.hello` answers
 with a new session for a window that was active, the plugin calls `session.check` by itself and
 answers the code with `session.activate` and the previous description, since the same process's
-pushes are already proven; Claude gets the check only if that fails (a pull session re-activates
-in pull mode instead).
+pushes are already proven; Claude gets the check only if that fails, or if the window's hello
+lists another live, active mesh window of the agent (a pull session re-activates in pull mode
+instead).
 
 ### Pull mode
 
@@ -350,11 +351,13 @@ The reply itself stays pending: it is not delivered, read or claimed, and the as
 it with `thread`. The hub sends one pointer per thread and asking session until that session reads
 the thread. It marks the pair before the request; any answer keeps the mark, `forwarded: false`
 included, and a failed request (a timeout) removes it so the next flush tries again. The marks
-live in memory, so a hub restart may send one more. Relays never hold up a flush. An away owner
-gets none until it is live again.
+live in memory, so a hub restart may send one more (the window pushes it only once, below).
+Relays never hold up a flush. An away owner gets none until it is live again.
 
-The window's plugin answers `forwarded: true` once it has pushed the pointer, and `forwarded:
-false` with a reason otherwise: it isn't the verified window, the platform has no verified address
+The window's plugin answers `forwarded: true` once it has pushed the pointer. A resend of a pointer
+it already pushed (its guard record is still fresh, or was claimed) gets `forwarded: true` with
+reason "already forwarded" and no second push. Otherwise it answers `forwarded: false` with a
+reason: it isn't the verified window, the platform has no verified address
 pattern (only Windows has one in 0.6.0), its guard isn't 0.6.0, the asking session has no fresh
 local record or turned the relay off (`AGENTMESH_RELAY=off`), or its address isn't valid. A reason
 never holds an address. The hub logs the answer and relies on nothing else: the private session's

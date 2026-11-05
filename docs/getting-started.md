@@ -281,7 +281,7 @@ by default) and keeps its threads. The next mesh window you start takes them ove
 activates; otherwise they wait for `presence.ownershipGraceMinutes` (120 by default). `peers`
 shows an away session with the time it closes. After a longer sleep, the window gets a new session
 when the laptop wakes and re-activates itself; you run `/agentmesh:activate` there only if it says
-it couldn't.
+it couldn't. It doesn't if another mesh window you started meanwhile is live: it asks you instead.
 
 **What it does without asking, and what asks:**
 - **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live
