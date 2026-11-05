@@ -14,12 +14,12 @@ import {
 const WIN = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'a'.repeat(32)}`;
 const OTHER = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'b'.repeat(32)}`;
 const POINTER = pointerText({
-  from: 'sagar-agent',
+  from: 'alice-agent',
   threadId: 'thr-12',
   messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M',
 }) as string;
 const NOTE =
-  'AgentMesh: 2 unread repl(ies) from sagar-agent in threads this session started; call inbox to read them.';
+  'AgentMesh: 2 unread repl(ies) from alice-agent in threads this session started; call inbox to read them.';
 
 const turn = (from: string, body: string, name = 'mesh-bob-agent') =>
   `<cross-session-message from="${from}" from-name="${name}">\n${body}\n</cross-session-message>`;
@@ -34,7 +34,7 @@ const own: LocalSession = {
   projectDir: '/work/api',
   relay: true,
   threads: 2,
-  from: ['sagar-agent'],
+  from: ['alice-agent'],
   updatedAt: '2026-11-04T10:00:00.000Z',
 };
 const base: PromptInput = { prompt: 'fix the bug', marked: false, own, windowAddresses: [WIN] };

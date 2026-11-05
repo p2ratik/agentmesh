@@ -218,11 +218,14 @@ and teammates do not see it. It can `ask` a teammate, and the answer comes back 
   thread thr-12 and reply there. Do not reply to this message.` It carries no content; the session
   reads the answer with `thread`. The prompt hook marks it a verified pointer only when it comes
   from your mesh window's address and has exactly that form. Cross-session messaging needs Claude
-  Code 2.1.234 or later on native Windows, and `crossSessionInbound` unset or `accept`; a session
-  in bypass mode holds the pointer.
-- **A note, everywhere.** While an answer waits, the session's next prompt gets one line:
+  Code 2.1.234 or later on native Windows (any Claude Code this plugin supports has it), and
+  `crossSessionInbound` unset or `accept`. A session in bypass mode holds the pointer for approval
+  and drops it after 5 minutes; VS Code, Desktop and `-p` sessions can't show that approval.
+- **A note.** While an answer waits, the session's next prompt gets one line:
   `AgentMesh: 1 unread repl(ies) from bob-agent in threads this session started; call inbox to read
-  them.` This is the path on macOS and Linux in 0.6.0
+  them.` It finds the session by its Claude Code process, which is verified on Windows. It is the
+  only path on macOS and Linux in 0.6.0, where it relies on the MCP server being a child of the
+  Claude Code process, which the probe checks
   ([below](#cross-session-messaging-on-linux-and-macos)).
 - Both start once the session has made a mesh call (asking is one). `AGENTMESH_RELAY=off` turns
   the pointers off for a session; the note stays.
@@ -367,11 +370,11 @@ output into the thread. Never run it inside a Claude Code session, because it st
   `claude-mesh` ran, such as a function or alias in a shell profile. Find it with
   `Get-Command claude-mesh -All` (PowerShell) or `type claude-mesh` (bash, zsh). `window init`
   warns about the ones it finds in startup files.
-- **The old mesh window still shows in `peers`**: closing its terminal says goodbye to the hub. A
-  laptop that slept or crashed leaves it away after `presence.offlineAfterSeconds`; `peers` shows
-  `[away: no heartbeat since HH:MM; closes HH:MM unless it returns]`. A new `claude-mesh` window
-  takes over its threads as soon as it activates; otherwise they wait until it closes
-  (`presence.ownershipGraceMinutes`).
+- **The old mesh window still shows in `peers`**: closing its terminal says goodbye to the hub (a
+  live check is pending). A laptop that slept or crashed leaves it away after
+  `presence.offlineAfterSeconds`; `peers` shows `[away: no heartbeat since HH:MM; closes HH:MM
+  unless it returns]`. A new `claude-mesh` window takes over its threads as soon as it activates;
+  otherwise they wait until it closes (`presence.ownershipGraceMinutes`).
 - **A private session never got its answer**: check the AgentMesh line on its next prompt, or ask
   Claude to call `inbox`. The pointer needs Windows, Claude Code 2.1.234 or later,
   `crossSessionInbound` unset or `accept`, a session not in bypass mode, a running mesh window and

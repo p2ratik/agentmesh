@@ -4,10 +4,7 @@ import { maskSocket, parentVerdict } from '../scripts/probe-messaging.mjs';
 describe('maskSocket', () => {
   it('swaps the home prefix for ~ and masks the random part', () => {
     expect(
-      maskSocket(
-        '/home/sagar/.claude/run/cc-msg-0123456789abcdef0123456789abcdef.sock',
-        '/home/sagar',
-      ),
+      maskSocket('/home/bob/.claude/run/cc-msg-0123456789abcdef0123456789abcdef.sock', '/home/bob'),
     ).toBe('~/.claude/run/cc-msg-<32 hex>.sock');
   });
 
@@ -18,21 +15,21 @@ describe('maskSocket', () => {
   });
 
   it('keeps the path absolute when the home prefix does not match', () => {
-    expect(maskSocket('/tmp/other/cc-msg-0123456789abcdef.sock', '/home/sagar')).toBe(
+    expect(maskSocket('/tmp/other/cc-msg-0123456789abcdef.sock', '/home/bob')).toBe(
       '/tmp/other/cc-msg-<16 hex>.sock',
     );
   });
 
   it('does not treat a sibling folder as the home prefix', () => {
-    expect(maskSocket('/home/sagarx/run/a.sock', '/home/sagar')).toBe('/home/sagarx/run/a.sock');
+    expect(maskSocket('/home/bobx/run/a.sock', '/home/bob')).toBe('/home/bobx/run/a.sock');
   });
 
   it('masks an exact home match', () => {
-    expect(maskSocket('/home/sagar', '/home/sagar')).toBe('~');
+    expect(maskSocket('/home/bob', '/home/bob')).toBe('~');
   });
 
   it('leaves a run of 7 hex digits alone', () => {
-    expect(maskSocket('/home/sagar/x/abcdef0.sock', '/home/sagar')).toBe('~/x/abcdef0.sock');
+    expect(maskSocket('/home/bob/x/abcdef0.sock', '/home/bob')).toBe('~/x/abcdef0.sock');
   });
 });
 

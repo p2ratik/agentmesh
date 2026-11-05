@@ -25,7 +25,7 @@ import {
 
 const HEX = 'a'.repeat(32);
 const ID = 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M';
-const FIELDS = { from: 'sagar-agent', threadId: 'thr-12', messageId: ID };
+const FIELDS = { from: 'alice-agent', threadId: 'thr-12', messageId: ID };
 const NAME = `fwd-${HEX}-${ID}.json`;
 const now = Date.parse('2026-11-04T10:00:00Z');
 
@@ -81,7 +81,7 @@ describe('forward records', () => {
     writeForward(dir, HEX, FIELDS, now + 60_000);
     const edit = (over: object) =>
       writeFileSync(join(dir, NAME), JSON.stringify({ ...FIELDS, expiresAt: now + 1, ...over }));
-    edit({ from: 'Sagar' });
+    edit({ from: 'Alice' });
     expect(readForwards(dir, HEX, now)).toEqual([]);
     // The name and the content must agree on the message.
     edit({ messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9A' });

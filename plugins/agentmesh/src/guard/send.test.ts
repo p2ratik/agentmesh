@@ -10,7 +10,7 @@ import { type ForwardReader, forwardReader, LIST_AGENTS, SEND_DENIED } from './s
 const HEX = 'a'.repeat(32);
 const ADDR = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
 const FIELDS = {
-  from: 'sagar-agent',
+  from: 'alice-agent',
   threadId: 'thr-12',
   messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M',
 };

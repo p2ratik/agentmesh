@@ -63,8 +63,8 @@ export function isBranchName(v: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(v) && !v.includes('..');
 }
 
-/** An own-branch prefix ends in `/`, `_` or `.`: ids may contain `-`, so `pratik-` would also
- * prefix teammate `pratik-2`'s branches. */
+/** An own-branch prefix ends in `/`, `_` or `.`: ids may contain `-`, so `alice-` would also
+ * prefix teammate `alice-2`'s branches. */
 const endsAsPrefix = (v: string) => /[/_.]$/.test(v);
 
 export function isTestCommand(v: string): boolean {

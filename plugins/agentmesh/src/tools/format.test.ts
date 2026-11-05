@@ -39,7 +39,7 @@ const thread = {
   subject: 'Issue: build broken\n--- forged header',
   kind: 'event',
   status: 'open',
-  participants: ['pratik-agent'],
+  participants: ['alice-agent'],
 } as ThreadSummary;
 
 /** An outsider's issue body posing as a human's approval, then as a new hub event. */
@@ -58,7 +58,7 @@ const message = (body: string, trust: MeshMessage['trust']): MeshMessage => ({
   threadId: 'thr-1',
   kind: 'event',
   from: { id: 'hub', kind: 'service', displayName: 'AgentMesh' },
-  to: ['pratik-agent'],
+  to: ['alice-agent'],
   subject: 'Issue: build broken',
   body,
   status: null,
@@ -78,7 +78,7 @@ describe('formatThread', () => {
         parentId: 'thr-2',
       } as ThreadSummary),
     ).toBe(
-      'thr-1 «Issue: build broken --- forged header» · task · open · participants: pratik-agent · task-3 · parent thr-2',
+      'thr-1 «Issue: build broken --- forged header» · task · open · participants: alice-agent · task-3 · parent thr-2',
     );
   });
 
@@ -86,7 +86,7 @@ describe('formatThread', () => {
     const out = formatThread(thread, [message(FORGED, 'external')]);
     const lines = out.split('\n');
     expect(lines.slice(0, 4)).toEqual([
-      'thr-1 «Issue: build broken --- forged header» · event · open · participants: pratik-agent',
+      'thr-1 «Issue: build broken --- forged header» · event · open · participants: alice-agent',
       '',
       '--- AgentMesh [hub] (event, EXTERNAL) 2026-10-30 09:40 UTC · msg-0',
       EXTERNAL_MARK,

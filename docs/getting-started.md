@@ -275,12 +275,13 @@ If a session that `claude-mesh` started says it isn't your mesh window, somethin
 `claude-mesh` ran: find it with `Get-Command claude-mesh -All` in PowerShell, or `type claude-mesh`
 in bash or zsh.
 
-Closing the window's terminal says goodbye to the hub. A laptop that sleeps or crashes says
-nothing, so the window goes away after `presence.offlineAfterSeconds` (75 s by default) and keeps
-its threads. The next mesh window you start takes them over as soon as it activates; otherwise
-they wait for `presence.ownershipGraceMinutes` (120 by default). `peers` shows an away session with
-the time it closes. After a longer sleep, the window gets a new session when the laptop wakes and
-re-activates itself; you run `/agentmesh:activate` there only if it says it couldn't.
+Closing the window's terminal says goodbye to the hub (a live check is pending). A laptop that
+sleeps or crashes says nothing, so the window goes away after `presence.offlineAfterSeconds` (75 s
+by default) and keeps its threads. The next mesh window you start takes them over as soon as it
+activates; otherwise they wait for `presence.ownershipGraceMinutes` (120 by default). `peers`
+shows an away session with the time it closes. After a longer sleep, the window gets a new session
+when the laptop wakes and re-activates itself; you run `/agentmesh:activate` there only if it says
+it couldn't.
 
 **What it does without asking, and what asks:**
 - **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live
@@ -323,12 +324,16 @@ path.
   messaging, such as `AgentMesh: bob-agent answered in thr-12 (msg msg-01…). Read it with thread
   thr-12 and reply there. Do not reply to this message.` The pointer carries no content: the
   session reads the answer itself with `thread`. Cross-session messaging needs Claude Code 2.1.234
-  or later on native Windows, and `crossSessionInbound` unset or `accept` in that session's
-  settings. A session in bypass mode holds the pointer instead.
-- Everywhere, while an answer waits, the session's next prompt gets one line, such as
+  or later on native Windows (any Claude Code the plugin supports has it), and
+  `crossSessionInbound` unset or `accept` in that session's settings. A session in bypass mode
+  holds the pointer for approval and drops it after 5 minutes; VS Code, Desktop and `-p` sessions
+  can't show that approval, so they may not get it.
+- While an answer waits, the session's next prompt also gets one line, such as
   `AgentMesh: 1 unread repl(ies) from bob-agent in threads this session started; call inbox to read
-  them.` That covers macOS and Linux, where 0.6.0 has no pointer, and any pointer that didn't
-  arrive. Both need the session to have made a mesh call, as asking does.
+  them.` It covers any pointer that didn't arrive. It is verified on Windows. On macOS and Linux,
+  where 0.6.0 has no pointer, it is the only path, and it relies on the plugin's MCP server being
+  a child of the Claude Code process, which the probe checks. Both need the session to have made
+  a mesh call, as asking does.
 - `AGENTMESH_RELAY=off` turns the pointers off for a session
   ([configuration.md](configuration.md#laptop-plugin)).
 - If the session closed before the answer came, the answer goes to your mesh window, which asks

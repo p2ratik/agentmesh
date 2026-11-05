@@ -21,40 +21,40 @@ vi.mock('node:fs', async (importOriginal) => {
 const TOKEN = 'a'.repeat(32);
 const policy: WindowPolicy = {
   version: 1,
-  agentId: 'pratik-agent',
+  agentId: 'alice-agent',
   token: TOKEN,
-  ownBranchPrefix: 'agent/pratik/',
+  ownBranchPrefix: 'agent/alice/',
   integrationBranch: 'agents',
   testCommands: ['pnpm check'],
 };
 
 describe('ownBranchPrefix', () => {
   it('renders the own-branch prefix from the branch template', () => {
-    expect(ownBranchPrefix('agent/{owner}/{task}-{slug}', 'pratik', 'pratik-agent')).toBe(
-      'agent/pratik/',
+    expect(ownBranchPrefix('agent/{owner}/{task}-{slug}', 'alice', 'alice-agent')).toBe(
+      'agent/alice/',
     );
-    expect(ownBranchPrefix('agent/{agent}/{task}', 'pratik', 'pratik-agent')).toBe(
-      'agent/pratik-agent/',
+    expect(ownBranchPrefix('agent/{agent}/{task}', 'alice', 'alice-agent')).toBe(
+      'agent/alice-agent/',
     );
-    const p = (tpl: string) => ownBranchPrefix(tpl, 'pratik', 'pratik-agent');
-    // `-` can't end a prefix: ids may contain it, so `pratik-` would also cover `pratik-2`
+    const p = (tpl: string) => ownBranchPrefix(tpl, 'alice', 'alice-agent');
+    // `-` can't end a prefix: ids may contain it, so `alice-` would also cover `alice-2`
     expect(p('agent/{owner}-{slug}')).toBeNull();
     expect(p('{owner}-{task}')).toBeNull();
-    expect(p('{owner}_{task}')).toBe('pratik_');
-    expect(p('agent/{owner}.{task}')).toBe('agent/pratik.');
+    expect(p('{owner}_{task}')).toBe('alice_');
+    expect(p('agent/{owner}.{task}')).toBe('agent/alice.');
     expect(p('agent/{owner}')).toBeNull();
     expect(p('{task}-{slug}')).toBeNull();
     expect(p('feature/{task}')).toBeNull();
     expect(p('agent/{task}')).toBeNull();
     expect(p('x/{team}/{owner}/{task}')).toBeNull();
-    expect(p('agent/{owner}/{team}/{task}')).toBe('agent/pratik/');
+    expect(p('agent/{owner}/{team}/{task}')).toBe('agent/alice/');
   });
 });
 
 describe('parseWindowPolicy', () => {
   it('parses a valid policy and refuses every malformed one', () => {
     expect(parseWindowPolicy(JSON.stringify(policy))).toEqual(policy);
-    for (const ownBranchPrefix of [null, 'pratik_', 'agent/pratik.']) {
+    for (const ownBranchPrefix of [null, 'alice_', 'agent/alice.']) {
       const ok = { ...policy, ownBranchPrefix };
       expect(parseWindowPolicy(JSON.stringify(ok))).toEqual(ok);
     }
@@ -62,8 +62,8 @@ describe('parseWindowPolicy', () => {
       { ...policy, token: 'XYZ' },
       { ...policy, agentId: 'Bob' },
       { ...policy, ownBranchPrefix: '../x' },
-      { ...policy, ownBranchPrefix: 'agent/pratik-' }, // also prefixes teammate pratik-2
-      { ...policy, ownBranchPrefix: 'agent/pratik' },
+      { ...policy, ownBranchPrefix: 'agent/alice-' }, // also prefixes teammate alice-2
+      { ...policy, ownBranchPrefix: 'agent/alice' },
       { ...policy, testCommands: ['pnpm test; rm -rf ~'] },
       { ...policy, testCommands: Array.from({ length: 11 }, () => 'pnpm test') },
       { ...policy, version: 2 },
@@ -97,7 +97,7 @@ describe('readMarker', () => {
     expect(readMarker({ [MESH_WINDOW_ENV]: TOKEN }, home, 'linux', 'other-agent').state).toBe(
       'marked',
     );
-    expect(readMarker({ [MESH_WINDOW_ENV]: TOKEN }, home, 'linux', 'pratik-agent').state).toBe(
+    expect(readMarker({ [MESH_WINDOW_ENV]: TOKEN }, home, 'linux', 'alice-agent').state).toBe(
       'verified',
     );
   });

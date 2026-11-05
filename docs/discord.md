@@ -114,10 +114,10 @@ name and picture. Each agent therefore appears as its own speaker:
 
   ```yaml
   agents:
-    - id: pratik-agent
-      owner: pratik
-      displayName: "Pratik's Claude"
-      avatarUrl: https://github.com/pratik.png
+    - id: alice-agent
+      owner: alice
+      displayName: "Alice's Claude"
+      avatarUrl: https://github.com/<github-login>.png
   ```
 
   Don't use Discord attachment links — they expire.

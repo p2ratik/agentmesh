@@ -16,13 +16,13 @@ team's work. Every other session is **private**. Four gaps remain.
 2. **The asker has gone.** If the private session closes before the answer arrives, the answer
    lands in the mesh window. The window has no context, and nobody tells the teammate or the human
    what happened.
-3. **The human is away.** Pratik wants to steer his agent from Discord, for example "continue it",
-   "drop it" or "do X", by replying in the thread. Only he may command his agent.
+3. **The human is away.** The owner wants to steer their agent from Discord, for example "continue
+   it", "drop it" or "do X", by replying in the thread. Only they may command their agent.
 4. **A new task with no context.** The window gets a task it knows nothing about. It should find
    the context from the right people, safely, before it starts.
 
-The mesh-collaboration skill also predates the mesh window. Pratik wants every Claude in the mesh
-to know exactly what it can do, what it must not do and how to behave, and to use those
+The mesh-collaboration skill also predates the mesh window. The maintainer wants every Claude in
+the mesh to know exactly what it can do, what it must not do and how to behave, and to use those
 capabilities fully.
 
 ## 2. Goals, non-goals and anti-goals
@@ -56,9 +56,9 @@ capabilities fully.
   one consult question the human approved.
 - An older 0.5.0 window breaks: it times out, goes "away", or pushes empty messages.
 
-## 3. What Pratik decided
+## 3. What the maintainer decided
 
-These are his calls, from the 2026-11-03/04 conversation.
+These are the maintainer's calls, from the 2026-11-03/04 conversation.
 
 - **A. Relay.** The window forwards a **pointer**, never the content, through Claude Code's
   cross-session messaging, and only to the session that asked. A guard enforces this. The asking
@@ -136,9 +136,9 @@ stays as it is.
 - **Platforms.** The relay runs only where the messaging address matches a pattern verified on that
   platform. Windows is verified. On macOS and Linux the plugin refuses to resolve an address, acks
   `forwarded: false`, and the note covers it.
-  - The team is on Windows except **Sagar, who is on Linux** (Pratik, 2026-11-04). So plan 3
+  - The team is on Windows except **one teammate, who is on Linux** (2026-11-04). So plan 3
     ships a small probe script, `plugins/agentmesh/scripts/probe-messaging.mjs`.
-    - Sagar runs it once, in a temp folder.
+    - That teammate runs it once, in a temp folder.
     - It starts one non-interactive `claude -p` with a stub MCP server, under `--strict-mcp-config`.
     - It prints the shape of `CLAUDE_CODE_MESSAGING_SOCKET`, with the random part masked, and
       whether the MCP server's parent process is the claude process.
@@ -263,8 +263,8 @@ model's report: the row stays pending and the note stays on until the owner read
   the `orphan_decisions` row, so it is posted exactly once and claims nothing. It reads: "The
   session that asked this has closed; the follow-up waits for <owner>'s decision." This replaces
   relying on the window's model to post exactly one `info` reply, and needs no claims carve-out
-  that would apply to every session. It is still the quiet, clear notice Pratik asked for: a system
-  post is status class, so it doesn't wake the teammate's agent.
+  that would apply to every session. It is still the quiet, clear notice the maintainer asked for:
+  a system post is status class, so it doesn't wake the teammate's agent.
 - **The human's three choices:**
   - **Continue here:** the window `take`s the thread and works on it in a fresh worktree.
   - **Reopen:** the window prints `claude --resume <uuid>`, and the thread returns on hello (below).
@@ -344,12 +344,12 @@ all work inside the original thread.
     expiry;
   - old escalation rows list every participant as a recipient.
 
-  It is removed. **Pratik decided (2026-11-04): every agent listens only to its own owner, and that
-  rule applies to everyone.** There is no deciders list and no exception, so not even Aheen can
-  decide for another person's agent. When someone asks a question and the agent answers that the
-  decision waits for its owner, only the owner's reply in that thread decides. Tests prove that a
-  non-owner's reply, an old escalation row, and a reply from the human the agent escalated to all
-  grant nothing.
+  It is removed. **The maintainer decided (2026-11-04): every agent listens only to its own owner,
+  and that rule applies to everyone.** There is no deciders list and no exception, so not even the
+  person the policy names for crucial decisions can decide for another person's agent. When
+  someone asks a question and the agent answers that the decision waits for its owner, only the
+  owner's reply in that thread decides. Tests prove that a non-owner's reply, an old escalation
+  row, and a reply from the human the agent escalated to all grant nothing.
 
 **The plugin shows the mark.**
 
@@ -371,11 +371,11 @@ ignored.
 - `mesh validate` warns when a service other than the Discord bridge can act as humans, since any
   such service could mint owner-marked commands.
 - `escalate` warns when its target has no Discord mapping, because no ping goes out. Today only
-  Pratik has a `discordUserId` in `mesh.yaml`; invited members get one from `/mesh invite`.
+  one teammate has a `discordUserId` in `mesh.yaml`; invited members get one from `/mesh invite`.
 
-**Authority scope (Pratik decided, 2026-11-04).** An owner-marked message carries the **owner's
-full authority**, as if the owner had typed it into that session, in the mesh window and in a
-private session alike.
+**Authority scope (the maintainer decided, 2026-11-04).** An owner-marked message carries the
+**owner's full authority**, as if the owner had typed it into that session, in the mesh window and
+in a private session alike.
 
 - Commanding the agent and answering its questions both work from Discord: continue, drop, accept,
   approve, merge, "do X". The owner has 2FA on their Discord account. A future ticketing feature
@@ -496,7 +496,7 @@ No live hub is needed (my call).
 - **Other docs:** `protocol.md` (the relay inbound, `decidesFor`, `claudeSessionId`, the meta keys),
   `discord.md` (talking to agents), `configuration.md`, `getting-started.md` and both READMEs.
 - **Release:** 0.6.0. `MIN_CLIENT_VERSION` stays 0.3.0, and relays are gated on the window's
-  version. There is an e2e test against real NATS, plus live checks for Pratik.
+  version. There is an e2e test against real NATS, plus live checks for the maintainer.
 
 ## 5. Security notes for the design
 
@@ -520,7 +520,7 @@ No live hub is needed (my call).
 - **Owner authority comes from the Discord account**, which the hub resolves, and only from the
   owner.
   - No authority follows from an agent's own action, such as who it escalated to.
-  - It carries the owner's full authority (4.3, decided by Pratik). A hijacked account is an
+  - It carries the owner's full authority (4.3, decided by the maintainer). A hijacked account is an
     accepted risk, mitigated by 2FA, `/mesh remove` and future ticketing. A hijacked account still
     can't approve laptop permission prompts.
   - Channels are readable by the whole server, so secrets never go into replies. Advise 2FA.
@@ -542,18 +542,18 @@ No live hub is needed (my call).
   module.
 - **Numbering:** the next migration is **008** (the old spec's "007" is stale). The next free ADR
   number is 0011, but plan 3 is ADR 0009 part 3.
-- **Pre-existing deferred minors**, such as `window init` printing one combined error: Pratik will
-  add them later. They are not in plan 3.
+- **Pre-existing deferred minors**, such as `window init` printing one combined error: the
+  maintainer will add them later. They are not in plan 3.
 
-## 7. Open: Pratik's call, and live checks
+## 7. Open: the maintainer's call, and live checks
 
-**Decided by Pratik (2026-11-04):**
+**Decided by the maintainer (2026-11-04):**
 
 1. **Authority scope.** An owner-marked Discord message has the owner's full authority in every
    session, except laptop permission prompts, which never leave the laptop.
 2. **Deciders.** Only the owner, for every agent, with no exceptions and no deciders list.
 
-**Live checks.** Pratik runs these at the keyboard; subagents may not touch `~/.claude`.
+**Live checks.** The maintainer runs these at the keyboard; subagents may not touch `~/.claude`.
 
 1. Does a hook "ask" on SendMessage show a prompt in an interactive window? Part D's consult path
    depends on it; if not, it falls back to the human relaying the question.
@@ -573,8 +573,9 @@ No live hub is needed (my call).
 2. **Relay wire.** The relay is a new `SessionInbound` type, gated to windows on 0.6.0 or later
    with a 0.6.0 guard. It sends one pointer per thread and session until the owner reads, and only
    for action-class replies.
-3. **Platforms.** The relay starts on Windows, where the address pattern is verified. Sagar (Linux)
-   runs the probe script, and the Linux pattern follows from its output. macOS stays on the note.
+3. **Platforms.** The relay starts on Windows, where the address pattern is verified. A teammate on
+   Linux runs the probe script, and the Linux pattern follows from its output. macOS stays on the
+   note.
 4. **Away owners** aren't relayed to. The relay fires when they come back.
 5. **Consults.** They are by hand in 0.6.0, and every non-pointer SendMessage is denied. A
    human-approved send waits for live check 1.
@@ -588,8 +589,8 @@ No live hub is needed (my call).
 10. **Escalation fix.** The escalation-ping bug is fixed at the root, so escalations stay inside
     the original thread.
 11. **Owner mark.** It is hub-computed and comes only from the owner. No authority follows from
-    the agent's own escalations, which was the security review's Critical finding. Pratik
-    confirmed owner-only, with full authority.
+    the agent's own escalations, which was the security review's Critical finding. The
+    maintainer confirmed owner-only, with full authority.
 12. **Local sessions.** The overlap check reads the plugin's own session records and shows counts,
     not paths.
 13. **Handoff notes.** They live in the task description and are redacted in `#insert`. Only a

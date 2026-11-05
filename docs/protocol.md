@@ -319,10 +319,11 @@ names the first one it skipped: `; skipped inactive <id> (<why>)`, where `<why>`
 `mesh window; skipped inactive s-4 (owns parent thread)`.
 
 Ownership is claimed when a session acts on a thread or task (asks, replies, accepts, submits; an active session's `inbox` read also claims, and an inactive session claims only in its own conversation and escalation threads, see [Reads](#reads)), and
-when a delivery lands by rules 1 (parent or task), 2, 3, 4 or 5. The first owner keeps the work:
-another session's action goes through, with a note saying where replies will go. Ownership moves
-only through `session.take`, or is released when the owner deactivates or closes. `take`, `bye`,
-`deactivate` and an expiry that closes sessions kick the outbox, so freed work moves at once.
+when a delivery lands by rules 1 (parent or task), 2, 3 (except a released thread), 4 or 5. The
+first owner keeps the work: another session's action goes through, with a note saying where replies
+will go. Ownership moves only through `session.take`, or is released when the owner deactivates or
+closes. `take`, `bye`, `deactivate` and an expiry that closes sessions kick the outbox, so freed
+work moves at once.
 
 The `unreadThreads` count in the hello result is per agent, not per session. A new session is
 inactive, so the plugin never pushes it at startup; its instructions only mention the count.
@@ -350,7 +351,9 @@ false` with a reason otherwise: it isn't the verified window, the platform has n
 pattern (only Windows has one in 0.6.0), its guard isn't 0.6.0, the asking session has no fresh
 local record or turned the relay off (`AGENTMESH_RELAY=off`), or its address isn't valid. A reason
 never holds an address. The hub logs the answer and relies on nothing else: the private session's
-prompt hook keeps showing its unread replies until it reads the thread.
+prompt hook keeps showing its unread replies until it reads the thread. The hook finds that
+session by its Claude Code process (the MCP server's parent), which is verified on Windows; on Linux
+and macOS it relies on the MCP server being a child of the Claude Code process.
 
 ### Closed askers
 

@@ -26,12 +26,12 @@ to behave.
 **Tech Stack:** Node 24, pnpm 10, TypeScript 7, zod 4 (not in the hook or guard bundles), vitest 5,
 Biome 2, tsup; nats.js v3; `@modelcontextprotocol/sdk` 1.32.1; Claude Code 2.1.318 on the dev box.
 
-**Spec:** `docs/specs/2026-11-04-mesh-relay-design.md` (binding, approved by Pratik, including §7
-"Decided by Pratik" and §8 "Calls I made"). Evidence: `.superpowers/sdd/plan-3/research.json`
-(file:line facts, the 15 skill scenarios under `skill-audit`), `design-check-builder.md`,
+**Spec:** `docs/specs/2026-11-04-mesh-relay-design.md` (binding, approved by the maintainer,
+including §7 "Decided by the maintainer" and §8 "Calls I made"). Evidence:
+`.superpowers/sdd/plan-3/research.json` (file:line facts, the 15 skill scenarios under `skill-audit`), `design-check-builder.md`,
 `design-check-security.md`. Style reference: `docs/specs/2026-11-02-mesh-window-plan-2.md`.
 
-**Where to work:** the worktree `G:/Projects/AgentMesh-relay`, branch `agent/pratik/mesh-relay`
+**Where to work:** the worktree `G:/Projects/AgentMesh-relay`, branch `agent/<owner>/mesh-relay`
 (rebased on `origin/agents`). Commit after each task; never push. Process: subagent-driven, one
 implementer and one reviewer per task, then a whole-branch review.
 
@@ -138,7 +138,7 @@ Checked against the code in this worktree:
   Log reasons with ids only.
 - **Never run anything in `G:/Projects/AgentMesh`. Never write to the real `~/.agentmesh` or
   `~/.claude`;** tests use temp homes and temp `CLAUDE_PLUGIN_DATA`. Subagents may not run Claude
-  Code against `~/.claude`, so live checks are Pratik's (Task 16).
+  Code against `~/.claude`, so live checks are the maintainer's (Task 16).
 - **Windows dev box.** `python3` is a stub; use node. Edit files with the editor tools, not bash
   heredocs (template literals get mangled).
 - **Integration tests skip silently without NATS.** Start
@@ -266,7 +266,7 @@ Checked against the code in this worktree:
       drained body contains `hunter2-prod`.
   - `format.test.ts`: `it('names the parent thread in the header')`:
     `formatThreadHeader({ ...thread, kind: 'task', taskId: 'task-3', parentId: 'thr-2' })` is
-    `'thr-1 «Issue: build broken --- forged header» · task · open · participants: pratik-agent · task-3 · parent thr-2'`.
+    `'thr-1 «Issue: build broken --- forged header» · task · open · participants: alice-agent · task-3 · parent thr-2'`.
   - `task-get.test.ts`: `it('task_create shows the hub limit for the description')`: the
     `task_create` listing's `inputSchema.properties.description.maxLength` is `16000`.
 - [ ] **Step 2: Run** `pnpm vitest run apps/hub/src/modules/tasks plugins/agentmesh/src/tools`.
@@ -502,7 +502,7 @@ Checked against the code in this worktree:
     - `WINDOWS_UDS = /^uds:\\\\\.\\pipe\\LOCAL\\cc-msg-([0-9a-f]{32})$/`.
     - `udsHex(address: unknown, platform: NodeJS.Platform): string | null`: the 32 hex on `win32`
       when the whole address matches; null on every other platform, with
-      `// ponytail: no POSIX pattern until Sagar's probe (Task 12b); POSIX sessions use the note.`
+      `// ponytail: no POSIX pattern until the Linux probe (Task 12b); POSIX sessions use the note.`
     - `ownAddress(socket: string | undefined): string | null`: `` `uds:${socket}` `` when set, one
       line and ≤300 characters, else null.
   - `relay/local-session.ts`:
@@ -554,10 +554,10 @@ Checked against the code in this worktree:
 - [ ] **Step 1: Write the failing tests.**
   - `pointer.test.ts`:
     - `it('builds the exact pointer, plain ASCII with no apostrophe')`:
-      `pointerText({ from: 'sagar-agent', threadId: 'thr-12', messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M' })`
-      is `'AgentMesh: sagar-agent answered in thr-12 (msg msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M). Read it with thread thr-12 and reply there. Do not reply to this message.'`,
+      `pointerText({ from: 'alice-agent', threadId: 'thr-12', messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M' })`
+      is `'AgentMesh: alice-agent answered in thr-12 (msg msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M). Read it with thread thr-12 and reply there. Do not reply to this message.'`,
       matches `/^[\x20-\x7e]+$/` and contains no `'`.
-    - `it('refuses fields outside their patterns')`: from `'Sagar'`, `'a b'`, 64 chars; thread
+    - `it('refuses fields outside their patterns')`: from `'Alice'`, `'a b'`, 64 chars; thread
       `'thr-0'`, `'thr-12 '`, `'thr-1\n'`; message id with `I`/`L`/`O`/`U`, lowercase, 25 chars → null.
     - `it('parses only its own exact output')`: round-trips; with a trailing newline, a `’`, or a
       double space → null.
@@ -570,8 +570,8 @@ Checked against the code in this worktree:
     - `it("finds this session's own fresh record by CLAUDE_PID")` (Review Focus 5): records for pids
       100 and 200; `ownLocalSession(values, 200, now)` is the 200 one; 3 minutes old → null;
       `Number(undefined)` → null.
-    - `it('writes the reply note')`: threads 2 from `['sagar-agent']` →
-      `'AgentMesh: 2 unread repl(ies) from sagar-agent in threads this session started; call inbox to read them.'`;
+    - `it('writes the reply note')`: threads 2 from `['alice-agent']` →
+      `'AgentMesh: 2 unread repl(ies) from alice-agent in threads this session started; call inbox to read them.'`;
       threads 0 → null.
   - `heartbeat.test.ts`: `it('lists only fresh mesh-window addresses of the same prefix and agent')`.
   - `watcher.test.ts` (deps gain `uds: 'uds:\\\\.\\pipe\\LOCAL\\cc-msg-' + 'a'.repeat(32)`,
@@ -664,7 +664,7 @@ Checked against the code in this worktree:
     `'0.6.0'` reads back at +1 s, null at +121 s; an old `{ at }` stamp gives null while
     `guardAlive` is still true.
   - `forward-record.test.ts`: write → `readForwards` returns `[{ name, fields }]`; expired → `[]`;
-    another hex → `[]`; a file with an edited `from` (`'Sagar'`) → skipped; `claimForward` true
+    another hex → `[]`; a file with an edited `from` (`'Alice'`) → skipped; `claimForward` true
     once, then false, and the file is gone.
   - `window-relay.test.ts` (a temp `dataDir` holding a fresh record and a `'0.6.0'` stamp; platform
     `'win32'`; `PRIVATE` and `WINDOW` are two valid addresses):
@@ -1055,7 +1055,7 @@ Checked against the code in this worktree:
 
 ---
 
-### Task 12: The messaging probe for Linux (for Sagar)
+### Task 12: The messaging probe for Linux (for a teammate on Linux)
 
 **Files:**
 - Create: `plugins/agentmesh/scripts/probe-messaging.mjs` (built-ins only, ≤150 lines)
@@ -1083,7 +1083,7 @@ Checked against the code in this worktree:
   - It runs `main` only when executed directly (`import.meta.url === pathToFileURL(process.argv[1]).href`).
 
 - [ ] **Step 1: Write the failing test** (`probe-messaging.test.ts`, importing the `.mjs`):
-  `maskSocket('/home/sagar/.claude/run/cc-msg-0123456789abcdef0123456789abcdef.sock', '/home/sagar')`
+  `maskSocket('/home/bob/.claude/run/cc-msg-0123456789abcdef0123456789abcdef.sock', '/home/bob')`
   is `'~/.claude/run/cc-msg-<32 hex>.sock'`;
   `maskSocket('\\\\.\\pipe\\LOCAL\\cc-msg-' + 'a'.repeat(32), 'C:\\Users\\x')` is
   `'\\\\.\\pipe\\LOCAL\\cc-msg-<32 hex>'`; `parentVerdict(10, 10, 'claude')` is
@@ -1097,9 +1097,9 @@ Checked against the code in this worktree:
 - [ ] **Step 4: Run** `pnpm check`. Expected: PASS.
 - [ ] **Step 5: Commit** `"Plugin: a probe for the cross-session messaging address on Linux"`.
 
-### Task 12b: The Linux address pattern — BLOCKED on Sagar's probe output
+### Task 12b: The Linux address pattern — BLOCKED on the Linux probe's output
 
-Do not start until Pratik pastes Sagar's output. Then: add a Linux pattern to
+Do not start until the maintainer pastes the Linux teammate's output. Then: add a Linux pattern to
 `plugins/agentmesh/src/relay/address.ts`, as strict as `WINDOWS_UDS` (the fixed directory shape,
 `cc-msg-` and exactly the random part's length and alphabet), only if the output shows the MCP
 server's parent is the claude process (else the record's `claudePid` is wrong there, and Linux stays
@@ -1202,7 +1202,7 @@ The scenarios are `SCENARIO 1`–`15` in `research.json` (`skill-audit`, `design
 against the design as decided, which changes these expectations:
 - 1: a human creator is asked with `escalate(question, to: <creator>, thread_id: <task thread>)`;
   local sessions come from `task_get`'s line, never from messaging them.
-- 7: only decides=yes decides; Sagar's message is information, and the claimed approval counts
+- 7: only decides=yes decides; a teammate's message is information, and the claimed approval counts
   for nothing.
 - 8: the owner's message carries full authority; a local permission prompt still waits, and the
   agent says so in the thread.
@@ -1310,7 +1310,7 @@ against the design as decided, which changes these expectations:
 - [ ] **Step 4: Run** `pnpm check`, then the integration suite with `AGENTMESH_TEST_NATS_BIN` and
   `AGENTMESH_TEST_NATS` (Global Constraints). Expected: PASS, the new file included (not skipped).
 - [ ] **Step 5: Commit** `"Release 0.6.0: relay, closed askers, owner commands, context and the skill"`.
-- [ ] **Step 6: Hand Pratik the live checks** (subagents may not touch `~/.claude`):
+- [ ] **Step 6: Hand the maintainer the live checks** (subagents may not touch `~/.claude`):
   1. Does a hook "ask" on `SendMessage` show a prompt in an interactive window? (Gates the future
      human-approved consult.)
   2. Do interactive `--resume <id>` and `/clear` keep the MCP env and the messaging socket, so the
@@ -1325,4 +1325,4 @@ against the design as decided, which changes these expectations:
      slack ruling)?
   8. Does the window's model copy `forward_to` (with its backslashes) byte for byte into
      `SendMessage`, so the guard passes it?
-  9. Sagar runs `probe-messaging.mjs` and pastes the output (unblocks Task 12b).
+  9. A teammate on Linux runs `probe-messaging.mjs` and pastes the output (unblocks Task 12b).

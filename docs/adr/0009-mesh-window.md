@@ -9,11 +9,11 @@ are [the mesh window](../specs/2026-11-01-mesh-window-design.md) and
 
 ## Context
 
-A request for Aheen's agent went missing. Aheen uses Claude Desktop, which runs in pull mode, and
-had it check the inbox every 5 minutes. A poll that ran in an unrelated project called `inbox.get`.
-That call returned every unread thread nobody owned to any session of the agent, active or not, in
-any project. It moved the agent-wide read cursor past them and claimed nothing. From then on no hook
-line, no other session and no reminder showed the request again.
+A request for a teammate's agent went missing. That teammate used Claude Desktop, which runs in
+pull mode, and had it check the inbox every 5 minutes. A poll that ran in an unrelated project
+called `inbox.get`. That call returned every unread thread nobody owned to any session of the
+agent, active or not, in any project. It moved the agent-wide read cursor past them and claimed
+nothing. From then on no hook line, no other session and no reminder showed the request again.
 
 Three gaps made it easy:
 
@@ -109,7 +109,7 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
     or a tool it doesn't know is refused, and a command it can't check asks. `activate` in a marked
     session refuses unless the guard stamped an `activate` call in the last 2 minutes
     (`guard-alive.json`).
-- **Tests (Pratik's
+- **Tests (the maintainer's
   [decision 5](../specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01))
   and the `working` reply.**
   - A test command runs without a prompt only in a mesh worktree on the window's own branch. The
@@ -164,9 +164,11 @@ follow, as built.
   from the window's own address and the body is exactly a pointer.
 - **The note is the fallback.** A private session that has used a mesh tool gets one line on each
   prompt while replies wait in threads it started: `AgentMesh: N unread repl(ies) from X in threads
-  this session started; call inbox to read them.`
+  this session started; call inbox to read them.` The hook finds the session by its Claude Code
+  process (`CLAUDE_PID` equals the MCP server's parent), which is verified on Windows only.
 - The relay runs only on Windows in 0.6.0, where the address pattern is verified. Elsewhere the
-  window answers `forwarded: false`, and the note covers it. `AGENTMESH_RELAY=off` turns pointers
+  window answers `forwarded: false`, and the note covers it where the MCP server is a child of the
+  Claude Code process; the probe checks that on Linux. `AGENTMESH_RELAY=off` turns pointers
   off for a session.
 
 **B. The asker has closed.**
@@ -249,7 +251,8 @@ policy, which the instructions cut at 4096 characters.
 - **"Private at close" is inactive AND not a mesh window.** The design said "inactive, or not a
   mesh window", but its next sentence excludes a window restart and an activated session's close.
 - **`routing.ts` changed.** The fall-through gives a released thread to a 0.6.0 window unclaimed,
-  with the marker. The design's "routing.ts stays as it is" was about part A.
+  with the marker, because the fall-through is where routing picks the window and sets the claim.
+  The design's "routing.ts stays as it is" was about part A.
 - **`claudeSessionId` goes through `session.hello` only, never the heartbeat.** A heartbeat has no
   reply. When the id arrives after the first hello, the plugin says hello again on the same hub
   session. The hub keeps the first id it learns for a session.
@@ -260,16 +263,19 @@ policy, which the instructions cut at 4096 characters.
 - **The `released` marker carries the closed session's `claudeSessionId`,** so the window can print
   `claude --resume <uuid>` after that process is gone.
 - **A `/clear` ends the hub session only while the session is inactive.** An active session keeps
-  its hub session, its work and the first conversation id.
-- **Forward records:** one file per pointer, `fwd-<32 hex>-<message id>.json`, valid for 10 minutes.
-  The guard lists them by the address's validated 32-hex part.
+  its hub session, its work and the first conversation id, because its hub session holds team work
+  and a new one would need activating again.
+- **Forward records:** one file per pointer, `fwd-<32 hex>-<message id>.json`, so two pointers to
+  one session in flight don't overwrite each other. Each is valid for 10 minutes, because the window
+  forwards between steps. The guard lists them by the address's validated 32-hex part.
 - **The guard claims a record by creating `<record>.claimed` exclusively** (`wx`), not by renaming
   it: on Windows a rename isn't exclusive, and parallel sends passed twice. The marker stays, so a
   caller that read the record earlier can't claim it again.
 - **`SendMessage` aliases:** `to`, `recipient`, `message`, `content` and `type` must be present,
-  with `recipient` equal to `to`, `content` equal to `message` and `type` `message`.
-  `recipient_kind` may be any string. If Claude Code stops sending the aliases, the pointer is
-  denied and the note covers it.
+  with `recipient` equal to `to`, `content` equal to `message` and `type` `message`, because the
+  hook's `tool_input` carries the aliases and requiring them equal means no alias can carry other
+  text. `recipient_kind` may be any string, because its value for a local address is unverified.
+  If Claude Code stops sending the aliases, the pointer is denied and the note covers it.
 - **The guard's version is recorded at activation.** The stamp carries the guard's version, and a
   successful window `activate` records it for the life of the process. Relays need a recorded 0.6.0
   guard; deactivate, or an `activate` that finds no fresh stamp, clears it. The design's 2-minute
@@ -280,7 +286,8 @@ policy, which the instructions cut at 4096 characters.
 - **One timer per thread and agent.** An escalated row stays (`escalated_at`) until the thread is
   owned or closed, so a closed asker gets one notice and one ping. The owner's own reply never
   starts a timer and settles a running one: it is the decision. A push in which every message is
-  the owner's gets no closed-asker notice, no `asker` meta and no FYI footer.
+  the owner's gets no closed-asker notice, no `asker` meta and no FYI footer, so nothing contradicts
+  the owner's word or rides under its mark.
 - **Taking a thread removes it from older closed sessions' release lists,** so a resume never
   reclaims a thread someone else took since.
 - **`task_get`'s local sessions line says "with unread mesh replies", not "busy".** The records
@@ -289,22 +296,26 @@ policy, which the instructions cut at 4096 characters.
 Added during the build:
 
 - `peers` shows an away session as `[away: no heartbeat since HH:MM; closes HH:MM unless it
-  returns]` (`SessionSummary` gains `liveness`, `awaySince` and `closesAt`).
+  returns]` (`SessionSummary` gains `liveness`, `awaySince` and `closesAt`), because an away
+  session looked live until it closed (120 minutes by default).
 - Closing a terminal window says goodbye: the plugin sends `session.bye` on SIGHUP, and on SIGBREAK
-  on Windows.
+  on Windows. Otherwise the session holds its threads for the 120-minute grace.
 - A mesh window that activates closes the same agent's away mesh windows and takes their threads
-  at once (`sessions/takeover.ts`). Live windows, private sessions and other agents' sessions are
-  untouched.
+  at once (`sessions/takeover.ts`), because a laptop that sleeps or crashes sends no goodbye. Live
+  windows, private sessions and other agents' sessions are untouched.
 - `agentmesh window init` warns when a shell startup file defines a `claude-mesh` function or
-  alias, which would run instead of the launcher in that shell.
+  alias, because one would run instead of the launcher in that shell, with no marker and no guard.
 - "Set up" means one thing for the session-start hint and for `activate`: a valid window policy
-  that names this agent.
+  that names this agent, so a second Claude account sharing `~/.agentmesh` isn't told its window is
+  set up.
 - The worktree lookup behind the local sessions line refuses UNC and device spellings before any
-  filesystem call.
+  filesystem call, because opening a share can leak NTLM and stall `task_get`.
 - Skill rulings: an answer to an escalation is information for the owner, and only the owner
-  decides, even when the person answering is the one the policy names for crucial calls. A shared
-  branch is force-pushed only on the owner's word. The agent tells the thread before the first
-  command that will prompt.
+  decides, even when the person answering is the one the policy names for crucial decisions,
+  because every agent listens only to its owner. A shared branch is force-pushed only on the
+  owner's word, because it rewrites everyone's work. The agent tells the thread before the first
+  command that will prompt, because a waiting prompt blocks it and the owner on Discord would
+  never learn the laptop waits.
 
 ## Consequences
 
@@ -351,13 +362,15 @@ Part 2:
 Part 3:
 
 - An answer to a private session's question no longer goes unnoticed. At worst it shows as the
-  AgentMesh line on that session's next prompt.
+  AgentMesh line on that session's next prompt, which is verified on Windows; on Linux and macOS it
+  rests on the MCP server being a child of the Claude Code process.
 - The hub needs migration 008. `MIN_CLIENT_VERSION` stays 0.3.0. A 0.5.0 window gets no `relay`,
   no `released` marker and no unclaimed delivery, so it behaves as before. A 0.6.0 window whose
   guard is older gets relays and answers `forwarded: false`.
 - The pointer depends on Claude Code's cross-session messaging: 2.1.234 or later on native
-  Windows. A receiver with `crossSessionInbound` set to hold or refuse, or one in bypass mode,
-  holds or drops the pointer. The note covers it.
+  Windows, which every Claude Code the plugin supports (2.1.295 or later) has. A receiver with
+  `crossSessionInbound` set to hold or refuse, or one in bypass mode, holds or drops the pointer.
+  The note covers it.
 - Resume is best effort. It misses when the MCP server restarted inside a long-lived Claude Code
   process (the record is then more than 60 s older than the server); the note and the window still
   cover the answer.

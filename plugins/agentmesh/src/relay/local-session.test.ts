@@ -71,20 +71,20 @@ describe('local session records', () => {
   });
 
   it('writes the reply note', () => {
-    expect(replyNote(record({ threads: 2, from: ['sagar-agent'] }))).toBe(
-      'AgentMesh: 2 unread repl(ies) from sagar-agent in threads this session started; call inbox to read them.',
+    expect(replyNote(record({ threads: 2, from: ['alice-agent'] }))).toBe(
+      'AgentMesh: 2 unread repl(ies) from alice-agent in threads this session started; call inbox to read them.',
     );
     expect(replyNote(record({ threads: 1 }))).toBe(
       'AgentMesh: 1 unread repl(ies) in threads this session started; call inbox to read them.',
     );
-    expect(replyNote(record({ threads: 0, from: ['sagar-agent'] }))).toBeNull();
+    expect(replyNote(record({ threads: 0, from: ['alice-agent'] }))).toBeNull();
   });
 
   it('parses only well-typed records and drops odd senders', () => {
     expect(
-      parseLocalSession(record({ from: ['sagar-agent', 'Evil One', 7 as unknown as string] }))
+      parseLocalSession(record({ from: ['alice-agent', 'Evil One', 7 as unknown as string] }))
         ?.from,
-    ).toEqual(['sagar-agent']);
+    ).toEqual(['alice-agent']);
     for (const bad of [
       { claudePid: 0 },
       { claudePid: 1.5 },
@@ -102,10 +102,10 @@ describe('local session records', () => {
     dirs.push(dir);
     // The watcher passes its deps: nothing but the record's fields may reach the file.
     const base = { ...record(), hub: { token: 'x' }, logger: {} };
-    const peek = { threads: 2, actions: 1, from: ['sagar-agent'], external: true };
+    const peek = { threads: 2, actions: 1, from: ['alice-agent'], external: true };
     const at = new Date(now).toISOString();
     const built = localSessionRecord(base, peek, at);
-    expect(built).toEqual(record({ threads: 2, from: ['sagar-agent'], updatedAt: at }));
+    expect(built).toEqual(record({ threads: 2, from: ['alice-agent'], updatedAt: at }));
     writeFileSync(join(dir, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(built));
     expect(readLocalSession(dir, 'mesh', 'bob-agent', 's-aaaaaaaaaaaa', now)).toEqual(built);
     expect(readLocalSession(dir, 'mesh', 'bob-agent', 's-aaaaaaaaaaaa', now + 180_000)).toBeNull();

@@ -3,21 +3,21 @@ import { ownAddress, relayPlatform, udsHex } from './address';
 import { parsePointer, pointerText } from './pointer';
 
 const ID = 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M';
-const FIELDS = { from: 'sagar-agent', threadId: 'thr-12', messageId: ID };
-const TEXT = `AgentMesh: sagar-agent answered in thr-12 (msg ${ID}). Read it with thread thr-12 and reply there. Do not reply to this message.`;
+const FIELDS = { from: 'alice-agent', threadId: 'thr-12', messageId: ID };
+const TEXT = `AgentMesh: alice-agent answered in thr-12 (msg ${ID}). Read it with thread thr-12 and reply there. Do not reply to this message.`;
 
 describe('pointerText', () => {
   it('builds the exact pointer, plain ASCII with no apostrophe', () => {
     const text = pointerText(FIELDS);
     expect(text).toBe(
-      'AgentMesh: sagar-agent answered in thr-12 (msg msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M). Read it with thread thr-12 and reply there. Do not reply to this message.',
+      'AgentMesh: alice-agent answered in thr-12 (msg msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M). Read it with thread thr-12 and reply there. Do not reply to this message.',
     );
     expect(text).toMatch(/^[\x20-\x7e]+$/);
     expect(text).not.toContain("'");
   });
 
   it('refuses fields outside their patterns', () => {
-    for (const from of ['Sagar', 'a b', 'a'.repeat(64)]) {
+    for (const from of ['Alice', 'a b', 'a'.repeat(64)]) {
       expect(pointerText({ ...FIELDS, from })).toBeNull();
     }
     for (const threadId of ['thr-0', 'thr-12 ', 'thr-1\n']) {
@@ -34,7 +34,7 @@ describe('pointerText', () => {
       expect(pointerText({ ...FIELDS, messageId })).toBeNull();
     }
     // Fields read back from a file are not always strings.
-    expect(pointerText({ ...FIELDS, from: ['sagar-agent'] as unknown as string })).toBeNull();
+    expect(pointerText({ ...FIELDS, from: ['alice-agent'] as unknown as string })).toBeNull();
   });
 
   it('parses only its own exact output', () => {
@@ -42,7 +42,7 @@ describe('pointerText', () => {
     expect(parsePointer(`${TEXT}\n`)).toBeNull();
     expect(parsePointer(TEXT.replace('Do not', 'Don’t'))).toBeNull();
     expect(parsePointer(TEXT.replace('answered in', 'answered  in'))).toBeNull();
-    expect(parsePointer(TEXT.replace('sagar-agent', 'Sagar'))).toBeNull();
+    expect(parsePointer(TEXT.replace('alice-agent', 'Alice'))).toBeNull();
   });
 });
 

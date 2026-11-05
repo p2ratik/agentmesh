@@ -119,12 +119,8 @@ file is gitignored and is never committed.
     runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. Its worktree guard (`dist/guard.js`, a
     `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*` worktrees and asks before
     commands that aren't on its list.
-  - The relay (ADR 0009 part 3): a reply for an inactive private session makes the hub send the
-    window a body-less `relay` pointer; the window forwards one fixed pointer text with
-    `SendMessage` to that session's messaging address (Windows only), and the guard passes exactly
-    that send, once. Every private session that used the mesh also gets an AgentMesh line on its
-    next prompt while answers wait. An answer whose private asker closed goes to the window
-    unclaimed, and the hub pings the owner in the thread if nobody decides.
+  - The window also forwards reply pointers to the human's private sessions (ADR 0009 part 3; see
+    Status).
   - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI),
     `dist/hook.js` (prompt, session-start and session-end hook) and `dist/guard.js`, all committed
     so marketplace installs need no build.
@@ -207,7 +203,8 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
     `src/agent-id.ts`, `src/window/{rules,heartbeat,session-start,guard-stamp,start-state}.ts`,
     `src/pull/state.ts` (all under `plugins/agentmesh`), and
     `packages/common/src/{window,version}.ts`.
-  - Cross-session messaging (the relay) needs Claude Code 2.1.234+ on native Windows.
+  - Cross-session messaging (the relay) needs Claude Code 2.1.234+ on native Windows. That is
+    older than the plugin's own 2.1.295 minimum, so every supported install has it.
 
 ## Commands
 
@@ -287,8 +284,8 @@ Run `pnpm check` before calling anything done.
     0.6.0 mesh window a body-less `relay` pointer (`sessions/relay.ts`). The window forwards the
     fixed pointer text with `SendMessage` to that session's messaging address, from its local
     record (`sess-*.json`). The guard passes exactly that send, once, and denies every other
-    `SendMessage` and `ListAgents`. Windows only; everywhere, the AgentMesh line on the next prompt
-    says an answer waits.
+    `SendMessage` and `ListAgents`. Windows only. The AgentMesh line on the next prompt also says
+    an answer waits; it finds the session by its Claude Code process, verified on Windows only.
   - Closed askers (migration 008: `sessions.private_at_close`, `sessions.claude_session_id`,
     `orphan_decisions`): a thread a closed private session released goes to a 0.6.0 window
     unclaimed, marked `released`. The hub posts one notice and pings the owner in the thread after
@@ -300,7 +297,7 @@ Run `pnpm check` before calling anything done.
   - Context: a private session's `task_create` reaches the window, its description a redacted
     handoff note. Thread headers show `parent`, `task_list` takes `all`, and the window's
     `task_get` counts the human's private sessions in the task's repo.
-  - `peers` shows away sessions and when they close; closing a terminal says `session.bye`; a new
+  - `peers` shows away sessions and when they close; closing a terminal sends `session.bye`; a new
     mesh window takes over away windows' threads; `window init` warns about a shell function or
     alias named `claude-mesh`.
   - The `mesh-collaboration` skill, rewritten around the three session kinds and tested against
@@ -362,6 +359,9 @@ Run `pnpm check` before calling anything done.
     ping after the configured minutes;
   - each teammate's Claude Code version, permission mode and `crossSessionInbound`;
   - closing a terminal window dropping the session from `peers`;
+  - the AgentMesh note on Linux and macOS (the probe's parent check: the MCP server must be a child
+    of the Claude Code process) and in Claude Desktop;
+  - a settings `env` entry reaching the plugin's MCP server (`AGENTMESH_RELAY=off`);
   - the Linux address pattern, which needs `scripts/probe-messaging.mjs` run on Linux.
 
 **Known limits:** Claude Code keeps only the first 4096 characters of MCP instructions, so a long

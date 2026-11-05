@@ -7,7 +7,7 @@ const view = (active: boolean, description: string | null) => ({
   id: 's-aaaaaaaaaaaa',
   active,
   description,
-  repo: 'opzami/web',
+  repo: 'acme/web',
   branch: 'main',
   owns: [],
 });

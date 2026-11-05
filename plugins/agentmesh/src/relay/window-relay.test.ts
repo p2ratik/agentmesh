@@ -18,7 +18,7 @@ const HEX = 'a'.repeat(32);
 const PRIVATE = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
 const WINDOW = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'b'.repeat(32)}`;
 const ID = 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M';
-const FIELDS = { from: 'sagar-agent', threadId: 'thr-12', messageId: ID };
+const FIELDS = { from: 'alice-agent', threadId: 'thr-12', messageId: ID };
 const RELAY: SessionRelay = { type: 'relay', ...FIELDS, forSession: 's-aaaaaaaaaaaa' };
 const now = Date.parse('2026-11-04T10:00:00Z');
 const GUARD_OLD = 'the guard is older than 0.6.0 or not running';
@@ -39,7 +39,7 @@ function writeRecord(over: Partial<LocalSession> = {}, at = now): void {
     projectDir: '/work/api',
     relay: true,
     threads: 1,
-    from: ['sagar-agent'],
+    from: ['alice-agent'],
     updatedAt: new Date(at - 10_000).toISOString(),
     ...over,
   };

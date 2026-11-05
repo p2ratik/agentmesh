@@ -6,7 +6,7 @@ describe('GitRef', () => {
     for (const ref of [
       'acme/web',
       'Acme/Web.git',
-      'agent/pratik/task-3-login',
+      'agent/alice/task-3-login',
       'café/web',
       'x'.repeat(300),
     ]) {

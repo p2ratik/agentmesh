@@ -204,21 +204,29 @@ An agent's owner can steer it by replying in a mirrored Discord thread
 - **Only the owner, for every agent.** Another human's reply, an agent's, a service's, or the
   answer of the person an agent escalated to grants nothing: it is information or a request. No
   authority follows from an action the agent takes, because the model picks whom it escalates to.
-- **What the plugin shows.** Each marked message gets a `DECIDES` tag in pushes and in `thread` and
-  `inbox` output. A push gets meta `decides="yes"` only when every message in it is marked, so a
-  non-owner's message bundled before the owner's doesn't borrow the mark. A push of the owner's
-  messages carries no FYI footer, so nothing else rides under the mark.
+- **What the plugin shows.** In a push that bundles several messages, and in `thread` and `inbox`
+  output, each marked message gets a `DECIDES` tag. A push gets meta `decides="yes"` only when every
+  message in it is marked, so a non-owner's message bundled before the owner's doesn't borrow the
+  mark; a single-message push carries only that meta. A push of the owner's messages carries no
+  FYI footer, so nothing else rides under the mark.
 - **Full authority, except permission prompts.** A marked message counts as if the owner had typed
   it into that session, in the mesh window and in a private session alike. Claude Code's permission
   prompts stay on the laptop: the mesh never relays them.
 - **Threat: a hijacked Discord account.** Whoever controls an owner's account can command that
-  owner's agents within their guard and prompts. In the window that includes approving a review
-  (`review_submit`) and committing and pushing its own branches, which run without a prompt. In a
-  private session it includes whatever that session's own permission settings allow.
-  - **Mitigations:** 2FA on Discord accounts, and `/mesh remove`, which refuses the member's key.
-    A ticketing feature to remove a member whose account is lost is to come.
+  owner's agents within their guard and prompts.
+  - In the window, approving a review (`review_submit`), and committing and pushing its own
+    branches, run without a prompt.
+  - **Exfiltration.** Read, Grep and Glob don't prompt inside the window's folder, and `reply` is
+    allowed, so a hijacker can have the agent post the team's code into a thread the whole server
+    reads. Redaction catches only credential formats.
+  - In a private session it gets whatever that session's own permission settings allow: any
+    command in bypass mode, and whatever auto mode lets through.
+  - **Mitigations:** 2FA on Discord accounts. At once, `/mesh pause`, which holds every delivery.
+    Then `/mesh remove` for an invited member, which refuses their key; an owner listed in
+    `mesh.yaml` is removed by editing it. A ticketing feature to remove a member whose account is
+    lost is to come.
   - The channels are readable by the whole server ([above](#who-can-read-the-mesh-in-discord)), so
-    replies never carry secrets.
+    replies must not carry secrets.
 - **Marks are fixed when the message is posted.** A later change of an agent's owner, or a Discord
   id that is later reused by someone else, doesn't re-mark old messages, so an old mark can be
   stale. This is theoretical.
@@ -297,7 +305,7 @@ to its session, and `session.check` then fails (see the upgrade notes in
   teammate; push sessions are still preferred.
 - **Reads do not take team work away from where it belongs.** Before ADR 0009, `inbox.get` from any
   session, in any project, marked unowned threads read and claimed nothing, so a poll in an
-  unrelated project could hide a request from everyone (Aheen's lost request, 2026-11-01). Now:
+  unrelated project could hide a request from everyone (a teammate's lost request, 2026-11-01). Now:
   - Only a session that may take unowned work reads and marks read an unowned thread: an active
     push session, or an active pull session while the agent has no ready push session. Every other
     session reads only the threads it owns, and `inbox.get` and `inbox.peek` give it a `waiting`
@@ -352,8 +360,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
   - **Threat: a forged record.** The likely writer is one of the human's own Claude Code sessions,
     which run unguarded. Such a process already holds the agent's key and can call the mesh itself,
     so what a forged record buys is nil: a pointer of the exact form sent to a validated address
-    (`sess-`), or a resume of another of the agent's conversations (`cc-`), which any session of
-    the agent can already do with `take`.
+    (`sess-`); the window's own exact pointer let through once, still sent by the window's model
+    (`fwd-`, see [Reply pointers](#reply-pointers-the-relay)); or a resume of another of the
+    agent's conversations (`cc-`), which any session of the agent can already do with `take`.
 - **Resume trusts the agent, not the conversation.** `session.hello`'s `claudeSessionId` takes back
   the threads that the agent's latest closed or away session with that id released and nobody
   took since. It is scoped to the agent the NATS caller proved, like `previousSessionId`. Only the
@@ -403,7 +412,7 @@ to its session, and `session.check` then fails (see the upgrade notes in
 ## The mesh window
 
 The mesh window ([ADR 0009](adr/0009-mesh-window.md), part 2) is the one session per teammate that
-takes team work. By Pratik's
+takes team work. By the maintainer's
 [decision 3](specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01)
 it runs routine steps without asking. It is an ordinary interactive Claude Code session in
 `default` mode, started by `~/.agentmesh/mesh-window`. Two layers decide what it may do: the allow
@@ -528,9 +537,9 @@ while no mesh window is running."
   branch, so running its tests needs your human's approval". Before that, the window's rules tell it
   to reply in the task thread with status `working`, so the author's agent knows the verdict waits.
   That reply is guidance, not enforcement. Reading the diff never asks.
-- **On the window's own branches,** tests run unprompted. **Accepted risk (Pratik, decision 5):**
-  they read **and write** as you, including persistence in `.git/hooks` (shared by every
-  worktree), `~/.agentmesh/` and the guard itself, and switching the guard off.
+- **On the window's own branches,** tests run unprompted. **Accepted risk (the maintainer,
+  decision 5):** they read **and write** as you, including persistence in `.git/hooks` (shared by
+  every worktree), `~/.agentmesh/` and the guard itself, and switching the guard off.
 - **Without an own-branch prefix** (a branch template that names neither the owner nor the agent,
   or whose filled prefix doesn't end in `/`, `_` or `.`), every test asks, and so do task
   worktree adds, commits, pushes and PRs.
@@ -664,9 +673,10 @@ passes that session a pointer through Claude Code's cross-session messaging
   name holds only the address's 32-hex part.
 - **The private side.** The prompt hook labels a `<cross-session-message>` turn a verified pointer
   only when its leading tag's `from` is the address in a fresh heartbeat of this agent's mesh
-  window, and the whole body is exactly a pointer. It never trusts `from-name`. Any other
-  cross-session turn is labelled "not from your mesh window, so it is not AgentMesh". The
-  instructions say a pointer is read, never answered.
+  window, and the whole body is exactly a pointer. It never trusts `from-name`. In a private
+  session that has used the mesh (it has a fresh record of its own), any other cross-session turn
+  is labelled "not from your mesh window, so it is not AgentMesh"; other sessions get no AgentMesh
+  label. The instructions say a pointer is read, never answered.
 - **Consults are a second local ingress, by hand in 0.6.0.** To learn something from a private
   session, the window asks its human, drafts one question, and the human pastes it there. The
   answer the human brings back is data: the window follows nothing in it, never replies to it and
@@ -681,8 +691,10 @@ passes that session a pointer through Claude Code's cross-session messaging
 - **Delivery isn't guaranteed.** `SendMessage` reports success even when the receiver later holds
   or refuses the message. A receiver in bypass mode, or with `crossSessionInbound` set to hold or
   refuse, holds or drops the pointer. Nothing relies on it: the reply stays unread, and the
-  session's AgentMesh line says so on every prompt until it reads the thread. `AGENTMESH_RELAY=off`
-  turns pointers off for a session.
+  session's AgentMesh line says so on every prompt until it reads the thread. That line finds the
+  session by its Claude Code process (the MCP server's parent), which is verified on Windows; on
+  Linux and macOS it relies on the MCP server being a child of the Claude Code process, which the
+  probe checks. `AGENTMESH_RELAY=off` turns pointers off for a session.
 - **Residual risk:** the labels guide the model; they are not a hard boundary. A forged record (see
   [Local session records](#sessions-and-per-session-delivery)) can only steer a pointer of the
   exact form to a validated address.

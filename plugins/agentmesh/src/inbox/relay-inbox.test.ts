@@ -7,7 +7,7 @@ const RELAY: SessionRelay = {
   type: 'relay',
   threadId: 'thr-12',
   messageId: ID,
-  from: 'sagar-agent',
+  from: 'alice-agent',
   forSession: 's-bbbbbbbbbbbb',
 };
 

@@ -26,7 +26,7 @@ type Row = [string, string | Record<string, unknown>, 'pass' | 'ask' | 'deny', t
 const HEX = 'a'.repeat(32);
 const ADDR = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
 const FIELDS = {
-  from: 'sagar-agent',
+  from: 'alice-agent',
   threadId: 'thr-12',
   messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M',
 };
@@ -49,7 +49,7 @@ let R: string;
 beforeEach(() => {
   const f = fixture();
   base = f.base;
-  for (const ref of ['agents', 'agent/sagar/task-2-x']) {
+  for (const ref of ['agents', 'agent/alice/task-2-x']) {
     put(
       join(f.repo, '.git', 'refs', 'remotes', 'origin', ...ref.split('/')),
       `${'a'.repeat(40)}\n`,
@@ -95,13 +95,13 @@ describe('the window rules, through the guard', () => {
       ],
       [
         'cd "<checkout>" && git diff refs/remotes/origin/<base>...refs/remotes/origin/<branch>',
-        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/alice/task-2-x`,
         'pass',
       ],
       ['gh pr diff asks here', `cd ${C} && gh pr diff 12`, 'ask'],
       [
         'cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>',
-        `cd ${C} && git worktree add .claude/worktrees/mesh-review-task-9 refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git worktree add .claude/worktrees/mesh-review-task-9 refs/remotes/origin/agent/alice/task-2-x`,
         'pass',
       ],
       ['cd "<worktree>" && <test command>; your human approves', `cd ${R} && pnpm check`, 'ask'],
@@ -171,7 +171,7 @@ describe('the window rules, through the guard', () => {
       // reads still pass without a prefix
       [
         'read the diff without asking',
-        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/alice/task-2-x`,
         'pass',
       ],
     ];
@@ -189,7 +189,7 @@ describe('the window rules, through the guard', () => {
       ['is missing or invalid, so every command asks', `cd ${C} && git fetch origin`, 'ask'],
       [
         'is missing or invalid, so every command asks',
-        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/sagar/task-2-x`,
+        `cd ${C} && git diff refs/remotes/origin/agents...refs/remotes/origin/agent/alice/task-2-x`,
         'ask',
       ],
     ]);

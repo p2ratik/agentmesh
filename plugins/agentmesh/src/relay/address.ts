@@ -9,7 +9,7 @@ export const relayPlatform = (platform: NodeJS.Platform): boolean => platform ==
 
 /** The 32-hex part of a valid address, or null. */
 export function udsHex(address: unknown, platform: NodeJS.Platform): string | null {
-  // ponytail: no POSIX pattern until Sagar's probe (Task 12b); POSIX sessions use the note.
+  // ponytail: no POSIX pattern until the Linux probe (Task 12b); POSIX sessions use the note.
   if (platform !== 'win32' || typeof address !== 'string') return null;
   return WINDOWS_UDS.exec(address)?.[1] ?? null;
 }

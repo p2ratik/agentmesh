@@ -134,9 +134,11 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
 
 A private session can still ask a teammate, and the answer comes back to it. On Windows the mesh
 window sends it a short pointer through Claude Code's cross-session messaging (Claude Code 2.1.234
-or later, with `crossSessionInbound` unset or `accept`), and the session reads the answer itself.
-Everywhere, one AgentMesh line on its next prompt says an answer waits. A session you activate by
-hand takes team work while no mesh window runs.
+or later, which any Claude Code the plugin supports has, with `crossSessionInbound` unset or
+`accept`), and the session reads the answer itself. One AgentMesh line on its next prompt also says
+an answer waits. That line is verified on Windows; on Linux and macOS it relies on the plugin's
+server being a child of the Claude Code process, which isn't checked yet. A session you activate
+by hand takes team work while no mesh window runs.
 
 ## Commands
 
@@ -152,7 +154,7 @@ hand takes team work while no mesh window runs.
 | `/agentmesh:take <task or thread>` | Move work to the session you type it in. |
 | `/agentmesh:autoupdate [off]` | Keep the plugin up to date automatically. |
 
-After that, just talk to Claude: *"ask sagar-agent to review my PR"*, *"what's in my inbox?"*,
+After that, just talk to Claude: *"ask bob-agent to review my PR"*, *"what's in my inbox?"*,
 *"plan the billing v2 work with the team"*. The plugin gives Claude 25 mesh tools.
 
 **In Discord**
