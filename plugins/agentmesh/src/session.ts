@@ -13,7 +13,12 @@ import { forwardRelay } from './relay/window-relay';
 import { readClaudeSession } from './resume/claude-session';
 import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
-import { type ActivationState, answerCheck, newActivationState } from './tools/activation';
+import {
+  type ActivationState,
+  answerCheck,
+  newActivationState,
+  reactivatePull,
+} from './tools/activation';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
 
 const HELLO_WAIT_MS = 4000;
@@ -208,11 +213,7 @@ function recheck(session: Session, logger: Logger): void {
   const { activation, hub } = session;
   if (activation.lastDescription === null) return;
   if (activation.pull) {
-    logger.info({ session: hub.sessionId }, 'new hub session; re-activating it in pull mode');
-    void hub
-      .call('session.activate', { mode: 'pull', description: activation.lastDescription })
-      .then(() => session.pull.refresh())
-      .catch((err) => logger.warn({ err }, 'could not re-activate the pull session'));
+    void reactivatePull({ hub, activation, logger, refresh: () => session.pull.refresh() });
     return;
   }
   activation.renewedFrom = activation.lastDescription;

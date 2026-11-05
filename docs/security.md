@@ -297,7 +297,8 @@ to its session, and `session.check` then fails (see the upgrade notes in
   re-checked at renewal) and the guard version its last `activate` recorded stand (a failed guard
   check clears it), or the stamp is fresh; so, as for an active window, the guard isn't re-checked.
   Otherwise, or if the hub refuses, Claude gets the check. A deactivate while it runs wins: nothing
-  is recorded or pushed, and the plugin turns the hub session off again. A human's
+  is recorded or pushed, and the plugin turns the hub session off again (the same for a renewed
+  pull session's re-activation). A human's
   `/agentmesh:activate` during a renewal is never answered this way: Claude gets the check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing

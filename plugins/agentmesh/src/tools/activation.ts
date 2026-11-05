@@ -62,28 +62,27 @@ export function checkEvent(code: string, previous?: string): ChannelEvent {
 }
 
 /**
- * Activates this session for pushes with the code from its check, and records it: the line, push
- * mode, and the guard version from the mesh window's fresh stamp when one is given. The activate
- * tool and a renewal (`answerCheck`) both go through here. A deactivate while the call was out
- * wins: nothing is recorded, the hub (which may have run the deactivate first) is turned off
- * again, and the result is false.
+ * Activates this session, for pushes with the code from its check or in pull mode, and records it:
+ * the line, the mode, and the guard version from the mesh window's fresh stamp when one is given.
+ * The activate tool's push activation and both renewals (`answerCheck`, `reactivatePull`) go
+ * through here. A deactivate while the call was out wins: nothing is recorded, the hub (which may
+ * have run the deactivate first) is turned off again, and the result is false.
  */
-export async function activateWithCode(
+export async function activateSession(
   hub: Pick<HubClient, 'call'>,
   activation: ActivationState,
-  code: string,
-  description: string,
+  params: { code: string; description: string } | { mode: 'pull'; description: string },
   stamp: { version: string | null } | null,
 ): Promise<boolean> {
   const epoch = activation.epoch;
-  const view = await hub.call('session.activate', { code, description });
+  const view = await hub.call('session.activate', params);
   if (activation.epoch !== epoch) {
     await hub.call('session.deactivate', {});
     return false;
   }
-  activation.lastDescription = view.description ?? description;
+  activation.lastDescription = view.description ?? params.description;
   activation.renewedFrom = null;
-  activation.pull = false;
+  activation.pull = 'mode' in params;
   // From the stamp this call checked: relays gate on it for the life of the process.
   if (stamp) activation.guardVersion = stamp.version;
   return true;
@@ -140,7 +139,7 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
   }
   const epoch = activation.epoch;
   try {
-    if (!(await activateWithCode(hub, activation, code, previous, stamp))) {
+    if (!(await activateSession(hub, activation, { code, description: previous }, stamp))) {
       logger.warn({ session }, 'deactivated while re-activating the new hub session; it stays off');
       return;
     }
@@ -155,4 +154,28 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
     content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.`,
     meta: { kind: 'system', from: 'agentmesh' },
   });
+}
+
+/**
+ * A pull session the hub renewed: no check to answer, so it re-activates in pull mode at once. A
+ * deactivate meanwhile wins, as in `activateSession`.
+ */
+export async function reactivatePull(
+  deps: Pick<CheckDeps, 'hub' | 'activation' | 'logger' | 'refresh'>,
+): Promise<void> {
+  const { hub, activation, logger } = deps;
+  const description = activation.lastDescription;
+  if (description === null) return;
+  const session = hub.sessionId;
+  logger.info({ session }, 'new hub session; re-activating it in pull mode');
+  try {
+    if (!(await activateSession(hub, activation, { mode: 'pull', description }, null))) {
+      logger.warn({ session }, 'deactivated while re-activating the pull session; it stays off');
+      return;
+    }
+  } catch (err) {
+    logger.warn({ err }, 'could not re-activate the pull session');
+    return;
+  }
+  await deps.refresh();
 }

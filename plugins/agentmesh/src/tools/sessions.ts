@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
-import { type ActivationState, activateWithCode, endRenewal } from './activation';
+import { type ActivationState, activateSession, endRenewal } from './activation';
 import { defineTool, ToolRefusal } from './types';
 
 const Description = z.string().min(1).max(200);
@@ -99,7 +99,8 @@ export const sessionTools = [
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
-      if (!(await activateWithCode(hub, activation, args.code, args.description, stamp))) {
+      const params = { code: args.code, description: args.description };
+      if (!(await activateSession(hub, activation, params, stamp))) {
         return 'This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.';
       }
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;

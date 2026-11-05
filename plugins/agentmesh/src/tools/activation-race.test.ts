@@ -2,7 +2,7 @@ import type { Logger } from '@agentmesh/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { HubClient } from '../hub';
 import type { ChannelEvent } from '../inbox/render';
-import { answerCheck } from './activation';
+import { answerCheck, reactivatePull } from './activation';
 import { fakeHub, text } from './fake-hub';
 import { callTool } from './registry';
 
@@ -58,7 +58,7 @@ function setup() {
     window: deps.window,
     logger: logger as unknown as Logger,
     push: async (event: ChannelEvent) => void pushed.push(event),
-    refresh: async () => undefined,
+    refresh: vi.fn(async () => undefined),
   };
   return { state, run, deps, answer, pushed, logger };
 }
@@ -110,6 +110,24 @@ describe('a deactivate wins over a renewal that re-activates itself', () => {
     await run('session.activate', new Error('timed out'));
     await checked;
     expect(pushed).toEqual([]);
+  });
+
+  // A pull session gets no check: recheck re-activates it in pull mode at once (reactivatePull).
+  it('a pull renewal loses to a deactivate too: the hub ends inactive', async () => {
+    const { state, run, deps, answer } = setup();
+    deps.activation.renewedFrom = null;
+    deps.activation.pull = true;
+    const renewed = reactivatePull(answer);
+    const off = callTool('deactivate', {}, deps);
+    await run('session.deactivate');
+    await off;
+    await run('session.activate');
+    expect(state.active).toBe(true);
+    await run('session.deactivate');
+    await renewed;
+    expect(state.active).toBe(false);
+    expect(deps.activation).toMatchObject(OFF);
+    expect(answer.refresh).not.toHaveBeenCalled();
   });
 
   it('a deactivate during the activate tool wins too', async () => {

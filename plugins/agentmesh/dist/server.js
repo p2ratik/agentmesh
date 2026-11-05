@@ -49420,16 +49420,16 @@ function checkEvent(code, previous) {
     meta: { kind: "system", from: "agentmesh" }
   };
 }
-async function activateWithCode(hub, activation, code, description, stamp) {
+async function activateSession(hub, activation, params, stamp) {
   const epoch = activation.epoch;
-  const view = await hub.call("session.activate", { code, description });
+  const view = await hub.call("session.activate", params);
   if (activation.epoch !== epoch) {
     await hub.call("session.deactivate", {});
     return false;
   }
-  activation.lastDescription = view.description ?? description;
+  activation.lastDescription = view.description ?? params.description;
   activation.renewedFrom = null;
-  activation.pull = false;
+  activation.pull = "mode" in params;
   if (stamp) activation.guardVersion = stamp.version;
   return true;
 }
@@ -49454,7 +49454,7 @@ async function answerCheck(code, deps) {
   }
   const epoch = activation.epoch;
   try {
-    if (!await activateWithCode(hub, activation, code, previous, stamp)) {
+    if (!await activateSession(hub, activation, { code, description: previous }, stamp)) {
       logger.warn({ session }, "deactivated while re-activating the new hub session; it stays off");
       return;
     }
@@ -49469,6 +49469,23 @@ async function answerCheck(code, deps) {
     content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.`,
     meta: { kind: "system", from: "agentmesh" }
   });
+}
+async function reactivatePull(deps) {
+  const { hub, activation, logger } = deps;
+  const description = activation.lastDescription;
+  if (description === null) return;
+  const session = hub.sessionId;
+  logger.info({ session }, "new hub session; re-activating it in pull mode");
+  try {
+    if (!await activateSession(hub, activation, { mode: "pull", description }, null)) {
+      logger.warn({ session }, "deactivated while re-activating the pull session; it stays off");
+      return;
+    }
+  } catch (err) {
+    logger.warn({ err }, "could not re-activate the pull session");
+    return;
+  }
+  await deps.refresh();
 }
 
 // src/tools/sessions.ts
@@ -49531,7 +49548,8 @@ var sessionTools = [
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
-      if (!await activateWithCode(hub, activation, args.code, args.description, stamp)) {
+      const params = { code: args.code, description: args.description };
+      if (!await activateSession(hub, activation, params, stamp)) {
         return "This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.";
       }
       const active = `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
@@ -52424,8 +52442,7 @@ function recheck(session, logger) {
   const { activation, hub } = session;
   if (activation.lastDescription === null) return;
   if (activation.pull) {
-    logger.info({ session: hub.sessionId }, "new hub session; re-activating it in pull mode");
-    void hub.call("session.activate", { mode: "pull", description: activation.lastDescription }).then(() => session.pull.refresh()).catch((err) => logger.warn({ err }, "could not re-activate the pull session"));
+    void reactivatePull({ hub, activation, logger, refresh: () => session.pull.refresh() });
     return;
   }
   activation.renewedFrom = activation.lastDescription;
