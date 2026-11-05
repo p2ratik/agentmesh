@@ -281,6 +281,13 @@ to its session, and `session.check` then fails (see the upgrade notes in
   (`disable-model-invocation`), but with the `mcp__plugin_agentmesh_mesh__*` allow rule Claude
   could call the `activate` tool by itself. The tool description tells it to do so only when its
   human asks; that is the only guard.
+- **A renewed session re-uses its process's proof.** When the hub replaces an active push session
+  (a long sleep), the same plugin process answers the new check itself with the previous line:
+  Claude Code fixes the channel flag per process, so its pushes are already proven. The hub still
+  requires the code. A mesh window does it only while its marker verifies and the guard version its
+  last `activate` recorded stands (a failed guard check clears it) or the stamp is fresh, so, as for
+  an active window, the guard isn't re-checked. Otherwise, or if the hub refuses, Claude gets the
+  check.
 - **Pull activation skips the code** ([ADR 0008](adr/0008-pull-mode.md)). `session.activate { mode:
   "pull" }` needs no check, because a pull session gets no pushes to prove. This grants nothing
   new: the code was never an authorization, and only the authenticated agent can activate its own

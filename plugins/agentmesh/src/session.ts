@@ -13,7 +13,7 @@ import { forwardRelay } from './relay/window-relay';
 import { readClaudeSession } from './resume/claude-session';
 import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
-import { type ActivationState, checkEvent, newActivationState } from './tools/activation';
+import { type ActivationState, answerCheck, newActivationState } from './tools/activation';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
 
 const HELLO_WAIT_MS = 4000;
@@ -152,7 +152,14 @@ export function startSession(
       fyi: session.fyi,
       push: (event) => pushEvent(server, event),
       pushCheck: (code) =>
-        pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? undefined)),
+        answerCheck(code, {
+          hub,
+          activation: session.activation,
+          window: session.window,
+          logger,
+          push: (event) => pushEvent(server, event),
+          refresh: () => session.pull.refresh(),
+        }),
       onExpired: rehello,
       onListening: () => {
         presence.beat();
@@ -193,9 +200,9 @@ export function startSession(
 
 /**
  * The hub closed this window's active session (a long sleep, say) and gave it a
- * new, inactive one. The human opted this window in, so Claude re-confirms
- * through a fresh check (sent by the hub) that suggests the previous line. A
- * pull session gets no check to answer, so it re-activates in pull mode at once.
+ * new, inactive one. The human opted this window in, so the hub sends a fresh
+ * check, which this process answers itself with the previous line (`answerCheck`).
+ * A pull session gets no check to answer, so it re-activates in pull mode at once.
  */
 function recheck(session: Session, logger: Logger): void {
   const { activation, hub } = session;

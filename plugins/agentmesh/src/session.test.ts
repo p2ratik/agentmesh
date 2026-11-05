@@ -43,6 +43,8 @@ function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
   const policy: { closedAskerEscalationMinutes?: number } = {};
   const hellos: Array<Record<string, unknown>> = [];
   const wire: string[] = [];
+  /** The other requests' params: [subject, params]. */
+  const sent: Array<[string, unknown]> = [];
   const listeners = new Map<string, Callback>();
   const answer = (result: unknown) => ({ json: () => ({ ok: true, result }) });
   const nc = {
@@ -59,6 +61,7 @@ function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
       const { params, session } = JSON.parse(data);
       if (!subject.endsWith('session.hello')) {
         wire.push(`req ${subject} ${session}`);
+        sent.push([subject, params]);
         if (subject.endsWith('session.check')) {
           const check = { type: 'check', code: 'K7Q2ZP' };
           listeners.get(`mesh.session.alice-agent.${session}`)?.(null, {
@@ -67,6 +70,9 @@ function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
             respond: () => true,
           });
         }
+        const view = { id: session, active: true, repo: null, branch: null, owns: [] };
+        const { description } = params;
+        if (subject.endsWith('session.activate')) return answer({ ...view, description });
         return answer({ ok: true });
       }
       hellos.push(params);
@@ -90,7 +96,7 @@ function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
     },
   } as unknown as NatsConnection;
   vi.mocked(connectBus).mockResolvedValue(nc);
-  return { hellos, wire, listeners, policy };
+  return { hellos, wire, sent, listeners, policy };
 }
 
 const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
@@ -197,12 +203,24 @@ describe("the session's conversation", () => {
 });
 
 describe('session renewal', () => {
-  it('asks the hub for a new check when an active session comes back as a new one', async () => {
-    const { hellos, wire } = fakeHub([
+  let data: string;
+  // An active session writes its heartbeat (and a pull one its state): never in the real home.
+  beforeEach(() => {
+    data = mkdtempSync(join(tmpdir(), 'am-session-'));
+    vi.stubEnv('CLAUDE_PLUGIN_DATA', data);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(data, { recursive: true, force: true });
+  });
+
+  it('re-activates itself when an active session comes back as a new one', async () => {
+    const { hellos, wire, sent } = fakeHub([
       's-aaaaaaaaaaaa',
       's-aaaaaaaaaaaa',
       's-bbbbbbbbbbbb',
       's-cccccccccccc',
+      's-dddddddddddd',
     ]);
     const session = await openSession(config, logger);
     const notification = vi.fn(async () => undefined);
@@ -215,18 +233,29 @@ describe('session renewal', () => {
     expect(hellos[1]).toMatchObject({ previousSessionId: 's-aaaaaaaaaaaa' });
     expect(notification).not.toHaveBeenCalled();
 
-    // A new session after a long absence: the hub's check reaches Claude suggesting the old line.
+    // A new session after a long absence: this process's pushes were already proven, so it
+    // answers the hub's check itself with the old line, and only tells Claude.
     await session.sayHello();
     expect(session.hub.sessionId).toBe('s-bbbbbbbbbbbb');
     await vi.waitFor(() => expect(notification).toHaveBeenCalledOnce());
     expect(wire).toContain('req mesh.rpc.alice-agent.session.check s-bbbbbbbbbbbb');
-    const [check] = pushes(notification);
-    expect(check?.meta).toEqual({ kind: 'system', from: 'agentmesh' });
-    expect(check?.content).toContain('reconnected to the mesh after a long absence');
-    expect(check?.content).toContain('Code: K7Q2ZP.');
-    expect(check?.content).toContain('description: "checkout redesign"');
+    const activate = 'mesh.rpc.alice-agent.session.activate';
+    expect(wire).toContain(`req ${activate} s-bbbbbbbbbbbb`);
+    expect(sent).toContainEqual([activate, { code: 'K7Q2ZP', description: 'checkout redesign' }]);
+    const [again] = pushes(notification);
+    expect(again?.meta).toEqual({ kind: 'system', from: 'agentmesh' });
+    expect(again?.content).toContain('is active again as "checkout redesign"');
+    expect(session.activation.renewedFrom).toBeNull();
+
+    // A pull session re-activates in pull mode at once: no check.
+    session.activation.pull = true;
+    await session.sayHello();
+    const pull = { mode: 'pull', description: 'checkout redesign' };
+    await vi.waitFor(() => expect(sent).toContainEqual([activate, pull]));
+    expect(wire).not.toContain('req mesh.rpc.alice-agent.session.check s-cccccccccccc');
 
     // A session that was not active stays quiet when it is renewed.
+    session.activation.pull = false;
     session.activation.lastDescription = null;
     await session.sayHello();
     await new Promise((resolve) => setTimeout(resolve, 20));

@@ -1,4 +1,8 @@
+import type { Logger } from '@agentmesh/common';
+import type { HubClient } from '../hub';
 import type { ChannelEvent } from '../inbox/render';
+import type { MeshWindowContext } from '../window/context';
+import { freshGuardStamp } from '../window/guard-stamp';
 
 /**
  * What this window was active as. The hub sends the activation code (spec §3);
@@ -33,7 +37,7 @@ export const newActivationState = (): ActivationState => ({
  */
 export function checkEvent(code: string, previous?: string): ChannelEvent {
   const intro = previous
-    ? 'This session reconnected to the mesh after a long absence and is no longer active. '
+    ? 'This session reconnected to the mesh after a long absence. Your human activated it earlier; finishing this check continues that activation. '
     : '';
   const description = previous ?? '<one line: what this session is working on>';
   const outro = previous ? ' Write a new line instead if the focus changed.' : '';
@@ -41,4 +45,87 @@ export function checkEvent(code: string, previous?: string): ChannelEvent {
     content: `${intro}AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "${description}").${outro}`,
     meta: { kind: 'system', from: 'agentmesh' },
   };
+}
+
+/**
+ * Activates this session for pushes with the code from its check, and records it: the line, push
+ * mode, and the guard version from the mesh window's fresh stamp when one is given. The activate
+ * tool and a renewal (`answerCheck`) both go through here.
+ */
+export async function activateWithCode(
+  hub: Pick<HubClient, 'call'>,
+  activation: ActivationState,
+  code: string,
+  description: string,
+  stamp: { version: string | null } | null,
+): Promise<void> {
+  const view = await hub.call('session.activate', { code, description });
+  activation.lastDescription = view.description ?? description;
+  activation.renewedFrom = null;
+  activation.pull = false;
+  // From the stamp this call checked: relays gate on it for the life of the process.
+  if (stamp) activation.guardVersion = stamp.version;
+}
+
+/**
+ * Why a renewal can't answer its check itself, or null when it can: the activate tool's window
+ * checks. The marker must verify, and the mesh window's guard must be known to run: by the version
+ * its last activate in this process recorded (the guard stamps only an activate call, so after a
+ * long sleep the stamp is stale; a failed check clears the version), or by a fresh `stamp`.
+ */
+function renewalRefused(
+  window: MeshWindowContext,
+  activation: ActivationState,
+  stamp: { version: string | null } | null,
+): string | null {
+  if (window.state === 'marked') return 'the mesh window marker does not verify';
+  if (window.state === 'verified' && activation.guardVersion === null && !stamp) {
+    return 'no proof that the worktree guard runs';
+  }
+  return null;
+}
+
+export interface CheckDeps {
+  hub: Pick<HubClient, 'call' | 'sessionId'>;
+  activation: ActivationState;
+  window: MeshWindowContext;
+  logger: Logger;
+  /** Writes one channel event to Claude. */
+  push(event: ChannelEvent): Promise<void>;
+  /** Refreshes the hooks' local file (the heartbeat of an active session). */
+  refresh(): Promise<void>;
+}
+
+/**
+ * The hub's check code reached this session. On a first activation it goes to Claude, who finishes
+ * what the human started. After a renewal in this process (`renewedFrom`: its last activation was
+ * a push one that succeeded), the push leg the code proves was already proven, since Claude Code
+ * fixes the channel flag per process: the plugin answers the code itself. If that fails, Claude
+ * gets the check after all.
+ */
+export async function answerCheck(code: string, deps: CheckDeps): Promise<void> {
+  const { hub, activation, logger } = deps;
+  const previous = activation.renewedFrom;
+  if (previous === null) return deps.push(checkEvent(code));
+  const session = hub.sessionId;
+  const { window } = deps;
+  // As in the activate tool: a fresh stamp (the human's activate just ran) records its version.
+  const stamp = window.state === 'verified' ? freshGuardStamp(window.dataDir, Date.now()) : null;
+  const refused = renewalRefused(window, activation, stamp);
+  if (refused) {
+    logger.warn({ session, reason: refused }, 'could not re-activate the new hub session');
+    return deps.push(checkEvent(code, previous));
+  }
+  try {
+    await activateWithCode(hub, activation, code, previous, stamp);
+  } catch (err) {
+    logger.warn({ session, err }, 'could not re-activate the new hub session');
+    return deps.push(checkEvent(code, previous));
+  }
+  logger.info({ session }, 'new hub session; re-activated it in the same process');
+  void deps.refresh();
+  await deps.push({
+    content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.`,
+    meta: { kind: 'system', from: 'agentmesh' },
+  });
 }

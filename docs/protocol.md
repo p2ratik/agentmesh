@@ -209,8 +209,10 @@ both the NATS leg and the channel push:
 The `activate` tool first waits up to 3 s for the session to listen, then asks for the check.
 `session.deactivate` turns the session off and releases everything it owns at once, like a clean
 close; activating again takes none of it back. After a long absence, when `session.hello` answers
-with a new session for a window that was active, the plugin calls `session.check` by itself (a
-pull session re-activates in pull mode instead).
+with a new session for a window that was active, the plugin calls `session.check` by itself and
+answers the code with `session.activate` and the previous description, since the same process's
+pushes are already proven; Claude gets the check only if that fails (a pull session re-activates
+in pull mode instead).
 
 ### Pull mode
 

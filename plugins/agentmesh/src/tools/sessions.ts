@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
-import type { ActivationState } from './activation';
+import { type ActivationState, activateWithCode } from './activation';
 import { defineTool, ToolRefusal } from './types';
 
 const Description = z.string().min(1).max(200);
@@ -98,15 +98,7 @@ export const sessionTools = [
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
-      const view = await hub.call('session.activate', {
-        code: args.code,
-        description: args.description,
-      });
-      activation.lastDescription = view.description ?? args.description;
-      activation.renewedFrom = null;
-      activation.pull = false;
-      // From the stamp this call checked: relays gate on it for the life of the process.
-      if (stamp) activation.guardVersion = stamp.version;
+      await activateWithCode(hub, activation, args.code, args.description, stamp);
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
       // The instructions clip a long policy at 4096 characters; the window gets it whole here.

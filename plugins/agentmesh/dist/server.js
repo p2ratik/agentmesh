@@ -49398,6 +49398,62 @@ function freshGuardStamp(dir, now) {
   return { version: typeof version2 === "string" ? version2 : null };
 }
 
+// src/tools/activation.ts
+var newActivationState = () => ({
+  lastDescription: null,
+  renewedFrom: null,
+  pull: false,
+  guardVersion: null
+});
+function checkEvent(code, previous) {
+  const intro = previous ? "This session reconnected to the mesh after a long absence. Your human activated it earlier; finishing this check continues that activation. " : "";
+  const description = previous ?? "<one line: what this session is working on>";
+  const outro = previous ? " Write a new line instead if the focus changed." : "";
+  return {
+    content: `${intro}AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "${description}").${outro}`,
+    meta: { kind: "system", from: "agentmesh" }
+  };
+}
+async function activateWithCode(hub, activation, code, description, stamp) {
+  const view = await hub.call("session.activate", { code, description });
+  activation.lastDescription = view.description ?? description;
+  activation.renewedFrom = null;
+  activation.pull = false;
+  if (stamp) activation.guardVersion = stamp.version;
+}
+function renewalRefused(window, activation, stamp) {
+  if (window.state === "marked") return "the mesh window marker does not verify";
+  if (window.state === "verified" && activation.guardVersion === null && !stamp) {
+    return "no proof that the worktree guard runs";
+  }
+  return null;
+}
+async function answerCheck(code, deps) {
+  const { hub, activation, logger } = deps;
+  const previous = activation.renewedFrom;
+  if (previous === null) return deps.push(checkEvent(code));
+  const session = hub.sessionId;
+  const { window } = deps;
+  const stamp = window.state === "verified" ? freshGuardStamp(window.dataDir, Date.now()) : null;
+  const refused = renewalRefused(window, activation, stamp);
+  if (refused) {
+    logger.warn({ session, reason: refused }, "could not re-activate the new hub session");
+    return deps.push(checkEvent(code, previous));
+  }
+  try {
+    await activateWithCode(hub, activation, code, previous, stamp);
+  } catch (err) {
+    logger.warn({ session, err }, "could not re-activate the new hub session");
+    return deps.push(checkEvent(code, previous));
+  }
+  logger.info({ session }, "new hub session; re-activated it in the same process");
+  void deps.refresh();
+  await deps.push({
+    content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.`,
+    meta: { kind: "system", from: "agentmesh" }
+  });
+}
+
 // src/tools/sessions.ts
 var Description = external_exports.string().min(1).max(200);
 var LISTEN_WAIT_MS = 3e3;
@@ -49442,11 +49498,11 @@ var sessionTools = [
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
-        const view2 = await hub.call("session.activate", {
+        const view = await hub.call("session.activate", {
           mode: "pull",
           description: args.description
         });
-        activation.lastDescription = view2.description ?? args.description;
+        activation.lastDescription = view.description ?? args.description;
         activation.renewedFrom = null;
         activation.pull = true;
         return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D, pull-only. ${PULL_ACTIVE} ${notWindow(window)}`;
@@ -49457,14 +49513,7 @@ var sessionTools = [
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
-      const view = await hub.call("session.activate", {
-        code: args.code,
-        description: args.description
-      });
-      activation.lastDescription = view.description ?? args.description;
-      activation.renewedFrom = null;
-      activation.pull = false;
-      if (stamp) activation.guardVersion = stamp.version;
+      await activateWithCode(hub, activation, args.code, args.description, stamp);
       const active = `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
       const policy = teamPolicy();
@@ -52216,23 +52265,6 @@ function readClaudeSession(dir, ppid, startedAt) {
   return at >= startedAt - CLAUDE_SESSION_SLACK_MS ? id : null;
 }
 
-// src/tools/activation.ts
-var newActivationState = () => ({
-  lastDescription: null,
-  renewedFrom: null,
-  pull: false,
-  guardVersion: null
-});
-function checkEvent(code, previous) {
-  const intro = previous ? "This session reconnected to the mesh after a long absence and is no longer active. " : "";
-  const description = previous ?? "<one line: what this session is working on>";
-  const outro = previous ? " Write a new line instead if the focus changed." : "";
-  return {
-    content: `${intro}AgentMesh activation check. Code: ${code}. To finish, call activate(code: "${code}", description: "${description}").${outro}`,
-    meta: { kind: "system", from: "agentmesh" }
-  };
-}
-
 // src/window/context.ts
 function meshWindowContext(env, home, platform2, folder, agentId) {
   const file2 = readWindowPolicy(home, platform2);
@@ -52325,7 +52357,14 @@ function startSession(server, session, logger, pushDelayMs) {
       signal: abort.signal,
       fyi: session.fyi,
       push: (event2) => pushEvent(server, event2),
-      pushCheck: (code) => pushEvent(server, checkEvent(code, session.activation.renewedFrom ?? void 0)),
+      pushCheck: (code) => answerCheck(code, {
+        hub,
+        activation: session.activation,
+        window: session.window,
+        logger,
+        push: (event2) => pushEvent(server, event2),
+        refresh: () => session.pull.refresh()
+      }),
       onExpired: rehello,
       onListening: () => {
         presence.beat();

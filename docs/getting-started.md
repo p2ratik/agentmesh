@@ -279,7 +279,8 @@ Closing the window's terminal says goodbye to the hub. A laptop that sleeps or c
 nothing, so the window goes away after `presence.offlineAfterSeconds` (75 s by default) and keeps
 its threads. The next mesh window you start takes them over as soon as it activates; otherwise
 they wait for `presence.ownershipGraceMinutes` (120 by default). `peers` shows an away session with
-the time it closes.
+the time it closes. After a longer sleep, the window gets a new session when the laptop wakes and
+re-activates itself; you run `/agentmesh:activate` there only if it says it couldn't.
 
 **What it does without asking, and what asks:**
 - **Without asking:** edits inside its own `.claude/worktrees/mesh-*` worktrees (expected; a live
