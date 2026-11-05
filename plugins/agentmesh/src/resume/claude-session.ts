@@ -55,9 +55,25 @@ export function writeClaudeSession(
   renameSync(`${file}.tmp`, file);
 }
 
-export function deleteClaudeSession(dir: string, pid: unknown): void {
+/** A record's parsed contents, or null when it is missing or not JSON. */
+function readRecord(file: string): { session_id?: unknown; at?: unknown } | null {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Deletes the record only while it names the conversation that ended: on `/clear`, the old
+ * conversation's SessionEnd may run after the new one's SessionStart rewrote it.
+ */
+export function deleteClaudeSession(dir: string, pid: unknown, sessionId: unknown): void {
   const name = claudeSessionFile(pid);
-  if (name) rmSync(join(dir, name), { force: true });
+  if (!name || typeof sessionId !== 'string' || !CLAUDE_SESSION_ID.test(sessionId)) return;
+  const file = join(dir, name);
+  // ponytail: read, then remove; a SessionStart landing in between is lost (a microsecond window).
+  if (readRecord(file)?.session_id === sessionId) rmSync(file, { force: true });
 }
 
 /** Best effort: deletes records (and leftover temp files) not written for a day. */
@@ -82,12 +98,7 @@ export function pruneClaudeSessions(dir: string, now: number): void {
 export function readClaudeSession(dir: string, ppid: number, startedAt: number): string | null {
   const name = claudeSessionFile(ppid);
   if (!name) return null;
-  let value: { session_id?: unknown; at?: unknown } | null;
-  try {
-    value = JSON.parse(readFileSync(join(dir, name), 'utf8'));
-  } catch {
-    return null;
-  }
+  const value = readRecord(join(dir, name));
   const id = value?.session_id;
   const at = typeof value?.at === 'string' ? Date.parse(value.at) : Number.NaN;
   if (typeof id !== 'string' || !CLAUDE_SESSION_ID.test(id)) return null;

@@ -87,7 +87,8 @@ describe('resuming a conversation', () => {
     expect(h.orphans.tick(h.clock.now())).toBe(0);
   });
 
-  // Task 8: whoever takes a thread after the close leaves the closed session's release list.
+  // Task 8: whoever takes a thread after the close leaves the closed session's release list, so
+  // a thread the window took and then let go again is no longer this conversation's.
   it('reclaims only threads nobody owned since the close', () => {
     const h = setup();
     const w = h.meshWindow();
@@ -95,10 +96,30 @@ describe('resuming a conversation', () => {
     h.sessions.take('bob-agent', h.p, t2);
     h.sessions.close('bob-agent', h.p);
     h.sessions.take('bob-agent', w, h.t);
+    h.sessions.deactivate('bob-agent', w);
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBeNull();
     const n = h.open({ claudeSessionId: UUID });
     expect(n.reclaimed).toEqual([t2]);
-    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBe(w);
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBeNull();
     expect(h.sessions.ownerOf(t2, 'bob-agent')).toBe(n.session.id);
+  });
+
+  it('logs a resume only when it gave something back', () => {
+    const resumed = (h: ReturnType<typeof setup>) =>
+      vi.mocked(h.ctx.logger.info).mock.calls.filter(([, m]) => m === 'conversation resumed');
+    const empty = setup();
+    vi.spyOn(empty.ctx.logger, 'info');
+    empty.sessions.take('bob-agent', empty.meshWindow(), empty.t);
+    empty.sessions.close('bob-agent', empty.p);
+    expect(empty.open({ claudeSessionId: UUID }).reclaimed).toEqual([]);
+    expect(resumed(empty)).toEqual([]);
+
+    const h = setup();
+    vi.spyOn(h.ctx.logger, 'info');
+    h.sessions.close('bob-agent', h.p);
+    const n = h.open({ claudeSessionId: UUID }).session.id;
+    const log = { agent: 'bob-agent', session: n, resumed: h.p, reclaimed: [`thr-${h.t}`] };
+    expect(resumed(h)).toEqual([[log, 'conversation resumed']]);
   });
 });
 

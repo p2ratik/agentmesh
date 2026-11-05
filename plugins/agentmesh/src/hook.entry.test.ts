@@ -80,12 +80,17 @@ describe('dist/hook.js (from source)', () => {
     writeFileSync(stale, '{}');
     utimesSync(stale, new Date(0), new Date(0));
     const id = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
+    const OTHER = '7d1e0c3a-2b4f-4e6a-8c9d-1a2b3c4d5e6f';
     const env = { CLAUDE_PID: '4242' };
     const start = { hook_event_name: 'SessionStart', source: 'clear', session_id: id };
     expect((await hook(JSON.stringify(start), env)).status).toBe(0);
     const record = JSON.parse(readFileSync(join(data, 'cc-4242.json'), 'utf8'));
     expect(record).toEqual({ session_id: id, source: 'clear', at: expect.any(String) });
     expect(existsSync(stale)).toBe(false);
+    // The conversation /clear ended, reported after the new one started: its record stays.
+    const old = { hook_event_name: 'SessionEnd', reason: 'clear', session_id: OTHER };
+    expect(await hook(JSON.stringify(old), env)).toEqual({ status: 0, stdout: '' });
+    expect(readdirSync(data)).toEqual(['cc-4242.json']);
     const end = { hook_event_name: 'SessionEnd', reason: 'exit', session_id: id };
     expect(await hook(JSON.stringify(end), env)).toEqual({ status: 0, stdout: '' });
     expect(readdirSync(data)).toEqual([]);

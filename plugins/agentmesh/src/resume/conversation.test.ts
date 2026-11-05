@@ -1,18 +1,27 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HubClient } from '../hub';
 import { newActivationState } from '../tools/activation';
-import { followConversation, followEvery, reclaimedLines } from './conversation';
+import { byeQuietly, followConversation, followEvery, reclaimedLines } from './conversation';
 
 const A = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
 const B = '7d1e0c3a-2b4f-4e6a-8c9d-1a2b3c4d5e6f';
 
-/** A session of conversation `prev` with hub session s-1; the fake hub records calls in order. */
+/**
+ * A session of conversation `prev` with hub session s-1; the fake hub records calls in order, and
+ * each bye's options with this process's session while it is out. A bye waits for `gate.bye`.
+ */
 function session(prev: string | null, active = false) {
   const calls: Array<[string, unknown]> = [];
+  const byes: Array<{ options: unknown; current: string | null }> = [];
+  const gate = { bye: Promise.resolve() };
   const hub = {
     sessionId: 's-aaaaaaaaaaaa' as string | null,
-    call: async (method: string, params: unknown) => {
+    call: async (method: string, params: unknown, options?: unknown) => {
       calls.push([method, params]);
+      if (method === 'session.bye') {
+        byes.push({ options, current: hub.sessionId });
+        await gate.bye;
+      }
       return { ok: true };
     },
   };
@@ -27,8 +36,10 @@ function session(prev: string | null, active = false) {
       return null;
     },
   };
-  return { s, calls, hub };
+  return { s, calls, hub, byes, gate };
 }
+
+const BYE_OPTIONS = { timeoutMs: 250, session: 's-aaaaaaaaaaaa' };
 
 afterEach(() => vi.useRealTimers());
 
@@ -52,14 +63,40 @@ describe('followConversation', () => {
   });
 
   it('after a /clear in an inactive session, says bye and hello as a new session', async () => {
-    const { s, calls, hub } = session(A);
+    const { s, calls, hub, byes } = session(A);
     await followConversation(s, B);
     expect(s.claudeSessionId).toBe(B);
     expect(calls).toEqual([
       ['session.bye', {}],
       ['session.hello', {}],
     ]);
+    // The old session is named on the bye and already let go while the bye is out.
+    expect(byes).toEqual([{ options: BYE_OPTIONS, current: null }]);
     expect(hub.sessionId).toBeNull();
+  });
+
+  // Review I1: a bye with no session would open one (a call says hello first) and close it.
+  it('with no hub session, a /clear sends no bye, only a hello', async () => {
+    const { s, calls, hub } = session(A);
+    hub.sessionId = null;
+    await followConversation(s, B);
+    expect(calls).toEqual([['session.hello', {}]]);
+  });
+
+  // Review I1: a re-hello naming the old session would reclaim the old conversation's threads.
+  it('a session lost while the bye is out says hello without the old session', async () => {
+    const { s, calls, gate } = session(A);
+    const bye = Promise.withResolvers<void>();
+    gate.bye = bye.promise;
+    const following = followConversation(s, B);
+    await vi.waitFor(() => expect(calls).toEqual([['session.bye', {}]]));
+    await s.sayHello(); // a tool call got not_found, so onSessionLost says hello
+    bye.resolve();
+    await following;
+    expect(calls.filter(([method]) => method === 'session.hello')).toEqual([
+      ['session.hello', {}],
+      ['session.hello', {}],
+    ]);
   });
 
   it('an active session keeps its hub session: it only notes the new id', async () => {
@@ -69,6 +106,18 @@ describe('followConversation', () => {
       await followConversation(s, B);
       expect([s.claudeSessionId, calls]).toEqual([B, []]);
     }
+  });
+});
+
+describe('byeQuietly', () => {
+  it('says bye only for a session, naming it, and never as a new one', async () => {
+    const { hub, byes } = session(A);
+    const client = hub as unknown as HubClient;
+    await byeQuietly(client);
+    await byeQuietly(client, null);
+    hub.sessionId = null;
+    await byeQuietly(client);
+    expect(byes).toEqual([{ options: BYE_OPTIONS, current: 's-aaaaaaaaaaaa' }]);
   });
 });
 

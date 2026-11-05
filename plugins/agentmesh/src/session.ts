@@ -188,8 +188,7 @@ export function startSession(
     hub.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    // Without a session there is nothing to close, and the call would open one.
-    if (hub.sessionId) await byeQuietly(hub);
+    await byeQuietly(hub);
     await hub.close(SHUTDOWN_MS);
   };
 }

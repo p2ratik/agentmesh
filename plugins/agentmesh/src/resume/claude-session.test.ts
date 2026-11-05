@@ -37,10 +37,20 @@ describe('the conversation record', () => {
     if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600);
     expect(readClaudeSession(dir, 4242, NOW.getTime())).toBe(UUID);
     expect(readClaudeSession(dir, 4243, NOW.getTime())).toBeNull();
-    deleteClaudeSession(dir, '4242');
+    deleteClaudeSession(dir, '4242', UUID);
     expect(readdirSync(dir)).toEqual([]);
     expect(readClaudeSession(dir, 4242, NOW.getTime())).toBeNull();
-    deleteClaudeSession(dir, '4242');
+    deleteClaudeSession(dir, '4242', UUID);
+  });
+
+  // Review M3: on /clear the old conversation's SessionEnd may run after the new one's SessionStart.
+  it('deletes only the record of the conversation that ended', () => {
+    const next = '7d1e0c3a-2b4f-4e6a-8c9d-1a2b3c4d5e6f';
+    writeClaudeSession(dir, '4242', { session_id: next, source: 'clear' }, NOW);
+    for (const ended of [UUID, undefined, 'not-a-uuid']) deleteClaudeSession(dir, '4242', ended);
+    expect(readClaudeSession(dir, 4242, NOW.getTime())).toBe(next);
+    deleteClaudeSession(dir, '4242', next);
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   it('writes nothing for a bad process id or conversation id', () => {

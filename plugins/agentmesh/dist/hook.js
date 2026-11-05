@@ -257,9 +257,18 @@ function writeClaudeSession(dir, pid, input, now) {
   });
   renameSync(`${file}.tmp`, file);
 }
-function deleteClaudeSession(dir, pid) {
+function readRecord(file) {
+  try {
+    return JSON.parse(readFileSync2(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function deleteClaudeSession(dir, pid, sessionId) {
   const name = claudeSessionFile(pid);
-  if (name) rmSync(join2(dir, name), { force: true });
+  if (!name || typeof sessionId !== "string" || !CLAUDE_SESSION_ID.test(sessionId)) return;
+  const file = join2(dir, name);
+  if (readRecord(file)?.session_id === sessionId) rmSync(file, { force: true });
 }
 function pruneClaudeSessions(dir, now) {
   let names;
@@ -418,7 +427,7 @@ function recordConversation(event, dir, input) {
   const pid = process.env.CLAUDE_PID;
   try {
     if (event === "SessionEnd") {
-      deleteClaudeSession(dir, pid);
+      deleteClaudeSession(dir, pid, input?.session_id);
       return;
     }
     pruneClaudeSessions(dir, Date.now());

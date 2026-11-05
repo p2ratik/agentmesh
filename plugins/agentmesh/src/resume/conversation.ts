@@ -5,10 +5,19 @@ import type { Session } from '../session';
 /** The longest a goodbye waits on the network. */
 export const SHUTDOWN_MS = 250;
 
-/** `session.bye`, waiting at most SHUTDOWN_MS: a closing session never hangs on the hub. */
-export async function byeQuietly(hub: Pick<HubClient, 'call'>): Promise<void> {
+/**
+ * `session.bye` for `sessionId` (this process's by default), naming it, so it never says hello
+ * first and closes a session it just opened; nothing without one. Waits at most SHUTDOWN_MS: a
+ * closing session never hangs on the hub.
+ */
+export async function byeQuietly(
+  hub: Pick<HubClient, 'call' | 'sessionId'>,
+  sessionId: string | null = hub.sessionId,
+): Promise<void> {
+  if (!sessionId) return;
+  const options = { timeoutMs: SHUTDOWN_MS, session: sessionId };
   await Promise.race([
-    hub.call('session.bye', {}, { timeoutMs: SHUTDOWN_MS }).catch(() => undefined),
+    hub.call('session.bye', {}, options).catch(() => undefined),
     new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS)),
   ]);
 }
@@ -29,8 +38,11 @@ export async function followConversation(session: Following, next: string | null
   const { activation, hub } = session;
   if (previous !== null) {
     if (activation.lastDescription !== null || activation.pull) return;
-    await byeQuietly(hub);
+    // Let go first: a hello while the bye is out (a lost call says one) must not name the old
+    // session, or it would reclaim the old conversation's threads.
+    const old = hub.sessionId;
     hub.sessionId = null;
+    await byeQuietly(hub, old);
   }
   await session.sayHello();
 }

@@ -86,4 +86,22 @@ describe('HubClient', () => {
     await expect(hub.call('session.bye', {})).rejects.toThrow('Unknown or closed session');
     expect(lost).toHaveBeenCalledOnce();
   });
+
+  // A bye for a session this process already left must not open a session to carry it.
+  it('a call naming its session never says hello first, and its loss is not this session’s', async () => {
+    const { hub, envelopes } = await connected([
+      {
+        ok: false,
+        error: { code: 'not_found', message: 'Unknown or closed session s-x; reconnect' },
+      },
+    ]);
+    const hello = vi.fn(async () => undefined);
+    const lost = vi.fn();
+    hub.sayHello = hello;
+    hub.onSessionLost = lost;
+    const bye = hub.call('session.bye', {}, { session: 's-aaaaaaaaaaaa' });
+    await expect(bye).rejects.toThrow('Unknown or closed session');
+    expect(envelopes.map((e) => e.session)).toEqual(['s-aaaaaaaaaaaa']);
+    expect([hello.mock.calls.length, lost.mock.calls.length]).toEqual([0, 0]);
+  });
 });

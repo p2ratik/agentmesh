@@ -110,7 +110,7 @@ function recordConversation(event: string, dir: string, input: Input | null): vo
   const pid = process.env.CLAUDE_PID;
   try {
     if (event === 'SessionEnd') {
-      deleteClaudeSession(dir, pid);
+      deleteClaudeSession(dir, pid, input?.session_id);
       return;
     }
     pruneClaudeSessions(dir, Date.now());

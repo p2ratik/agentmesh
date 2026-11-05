@@ -48155,9 +48155,11 @@ var PullWatcher = class {
 
 // src/resume/conversation.ts
 var SHUTDOWN_MS = 250;
-async function byeQuietly(hub) {
+async function byeQuietly(hub, sessionId = hub.sessionId) {
+  if (!sessionId) return;
+  const options = { timeoutMs: SHUTDOWN_MS, session: sessionId };
   await Promise.race([
-    hub.call("session.bye", {}, { timeoutMs: SHUTDOWN_MS }).catch(() => void 0),
+    hub.call("session.bye", {}, options).catch(() => void 0),
     new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS))
   ]);
 }
@@ -48168,8 +48170,9 @@ async function followConversation(session, next) {
   const { activation, hub } = session;
   if (previous !== null) {
     if (activation.lastDescription !== null || activation.pull) return;
-    await byeQuietly(hub);
+    const old = hub.sessionId;
     hub.sessionId = null;
+    await byeQuietly(hub, old);
   }
   await session.sayHello();
 }
@@ -51707,13 +51710,17 @@ var HubClient = class {
   get connection() {
     return this.#nc;
   }
-  /** Calls the hub as this session. Its notes go into `notes` when given, else are dropped. */
+  /**
+   * Calls the hub as this session, or as `options.session` when the call names one (a bye for a
+   * session this process already let go): that call never says hello first, and its `not_found`
+   * is not this session's loss. Its notes go into `notes` when given, else are dropped.
+   */
   async call(method, params, options = {}, notes) {
     if (!this.#rpc) throw new MeshError("unavailable", UNREACHABLE);
-    if (!this.sessionId && this.sayHello && method !== "session.hello") {
+    if (!this.sessionId && !options.session && this.sayHello && method !== "session.hello") {
       await Promise.race([this.sayHello(), sleep2(HELLO_WAIT_MS, void 0, { ref: false })]);
     }
-    const session = this.sessionId;
+    const session = options.session ? null : this.sessionId;
     try {
       const reply = await this.#rpc.callWithNotes(method, params, {
         ...session ? { session } : {},
@@ -52053,15 +52060,17 @@ function claudeSessionFile(pid) {
   const text3 = String(pid);
   return /^\d{1,10}$/.test(text3) ? `cc-${text3}.json` : null;
 }
-function readClaudeSession(dir, ppid, startedAt) {
-  const name = claudeSessionFile(ppid);
-  if (!name) return null;
-  let value;
+function readRecord(file2) {
   try {
-    value = JSON.parse(readFileSync10(join12(dir, name), "utf8"));
+    return JSON.parse(readFileSync10(file2, "utf8"));
   } catch {
     return null;
   }
+}
+function readClaudeSession(dir, ppid, startedAt) {
+  const name = claudeSessionFile(ppid);
+  if (!name) return null;
+  const value = readRecord(join12(dir, name));
   const id = value?.session_id;
   const at = typeof value?.at === "string" ? Date.parse(value.at) : Number.NaN;
   if (typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return null;
@@ -52209,7 +52218,7 @@ function startSession(server, session, logger, pushDelayMs) {
     hub.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    if (hub.sessionId) await byeQuietly(hub);
+    await byeQuietly(hub);
     await hub.close(SHUTDOWN_MS);
   };
 }

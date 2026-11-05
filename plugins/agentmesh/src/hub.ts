@@ -71,7 +71,11 @@ export class HubClient {
     return this.#nc;
   }
 
-  /** Calls the hub as this session. Its notes go into `notes` when given, else are dropped. */
+  /**
+   * Calls the hub as this session, or as `options.session` when the call names one (a bye for a
+   * session this process already let go): that call never says hello first, and its `not_found`
+   * is not this session's loss. Its notes go into `notes` when given, else are dropped.
+   */
   async call<M extends RpcMethodName>(
     method: M,
     params: RpcParamsInput<M>,
@@ -80,10 +84,11 @@ export class HubClient {
   ): Promise<RpcResult<M>> {
     if (!this.#rpc) throw new MeshError('unavailable', UNREACHABLE);
     // The hub refuses agent calls without a session, so say hello first and give it a moment.
-    if (!this.sessionId && this.sayHello && method !== 'session.hello') {
+    if (!this.sessionId && !options.session && this.sayHello && method !== 'session.hello') {
       await Promise.race([this.sayHello(), sleep(HELLO_WAIT_MS, undefined, { ref: false })]);
     }
-    const session = this.sessionId;
+    // A call naming its own session carries that one (`options` wins) and reports no loss.
+    const session = options.session ? null : this.sessionId;
     try {
       const reply = await this.#rpc.callWithNotes(method, params, {
         ...(session ? { session } : {}),

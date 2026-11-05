@@ -26,6 +26,7 @@ export function learnClaudeSession(
   // Closing changed its `released`: read it again.
   const closed = repo.get(match.id);
   const reclaimed = closed ? reclaimReleased(repo, closed, sessionId, at) : [];
+  if (reclaimed.length === 0) return reclaimed;
   orphans.forget(agentId, reclaimed);
   ctx.logger.info(
     { agent: agentId, session: sessionId, resumed: match.id, reclaimed: reclaimed.map(threadKey) },
