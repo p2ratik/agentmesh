@@ -1,19 +1,24 @@
 // The server bundle's (task_get): reads git's files and never spawns git.
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import path, { join, sep } from 'node:path';
 import { parseRemote } from '../git';
+import { badInput } from '../guard/paths';
 
 const NO_REPO = 'checkout: this task names no repo. Ask your human which checkout to use.';
 const BAD_REPO =
   "checkout: this task's repo isn't owner/name. Ask your human which checkout to use.";
 /** The only repo shape echoed into tool output: one line, no path or shell characters. */
 const OWNER_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+/** A worktree's `.git` file is one line; a repo's config is a few KB. */
+const MAX_GIT_FILE = 4096;
+const MAX_CONFIG = 64 * 1024;
 
-/** A repo as compared: case-insensitive, without a `.git` suffix. */
+/** A repo as compared: case-insensitive, without a `.git` suffix. For matching only. */
 export const repoKey = (repo: string): string => repo.replace(/\.git$/i, '').toLowerCase();
 
-/** Whether the hub's repo may be used at all: a plain owner/name (event rules fill it). */
-export const isOwnerName = (repo: string): boolean => OWNER_NAME.test(repoKey(repo));
+/** Whether the hub's repo may be used and printed: the text as sent is a plain owner/name (event
+ * rules fill it). Checked before any case folding, which can turn a non-ASCII letter into ASCII. */
+export const isOwnerName = (repo: string): boolean => OWNER_NAME.test(repo.replace(/\.git$/i, ''));
 
 /** A git config value as git reads it: double quotes dropped, a `\` escape kept as the escaped
  * character, an unquoted `;` or `#` starting a comment. */
@@ -49,25 +54,39 @@ function originUrl(config: string): string | null {
 }
 
 /**
+ * `<X>/.git` for a worktree's `gitdir:` target `<X>/.git/worktrees/<name>`, from the text alone
+ * (`..` folded): null for any other target, and for a UNC, device or stream spelling
+ * (guard/paths.ts `badInput`), so no network host is ever contacted.
+ */
+export function worktreeCommonDir(
+  dir: string,
+  target: string,
+  platform: NodeJS.Platform,
+): string | null {
+  const p = platform === 'win32' ? path.win32 : path.posix;
+  const resolved = p.resolve(dir, target);
+  if (badInput(resolved, { platform, home: '' })) return null;
+  const worktrees = p.dirname(resolved);
+  const common = p.dirname(worktrees);
+  return p.basename(worktrees) === 'worktrees' && p.basename(common) === '.git' ? common : null;
+}
+
+/**
  * The repo's own `.git` folder: `dir/.git` when it is a real folder. With `followWorktree`, a
- * `.git` file whose `gitdir:` is `<X>/.git/worktrees/<name>` gives `<X>/.git` when that is a real
- * folder; any other target (a link, a submodule, elsewhere) gives null, and `commondir` is never
- * read, so a checkout's files can steer the read to nothing but a `.git/config`.
+ * `.git` file (a small regular file) whose `gitdir:` is `<X>/.git/worktrees/<name>` gives
+ * `<X>/.git` when that is a real folder. `commondir` is never read, so a checkout's files can steer
+ * the read to nothing but a `.git/config`.
  */
 function gitDir(dir: string, followWorktree: boolean): string | null {
   const dotGit = join(dir, '.git');
   const stat = lstatSync(dotGit);
   if (stat.isDirectory()) return dotGit;
-  if (!followWorktree || !stat.isFile()) return null;
-  const target = /^gitdir: (.+)$/.exec(readFileSync(dotGit, 'utf8').trimEnd())?.[1];
-  if (!target) return null;
-  const worktrees = dirname(resolve(dir, target));
-  const common = dirname(worktrees);
-  const own =
-    basename(worktrees) === 'worktrees' &&
-    basename(common) === '.git' &&
-    lstatSync(common).isDirectory();
-  return own ? common : null;
+  if (!followWorktree || !stat.isFile() || stat.size > MAX_GIT_FILE) return null;
+  // As git reads it: one line, its line break dropped; a trailing space stays (and is refused).
+  const line = readFileSync(dotGit, 'utf8').replace(/[\r\n]+$/, '');
+  const target = /^gitdir: (.+)$/.exec(line)?.[1];
+  const common = target ? worktreeCommonDir(dir, target, process.platform) : null;
+  return common && lstatSync(common).isDirectory() ? common : null;
 }
 
 /**
@@ -79,8 +98,12 @@ export function originRepo(dir: string, followWorktree = false): string | null {
   try {
     const dotGit = gitDir(dir, followWorktree);
     if (!dotGit) return null;
+    const config = join(dotGit, 'config');
+    // Never a FIFO, a device or a link (to /dev/zero, say): the read would hang the server.
+    const stat = lstatSync(config);
+    if (!stat.isFile() || stat.size > MAX_CONFIG) return null;
     // ponytail: no include/includeIf handling; add if real configs need it
-    const url = originUrl(readFileSync(join(dotGit, 'config'), 'utf8'));
+    const url = originUrl(readFileSync(config, 'utf8'));
     return (url && parseRemote(url)) || null;
   } catch {
     return null;

@@ -72,7 +72,7 @@ describe('task_get in the mesh window', () => {
       JSON.stringify(record),
     );
     expect(await run('acme/web', 'verified')).toMatch(
-      /\nlocal sessions: 1 of your sessions are in this repo \(1 with unread mesh replies\); tell your human, never message them\.$/,
+      /\nlocal sessions: 1 of your sessions is in this repo \(1 with unread mesh replies\); tell your human, never message them\.$/,
     );
   });
 

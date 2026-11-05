@@ -9,6 +9,7 @@ import {
   ownLocalSession,
   parseLocalSession,
   readLocalSession,
+  readLocalSessions,
   replyNote,
 } from './local-session';
 
@@ -110,6 +111,19 @@ describe('local session records', () => {
     expect(readLocalSession(dir, 'mesh', 'bob-agent', 's-aaaaaaaaaaaa', now + 180_000)).toBeNull();
     expect(readLocalSession(dir, 'mesh', 'bob-agent', 's-bbbbbbbbbbbb', now)).toBeNull();
     expect(readLocalSession(dir, '../mesh', 'bob-agent', 's-aaaaaaaaaaaa', now)).toBeNull();
+  });
+
+  it('reads every fresh sess-* record in a folder, skipping other and bad files', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-sess-'));
+    dirs.push(dir);
+    const fresh = record({ hubSessionId: 's-bbbbbbbbbbbb' });
+    writeFileSync(join(dir, 'sess-mesh-bob-agent-s-bbbbbbbbbbbb.json'), JSON.stringify(fresh));
+    const old = record({ updatedAt: new Date(now - 180_000).toISOString() });
+    writeFileSync(join(dir, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(old));
+    writeFileSync(join(dir, 'sess-mesh-bob-agent-s-cccccccccccc.json'), '{not json');
+    writeFileSync(join(dir, 'pull-mesh-bob-agent-s-dddddddddddd.json'), JSON.stringify(record()));
+    expect(readLocalSessions(dir, now)).toEqual([fresh]);
+    expect(readLocalSessions(join(dir, 'missing'), now)).toEqual([]);
   });
 
   it('refuses a record whose content names another session, agent or mesh than its file', () => {

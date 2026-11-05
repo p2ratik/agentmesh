@@ -65,6 +65,13 @@ describe('localSessionsLine', () => {
     );
   });
 
+  it('says "is" for one session', () => {
+    record(checkout('web', 'git@github.com:Acme/Web.git'));
+    expect(localSessionsLine('acme/web', deps())).toBe(
+      'local sessions: 1 of your sessions is in this repo (0 with unread mesh replies); tell your human, never message them.',
+    );
+  });
+
   it('says none when no session of yours is in the repo, or there are no records', () => {
     const none = 'local sessions: none of your sessions are in this repo.';
     record(checkout('api', 'git@github.com:Acme/Api.git'));

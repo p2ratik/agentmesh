@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -34,6 +35,23 @@ export function isFresh(at: unknown, now: number, maxAge = STATE_MAX_AGE_MS): bo
 export function pullStateDirs(env: NodeJS.ProcessEnv, home: string): string[] {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, '.agentmesh', 'run')];
   return [...new Set(dirs.filter((d): d is string => !!d))];
+}
+
+/** Every matching file in a folder, parsed; a missing folder or a bad file is skipped (null). */
+export function readJsonFiles(dir: string, filter: (name: string) => boolean): unknown[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir).filter(filter);
+  } catch {
+    return [];
+  }
+  return names.map((name) => {
+    try {
+      return JSON.parse(readFileSync(join(dir, name), 'utf8'));
+    } catch {
+      return null;
+    }
+  });
 }
 
 export const isStateFile = (name: string): boolean =>

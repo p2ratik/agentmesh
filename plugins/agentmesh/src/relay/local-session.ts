@@ -1,7 +1,7 @@
 // Built-ins only (the hook bundle imports this).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isFresh, PARTICIPANT_ID } from '../pull/state';
+import { isFresh, PARTICIPANT_ID, readJsonFiles } from '../pull/state';
 
 /**
  * A private session's local record, `sess-{prefix}-{agent}-{hubSession}.json` in the shared
@@ -105,6 +105,10 @@ export function freshLocalSessions(values: readonly unknown[], now: number): Loc
     .map(parseLocalSession)
     .filter((s): s is LocalSession => s !== null && isFresh(s.updatedAt, now));
 }
+
+/** Every fresh record in the folder (a missing folder or a bad file is skipped). */
+export const readLocalSessions = (dir: string, now: number): LocalSession[] =>
+  freshLocalSessions(readJsonFiles(dir, isLocalSessionFile), now);
 
 /** That one session's record, if it is fresh. */
 export function readLocalSession(

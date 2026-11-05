@@ -302,8 +302,8 @@ var require_req = __commonJS({
       if (req.originalUrl) {
         _req.url = req.originalUrl;
       } else {
-        const path = req.path;
-        _req.url = typeof path === "string" ? path : req.url ? req.url.path || req.url : void 0;
+        const path2 = req.path;
+        _req.url = typeof path2 === "string" ? path2 : req.url ? req.url.path || req.url : void 0;
       }
       if (req.query) {
         _req.query = req.query;
@@ -473,14 +473,14 @@ var require_redact = __commonJS({
       }
       return obj;
     }
-    function parsePath(path) {
+    function parsePath(path2) {
       const parts = [];
       let current = "";
       let inBrackets = false;
       let inQuotes = false;
       let quoteChar = "";
-      for (let i = 0; i < path.length; i++) {
-        const char = path[i];
+      for (let i = 0; i < path2.length; i++) {
+        const char = path2[i];
         if (!inBrackets && char === ".") {
           if (current) {
             parts.push(current);
@@ -611,10 +611,10 @@ var require_redact = __commonJS({
       return current;
     }
     function redactPaths(obj, paths, censor, remove = false) {
-      for (const path of paths) {
-        const parts = parsePath(path);
+      for (const path2 of paths) {
+        const parts = parsePath(path2);
         if (parts.includes("*")) {
-          redactWildcardPath(obj, parts, censor, path, remove);
+          redactWildcardPath(obj, parts, censor, path2, remove);
         } else {
           if (remove) {
             removeKey(obj, parts);
@@ -699,8 +699,8 @@ var require_redact = __commonJS({
           }
         } else {
           if (afterWildcard.includes("*")) {
-            const wrappedCensor = typeof censor === "function" ? (value, path) => {
-              const fullPath = [...pathArray.slice(0, pathLength), ...path];
+            const wrappedCensor = typeof censor === "function" ? (value, path2) => {
+              const fullPath = [...pathArray.slice(0, pathLength), ...path2];
               return censor(value, fullPath);
             } : censor;
             redactWildcardPath(current, afterWildcard, wrappedCensor, originalPath, remove);
@@ -735,8 +735,8 @@ var require_redact = __commonJS({
         return null;
       }
       const pathStructure = /* @__PURE__ */ new Map();
-      for (const path of pathsToClone) {
-        const parts = parsePath(path);
+      for (const path2 of pathsToClone) {
+        const parts = parsePath(path2);
         let current = pathStructure;
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i];
@@ -788,24 +788,24 @@ var require_redact = __commonJS({
       }
       return cloneSelectively(obj, pathStructure);
     }
-    function validatePath(path) {
-      if (typeof path !== "string") {
+    function validatePath(path2) {
+      if (typeof path2 !== "string") {
         throw new Error("Paths must be (non-empty) strings");
       }
-      if (path === "") {
+      if (path2 === "") {
         throw new Error("Invalid redaction path ()");
       }
-      if (path.includes("..")) {
-        throw new Error(`Invalid redaction path (${path})`);
+      if (path2.includes("..")) {
+        throw new Error(`Invalid redaction path (${path2})`);
       }
-      if (path.includes(",")) {
-        throw new Error(`Invalid redaction path (${path})`);
+      if (path2.includes(",")) {
+        throw new Error(`Invalid redaction path (${path2})`);
       }
       let bracketCount = 0;
       let inQuotes = false;
       let quoteChar = "";
-      for (let i = 0; i < path.length; i++) {
-        const char = path[i];
+      for (let i = 0; i < path2.length; i++) {
+        const char = path2[i];
         if ((char === '"' || char === "'") && bracketCount > 0) {
           if (!inQuotes) {
             inQuotes = true;
@@ -819,20 +819,20 @@ var require_redact = __commonJS({
         } else if (char === "]" && !inQuotes) {
           bracketCount--;
           if (bracketCount < 0) {
-            throw new Error(`Invalid redaction path (${path})`);
+            throw new Error(`Invalid redaction path (${path2})`);
           }
         }
       }
       if (bracketCount !== 0) {
-        throw new Error(`Invalid redaction path (${path})`);
+        throw new Error(`Invalid redaction path (${path2})`);
       }
     }
     function validatePaths(paths) {
       if (!Array.isArray(paths)) {
         throw new TypeError("paths must be an array");
       }
-      for (const path of paths) {
-        validatePath(path);
+      for (const path2 of paths) {
+        validatePath(path2);
       }
     }
     function slowRedact(options = {}) {
@@ -1002,8 +1002,8 @@ var require_redaction = __commonJS({
         if (shape[k] === null) {
           o[k] = (value) => topCensor(value, [k]);
         } else {
-          const wrappedCensor = typeof censor === "function" ? (value, path) => {
-            return censor(value, [k, ...path]);
+          const wrappedCensor = typeof censor === "function" ? (value, path2) => {
+            return censor(value, [k, ...path2]);
           } : censor;
           o[k] = Redact({
             paths: shape[k],
@@ -1224,7 +1224,7 @@ var require_sonic_boom = __commonJS({
     var fs = __require("fs");
     var EventEmitter = __require("events");
     var inherits = __require("util").inherits;
-    var path = __require("path");
+    var path2 = __require("path");
     var sleep3 = require_atomic_sleep();
     var assert2 = __require("assert");
     var BUSY_WRITE_TIMEOUT = 100;
@@ -1278,7 +1278,7 @@ var require_sonic_boom = __commonJS({
       const mode = sonic.mode;
       if (sonic.sync) {
         try {
-          if (sonic.mkdir) fs.mkdirSync(path.dirname(file2), { recursive: true });
+          if (sonic.mkdir) fs.mkdirSync(path2.dirname(file2), { recursive: true });
           const fd = fs.openSync(file2, flags, mode);
           fileOpened(null, fd);
         } catch (err) {
@@ -1286,7 +1286,7 @@ var require_sonic_boom = __commonJS({
           throw err;
         }
       } else if (sonic.mkdir) {
-        fs.mkdir(path.dirname(file2), { recursive: true }, (err) => {
+        fs.mkdir(path2.dirname(file2), { recursive: true }, (err) => {
           if (err) return fileOpened(err);
           fs.open(file2, flags, mode, fileOpened);
         });
@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join14 } = __require("path");
+    var { join: join13 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join14(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join13(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync5 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join14, isAbsolute, sep: sep2 } = __require("node:path");
+    var { join: join13, isAbsolute, sep: sep2 } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
     var sleep3 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2619,15 +2619,15 @@ var require_transport = __commonJS({
       if (!unquoted) {
         return false;
       }
-      let path = unquoted;
-      if (path.startsWith("file://")) {
+      let path2 = unquoted;
+      if (path2.startsWith("file://")) {
         try {
-          path = fileURLToPath(path);
+          path2 = fileURLToPath(path2);
         } catch {
           return false;
         }
       }
-      return isAbsolute(path) && !existsSync5(path);
+      return isAbsolute(path2) && !existsSync5(path2);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join13(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join13(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join14(__dirname, "..", "file.js");
+          return join13(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join14 = ",";
+            let join13 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join14 = `,
+                join13 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join14;
+                res += join13;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join14 = `,
+              join13 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join14;
+                separator = join13;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join14;
+              separator = join13;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join14 = ",";
+            let join13 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join14 = `,
+                join13 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join14;
+                res += join13;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join14 = `,
+              join13 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join14;
+                separator = join13;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join15 = `,
+              const join14 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join15;
+                res2 += join14;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join14 = `,
+            const join13 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join14, maximumBreadth);
+              res += stringifyTypedArray(value, join13, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join14;
+              separator = join13;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join14;
+                separator = join13;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join14;
+              separator = join13;
             }
             if (separator !== "") {
               res = `
@@ -4964,14 +4964,14 @@ var require_util = __commonJS({
     }
     function delay(ms = 0) {
       let methods;
-      const p = new Promise((resolve2) => {
+      const p = new Promise((resolve) => {
         const timer = setTimeout(() => {
-          resolve2();
+          resolve();
         }, ms);
         const cancel = () => {
           if (timer) {
             clearTimeout(timer);
-            resolve2();
+            resolve();
           }
         };
         methods = { cancel };
@@ -4991,18 +4991,18 @@ var require_util = __commonJS({
     }
     function deferred() {
       let methods = {};
-      const p = new Promise((resolve2, reject) => {
-        methods = { resolve: resolve2, reject };
+      const p = new Promise((resolve, reject) => {
+        methods = { resolve, reject };
       });
       return Object.assign(p, methods);
     }
     function debugDeferred() {
       let methods = {};
-      const p = new Promise((resolve2, reject) => {
+      const p = new Promise((resolve, reject) => {
         methods = {
           resolve: (v) => {
             console.trace("resolve", v);
-            resolve2(v);
+            resolve(v);
           },
           reject: (err) => {
             console.trace("reject");
@@ -11630,12 +11630,12 @@ var require_protocol = __commonJS({
         }
       }
       async _doDial(srv) {
-        const { resolve: resolve2 } = this.options;
+        const { resolve } = this.options;
         const alts = await srv.resolve({
           fn: (0, transport_1.getResolveFn)(),
           debug: this.options.debug,
           randomize: !this.options.noRandomize,
-          resolve: resolve2
+          resolve
         });
         let lastErr = null;
         for (const a of alts) {
@@ -12263,11 +12263,11 @@ var require_nats = __commonJS({
         this.options = (0, options_1.parseOptions)(opts);
       }
       static connect(opts = {}) {
-        return new Promise((resolve2, reject) => {
+        return new Promise((resolve, reject) => {
           const nc = new _NatsConnectionImpl(opts);
           protocol_1.ProtocolHandler.connect(nc.options, nc).then((ph) => {
             nc.protocol = ph;
-            resolve2(nc);
+            resolve(nc);
           }).catch((err) => {
             reject(err);
           });
@@ -13431,7 +13431,7 @@ var require_ws_transport = __commonJS({
       let protocol;
       let port;
       const host = url2.hostname;
-      const path = url2.pathname;
+      const path2 = url2.pathname;
       const search = url2.search || "";
       switch (srcProto) {
         case "http:":
@@ -13451,7 +13451,7 @@ var require_ws_transport = __commonJS({
           protocol = encrypted === true ? "wss:" : "ws:";
           break;
       }
-      return `${protocol}//${host}:${port}${path}${search}`;
+      return `${protocol}//${host}:${port}${path2}${search}`;
     }
     function wsconnect(opts = {}) {
       (0, transport_1.setTransportFactory)({
@@ -21144,7 +21144,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref2];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve2.call(this, root, ref2);
+      let _sch = resolve.call(this, root, ref2);
       if (_sch === void 0) {
         const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref2];
         const { schemaId } = this.opts;
@@ -21171,7 +21171,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve2(root, ref2) {
+    function resolve(root, ref2) {
       let sch;
       while (typeof (sch = this.refs[ref2]) == "string")
         ref2 = sch;
@@ -21422,8 +21422,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path) {
-      let input2 = path;
+    function removeDotSegments(path2) {
+      let input2 = path2;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -21497,11 +21497,11 @@ var require_utils = __commonJS({
       }
       return output2.join("");
     }
-    function removeDotSegmentsRelative(path) {
-      if (path === "" || path[0] === "/") {
-        return removeDotSegments(path);
+    function removeDotSegmentsRelative(path2) {
+      if (path2 === "" || path2[0] === "/") {
+        return removeDotSegments(path2);
       }
-      const segments = path.split("/");
+      const segments = path2.split("/");
       const last = segments.length - 1;
       const output2 = [];
       let trailingDirectory = false;
@@ -21864,8 +21864,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path && path !== "/" ? path : void 0;
+        const path2 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -22035,7 +22035,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve2(baseURI, relativeURI, options) {
+    function resolve(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -22426,7 +22426,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve2,
+      resolve,
       resolveComponent,
       equal,
       serialize,
@@ -25488,9 +25488,9 @@ function createLogger(name, options = {}) {
 // ../../packages/common/src/paths.ts
 import { homedir as homedir2 } from "node:os";
 import { join as join2 } from "node:path";
-function expandHome(path, home = homedir2()) {
-  if (path === "~") return home;
-  return /^~[\\/]/.test(path) ? join2(home, path.slice(2)) : path;
+function expandHome(path2, home = homedir2()) {
+  if (path2 === "~") return home;
+  return /^~[\\/]/.test(path2) ? join2(home, path2.slice(2)) : path2;
 }
 
 // ../../packages/common/src/version.ts
@@ -26328,10 +26328,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -26671,11 +26671,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -27137,16 +27137,16 @@ function flattenError(error63, mapper = (issue2) => issue2.message) {
 }
 function formatError(error63, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error64, path = []) => {
+  const processError = (error64, path2 = []) => {
     for (const issue2 of error64.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path2, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path2, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -27185,17 +27185,17 @@ function formatError(error63, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error63, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error64, path = []) => {
+  const processError = (error64, path2 = []) => {
     var _a3;
     for (const issue2 of error64.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path2, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path2, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -27234,8 +27234,8 @@ function treeifyError(error63, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path) {
+  const path2 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path2) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -30578,7 +30578,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve2) {
+function isRecursive(inst, stack, resolve) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -30588,7 +30588,7 @@ function isRecursive(inst, stack, resolve2) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve2);
+      const answer = isRecursive(child, stack, resolve);
       if (answer > result)
         result = answer;
     }
@@ -30599,7 +30599,7 @@ function isRecursive(inst, stack, resolve2) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve2) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -30663,7 +30663,7 @@ function isRecursive(inst, stack, resolve2) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve2 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -44373,13 +44373,13 @@ function resolveRef(ref2, ctx) {
   if (!ref2.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path = ref2.slice(1).split("/").filter(Boolean);
-  if (path.length === 0) {
+  const path2 = ref2.slice(1).split("/").filter(Boolean);
+  if (path2.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path[0] === defsKey) {
-    const key = path[1] === void 0 ? void 0 : decodeJSONPointerSegment(path[1]);
+  if (path2[0] === defsKey) {
+    const key = path2[1] === void 0 ? void 0 : decodeJSONPointerSegment(path2[1]);
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref2}`);
     }
@@ -46840,12 +46840,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve2) => {
+    return new Promise((resolve) => {
       const json2 = serializeMessage(message);
       if (this._stdout.write(json2)) {
-        resolve2();
+        resolve();
       } else {
-        this._stdout.once("drain", resolve2);
+        this._stdout.once("drain", resolve);
       }
     });
   }
@@ -47964,10 +47964,11 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join as join6 } from "node:path";
 
 // src/relay/local-session.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { join as join5 } from "node:path";
 
 // src/pull/state.ts
+import { readdirSync, readFileSync as readFileSync3 } from "node:fs";
 import { join as join4 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -47978,6 +47979,21 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
 function pullStateDirs(env, home) {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join4(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
+}
+function readJsonFiles(dir, filter) {
+  let names;
+  try {
+    names = readdirSync(dir).filter(filter);
+  } catch {
+    return [];
+  }
+  return names.map((name) => {
+    try {
+      return JSON.parse(readFileSync3(join4(dir, name), "utf8"));
+    } catch {
+      return null;
+    }
+  });
 }
 var pullStateFile = (prefix, agentId, sessionId) => `pull-${prefix}-${agentId}-${sessionId}.json`;
 
@@ -48021,12 +48037,13 @@ function parseLocalSession(value) {
 function freshLocalSessions(values, now) {
   return values.map(parseLocalSession).filter((s) => s !== null && isFresh(s.updatedAt, now));
 }
+var readLocalSessions = (dir, now) => freshLocalSessions(readJsonFiles(dir, isLocalSessionFile), now);
 function readLocalSession(dir, prefix, agentId, hubSessionId, now) {
   const name = localSessionFile(prefix, agentId, hubSessionId);
   if (!name) return null;
   let value;
   try {
-    value = JSON.parse(readFileSync3(join5(dir, name), "utf8"));
+    value = JSON.parse(readFileSync4(join5(dir, name), "utf8"));
   } catch {
     return null;
   }
@@ -48168,7 +48185,7 @@ async function byeQuietly(hub, sessionId = hub.sessionId) {
   const options = { timeoutMs: SHUTDOWN_MS, session: sessionId };
   await Promise.race([
     hub.call("session.bye", {}, options).catch(() => void 0),
-    new Promise((resolve2) => setTimeout(resolve2, SHUTDOWN_MS))
+    new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS))
   ]);
 }
 async function followConversation(session, next) {
@@ -48335,7 +48352,7 @@ import {
   chmodSync,
   existsSync as existsSync3,
   mkdirSync,
-  readFileSync as readFileSync4,
+  readFileSync as readFileSync5,
   renameSync,
   rmSync as rmSync2,
   writeFileSync
@@ -48343,17 +48360,17 @@ import {
 import { homedir as homedir4 } from "node:os";
 import { join as join7 } from "node:path";
 var defaultInviteFile = (home = homedir4()) => join7(agentmeshDir(home), "invite.txt");
-function readInviteFile(path) {
-  if (!existsSync3(path)) {
+function readInviteFile(path2) {
+  if (!existsSync3(path2)) {
     throw new MeshError(
       "not_found",
-      `No invite file at ${path}. Save the invite code from your Discord DM there first.`
+      `No invite file at ${path2}. Save the invite code from your Discord DM there first.`
     );
   }
-  return readFileSync4(path, "utf8");
+  return readFileSync5(path2, "utf8");
 }
-function deleteInviteFile(path) {
-  rmSync2(path, { force: true });
+function deleteInviteFile(path2) {
+  rmSync2(path2, { force: true });
 }
 function assertCanJoin(home, replace) {
   const current = existingMesh(home);
@@ -48364,10 +48381,10 @@ function assertCanJoin(home, replace) {
     );
   }
 }
-function writePrivate(path, content) {
-  writeFileSync(path, content, { mode: 384 });
+function writePrivate(path2, content) {
+  writeFileSync(path2, content, { mode: 384 });
   try {
-    chmodSync(path, 384);
+    chmodSync(path2, 384);
   } catch {
   }
 }
@@ -48403,13 +48420,13 @@ function saveConfig(home, payload, seedFile) {
 var import_jetstream2 = __toESM(require_mod4(), 1);
 
 // ../../packages/bus/src/connect.ts
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync6 } from "node:fs";
 var import_transport_node = __toESM(require_transport_node(), 1);
 var SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 function resolveSeed(seedOrPath) {
   const value = seedOrPath.trim();
   if (SEED_PATTERN.test(value)) return value;
-  const fromFile = readFileSync5(expandHome(value), "utf8").trim();
+  const fromFile = readFileSync6(expandHome(value), "utf8").trim();
   if (!SEED_PATTERN.test(fromFile))
     throw new Error(`File ${value} does not contain an nkey user seed`);
   return fromFile;
@@ -49295,7 +49312,7 @@ var planningTools = [
 ];
 
 // ../../packages/common/src/window.ts
-import { readFileSync as readFileSync6 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 import { posix, win32 } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
@@ -49303,15 +49320,15 @@ var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform2) => platform2 === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform2) {
-  const { join: join14 } = platform2 === "win32" ? win32 : posix;
-  const dir = join14(home, ".agentmesh");
+  const { join: join13 } = platform2 === "win32" ? win32 : posix;
+  const dir = join13(home, ".agentmesh");
   return {
     dir,
-    policy: join14(dir, "mesh-window.json"),
-    settings: join14(dir, "mesh-window.settings.json"),
-    launcher: join14(dir, launcherName(platform2)),
-    emptyHooks: join14(dir, "empty-git-hooks"),
-    bin: join14(dir, "bin")
+    policy: join13(dir, "mesh-window.json"),
+    settings: join13(dir, "mesh-window.settings.json"),
+    launcher: join13(dir, launcherName(platform2)),
+    emptyHooks: join13(dir, "empty-git-hooks"),
+    bin: join13(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -49347,7 +49364,7 @@ function parseWindowPolicy(text3) {
 }
 function readWindowPolicy(home, platform2) {
   try {
-    return parseWindowPolicy(readFileSync6(windowFiles(home, platform2).policy, "utf8"));
+    return parseWindowPolicy(readFileSync7(windowFiles(home, platform2).policy, "utf8"));
   } catch {
     return null;
   }
@@ -49362,13 +49379,13 @@ function markerState(env, policy, agentId) {
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync7, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync8, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join8 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 var GUARD_STAMP_MAX_AGE_MS = 12e4;
 function readStamp(dir) {
   try {
-    const value = JSON.parse(readFileSync7(join8(dir, GUARD_STAMP), "utf8"));
+    const value = JSON.parse(readFileSync8(join8(dir, GUARD_STAMP), "utf8"));
     return typeof value === "object" && value !== null ? value : {};
   } catch {
     return {};
@@ -49496,8 +49513,8 @@ ${windowRules(window.policy)}` : `${active} ${notWindow(window)}`;
 ];
 
 // src/window/checkouts.ts
-import { lstatSync, readdirSync, readFileSync as readFileSync8 } from "node:fs";
-import { basename, dirname, join as join9, resolve, sep } from "node:path";
+import { lstatSync, readdirSync as readdirSync2, readFileSync as readFileSync9 } from "node:fs";
+import path, { join as join9, sep } from "node:path";
 
 // src/git.ts
 import { execFile } from "node:child_process";
@@ -49506,9 +49523,9 @@ function parseRemote(url2) {
   return match?.[1];
 }
 function git(args, cwd) {
-  return new Promise((resolve2) => {
+  return new Promise((resolve) => {
     execFile("git", args, { cwd, timeout: 2e3, windowsHide: true }, (error63, stdout) => {
-      resolve2(error63 ? void 0 : stdout.trim() || void 0);
+      resolve(error63 ? void 0 : stdout.trim() || void 0);
     });
   });
 }
@@ -49525,12 +49542,30 @@ async function readGitInfo(cwd) {
   return toGitInfo(remote, branch);
 }
 
+// src/guard/paths.ts
+var NOT_ABSOLUTE = { refused: "the path is not absolute" };
+var DEVICE = { refused: "device, UNC and stream paths are refused" };
+var DOS_DEVICE = /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
+function badInput(file2, o) {
+  if (typeof file2 !== "string" || file2.includes("\0") || file2 !== file2.trim()) return NOT_ABSOLUTE;
+  const win = o.platform === "win32";
+  if (win && /^[\\/]([\\/]|\?\?[\\/])/.test(file2)) return DEVICE;
+  const segments = file2.split(win ? /[\\/]/ : "/");
+  if (segments.some((s) => s === "." || s === "..")) return NOT_ABSOLUTE;
+  if (!win) return file2.startsWith("/") ? null : NOT_ABSOLUTE;
+  if (!/^[a-z]:[\\/]/i.test(file2)) return NOT_ABSOLUTE;
+  if (file2.includes(":", 2)) return DEVICE;
+  return segments.slice(1).some((s) => /[. ]$/.test(s) || DOS_DEVICE.test(s)) ? DEVICE : null;
+}
+
 // src/window/checkouts.ts
 var NO_REPO = "checkout: this task names no repo. Ask your human which checkout to use.";
 var BAD_REPO = "checkout: this task's repo isn't owner/name. Ask your human which checkout to use.";
 var OWNER_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+var MAX_GIT_FILE = 4096;
+var MAX_CONFIG = 64 * 1024;
 var repoKey = (repo) => repo.replace(/\.git$/i, "").toLowerCase();
-var isOwnerName = (repo) => OWNER_NAME.test(repoKey(repo));
+var isOwnerName = (repo) => OWNER_NAME.test(repo.replace(/\.git$/i, ""));
 function configValue(raw) {
   let out = "";
   let quoted = false;
@@ -49557,23 +49592,32 @@ function originUrl(config2) {
   }
   return null;
 }
+function worktreeCommonDir(dir, target, platform2) {
+  const p = platform2 === "win32" ? path.win32 : path.posix;
+  const resolved = p.resolve(dir, target);
+  if (badInput(resolved, { platform: platform2, home: "" })) return null;
+  const worktrees = p.dirname(resolved);
+  const common = p.dirname(worktrees);
+  return p.basename(worktrees) === "worktrees" && p.basename(common) === ".git" ? common : null;
+}
 function gitDir(dir, followWorktree) {
   const dotGit = join9(dir, ".git");
   const stat = lstatSync(dotGit);
   if (stat.isDirectory()) return dotGit;
-  if (!followWorktree || !stat.isFile()) return null;
-  const target = /^gitdir: (.+)$/.exec(readFileSync8(dotGit, "utf8").trimEnd())?.[1];
-  if (!target) return null;
-  const worktrees = dirname(resolve(dir, target));
-  const common = dirname(worktrees);
-  const own2 = basename(worktrees) === "worktrees" && basename(common) === ".git" && lstatSync(common).isDirectory();
-  return own2 ? common : null;
+  if (!followWorktree || !stat.isFile() || stat.size > MAX_GIT_FILE) return null;
+  const line = readFileSync9(dotGit, "utf8").replace(/[\r\n]+$/, "");
+  const target = /^gitdir: (.+)$/.exec(line)?.[1];
+  const common = target ? worktreeCommonDir(dir, target, process.platform) : null;
+  return common && lstatSync(common).isDirectory() ? common : null;
 }
 function originRepo(dir, followWorktree = false) {
   try {
     const dotGit = gitDir(dir, followWorktree);
     if (!dotGit) return null;
-    const url2 = originUrl(readFileSync8(join9(dotGit, "config"), "utf8"));
+    const config2 = join9(dotGit, "config");
+    const stat = lstatSync(config2);
+    if (!stat.isFile() || stat.size > MAX_CONFIG) return null;
+    const url2 = originUrl(readFileSync9(config2, "utf8"));
     return url2 && parseRemote(url2) || null;
   } catch {
     return null;
@@ -49585,7 +49629,7 @@ function findCheckout(repo, folder) {
   let dirs = [folder];
   try {
     dirs = dirs.concat(
-      readdirSync(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join9(folder, e.name))
+      readdirSync2(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join9(folder, e.name))
     );
   } catch {
   }
@@ -49608,31 +49652,15 @@ function checkoutLine(repo, folder) {
 }
 
 // src/window/local-sessions.ts
-import { readdirSync as readdirSync2, readFileSync as readFileSync9 } from "node:fs";
-import { join as join10 } from "node:path";
-function records(dir) {
-  let names;
-  try {
-    names = readdirSync2(dir).filter(isLocalSessionFile);
-  } catch {
-    return [];
-  }
-  return names.map((name) => {
-    try {
-      return JSON.parse(readFileSync9(join10(dir, name), "utf8"));
-    } catch {
-      return null;
-    }
-  });
-}
 function localSessionsLine(repo, deps) {
   const want = repoKey(repo);
-  const mine = freshLocalSessions(records(deps.dataDir), deps.now).filter(
+  const mine = readLocalSessions(deps.dataDir, deps.now).filter(
     (s) => s.prefix === deps.prefix && s.agentId === deps.agentId && originRepo(s.projectDir, true)?.toLowerCase() === want
   );
   if (mine.length === 0) return "local sessions: none of your sessions are in this repo.";
+  const n = mine.length;
   const unread = mine.filter((s) => s.threads > 0).length;
-  return `local sessions: ${mine.length} of your sessions are in this repo (${unread} with unread mesh replies); tell your human, never message them.`;
+  return `local sessions: ${n} of your sessions ${n === 1 ? "is" : "are"} in this repo (${unread} with unread mesh replies); tell your human, never message them.`;
 }
 
 // src/tools/tasks.ts
@@ -49911,9 +49939,9 @@ function text(value, isError = false) {
 
 // src/join/tool.ts
 import { homedir as homedir6 } from "node:os";
-import { join as join11 } from "node:path";
+import { join as join10 } from "node:path";
 var JOIN_TOOL = "join";
-var CLI = join11(import.meta.dirname, "cli.js").replaceAll("\\", "/");
+var CLI = join10(import.meta.dirname, "cli.js").replaceAll("\\", "/");
 var AUTOUPDATE_OFFER = `Then ask your human whether to turn on automatic updates for the AgentMesh plugin. Only if they say yes, run \`node "${CLI}" autoupdate\` and show what it printed.`;
 var JoinInput = external_exports.object({
   invite_file: external_exports.string().optional().describe(
@@ -50577,7 +50605,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error63) {
@@ -50594,7 +50622,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve2, reject) => {
+    return new Promise((resolve, reject) => {
       const earlyReject = (error63) => {
         reject(error63);
       };
@@ -50672,7 +50700,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve2(parseResult.data);
+            resolve(parseResult.data);
           }
         } catch (error63) {
           reject(error63);
@@ -50934,12 +50962,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve2, reject) => {
+    return new Promise((resolve, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve2, interval);
+      const timeoutId = setTimeout(resolve, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -51767,8 +51795,8 @@ var HubClient = class {
   constructor(config2, logger) {
     this.config = config2;
     this.#logger = logger;
-    this.#ready = new Promise((resolve2) => {
-      this.#resolveReady = resolve2;
+    this.#ready = new Promise((resolve) => {
+      this.#resolveReady = resolve;
     });
   }
   connect() {
@@ -52055,7 +52083,7 @@ import {
   statSync,
   writeFileSync as writeFileSync3
 } from "node:fs";
-import { join as join12 } from "node:path";
+import { join as join11 } from "node:path";
 
 // src/relay/pointer.ts
 var THREAD_ID = /^thr-[1-9]\d{0,11}$/;
@@ -52079,7 +52107,7 @@ function writeForward(dir, hex3, fields, expiresAt) {
   if (!name || !pointerText(fields)) throw new Error("refusing to write an invalid forward record");
   mkdirSync3(dir, { recursive: true, mode: 448 });
   pruneClaimed(dir, Date.now());
-  const file2 = join12(dir, name);
+  const file2 = join11(dir, name);
   const { from, threadId, messageId } = fields;
   const staged = `${file2}.${process.pid}.tmp`;
   writeFileSync3(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
@@ -52095,14 +52123,14 @@ function pruneClaimed(dir, now) {
   }
   for (const n of names.filter((f) => f.startsWith("fwd-") && f.endsWith(CLAIMED))) {
     try {
-      if (now - statSync(join12(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
+      if (now - statSync(join11(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
     } catch {
     }
   }
 }
 function removeForward(dir, name) {
   try {
-    rmSync3(join12(dir, name), { force: true });
+    rmSync3(join11(dir, name), { force: true });
   } catch {
   }
 }
@@ -52155,7 +52183,7 @@ import {
   statSync as statSync2,
   writeFileSync as writeFileSync4
 } from "node:fs";
-import { join as join13 } from "node:path";
+import { join as join12 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var CLAUDE_SESSION_SLACK_MS = 6e4;
 var RECORD_MAX_AGE_MS = 24 * 36e5;
@@ -52174,7 +52202,7 @@ function readRecord(file2) {
 function readClaudeSession(dir, ppid, startedAt) {
   const name = claudeSessionFile(ppid);
   if (!name) return null;
-  const value = readRecord(join13(dir, name));
+  const value = readRecord(join12(dir, name));
   const id = value?.session_id;
   const at = typeof value?.at === "string" ? Date.parse(value.at) : Number.NaN;
   if (typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return null;
@@ -52258,7 +52286,7 @@ async function openSession(config2, logger) {
   hub.sayHello = session.sayHello;
   session.hello = await Promise.race([
     session.sayHello(),
-    new Promise((resolve2) => setTimeout(() => resolve2(null), HELLO_WAIT_MS2))
+    new Promise((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS2))
   ]);
   return session;
 }

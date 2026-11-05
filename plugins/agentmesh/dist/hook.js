@@ -1,7 +1,7 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/hook.ts
-import { existsSync, readdirSync as readdirSync2, readFileSync as readFileSync4 } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join as join4 } from "node:path";
 
@@ -53,6 +53,7 @@ function hookAgentId(env, home) {
 }
 
 // src/pull/state.ts
+import { readdirSync, readFileSync as readFileSync2 } from "node:fs";
 import { join as join2 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -63,6 +64,21 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
 function pullStateDirs(env, home) {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join2(home, ".agentmesh", "run")];
   return [...new Set(dirs.filter((d) => !!d))];
+}
+function readJsonFiles(dir, filter) {
+  let names;
+  try {
+    names = readdirSync(dir).filter(filter);
+  } catch {
+    return [];
+  }
+  return names.map((name) => {
+    try {
+      return JSON.parse(readFileSync2(join2(dir, name), "utf8"));
+    } catch {
+      return null;
+    }
+  });
 }
 var isStateFile = (name) => name.startsWith("pull-") && name.endsWith(".json");
 var count = (v) => Number.isInteger(v) && v >= 0;
@@ -149,6 +165,7 @@ function parseLocalSession(value) {
 function freshLocalSessions(values, now) {
   return values.map(parseLocalSession).filter((s) => s !== null && isFresh(s.updatedAt, now));
 }
+var readLocalSessions = (dir, now) => freshLocalSessions(readJsonFiles(dir, isLocalSessionFile), now);
 function ownLocalSession(values, claudePid, now) {
   if (!Number.isInteger(claudePid)) return null;
   let newest = null;
@@ -211,8 +228,8 @@ function promptContext({
 // src/resume/claude-session.ts
 import {
   mkdirSync,
-  readdirSync,
-  readFileSync as readFileSync2,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync3,
   renameSync,
   rmSync,
   statSync,
@@ -241,7 +258,7 @@ function writeClaudeSession(dir, pid, input, now) {
 }
 function readRecord(file) {
   try {
-    return JSON.parse(readFileSync2(file, "utf8"));
+    return JSON.parse(readFileSync3(file, "utf8"));
   } catch {
     return null;
   }
@@ -255,7 +272,7 @@ function deleteClaudeSession(dir, pid, sessionId) {
 function pruneClaudeSessions(dir, now) {
   let names;
   try {
-    names = readdirSync(dir).filter((name) => RECORD_FILE.test(name));
+    names = readdirSync2(dir).filter((name) => RECORD_FILE.test(name));
   } catch {
     return;
   }
@@ -282,7 +299,7 @@ function windowAddresses(values, prefix, agentId, now) {
 }
 
 // ../../packages/common/src/window.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { posix, win32 } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
@@ -334,7 +351,7 @@ function parseWindowPolicy(text) {
 }
 function readWindowPolicy(home, platform) {
   try {
-    return parseWindowPolicy(readFileSync3(windowFiles(home, platform).policy, "utf8"));
+    return parseWindowPolicy(readFileSync4(windowFiles(home, platform).policy, "utf8"));
   } catch {
     return null;
   }
@@ -446,21 +463,6 @@ function parse(text) {
     return null;
   }
 }
-function readJsonFiles(dir, filter) {
-  let names;
-  try {
-    names = readdirSync2(dir).filter(filter);
-  } catch {
-    return [];
-  }
-  return names.map((name) => {
-    try {
-      return parse(readFileSync4(join4(dir, name), "utf8"));
-    } catch {
-      return null;
-    }
-  });
-}
 function sessionStart(source) {
   const env = process.env;
   const home = homedir();
@@ -480,10 +482,11 @@ function promptLine(prompt, dirs) {
   const env = process.env;
   const marked = !!env.AGENTMESH_MESH_WINDOW;
   const now = Date.now();
-  const read = (filter) => dirs.flatMap((d) => readJsonFiles(d, filter));
   const pid = Number(env.CLAUDE_PID);
-  const own = marked ? null : ownLocalSession(read(isLocalSessionFile), pid, now);
-  const addresses = own ? windowAddresses(read(isHeartbeatFile), own.prefix, own.agentId, now) : [];
+  const sessions = marked ? [] : dirs.flatMap((d) => readLocalSessions(d, now));
+  const own = ownLocalSession(sessions, pid, now);
+  const beats = own ? dirs.flatMap((d) => readJsonFiles(d, isHeartbeatFile)) : [];
+  const addresses = own ? windowAddresses(beats, own.prefix, own.agentId, now) : [];
   return promptContext({ prompt, marked, own, windowAddresses: addresses });
 }
 function recordConversation(event, dir, input) {

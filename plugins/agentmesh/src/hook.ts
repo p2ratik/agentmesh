@@ -1,10 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hookAgentId } from './agent-id';
 import { promptContext, unreadInput } from './hook/prompt';
-import { announce, isStateFile, pullStateDirs, selectStates } from './pull/state';
-import { isLocalSessionFile, ownLocalSession } from './relay/local-session';
+import { announce, isStateFile, pullStateDirs, readJsonFiles, selectStates } from './pull/state';
+import { ownLocalSession, readLocalSessions } from './relay/local-session';
 import {
   deleteClaudeSession,
   pruneClaudeSessions,
@@ -56,23 +56,6 @@ function parse(text: string): unknown {
   }
 }
 
-/** Every matching file in a directory, parsed; a missing directory or a bad file is skipped. */
-function readJsonFiles(dir: string, filter: (name: string) => boolean): unknown[] {
-  let names: string[];
-  try {
-    names = readdirSync(dir).filter(filter);
-  } catch {
-    return [];
-  }
-  return names.map((name) => {
-    try {
-      return parse(readFileSync(join(dir, name), 'utf8'));
-    } catch {
-      return null;
-    }
-  });
-}
-
 /** SessionStart: the window's rules, or a one-time hint that nothing is listening. */
 function sessionStart(source: unknown): {
   additionalContext: string | null;
@@ -99,10 +82,11 @@ function promptLine(prompt: unknown, dirs: readonly string[]): string | null {
   const env = process.env;
   const marked = !!env.AGENTMESH_MESH_WINDOW;
   const now = Date.now();
-  const read = (filter: (name: string) => boolean) => dirs.flatMap((d) => readJsonFiles(d, filter));
   const pid = Number(env.CLAUDE_PID);
-  const own = marked ? null : ownLocalSession(read(isLocalSessionFile), pid, now);
-  const addresses = own ? windowAddresses(read(isHeartbeatFile), own.prefix, own.agentId, now) : [];
+  const sessions = marked ? [] : dirs.flatMap((d) => readLocalSessions(d, now));
+  const own = ownLocalSession(sessions, pid, now);
+  const beats = own ? dirs.flatMap((d) => readJsonFiles(d, isHeartbeatFile)) : [];
+  const addresses = own ? windowAddresses(beats, own.prefix, own.agentId, now) : [];
   return promptContext({ prompt, marked, own, windowAddresses: addresses });
 }
 

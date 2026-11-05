@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutLine, findCheckout, originRepo } from './checkouts';
+import { checkoutLine, findCheckout, originRepo, worktreeCommonDir } from './checkouts';
 
 let root: string;
 beforeEach(() => {
@@ -23,6 +23,23 @@ function clone(dir: string, url: string) {
     dir,
     `[core]\n\tbare = false\n[remote "upstream"]\n\turl = git@github.com:Other/Thing.git\n[remote "origin"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n`,
   );
+}
+
+/** A folder whose .git file holds exactly `text`. */
+function gitFile(name: string, text: string): string {
+  mkdirSync(join(root, name));
+  writeFileSync(join(root, name, '.git'), text);
+  return join(root, name);
+}
+
+const wt = (name: string, gitdir: string) => gitFile(name, `gitdir: ${gitdir}\n`);
+
+/** `root/repo` (origin acme/web) with a registered worktree `wt`; returns its gitdir. */
+function repoWithWorktree(): string {
+  clone(join(root, 'repo'), 'git@github.com:acme/web.git');
+  const gitdir = join(root, 'repo', '.git', 'worktrees', 'wt');
+  mkdirSync(gitdir, { recursive: true });
+  return gitdir;
 }
 
 describe('originRepo', () => {
@@ -71,13 +88,7 @@ describe('originRepo', () => {
   });
 
   it("reads a worktree's origin through its own repo's .git only", () => {
-    clone(join(root, 'repo'), 'git@github.com:acme/web.git');
-    const wt = (name: string, gitdir: string) => {
-      mkdirSync(join(root, name));
-      writeFileSync(join(root, name, '.git'), `gitdir: ${gitdir}\n`);
-      return join(root, name);
-    };
-    mkdirSync(join(root, 'repo', '.git', 'worktrees', 'wt'), { recursive: true });
+    repoWithWorktree();
     const real = wt('wt', join(root, 'repo', '.git', 'worktrees', 'wt'));
     expect(originRepo(real, true)).toBe('acme/web');
     // git's relative form (worktree.useRelativePaths)
@@ -94,6 +105,68 @@ describe('originRepo', () => {
     expect(
       originRepo(wt('linked', join(root, 'link', '.git', 'worktrees', 'wt')), true),
     ).toBeNull();
+  });
+
+  it('reads the gitdir line as git does: a CRLF ends it, a trailing space is part of it', () => {
+    const target = repoWithWorktree();
+    expect(originRepo(gitFile('crlf', `gitdir: ${target}\r\n`), true)).toBe('acme/web');
+    expect(originRepo(gitFile('space', `gitdir: ${target} \n`), true)).toBeNull();
+    expect(originRepo(gitFile('two', `gitdir: ${target}\nx\n`), true)).toBeNull();
+  });
+
+  it('folds .. in the target as text, and still reads only a real .git/config', () => {
+    repoWithWorktree();
+    mkdirSync(join(root, 'elsewhere', 'worktrees', 'wt'), { recursive: true });
+    writeFileSync(join(root, 'elsewhere', 'config'), '[remote "origin"]\n\turl = x:evil/web\n');
+    // join() would fold the .. itself; the file must hold it
+    const raw = (...parts: string[]) => [root, ...parts].join(sep);
+    const back = raw('elsewhere', '..', 'repo', '.git', 'worktrees', 'wt');
+    expect(originRepo(wt('back', back), true)).toBe('acme/web');
+    const out = raw('repo', '.git', 'worktrees', '..', '..', '..', 'elsewhere', 'worktrees', 'wt');
+    expect(originRepo(wt('out', out), true)).toBeNull();
+  });
+
+  it('refuses a .git file over 4 KB and a .git/config over 64 KB', () => {
+    const target = repoWithWorktree();
+    expect(originRepo(gitFile('big', `gitdir: ${target}${'\n'.repeat(4096)}`), true)).toBeNull();
+    const at = join(root, 'repo', '.git', 'config');
+    writeFileSync(at, `[remote "origin"]\n\turl = x:acme/web\n${'# pad\n'.repeat(11_000)}`);
+    expect(originRepo(join(root, 'repo'))).toBeNull();
+    expect(originRepo(wt('wt', target), true)).toBeNull();
+  });
+
+  it('never follows a device or UNC spelling of a local path (win32 opens them)', () => {
+    const target = repoWithWorktree();
+    for (const [i, prefix] of ['\\\\?\\', '\\\\.\\', '//?/'].entries()) {
+      expect([prefix, originRepo(wt(`dev${i}`, `${prefix}${target}`), true)]).toEqual([
+        prefix,
+        null,
+      ]);
+    }
+  });
+});
+
+describe('worktreeCommonDir', () => {
+  it('names <X>/.git for <X>/.git/worktrees/<name> only, never a UNC, device or stream path', () => {
+    const at = (target: string) => worktreeCommonDir('C:\\work\\wt', target, 'win32');
+    expect(at('C:\\work\\repo\\.git\\worktrees\\wt')).toBe('C:\\work\\repo\\.git');
+    expect(at('../repo/.git/worktrees/wt')).toBe('C:\\work\\repo\\.git');
+    for (const target of [
+      '\\\\evil.example\\share\\.git\\worktrees\\x',
+      '//evil.example/share/.git/worktrees/x',
+      '\\\\?\\UNC\\evil.example\\share\\.git\\worktrees\\x',
+      '\\\\.\\GLOBALROOT\\Device\\Mup\\evil.example\\share\\.git\\worktrees\\x',
+      '\\\\?\\C:\\work\\repo\\.git\\worktrees\\wt',
+      '\\\\.\\C:\\work\\repo\\.git\\worktrees\\wt',
+      'C:\\work\\repo\\.git\\worktrees\\wt:stream',
+      'C:\\work\\repo\\.git\\worktrees\\wt ',
+      'C:\\work\\repo\\.git\\modules\\wt',
+    ]) {
+      expect([target, at(target)]).toEqual([target, null]);
+    }
+    const posix = (target: string) => worktreeCommonDir('/work/wt', target, 'linux');
+    expect(posix('../repo/.git/worktrees/wt')).toBe('/work/repo/.git');
+    expect(posix('/work/elsewhere/worktrees/wt')).toBeNull();
   });
 });
 
@@ -158,6 +231,8 @@ describe('checkoutLine', () => {
       'acme/web/extra',
       'acme/web; rm -rf ~',
       'https://github.com/acme/web',
+      // the KELVIN SIGN lowercases to an ASCII k: the printed text is checked, not its key
+      'acme/Keys',
     ]) {
       expect([repo, checkoutLine(repo, root)]).toEqual([repo, fixed]);
     }

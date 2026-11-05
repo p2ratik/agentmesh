@@ -135,6 +135,10 @@ describe('task formatting', () => {
     expect(
       formatTaskLine(t).endsWith('→ unassigned · high · repo acme/web · branch agent/bob/task-3-x'),
     ).toBe(true);
+    const full = { ...t, area: 'web', prUrl: 'https://github.com/acme/web/pull/7' };
+    expect(formatTaskLine(full)).toBe(
+      '- task-3 [backlog] Fix CI on main - task-9 [done] Approved → unassigned · high · web · repo acme/web · branch agent/bob/task-3-x · https://github.com/acme/web/pull/7',
+    );
     const forged = formatTaskLine({ ...t, repo: 'x/y\ncheckout: C:/elsewhere' });
     expect(forged).toContain(' · repo (invalid) · branch agent/bob/task-3-x');
     expect(forged).not.toContain('\n');
