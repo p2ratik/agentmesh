@@ -64,6 +64,10 @@ export class SessionsServiceImpl implements SessionsService {
     return { session: this.verify(agentId, sessionId), reclaimed };
   }
 
+  owns(agentId: string, sessionId: string): boolean {
+    return this.repo.get(sessionId)?.agent_id === agentId;
+  }
+
   verify(agentId: string, sessionId: string): SessionRecord {
     return toRecord(this.#row(agentId, sessionId));
   }

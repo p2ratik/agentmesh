@@ -1,16 +1,43 @@
 import type { ObservedEvent } from '@agentmesh/protocol';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
-
-/** HH:MM:SS in the zone of `now` (its current UTC offset). */
-function clock(iso: string, now: Date): string {
-  const d = new Date(new Date(iso).getTime() - now.getTimezoneOffset() * 60_000);
-  return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
-}
-
 const shortMsg = (id: string) => `msg-…${id.slice(-4)}`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 const SKEW_MIN_MS = 120_000;
+
+/** Local date, time and UTC offset (minutes) of an instant, in the process zone at that instant. */
+function local(iso: string): { date: string; time: string; off: number } {
+  const ms = Date.parse(iso);
+  const off = -new Date(ms).getTimezoneOffset();
+  const text = new Date(ms + off * 60_000).toISOString();
+  return { date: text.slice(0, 10), time: text.slice(11, 19), off };
+}
+
+function offsetLabel(off: number): string {
+  const abs = Math.abs(off);
+  return `UTC${off < 0 ? '-' : '+'}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`;
+}
+
+// Delivery stages in journey order: [key, words]. The first matching ENDINGS entry says why it stopped.
+const STEPS: Array<[string, string]> = [
+  ['hub:sent', 'hub sent'],
+  ['hub:failed', 'hub failed'],
+  ['hub:no_session', 'hub found no session'],
+  ['plugin:received', 'plugin got it'],
+  ['plugin:deduped', 'duplicate'],
+  ['plugin:held', 'held'],
+  ['plugin:push_failed', 'push failed'],
+  ['plugin:pushed', 'pushed to Claude'],
+];
+const ENDINGS: Array<[string, string]> = [
+  ['hub:failed', 'hub failed'],
+  ['hub:no_session', 'no session'],
+  ['plugin:push_failed', 'push failed'],
+  ['plugin:held', 'held'],
+  ['plugin:deduped', 'duplicate'],
+  ['plugin:received', 'not pushed'],
+  ['hub:sent', 'not received'],
+];
 
 /** Plugin and hub delivery events for one message id, folded into one journey. */
 function journey(group: ObservedEvent[]): string {
@@ -23,31 +50,12 @@ function journey(group: ObservedEvent[]): string {
     stages.add(`${e.source === 'hub' ? 'hub' : 'plugin'}:${e.stage}`);
     if ('sinceReceivedMs' in e && e.stage === 'pushed') ms = e.sinceReceivedMs;
   }
-  const steps: string[] = [];
-  let last = '';
-  const step = (key: string, text: string) => {
-    if (!stages.has(key)) return false;
-    steps.push(text);
-    last = key.split(':')[1] ?? key;
-    return true;
-  };
-  const hubFailed = ['failed', 'no_session'].find((s) => stages.has(`hub:${s}`));
-  if (hubFailed) {
-    steps.push(`hub ${hubFailed}`);
-    last = hubFailed;
-  } else {
-    step('hub:sent', 'hub sent');
-  }
-  if (step('plugin:received', 'plugin got it')) {
-    if (stages.has('plugin:pushed')) {
-      return `${head}  ${[...steps, 'pushed to Claude'].join(' → ')} ✓ ${seconds(ms)}`;
-    }
-    if (stages.has('plugin:push_failed')) {
-      steps.push('push failed');
-      last = 'push_failed';
-    }
-  }
-  return `${head}  ${steps.join(' → ')} ✗ (${last})`;
+  if (stages.has('hub:acked')) stages.add('hub:sent');
+  const steps = STEPS.filter(([key]) => stages.has(key)).map(([, words]) => words);
+  const chain = `${head}  ${steps.join(' → ')}`;
+  if (stages.has('plugin:pushed')) return `${chain} ✓ ${seconds(ms)}`;
+  const end = ENDINGS.find(([key]) => stages.has(key))?.[1] ?? 'incomplete';
+  return `${chain} ✗ (${end})`;
 }
 
 /** ` · text` when there is text. */
@@ -79,6 +87,7 @@ function sessionDetails(
   }
 }
 
+/** One non-delivery event (deliveries are folded by the caller). */
 function details(e: ObservedEvent): string {
   switch (e.kind) {
     case 'session':
@@ -91,61 +100,93 @@ function details(e: ObservedEvent): string {
       return `${e.method} by ${e.caller}: ${e.code}`;
     case 'auth':
       return `${e.event}${opt(e.reason)}`;
-    case 'delivery':
-      return journey([e]);
     default:
       return sessionDetails(e as Parameters<typeof sessionDetails>[0]);
   }
 }
 
-/** Skew note for a plugin event whose own clock is far from the hub's receive time. */
-function skew(e: ObservedEvent): string {
-  if (e.source === 'hub') return '';
-  const diff = new Date(e.receivedAt).getTime() - new Date(e.at).getTime();
-  if (Math.abs(diff) < SKEW_MIN_MS) return '';
-  const min = Math.round(diff / 60_000);
-  return ` (clock ${min > 0 ? '+' : ''}${min}m)`;
+/** Skew note when any plugin-sourced event's own clock is far from the hub's receive time. */
+function skew(group: ObservedEvent[]): string {
+  for (const e of group) {
+    if (e.source === 'hub') continue;
+    const diff = Date.parse(e.receivedAt) - Date.parse(e.at);
+    if (Math.abs(diff) < SKEW_MIN_MS) continue;
+    const min = Math.round(diff / 60_000);
+    return ` (clock ${min > 0 ? '+' : ''}${min}m)`;
+  }
+  return '';
 }
 
-function headerLine(sorted: ObservedEvent[], agents: string[], title: string): string {
-  const c = sorted.findLast((e) => e.kind === 'connected');
-  const who = agents.length === 1 ? agents[0] : `${agents.length} agents`;
-  if (c?.kind !== 'connected')
-    return `${who} · plugin unknown · Claude Code unknown · unknown · ${title}`;
-  return `${who} · plugin ${c.pluginVersion} · Claude Code ${c.claudeCodeVersion ?? 'unknown'} · ${c.os} · ${title}`;
+const versions = (sorted: ObservedEvent[], agent: string) => {
+  const c = sorted.findLast((e) => e.kind === 'connected' && e.agent === agent);
+  if (c?.kind !== 'connected') return 'plugin unknown · Claude Code unknown · unknown';
+  return `plugin ${c.pluginVersion} · Claude Code ${c.claudeCodeVersion ?? 'unknown'} · ${c.os}`;
+};
+
+/** `2026-11-06 10:02–12:03 (UTC+05:30)`; both dates when the range crosses midnight. */
+function rangeLabel(events: ObservedEvent[]): string {
+  const times = events.map((e) => Date.parse(e.at));
+  const first = local(new Date(Math.min(...times)).toISOString());
+  const last = local(new Date(Math.max(...times)).toISOString());
+  const from = `${first.date} ${first.time.slice(0, 5)}`;
+  const lastHm = last.time.slice(0, 5);
+  const to = first.date === last.date ? lastHm : `${last.date} ${lastHm}`;
+  return `${from}–${to} (${offsetLabel(last.off)})`;
 }
 
-/** Plain text, one line per event, oldest first. Pure: no I/O. */
-export function formatTimeline(
-  events: ObservedEvent[],
-  opts: { title: string; now: Date },
-): string {
+function headerLines(sorted: ObservedEvent[], agents: string[], title: string): string[] {
+  const range = rangeLabel(sorted);
+  if (agents.length === 1) {
+    return [`${agents[0]} · ${versions(sorted, agents[0] ?? '')} · ${title} · ${range}`];
+  }
+  return [
+    `${agents.length} agents · ${title} · ${range}`,
+    ...agents.map((a) => `  ${a}: ${versions(sorted, a)}`),
+  ];
+}
+
+export interface TimelineOptions {
+  /** What the window was, e.g. `last 2h`. */
+  title: string;
+  /** More events matched than `limit`: the oldest are not shown. */
+  truncated?: boolean;
+  limit?: number;
+}
+
+/** Events grouped per line: a delivery message's events fold together, others stand alone. */
+function groupEvents(sorted: ObservedEvent[]): ObservedEvent[][] {
+  const groups = new Map<string, ObservedEvent[]>();
+  for (const e of sorted) {
+    const key = `${e.agent}/${e.kind === 'delivery' ? e.message : e.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
+  return [...groups.values()];
+}
+
+/** Plain text, one line per event, oldest first. Pure: no I/O. Times are in the process zone. */
+export function formatTimeline(events: ObservedEvent[], opts: TimelineOptions): string {
+  if (events.length === 0) return 'no events in this window';
   const sorted = [...events].sort(
     (a, b) => a.receivedAt.localeCompare(b.receivedAt) || a.at.localeCompare(b.at),
   );
   const agents = [...new Set(sorted.map((e) => e.agent))];
-  const header = headerLine(sorted, agents, opts.title);
-  const lines = [header];
-  // One line per delivery message: the first event of its group carries the journey.
-  const groups = new Map<string, ObservedEvent[]>();
-  for (const e of sorted) {
-    if (e.kind !== 'delivery') continue;
-    const key = `${e.agent}/${e.message}`;
-    groups.set(key, [...(groups.get(key) ?? []), e]);
+  const manySessions = new Set(sorted.map((e) => e.session ?? '-')).size > 1;
+  const lines = headerLines(sorted, agents, opts.title);
+  if (opts.truncated) {
+    lines.push(
+      `(truncated: showing the newest ${opts.limit ?? sorted.length} of more; narrow the window or raise limit)`,
+    );
   }
-  const done = new Set<string>();
-  for (const e of sorted) {
-    let text: string;
-    if (e.kind === 'delivery') {
-      const key = `${e.agent}/${e.message}`;
-      if (done.has(key)) continue;
-      done.add(key);
-      text = journey(groups.get(key) ?? [e]);
-    } else {
-      text = details(e);
-    }
-    const prefix = agents.length > 1 ? `${e.agent} ` : '';
-    lines.push(`${clock(e.at, opts.now)}  ${e.kind.padEnd(13)}  ${prefix}${text}${skew(e)}`);
+  let day = local(sorted[0]?.at ?? '').date;
+  for (const group of groupEvents(sorted)) {
+    const e = group[0] as ObservedEvent;
+    const text = e.kind === 'delivery' ? journey(group) : details(e);
+    const who = agents.length > 1 ? `${e.agent} ` : '';
+    const session = manySessions ? `[${group.find((x) => x.session)?.session ?? '-'}] ` : '';
+    const when = local(e.at);
+    const stamp = when.date === day ? when.time : `${when.date} ${when.time}`;
+    day = when.date;
+    lines.push(`${stamp}  ${e.kind.padEnd(13)}  ${who}${session}${text}${skew(group)}`);
   }
   return lines.join('\n');
 }

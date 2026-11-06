@@ -104,11 +104,12 @@ export class ObserveService {
     const until = p.until === undefined ? undefined : parseWhen(p.until, 'until', now);
     const found = this.#repo.query({ ...p, since, until, limit: p.limit + 1 });
     const events = found.slice(0, p.limit).reverse();
+    const truncated = found.length > p.limit;
     const title = /^\d{1,4}[mhd]$/.test(p.since) ? `last ${p.since}` : `since ${since}`;
     return {
       events,
-      text: formatTimeline(events, { title, now }),
-      truncated: found.length > p.limit,
+      text: formatTimeline(events, { title, truncated, limit: p.limit }),
+      truncated,
     };
   }
 

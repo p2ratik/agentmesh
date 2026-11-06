@@ -126,14 +126,7 @@ export function buildModules(
   });
 
   const observe = createObserveModule(ctx, {
-    ownsSession: (agentId, sessionId) => {
-      try {
-        sessionsModule.service.verify(agentId, sessionId);
-        return true;
-      } catch {
-        return false;
-      }
-    },
+    ownsSession: (agentId, sessionId) => sessionsModule.service.owns(agentId, sessionId),
   });
   const modules: Array<HubModule<unknown>> = [
     enrollment,

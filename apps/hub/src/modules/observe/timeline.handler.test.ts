@@ -20,18 +20,20 @@ const tool = (at = '2026-10-16T08:00:00.000Z'): ReportedEvent => ({
 
 describe('observe.timeline over the router', () => {
   let hub: Hub | null = null;
+  let clock = new ManualClock('2026-10-16T09:00:00.000Z');
   afterEach(async () => {
     await hub?.stop();
     hub = null;
   });
   const start = async (observability: object = { viewers: ['alice'] }) => {
     const ports = new MemoryPorts();
+    clock = new ManualClock('2026-10-16T09:00:00.000Z');
     hub = await createHub({
       loaded: testTeamConfig({ hub: { http: { enabled: false } }, observability }),
       dataDir: ':memory:',
       nats: null,
       ports: { delivery: ports, events: ports },
-      clock: new ManualClock('2026-10-16T09:00:00.000Z'),
+      clock,
       logger: createLogger('hub-test', { level: 'silent', destination: 'stderr' }),
     });
     await hub.start();
@@ -94,13 +96,45 @@ describe('observe.timeline over the router', () => {
     await expect(read(h, 'alice-laptop-agent')).resolves.toMatchObject({ truncated: false });
   });
 
-  it('truncated is true past the limit, and the newest events are kept', async () => {
+  it('truncated is true past the limit; the newest events are kept, oldest first, and the text says so', async () => {
     const h = await start();
-    await report(h, 'bob-agent', [tool(), tool(), tool()]);
+    const events = [tool(), tool(), tool()];
+    for (const e of events) {
+      await report(h, 'bob-agent', [e]);
+      clock.advance(1000);
+    }
     const out = await read(h, 'alice-agent', { limit: 2 });
-    expect(out.events).toHaveLength(2);
+    expect(out.events.map((e) => e.id)).toEqual([events[1]?.id, events[2]?.id]);
     expect(out.truncated).toBe(true);
-    expect((await read(h, 'alice-agent', { limit: 3 })).truncated).toBe(false);
+    expect(out.text).toContain('(truncated: showing the newest 2 of more');
+    const all = await read(h, 'alice-agent', { limit: 3 });
+    expect(all.truncated).toBe(false);
+    expect(all.text).not.toContain('truncated');
+    expect(all.events.map((e) => e.id)).toEqual(events.map((e) => e.id));
+  });
+
+  it('an empty window says so', async () => {
+    const h = await start();
+    expect((await read(h, 'alice-agent')).text).toBe('no events in this window');
+  });
+
+  it("keeps the session id of events buffered from a session that has since closed, not another agent's", async () => {
+    const h = await start();
+    const hello = (caller: string) =>
+      h.dispatch({ caller, method: 'session.hello' }, { clientVersion: '0.7.0' }) as Promise<{
+        sessionId: string;
+      }>;
+    const old = await hello('bob-agent');
+    await h.dispatch({ caller: 'bob-agent', method: 'session.bye', session: old.sessionId }, {});
+    const buffered = { ...tool(), session: old.sessionId } as ReportedEvent;
+    await report(h, 'bob-agent', [buffered]);
+    await report(h, 'carol-agent', [{ ...tool(), session: old.sessionId } as ReportedEvent]);
+    const bySession = async (agent: string) =>
+      (await read(h, 'alice-agent', { agent })).events.map(
+        (e) => (e as { session?: string }).session,
+      );
+    expect(await bySession('bob-agent')).toEqual([old.sessionId]);
+    expect(await bySession('carol-agent')).toEqual([null]);
   });
 
   it('since and until take an ISO time or a duration; anything else is invalid_request', async () => {
