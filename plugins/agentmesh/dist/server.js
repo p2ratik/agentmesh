@@ -46100,7 +46100,8 @@ var sessionMethods = {
     }).refine((p) => p.mode === "pull" || p.code !== void 0, {
       message: 'Pass the code from the test message, or mode "pull".'
     }),
-    result: SessionView
+    // `tookOver`: the threads a mesh window took from the agent's away windows (0.6.0 and later).
+    result: SessionView.extend({ tookOver: external_exports.array(external_exports.string()).default([]) })
   }),
   "session.deactivate": defineMethod({
     description: "Stop receiving work in this session.",
@@ -49456,13 +49457,18 @@ async function activateSession(hub, activation, params, stamp) {
   const view = await hub.call("session.activate", params);
   if (activation.epoch !== epoch) {
     await hub.call("session.deactivate", {});
-    return false;
+    return null;
   }
   activation.lastDescription = view.description ?? params.description;
   activation.renewedFrom = null;
   activation.pull = "mode" in params;
   if (stamp) activation.guardVersion = stamp.version;
-  return true;
+  return view.tookOver ?? [];
+}
+function tookOverLines(threads) {
+  return threads.map(
+    (t) => `Took over ${t} from your earlier mesh window, which had gone away; read it with thread ${t} to pick up where it left off.`
+  ).join("\n");
 }
 function renewalRefused(window, activation, stamp, others) {
   if (window.state === "marked") return "the mesh window marker does not verify";
@@ -49487,20 +49493,24 @@ async function answerCheck(code, deps) {
     return deps.push(checkEvent(code, previous));
   }
   const epoch = activation.epoch;
+  let took;
   try {
-    if (!await activateSession(hub, activation, { code, description: previous }, stamp)) {
-      logger.warn({ session }, "deactivated while re-activating the new hub session; it stays off");
-      return;
-    }
+    took = await activateSession(hub, activation, { code, description: previous }, stamp);
   } catch (err) {
     logger.warn({ session, err }, "could not re-activate the new hub session");
     if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
     return;
   }
+  if (took === null) {
+    logger.warn({ session }, "deactivated while re-activating the new hub session; it stays off");
+    return;
+  }
   logger.info({ session }, "new hub session; re-activated it in the same process");
   void deps.refresh();
+  const extra = took.length > 0 ? `
+${tookOverLines(took)}` : "";
   await deps.push({
-    content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.`,
+    content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.${extra}`,
     meta: { kind: "system", from: "agentmesh" }
   });
 }
@@ -49511,7 +49521,7 @@ async function reactivatePull(deps) {
   const session = hub.sessionId;
   logger.info({ session }, "new hub session; re-activating it in pull mode");
   try {
-    if (!await activateSession(hub, activation, { mode: "pull", description }, null)) {
+    if (await activateSession(hub, activation, { mode: "pull", description }, null) === null) {
       logger.warn({ session }, "deactivated while re-activating the pull session; it stays off");
       return;
     }
@@ -49583,17 +49593,21 @@ var sessionTools = [
       }
       if (!args.description) throw needDescription();
       const params = { code: args.code, description: args.description };
-      if (!await activateSession(hub, activation, params, stamp)) {
+      const took = await activateSession(hub, activation, params, stamp);
+      if (took === null) {
         return "This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.";
       }
       const active = `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
+      const tookOver = took.length > 0 ? `
+
+${tookOverLines(took)}` : "";
       const policy = teamPolicy();
       const full = policy ? `
 
 Team policy (in full):
 ${policy}` : "";
-      return `${active} It is your mesh window.
+      return `${active} It is your mesh window.${tookOver}
 
 ${windowRules(window.policy)}${full}`;
     }

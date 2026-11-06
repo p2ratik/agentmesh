@@ -150,6 +150,18 @@ describe('activate and the mesh window', () => {
     );
   });
 
+  // A takeover moves an away window's threads here at activation; the window hears of them now.
+  it('the mesh window is told which threads it took over', async () => {
+    const { deps } = fakeHub({
+      'session.activate': { ...view('mesh window'), delivery: 'push', tookOver: ['thr-1'] },
+    });
+    verified(deps);
+    const result = await callTool('activate', { code: 'c-1', description: 'mesh window' }, deps);
+    expect(text(result)).toBe(
+      `This session is active on the mesh as “mesh window”. It is your mesh window.\n\nTook over thr-1 from your earlier mesh window, which had gone away; read it with thread thr-1 to pick up where it left off.\n\n${windowRules(policy)}`,
+    );
+  });
+
   // The instructions clip a long policy at Claude Code's 4096 characters; the window gets it whole.
   it("the mesh window's activate result ends with the full team policy", async () => {
     const { deps } = fakeHub(answers('mesh window'));

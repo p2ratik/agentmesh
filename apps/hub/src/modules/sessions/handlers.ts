@@ -119,8 +119,13 @@ export function sessionHandlers(
     'session.activate': (params, call) => {
       const session = own(call);
       if (params.mode === 'push') checks.confirm(session, params.code ?? '', now());
-      sessions.activate(call.actor.id, session, params.description, params.mode);
-      return sessions.view(session);
+      const { tookOver } = sessions.activate(
+        call.actor.id,
+        session,
+        params.description,
+        params.mode,
+      );
+      return { ...sessions.view(session), tookOver };
     },
     /** Also forgets the session's check code, so a check started before the off can't finish. */
     'session.deactivate': (_params, call) => {
