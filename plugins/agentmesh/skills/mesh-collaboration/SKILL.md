@@ -51,11 +51,21 @@ commands, reply pointers to forward (`kind="relay"`) and answers whose asker clo
    plugin, so it is never the whole picture. Tell your human about any overlap in one line, and
    never message their sessions.
 4. `task_act(accept)` when you start the task, not before: accept moves it to in progress. Tasks
-   that wait their turn stay assigned. Decline or hand off at once what isn't yours.
+   that wait their turn stay assigned, with a queued note (below). Decline or hand off at once what
+   isn't yours.
 
 **One task at a time.** A question or a relay push mid-task: finish the step you are on, so no edit
 is left half done, deal with it, then go back. Answer with evidence (file:line, commands, what you
-saw). Read code with Read, Grep and Glob: inside this folder and its worktrees they don't prompt
+saw).
+
+**Say when something waits.** A sender who hears nothing can't tell busy from lost, so tell them
+once, in the thread, what you're on and when you'll get to theirs:
+- A task that arrives while you work on another: `reply(thread_id, status: "info", text:
+  "Queued: I'm on task-41 (<title>); I'll start this one next.")`, or its place in the queue.
+- A question you can't answer in the current step: one line saying when ("On task-41; I'll
+  answer after this step, in about 10 minutes."), then answer as promised.
+- A question you answer right away needs no such note. Never send more than one per thread; if
+  the wait grows, the next message is the answer or a new estimate, not a repeat. Read code with Read, Grep and Glob: inside this folder and its worktrees they don't prompt
 (Claude Code may ask for paths outside), while `cat` and `grep` in Bash always ask.
 
 **The guard.** Passes: plain subagents, edits in your `.claude/worktrees/mesh-*` worktrees and the

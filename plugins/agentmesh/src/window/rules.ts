@@ -35,7 +35,7 @@ export function windowRules(policy: WindowPolicy | null): string {
     `AgentMesh: this session is ${who} mesh window. It takes the team's work: tasks, reviews and teammates' questions.`,
     '- Load the agentmesh:mesh-collaboration skill for how this team works; it has a section for the mesh window.',
     ...(policy ? [] : [NO_POLICY]),
-    "- One task at a time, in order. Answer teammates' questions between steps.",
+    "- One task at a time, in order. Answer teammates' questions between steps. When something must wait (a task behind the one you're on, or a question you can't answer in this step), say so once in its thread and when you'll get to it.",
     '- Run commands with the Bash tool; PowerShell commands always ask your human here.',
     "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo. Below, <checkout> is that absolute path and <worktree> a worktree's absolute path.",
     // Claude Code prompts for `cd <other folder> && git …` (git there can run that folder's hooks)
