@@ -22,9 +22,32 @@ export const forwardReader = (dir: string): ForwardReader => ({
   claim: (name) => claimForward(dir, name),
 });
 
-/** SendMessage's fields; Claude Code fills `recipient`, `recipient_kind` and `content` itself. */
-const KEYS = new Set(['to', 'recipient', 'recipient_kind', 'message', 'content', 'type']);
+/**
+ * SendMessage's fields; Claude Code fills `recipient`, `recipient_kind` and `content` itself. The
+ * model fills `summary`, a label for its own transcript row that is never transmitted.
+ */
+const KEYS = new Set([
+  'to',
+  'recipient',
+  'recipient_kind',
+  'message',
+  'content',
+  'type',
+  'summary',
+]);
+const SUMMARY_MAX = 200;
 const DENIED: GuardDecision = { kind: 'deny', reason: SEND_DENIED };
+
+const shortLabel = (v: unknown) =>
+  v === undefined || (typeof v === 'string' && v.length <= SUMMARY_MAX);
+
+/** Claude Code's `content`: the message itself, or a shorter preview of it ending in "…". */
+const contentOf = (content: unknown, message: string) =>
+  content === message ||
+  (typeof content === 'string' &&
+    content.endsWith('…') &&
+    content.length < message.length &&
+    message.startsWith(content.slice(0, -1)));
 
 /**
  * Passes one SendMessage only when it is exactly a pointer the plugin recorded for that address,
@@ -40,7 +63,8 @@ export function sendMessage(args: Record<string, unknown>, ctx: GuardContext): G
     args.type === 'message' &&
     (args.recipient_kind === undefined || typeof args.recipient_kind === 'string') &&
     typeof args.message === 'string' &&
-    args.content === args.message;
+    contentOf(args.content, args.message) &&
+    shortLabel(args.summary);
   if (!aliases || !ctx.forwards) return DENIED;
   const record = ctx.forwards
     .read(hex, ctx.now ?? Date.now())

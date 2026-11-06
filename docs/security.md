@@ -669,11 +669,13 @@ passes that session a pointer through Claude Code's cross-session messaging
   with no apostrophe, so a retyped quote fails the check.
 - **The guard passes one `SendMessage`, once.** In the window, `SendMessage` passes only when all
   of these hold:
-  - its keys are only `to`, `recipient`, `recipient_kind`, `message`, `content` and `type`.
-    `summary`, `notify_when_idle` and any other key deny;
+  - its keys are only `to`, `recipient`, `recipient_kind`, `message`, `content`, `type` and
+    `summary`. `summary` must be a string of at most 200 characters; it labels the sender's own
+    transcript row and is never transmitted. `notify_when_idle` and any other key deny;
   - `to` matches the strict address pattern (on Windows `uds:\\.\pipe\LOCAL\cc-msg-<32 hex>`),
-    checked before any file is read. `recipient` equals `to`, `content` equals `message`, and
-    `type` is `message`;
+    checked before any file is read. `recipient` equals `to`, and `type` is `message`. `content`
+    is Claude Code's display copy of `message`: either the same text or a shorter preview ending
+    in "…" that `message` starts with. Only `message` is sent, and it must match exactly;
   - a forward record for that address exists and hasn't expired. The window's plugin wrote it when
     it pushed the pointer: `fwd-<32 hex>-<message id>.json`, holding only `from`, the thread and
     the message id, valid for 10 minutes. The guard trusts no text from the file: it rebuilds the

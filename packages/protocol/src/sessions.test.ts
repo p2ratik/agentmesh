@@ -72,6 +72,20 @@ describe('session contracts', () => {
     expect(p.safeParse({ threadId: 'thr-1', taskId: 'task-1' }).success).toBe(false);
   });
 
+  it("activate's result lists the threads a takeover moved here, empty from an older hub", () => {
+    const view = {
+      id: 's-000000000001',
+      active: true,
+      description: 'w',
+      repo: null,
+      branch: null,
+      owns: [],
+    };
+    const r = RPC_METHODS['session.activate'].result;
+    expect(r.parse(view).tookOver).toEqual([]);
+    expect(r.parse({ ...view, tookOver: ['thr-1'] }).tookOver).toEqual(['thr-1']);
+  });
+
   it('session methods are agent-only', () => {
     for (const m of [
       'session.check',

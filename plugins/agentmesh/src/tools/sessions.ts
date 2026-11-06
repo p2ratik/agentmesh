@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
-import { type ActivationState, activateSession, endRenewal } from './activation';
+import { type ActivationState, activateSession, endRenewal, tookOverLines } from './activation';
 import { defineTool, ToolRefusal } from './types';
 
 const Description = z.string().min(1).max(200);
@@ -100,15 +100,17 @@ export const sessionTools = [
       }
       if (!args.description) throw needDescription();
       const params = { code: args.code, description: args.description };
-      if (!(await activateSession(hub, activation, params, stamp))) {
+      const took = await activateSession(hub, activation, params, stamp);
+      if (took === null) {
         return 'This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.';
       }
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
+      const tookOver = took.length > 0 ? `\n\n${tookOverLines(took)}` : '';
       // The instructions clip a long policy at 4096 characters; the window gets it whole here.
       const policy = teamPolicy();
       const full = policy ? `\n\nTeam policy (in full):\n${policy}` : '';
-      return `${active} It is your mesh window.\n\n${windowRules(window.policy)}${full}`;
+      return `${active} It is your mesh window.${tookOver}\n\n${windowRules(window.policy)}${full}`;
     },
   }),
   defineTool({

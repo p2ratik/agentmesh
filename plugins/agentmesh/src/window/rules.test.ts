@@ -70,7 +70,7 @@ describe('windowRules', () => {
     expect(lines).toEqual([
       "AgentMesh: this session is bob-agent's mesh window. It takes the team's work: tasks, reviews and teammates' questions.",
       SKILL_LINE,
-      "- One task at a time, in order. Answer teammates' questions between steps.",
+      "- One task at a time, in order. Answer teammates' questions between steps. When something must wait (a task behind the one you're on, or a question you can't answer in this step), say so once in its thread and when you'll get to it.",
       '- Run commands with the Bash tool; PowerShell commands always ask your human here.',
       "- task_get names the task's checkout: the one git checkout in this folder whose origin matches the task's repo. Below, <checkout> is that absolute path and <worktree> a worktree's absolute path.",
       '- Work in a folder in two steps: run cd "<dir>" alone first (a cd inside the window\'s folder doesn\'t prompt), then each command below as cd "<dir>" && <command> with the same absolute path. That cd changes nothing, so Claude Code doesn\'t prompt, and the guard still sees the folder. git -C, a relative cd chain and a second cd ask.',

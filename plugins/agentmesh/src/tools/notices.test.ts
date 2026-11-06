@@ -3,7 +3,7 @@ import { fakeHub } from './fake-hub';
 import { callTool } from './registry';
 
 const LINE =
-  'Your earlier question in thr-12 has come back to this session; read it with thread thr-12 for its answer.';
+  'thr-12 is back with this session, which held it before the hub closed it; read it with thread thr-12 to catch up.';
 
 describe('session notices', () => {
   it('end the next tool result once', async () => {

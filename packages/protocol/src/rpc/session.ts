@@ -75,7 +75,8 @@ export const sessionMethods = {
       .refine((p) => p.mode === 'pull' || p.code !== undefined, {
         message: 'Pass the code from the test message, or mode "pull".',
       }),
-    result: SessionView,
+    // `tookOver`: the threads a mesh window took from the agent's away windows (0.6.0 and later).
+    result: SessionView.extend({ tookOver: z.array(z.string()).default([]) }),
   }),
   'session.deactivate': defineMethod({
     description: 'Stop receiving work in this session.',

@@ -78,7 +78,7 @@ export class SessionsServiceImpl implements SessionsService {
     sessionId: string,
     description: string,
     delivery: DeliveryMode = 'push',
-  ): SessionRecord {
+  ): SessionRecord & { tookOver: string[] } {
     let adopted: Adopted = { closed: [], reclaimed: [] };
     const record = this.#change(
       agentId,
@@ -93,7 +93,7 @@ export class SessionsServiceImpl implements SessionsService {
     );
     logAdopted(this.#ctx.logger, agentId, sessionId, adopted);
     this.#ctx.outbox.kick();
-    return record;
+    return { ...record, tookOver: adopted.reclaimed.map(threadKey) };
   }
 
   /** A clean stop (spec §3): releases what the session owns at once; re-activating takes none of it back. */

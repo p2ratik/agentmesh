@@ -200,10 +200,15 @@ answers a cross-session message and never resends after a delivery notice.
     and hasn't expired. It holds only validated fields: `from`, the thread number and the message
     id.
   - The guard **rebuilds** the pointer from those fields with the shared pure function, and
-    requires `message === content ===` the rebuilt text, byte for byte.
+    requires `message ===` the rebuilt text, byte for byte. `content` is the same text or Claude
+    Code's preview of it, ending in "…" (amended in staging QA: Claude Code 2.1.319 sends a
+    50-character preview there, so requiring equality denied every relay).
   - `to === recipient === ` the address, and `type === 'message'`.
-  - Only the keys `to`, `recipient`, `recipient_kind`, `message`, `content` and `type` may be
-    present. `summary`, `notify_when_idle` and any unknown key deny.
+  - Only the keys `to`, `recipient`, `recipient_kind`, `message`, `content`, `type` and
+    `summary` may be present. `summary` must be a string of at most 200 characters: it labels the
+    sender's own transcript row and is never transmitted. `notify_when_idle` and any unknown key
+    deny. (Amended in staging QA: the model fills `summary` on almost every send, so denying it
+    blocked every relay.)
 
   The guard **claims the record** by creating `<record>.claimed` exclusively (`wx`), and denies if
   that fails. Only then does it pass, so a replayed or parallel send is denied. (Amended in the
@@ -316,8 +321,10 @@ model's report: the row stays pending and the note stays on until the owner read
   - The MCP env `CLAUDE_CODE_SESSION_ID` goes stale after `--continue`, `/clear` or `/resume`.
     `--resume <id>` was verified.
   - A fork gets a new id, so it gets nothing back, which is correct.
-- `hello.reclaimed` is shown to Claude ("your earlier question in thr-12 has an answer; read it
-  with thread"). Today it is only logged.
+- `hello.reclaimed` is shown to Claude ("thr-12 is back with this session, which held it before
+  the hub closed it; read it with thread thr-12 to catch up"). Today it is only logged. (Amended
+  in staging QA: the first wording, "your earlier question", was wrong for a session that had
+  been answering in the thread, which any reconnecting session may have.)
 - The "reopen" choice prints the exact command `claude --resume <uuid>`. `--continue` doesn't keep
   the id.
 

@@ -18,9 +18,9 @@ export function closedAskerNotice(
     : '- Reopen that session: not possible, its conversation id is unknown.';
   return [
     `AgentMesh: the session that asked this (${released.bySession}) has closed. Don't act on this answer: ask your human which they want.`,
-    `- Continue it here: take(thread_id: "${threadId}"), then work on it in a fresh worktree.`,
+    `- Continue it here: take(thread_id: "${threadId}"), say in one line in the thread that your human continues it here, then work on it in a fresh worktree.`,
     reopen,
-    `- Drop it: take(thread_id: "${threadId}") and stay quiet.`,
+    `- Drop it: take(thread_id: "${threadId}") and say in one line in the thread that your human dropped it.`,
     `If they don't answer within ${minutes} minutes, the hub pings them on Discord.`,
   ].join('\n');
 }

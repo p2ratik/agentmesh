@@ -106,7 +106,11 @@ describe('activating a mesh window', () => {
     const info = vi.spyOn(h.ctx.logger, 'info');
     const w1 = h.awayWindow();
     const w2 = h.open('alice-agent', true);
-    h.sessions.activate('alice-agent', w2, 'window');
+    // The new window is told which threads it took over, not only the log.
+    expect(h.sessions.activate('alice-agent', w2, 'window').tookOver).toEqual([
+      threadKey(w1.t1),
+      threadKey(w1.t2),
+    ]);
     expect(info).toHaveBeenCalledWith(
       {
         agent: 'alice-agent',

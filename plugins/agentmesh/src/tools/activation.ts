@@ -67,26 +67,37 @@ export function checkEvent(code: string, previous?: string): ChannelEvent {
  * the line, the mode, and the guard version from the mesh window's fresh stamp when one is given.
  * The activate tool's push activation and both renewals (`answerCheck`, `reactivatePull`) go
  * through here. A deactivate while the call was out wins: nothing is recorded, the hub (which may
- * have run the deactivate first) is turned off again, and the result is false.
+ * have run the deactivate first) is turned off again, and the result is null. Otherwise it is the
+ * threads a takeover moved here from the agent's away windows (`tookOverLines` says so to Claude).
  */
 export async function activateSession(
   hub: Pick<HubClient, 'call'>,
   activation: ActivationState,
   params: { code: string; description: string } | { mode: 'pull'; description: string },
   stamp: { version: string | null } | null,
-): Promise<boolean> {
+): Promise<string[] | null> {
   const epoch = activation.epoch;
   const view = await hub.call('session.activate', params);
   if (activation.epoch !== epoch) {
     await hub.call('session.deactivate', {});
-    return false;
+    return null;
   }
   activation.lastDescription = view.description ?? params.description;
   activation.renewedFrom = null;
   activation.pull = 'mode' in params;
   // From the stamp this call checked: relays gate on it for the life of the process.
   if (stamp) activation.guardVersion = stamp.version;
-  return true;
+  return view.tookOver ?? [];
+}
+
+/** What Claude is told about threads a takeover moved to this window, each on its own line. */
+export function tookOverLines(threads: readonly string[]): string {
+  return threads
+    .map(
+      (t) =>
+        `Took over ${t} from your earlier mesh window, which had gone away; read it with thread ${t} to pick up where it left off.`,
+    )
+    .join('\n');
 }
 
 /**
@@ -146,20 +157,23 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
     return deps.push(checkEvent(code, previous));
   }
   const epoch = activation.epoch;
+  let took: string[] | null;
   try {
-    if (!(await activateSession(hub, activation, { code, description: previous }, stamp))) {
-      logger.warn({ session }, 'deactivated while re-activating the new hub session; it stays off');
-      return;
-    }
+    took = await activateSession(hub, activation, { code, description: previous }, stamp);
   } catch (err) {
     logger.warn({ session, err }, 'could not re-activate the new hub session');
     if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
     return;
   }
+  if (took === null) {
+    logger.warn({ session }, 'deactivated while re-activating the new hub session; it stays off');
+    return;
+  }
   logger.info({ session }, 'new hub session; re-activated it in the same process');
   void deps.refresh();
+  const extra = took.length > 0 ? `\n${tookOverLines(took)}` : '';
   await deps.push({
-    content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.`,
+    content: `AgentMesh: this session reconnected after a long absence and is active again as "${previous}". Call inbox to catch up.${extra}`,
     meta: { kind: 'system', from: 'agentmesh' },
   });
 }
@@ -177,7 +191,7 @@ export async function reactivatePull(
   const session = hub.sessionId;
   logger.info({ session }, 'new hub session; re-activating it in pull mode');
   try {
-    if (!(await activateSession(hub, activation, { mode: 'pull', description }, null))) {
+    if ((await activateSession(hub, activation, { mode: 'pull', description }, null)) === null) {
       logger.warn({ session }, 'deactivated while re-activating the pull session; it stays off');
       return;
     }

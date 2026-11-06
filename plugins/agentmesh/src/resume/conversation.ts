@@ -89,7 +89,7 @@ export function reclaimedLines(threads: readonly string[]): string {
   return threads
     .map(
       (t) =>
-        `Your earlier question in ${t} has come back to this session; read it with thread ${t} for its answer.`,
+        `${t} is back with this session, which held it before the hub closed it; read it with thread ${t} to catch up.`,
     )
     .join('\n');
 }

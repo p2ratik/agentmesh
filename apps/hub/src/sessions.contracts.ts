@@ -49,13 +49,16 @@ export interface SessionsService {
   open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] };
   /** The agent's non-closed session, else not_found "Unknown or closed session <id>; reconnect". */
   verify(agentId: string, sessionId: string): SessionRecord;
-  /** `pull`: active, but never delivered to; it reads with `inbox` (ADR 0008). Default push. */
+  /**
+   * `pull`: active, but never delivered to; it reads with `inbox` (ADR 0008). Default push.
+   * `tookOver`: the threads a mesh window took from the agent's away windows (thread keys).
+   */
   activate(
     agentId: string,
     sessionId: string,
     description: string,
     delivery?: DeliveryMode,
-  ): SessionRecord;
+  ): SessionRecord & { tookOver: string[] };
   /** A clean stop: releases everything the session owns at once (spec §3). */
   deactivate(agentId: string, sessionId: string): SessionRecord;
   describe(agentId: string, sessionId: string, description: string): SessionRecord;
