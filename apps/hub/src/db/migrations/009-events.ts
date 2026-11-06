@@ -4,7 +4,7 @@
  */
 export const MIGRATION_009 = `
 CREATE TABLE events (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   agent TEXT NOT NULL,
   session TEXT,
   thread TEXT,
@@ -12,7 +12,8 @@ CREATE TABLE events (
   source TEXT NOT NULL,
   at TEXT NOT NULL,
   received_at TEXT NOT NULL,
-  body TEXT NOT NULL
+  body TEXT NOT NULL,
+  PRIMARY KEY (agent, id)
 );
 CREATE INDEX events_agent ON events (agent, received_at);
 CREATE INDEX events_session ON events (session, received_at);

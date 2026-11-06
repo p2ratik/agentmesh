@@ -125,7 +125,16 @@ export function buildModules(
     health: http.health,
   });
 
-  const observe = createObserveModule(ctx);
+  const observe = createObserveModule(ctx, {
+    ownsSession: (agentId, sessionId) => {
+      try {
+        sessionsModule.service.verify(agentId, sessionId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
   const modules: Array<HubModule<unknown>> = [
     enrollment,
     control,

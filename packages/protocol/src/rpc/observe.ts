@@ -7,11 +7,8 @@ import { defineMethod } from './define';
 export const MAX_REPORT_EVENTS = 100;
 export const MAX_TIMELINE_EVENTS = 2000;
 
-/** An ISO time or a relative duration back from now (`30m`, `2h`, `1d`). */
-const When = z.union([
-  z.iso.datetime({ offset: true }).max(40),
-  z.string().regex(/^\d{1,4}[mhd]$/),
-]);
+/** An ISO time or a relative duration back from now (`30m`, `2h`, `1d`); the hub parses it. */
+const When = z.string().max(40);
 
 export const observeMethods = {
   'telemetry.report': defineMethod({

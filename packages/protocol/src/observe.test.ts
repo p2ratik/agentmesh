@@ -89,7 +89,8 @@ describe('observability RPCs', () => {
     expect(params.parse({})).toMatchObject({ since: '2h', limit: 500 });
     expect(params.safeParse({ limit: 2001 }).success).toBe(false);
     expect(params.safeParse({ since: '30m', kinds: ['guard', 'rpc'] }).success).toBe(true);
-    expect(params.safeParse({ since: 'yesterday' }).success).toBe(false);
+    // since and until are parsed by the hub (invalid_request), so the schema only bounds their length.
+    expect(params.safeParse({ since: 'x'.repeat(41) }).success).toBe(false);
   });
 
   it('session.hello result defaults observability for older hubs', () => {

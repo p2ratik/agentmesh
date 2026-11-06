@@ -34,7 +34,7 @@ const rows = (ctx: ReturnType<typeof createTestHarness>['ctx']) =>
 describe('ObserveService', () => {
   it("stores reported events under the caller, and the caller's id wins over a reported agent field", () => {
     const { ctx } = createTestHarness();
-    const service = new ObserveService(ctx);
+    const service = new ObserveService(ctx, () => true);
     const forged = { ...tool(), agent: 'mallory-agent' } as unknown as ReportedEvent;
     expect(service.report('alice-agent', [forged])).toEqual({ accepted: 1, dropped: 0 });
     expect(rows(ctx).map((r) => r.agent)).toEqual(['alice-agent']);
@@ -44,7 +44,7 @@ describe('ObserveService', () => {
 
   it('a resent batch is stored once', () => {
     const { ctx } = createTestHarness();
-    const service = new ObserveService(ctx);
+    const service = new ObserveService(ctx, () => true);
     const batch = [tool(), tool()];
     service.report('alice-agent', batch);
     expect(service.report('alice-agent', batch)).toEqual({ accepted: 2, dropped: 0 });
@@ -53,7 +53,7 @@ describe('ObserveService', () => {
 
   it('caps events per agent per minute', () => {
     const { ctx, clock } = createTestHarness(testTeamConfig(obs({ maxEventsPerMinute: 5 })));
-    const service = new ObserveService(ctx);
+    const service = new ObserveService(ctx, () => true);
     const eight = Array.from({ length: 8 }, () => tool());
     expect(service.report('alice-agent', eight)).toEqual({ accepted: 5, dropped: 3 });
     // Another agent has its own budget; the same agent has room again a minute later.
@@ -64,7 +64,7 @@ describe('ObserveService', () => {
 
   it('refuses telemetry when observability is off', () => {
     const { ctx } = createTestHarness(testTeamConfig(obs({ enabled: false })));
-    expect(() => new ObserveService(ctx).report('alice-agent', [tool()])).toThrow(
+    expect(() => new ObserveService(ctx, () => true).report('alice-agent', [tool()])).toThrow(
       'observability is turned off on this hub',
     );
   });
@@ -86,7 +86,7 @@ describe('ObserveService', () => {
 
   it('prunes events older than retentionDays', () => {
     const { ctx, clock } = createTestHarness(testTeamConfig(obs({ retentionDays: 2 })));
-    const service = new ObserveService(ctx);
+    const service = new ObserveService(ctx, () => true);
     service.report('alice-agent', [tool()]);
     clock.advance(1 * 86_400_000);
     service.report('alice-agent', [tool()]);

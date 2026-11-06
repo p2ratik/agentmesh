@@ -46192,10 +46192,7 @@ var messagingMethods = {
 // ../../packages/protocol/src/rpc/observe.ts
 var MAX_REPORT_EVENTS = 100;
 var MAX_TIMELINE_EVENTS = 2e3;
-var When = external_exports.union([
-  external_exports.iso.datetime({ offset: true }).max(40),
-  external_exports.string().regex(/^\d{1,4}[mhd]$/)
-]);
+var When = external_exports.string().max(40);
 var observeMethods = {
   "telemetry.report": defineMethod({
     description: "Ship a batch of this session's behaviour events (ids, counts and codes only).",

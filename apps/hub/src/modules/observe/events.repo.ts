@@ -21,7 +21,7 @@ interface Row {
 export class EventsRepo {
   constructor(private readonly db: Db) {}
 
-  /** True if the row is new; a repeated id is ignored. */
+  /** True if the row is new; a repeated id of the same agent is ignored. */
   insert(agent: string, event: ReportedEvent | HubEvent, receivedAt: string): boolean {
     const thread = 'thread' in event && event.thread ? event.thread : null;
     return (
@@ -47,7 +47,7 @@ export class EventsRepo {
     return this.db.run('DELETE FROM events WHERE received_at < $before', { before }).changes;
   }
 
-  /** Oldest first. */
+  /** The newest `limit` matches, newest first. */
   query(filter: EventFilter): ObservedEvent[] {
     const where: string[] = [];
     const params: Record<string, string | number> = {};
@@ -71,7 +71,7 @@ export class EventsRepo {
     params.limit = filter.limit ?? 500;
     const sql = `SELECT agent, received_at, body FROM events
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY received_at, rowid LIMIT $limit`;
+      ORDER BY received_at DESC, rowid DESC LIMIT $limit`;
     return this.db
       .all<Row>(sql, params)
       .map((r) => ({ ...JSON.parse(r.body), agent: r.agent, receivedAt: r.received_at }));
