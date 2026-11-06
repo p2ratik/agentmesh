@@ -27,6 +27,18 @@ export function releaseAndClose(
   return released;
 }
 
+/** Marks the session away and records it; `expireSessions` and a failed send both come here. */
+export function markAwayRecorded(
+  ctx: HubContext,
+  repo: SessionsRepo,
+  sessionId: string,
+  at: string,
+): void {
+  const row = repo.get(sessionId);
+  repo.markAway(sessionId, at);
+  if (row) recordHub(ctx, row.agent_id, sessionId, { kind: 'session', phase: 'away' });
+}
+
 /** A session that was away is live again: records it, and what waited for it goes now. */
 export function backLive(ctx: HubContext, agentId: string, sessionId: string): void {
   recordHub(ctx, agentId, sessionId, { kind: 'session', phase: 'live' });
@@ -49,10 +61,7 @@ export function expireSessions(
   const graceBefore = new Date(now.getTime() - ownershipGraceMinutes * 60_000).toISOString();
   const result = ctx.db.transaction(() => {
     const stale = repo.staleLive(staleBefore);
-    for (const row of stale) {
-      repo.markAway(row.id, at);
-      recordHub(ctx, row.agent_id, row.id, { kind: 'session', phase: 'away' });
-    }
+    for (const row of stale) markAwayRecorded(ctx, repo, row.id, at);
     const expired = repo.awayBefore(graceBefore);
     for (const row of expired) releaseAndClose(ctx, repo, row.id, at);
     return { away: stale.length, closed: expired.length };

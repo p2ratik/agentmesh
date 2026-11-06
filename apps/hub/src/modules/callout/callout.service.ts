@@ -1,6 +1,6 @@
 import { APP_ACCOUNT, type NatsConnection, permissionsFor } from '@agentmesh/bus';
-import { MINUTE_MS } from '@agentmesh/common';
-import { PublicNkey } from '@agentmesh/protocol';
+import { HOUR_MS, MINUTE_MS } from '@agentmesh/common';
+import { PublicNkey, type ReasonCode } from '@agentmesh/protocol';
 import type { KeyPair } from '@nats-io/nkeys';
 import type { HubContext } from '../../context';
 import type { EnrollmentService } from '../../contracts';
@@ -52,6 +52,8 @@ export class CalloutService {
   /** Every connect per address, admitted or not: each costs signature work. */
   readonly #budget: FailureLimiter;
   readonly #refusals: RefusalLog;
+  readonly #flagged = new Set<string>();
+  #flagReset = 0;
   // ponytail: in memory, so connections from before a hub restart cannot be kicked; the user
   // JWT's exp (enrollment.userJwtTtlMinutes) ends them. Query CONNZ if that is ever too slow.
   readonly #connections = new Map<
@@ -100,6 +102,12 @@ export class CalloutService {
     const host = (parsed?.claims.nats as AuthRequest | undefined)?.client_info?.host ?? 'unknown';
     if (this.#budget.blocked(host)) {
       this.#logRefusal(host, 'connect budget spent; left unanswered');
+      // Once per address per hour: a flood is visible without one row per blocked connect.
+      if (!this.#flagged.has(host)) {
+        if (this.#flagged.size >= 1000) this.#flagged.clear();
+        this.#flagged.add(host);
+        this.#auth('budget_hit');
+      }
       return;
     }
     // Counted before the work, so a burst handled in one socket read cannot slip past the check.
@@ -123,9 +131,8 @@ export class CalloutService {
       );
     } else {
       this.#logRefusal(host, decision.refused, request);
-      // No reason code: the fixed list has none for auth; the refusal text stays in the log.
-      const hubId = this.#ctx.loaded.config.hub.serviceId;
-      recordHub(this.#ctx, hubId, null, { kind: 'auth', event: 'denied' });
+      // The reason code only: never the presented key or token, and the refusal text stays in the log.
+      this.#auth('denied', decision.code);
     }
     const response = signJwt(
       this.#keys.issuer,
@@ -174,6 +181,16 @@ export class CalloutService {
       },
       'agent refused',
     );
+  }
+
+  #auth(event: 'denied' | 'budget_hit', reason?: ReasonCode): void {
+    const at = this.#ctx.clock.now().getTime();
+    if (at - this.#flagReset > HOUR_MS) {
+      this.#flagged.clear();
+      this.#flagReset = at;
+    }
+    const hubId = this.#ctx.loaded.config.hub.serviceId;
+    recordHub(this.#ctx, hubId, null, { kind: 'auth', event, ...(reason ? { reason } : {}) });
   }
 
   #decide(request: AuthRequest): Promise<Decision> {

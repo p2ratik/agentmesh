@@ -114,6 +114,13 @@ describe('observe.timeline over the router', () => {
     expect(all.events.map((e) => e.id)).toEqual(events.map((e) => e.id));
   });
 
+  it("an unfiltered timeline includes the hub's own events", async () => {
+    const h = await start();
+    await report(h, 'bob-agent', [tool()]);
+    const out = (await call(h, 'alice-agent', 'observe.timeline', {})) as { text: string };
+    expect(out.text).toMatch(/opened|hello/);
+  });
+
   it('an empty window says so', async () => {
     const h = await start();
     expect((await read(h, 'alice-agent')).text).toBe('no events in this window');

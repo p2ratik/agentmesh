@@ -16,7 +16,7 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { backLive, expireSessions, releaseAndClose } from './liveness';
+import { backLive, expireSessions, markAwayRecorded, releaseAndClose } from './liveness';
 import { toRecord, toSummary, toView } from './mappers';
 import { openSession } from './open';
 import { OrphanDecisions } from './orphans';
@@ -138,7 +138,7 @@ export class SessionsServiceImpl implements SessionsService {
   }
 
   unreachable(sessionId: string): void {
-    this.repo.markAway(sessionId, this.#now());
+    markAwayRecorded(this.#ctx, this.repo, sessionId, this.#now());
   }
 
   route(agentId: string, message: MeshMessage): Route {

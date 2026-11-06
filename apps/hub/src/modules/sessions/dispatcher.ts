@@ -20,6 +20,8 @@ export interface SessionTransport {
 
 /** The most unread status items of one thread that ride along with a delivery in it. */
 const CARRIED_PER_THREAD = 20;
+/** The most messages remembered as already recorded `no_session`. */
+const NOTED_CAP = 1000;
 
 interface Routed {
   message: SessionDelivery;
@@ -83,7 +85,10 @@ export class SessionDispatcher implements DeliveryPort {
     // Already read through inbox or thread: delivered, with nothing to push, claim or mark read.
     const alreadyRead = messages.filter((m) => this.#messaging.isRead(agentId, m.id));
     // The owner read the thread: its next reply may wake it again.
-    for (const m of alreadyRead) this.#marks.clearThread(agentId, m.threadId);
+    for (const m of alreadyRead) {
+      this.#marks.clearThread(agentId, m.threadId);
+      this.#noted.delete(m.id);
+    }
     const seen = alreadyRead.map((m) => m.id);
     // No active, live session: every route would wait.
     if (!this.#sessions.hasReadySession(agentId)) {
@@ -108,6 +113,7 @@ export class SessionDispatcher implements DeliveryPort {
       const result = results[i];
       if (result?.status === 'fulfilled') {
         for (const id of result.value) acked.add(id);
+        this.#notAcked(agentId, sessionId, routed, acked);
         return;
       }
       this.#sessions.unreachable(sessionId);
@@ -185,6 +191,19 @@ export class SessionDispatcher implements DeliveryPort {
     }
   }
 
+  /** Messages sent to the session that its ack left out. */
+  #notAcked(agentId: string, sessionId: string, routed: Routed[], acked: Set<string>): void {
+    for (const r of routed) {
+      if (r.route.sessionId !== sessionId || acked.has(r.message.id)) continue;
+      this.#stage(agentId, sessionId, r.message, 'failed', 'not_acked');
+    }
+  }
+
+  /** For tests: how many messages are remembered as recorded `no_session`. */
+  get notedCount(): number {
+    return this.#noted.size;
+  }
+
   #stage(
     agentId: string,
     session: string | null,
@@ -200,6 +219,9 @@ export class SessionDispatcher implements DeliveryPort {
   #noSession(agentId: string, waiting: SessionDelivery[]): void {
     for (const m of waiting) {
       if (this.#noted.has(m.id)) continue;
+      // ponytail: capped, not timed: a dropped or expired message's entry ages out by size.
+      if (this.#noted.size >= NOTED_CAP)
+        this.#noted.delete(this.#noted.values().next().value ?? '');
       this.#noted.add(m.id);
       this.#stage(agentId, null, m, 'no_session');
     }

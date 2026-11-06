@@ -46072,7 +46072,14 @@ var REASON_CODES = [
   "activation.not_window",
   "activation.another_window_live",
   "activation.no_proof",
-  "activation.hub_error"
+  "activation.hub_error",
+  "auth.no_signature",
+  "auth.bad_signature",
+  "auth.unknown_key",
+  "auth.too_many_from_address",
+  "auth.malformed_invite",
+  "auth.too_many_redemptions",
+  "auth.invite_refused"
 ];
 var EVENT_SOURCES = ["plugin", "guard", "hook"];
 var REPORTED_KINDS = [

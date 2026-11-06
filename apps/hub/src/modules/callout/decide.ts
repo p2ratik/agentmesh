@@ -1,3 +1,4 @@
+import type { ReasonCode } from '@agentmesh/protocol';
 import { decodeInvite, type MemberRecord } from '@agentmesh/protocol';
 import type { RedeemInput } from '../../contracts';
 import { type Claims, signedNonce } from './jwt';
@@ -19,7 +20,7 @@ export interface DecideDeps {
 }
 
 /** Who to admit, or why not. The reason is for the hub log only, never the response. */
-export type Decision = { agentId: string } | { refused: string };
+export type Decision = { agentId: string } | { refused: string; code: ReasonCode };
 
 /** The request inside a verified JWT, when the server itself signed it. */
 export function serverRequest(claims: Claims | null): AuthRequest | null {
@@ -38,30 +39,37 @@ export function serverRequest(claims: Claims | null): AuthRequest | null {
 export async function decide(request: AuthRequest, deps: DecideDeps): Promise<Decision> {
   const { nkey, sig, auth_token: token } = request.connect_opts ?? {};
   const nonce = request.client_info?.nonce;
-  if (!nkey || !sig || !nonce) return { refused: 'no nkey signature' };
-  if (!signedNonce(nkey, nonce, sig)) return { refused: 'bad nkey signature' };
+  if (!nkey || !sig || !nonce) return { refused: 'no nkey signature', code: 'auth.no_signature' };
+  if (!signedNonce(nkey, nonce, sig))
+    return { refused: 'bad nkey signature', code: 'auth.bad_signature' };
 
   const known = deps.agentForKey(nkey);
   if (known) return { agentId: known };
-  if (!token) return { refused: 'unknown key' };
+  if (!token) return { refused: 'unknown key', code: 'auth.unknown_key' };
 
   const ip = `ip:${request.client_info?.host ?? 'unknown'}`;
-  if (deps.limiter.blocked(ip)) return { refused: 'too many failed redemptions from this address' };
+  if (deps.limiter.blocked(ip)) {
+    return {
+      refused: 'too many failed redemptions from this address',
+      code: 'auth.too_many_from_address',
+    };
+  }
   let invite: ReturnType<typeof decodeInvite>;
   try {
     invite = decodeInvite(token);
   } catch {
     deps.limiter.fail(ip);
-    return { refused: 'malformed invite' };
+    return { refused: 'malformed invite', code: 'auth.malformed_invite' };
   }
   const perInvite = `invite:${invite.inviteId}`;
-  if (deps.limiter.blocked(perInvite)) return { refused: 'too many failed redemptions' };
+  if (deps.limiter.blocked(perInvite))
+    return { refused: 'too many failed redemptions', code: 'auth.too_many_redemptions' };
   try {
     const member = await deps.redeem({ inviteId: invite.inviteId, secret: invite.secret, nkey });
     return { agentId: member.agentId };
   } catch {
     deps.limiter.fail(ip);
     deps.limiter.fail(perInvite);
-    return { refused: 'invite refused' };
+    return { refused: 'invite refused', code: 'auth.invite_refused' };
   }
 }

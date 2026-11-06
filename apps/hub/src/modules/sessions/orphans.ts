@@ -85,8 +85,7 @@ export class OrphanDecisions {
   /** Stops the timers of these threads (their asker took them back). */
   forget(agentId: string, threadIds: readonly number[]): void {
     for (const threadId of threadIds) {
-      this.#rows.deleteOrphan(threadId, agentId);
-      this.#note(agentId, threadId, 'settled');
+      if (this.#rows.deleteOrphan(threadId, agentId)) this.#note(agentId, threadId, 'settled');
     }
   }
 
@@ -98,8 +97,7 @@ export class OrphanDecisions {
     const { thread_id: threadId, agent_id: agent } = row;
     const owned = this.#repo.owner(threadId, agent) !== null;
     if (owned || this.#messaging.thread(threadId).status === 'closed') {
-      this.#rows.deleteOrphan(threadId, agent);
-      this.#note(agent, threadId, 'settled');
+      if (this.#rows.deleteOrphan(threadId, agent)) this.#note(agent, threadId, 'settled');
       return false;
     }
     if (row.escalated_at !== null) return false;

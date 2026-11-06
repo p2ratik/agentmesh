@@ -151,6 +151,16 @@ describe('callout observability', () => {
     const s = setup();
     await s.connect('203.0.113.7');
     const rows = s.ctx.db.all<{ kind: string; body: string }>('SELECT kind, body FROM events');
-    expect(rows.map((r) => [r.kind, JSON.parse(r.body).event])).toEqual([['auth', 'denied']]);
+    const [row] = rows.map((r) => JSON.parse(r.body));
+    expect(rows).toHaveLength(1);
+    expect([row.kind, row.event, row.reason]).toEqual(['auth', 'denied', 'auth.no_signature']);
+    expect(rows[0]?.body).not.toContain('203.0.113');
+  });
+
+  it('records budget_hit once per address however many connects are blocked', async () => {
+    const s = setup({ enrollment: { connectAttemptsPerMinute: 1 } });
+    for (let i = 0; i < 4; i++) await s.connect('203.0.113.7');
+    const rows = s.ctx.db.all<{ body: string }>('SELECT body FROM events');
+    expect(rows.map((r) => JSON.parse(r.body).event)).toEqual(['denied', 'budget_hit']);
   });
 });

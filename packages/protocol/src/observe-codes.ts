@@ -26,6 +26,13 @@ export const REASON_CODES = [
   'activation.another_window_live',
   'activation.no_proof',
   'activation.hub_error',
+  'auth.no_signature',
+  'auth.bad_signature',
+  'auth.unknown_key',
+  'auth.too_many_from_address',
+  'auth.malformed_invite',
+  'auth.too_many_redemptions',
+  'auth.invite_refused',
 ] as const;
 export type ReasonCode = (typeof REASON_CODES)[number];
 
