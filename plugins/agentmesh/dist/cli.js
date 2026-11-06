@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join19 } = __require("path");
+    var { join: join20 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join19(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join20(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync14 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join19, isAbsolute: isAbsolute4, sep } = __require("node:path");
+    var { join: join20, isAbsolute: isAbsolute4, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join19(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join19(__dirname, "..", "file.js");
+          return join20(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join19 = ",";
+            let join20 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join19 = `,
+                join20 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join19;
+                res += join20;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join19 = `,
+              join20 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join19;
+                separator = join20;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join19;
+              separator = join20;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join19 = ",";
+            let join20 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join19 = `,
+                join20 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join19;
+                res += join20;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join19}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join19 = `,
+              join20 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join19;
+                separator = join20;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join20 = `,
+              const join21 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join20;
+                res2 += join21;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join19 = `,
+            const join20 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join19, maximumBreadth);
+              res += stringifyTypedArray(value, join20, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join19;
+              separator = join20;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join19;
+                separator = join20;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join19;
+              separator = join20;
             }
             if (separator !== "") {
               res = `
@@ -25599,6 +25599,7 @@ function isMeshError(value) {
 
 // ../../packages/common/src/ids.ts
 var PARTICIPANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+var RESERVED_PARTICIPANT_IDS = ["all"];
 
 // ../../packages/common/src/logger.ts
 var import_pino = __toESM(require_pino(), 1);
@@ -25695,7 +25696,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.5.0";
+var VERSION = "0.6.0";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -45617,9 +45618,9 @@ var IsoDate = external_exports.string().min(1);
 var IdRef = external_exports.string().max(64);
 var GitRef = external_exports.string().max(300).regex(/^[^\p{Cc}\p{Zl}\p{Zp}]*$/u, "one line, with no control characters");
 var Label = external_exports.string().max(60);
-var ParticipantId = external_exports.string().regex(
-  PARTICIPANT_ID_PATTERN,
-  "lowercase letters, digits and dashes; starts with a letter/digit"
+var ParticipantId = external_exports.string().regex(PARTICIPANT_ID_PATTERN, "lowercase letters, digits and dashes; starts with a letter/digit").refine(
+  (id) => !RESERVED_PARTICIPANT_IDS.includes(id),
+  'reserved: "all" means every participant'
 );
 var ParticipantKind = external_exports.enum(["agent", "human", "service"]);
 var ParticipantRef = external_exports.object({
@@ -45631,6 +45632,7 @@ var DeclaredStatus = external_exports.enum(["online", "busy", "away"]);
 var PresenceStatus = external_exports.enum(["online", "busy", "away", "offline"]);
 var SESSION_ID_PATTERN = /^s-[a-z0-9]{12}$/;
 var SessionId = external_exports.string().regex(SESSION_ID_PATTERN);
+var ClaudeSessionId = external_exports.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 var DeliveryMode = external_exports.enum(["push", "pull"]);
 var SessionSummary = external_exports.object({
   id: SessionId,
@@ -45641,6 +45643,10 @@ var SessionSummary = external_exports.object({
   activeSince: IsoDate,
   /** Started by the mesh window launcher; routing prefers it for team work. */
   meshWindow: external_exports.boolean().default(false),
+  /** `away`: stopped heartbeating; closes at `closesAt` unless it returns. */
+  liveness: external_exports.enum(["live", "away"]).default("live"),
+  awaySince: IsoDate.nullable().default(null),
+  closesAt: IsoDate.nullable().default(null),
   tasks: external_exports.array(external_exports.string())
 });
 var PeerInfo = ParticipantRef.extend({
@@ -45820,7 +45826,9 @@ var MessageRefs = external_exports.object({
   verdict: external_exports.string().optional(),
   repo: external_exports.string().max(200).optional(),
   /** The sender's pick of the recipient session. */
-  session: external_exports.string().optional()
+  session: external_exports.string().optional(),
+  /** Set by the hub only: the recipient agents whose owner sent this message. */
+  decidesFor: external_exports.array(external_exports.string()).max(50).optional()
 });
 var DeliveryClass = external_exports.enum(["action", "status"]);
 var MeshMessage = external_exports.object({
@@ -46192,6 +46200,50 @@ var leaseMethods = {
   })
 };
 
+// ../../packages/protocol/src/sessions.ts
+var SessionView = external_exports.object({
+  id: SessionId,
+  active: external_exports.boolean(),
+  delivery: DeliveryMode.default("push"),
+  description: external_exports.string().nullable(),
+  repo: external_exports.string().nullable(),
+  branch: external_exports.string().nullable(),
+  owns: external_exports.array(external_exports.string())
+});
+var MAX_DELIVERY_MESSAGES = 100;
+var CLOSED_ASKER_DEFAULT_MINUTES = 15;
+var ReleasedMarker = external_exports.object({
+  bySession: SessionId,
+  closedAt: IsoDate,
+  claudeSessionId: ClaudeSessionId.nullable()
+});
+var ReadMessage = MeshMessage.extend({ released: ReleasedMarker.optional() });
+var SessionDelivery = MeshMessage.extend({
+  class: DeliveryClass.default("action"),
+  released: ReleasedMarker.optional()
+});
+var SessionRelay = external_exports.object({
+  type: external_exports.literal("relay"),
+  threadId: external_exports.string().regex(/^thr-\d{1,12}$/),
+  messageId: external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/),
+  from: ParticipantId,
+  forSession: SessionId
+});
+var SessionInbound = external_exports.discriminatedUnion("type", [
+  external_exports.object({
+    type: external_exports.literal("deliver"),
+    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
+  }),
+  external_exports.object({ type: external_exports.literal("expired") }),
+  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) }),
+  SessionRelay
+]);
+var SessionAck = external_exports.object({
+  delivered: external_exports.array(external_exports.string()),
+  forwarded: external_exports.boolean().optional(),
+  reason: external_exports.string().max(200).optional()
+});
+
 // ../../packages/protocol/src/rpc/messaging.ts
 var MAX_PEEK_SENDERS = 5;
 var Recipients = external_exports.array(IdRef.min(1)).min(1).max(50).describe('Participant ids, or the special targets "@all" / "@online" (agents only).');
@@ -46230,7 +46282,7 @@ var messagingMethods = {
       limit: external_exports.number().int().min(1).max(200).default(50),
       beforeId: IdRef.optional()
     }),
-    result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(MeshMessage) })
+    result: external_exports.object({ thread: ThreadSummary, messages: external_exports.array(ReadMessage) })
   }),
   "thread.list": defineMethod({
     description: "List threads, newest activity first.",
@@ -46255,7 +46307,7 @@ var messagingMethods = {
         external_exports.object({
           thread: ThreadSummary,
           unread: external_exports.number().int().nonnegative(),
-          messages: external_exports.array(MeshMessage),
+          messages: external_exports.array(ReadMessage),
           /** True when every unread message in the thread is status for the caller. */
           fyi: external_exports.boolean().default(false)
         })
@@ -46375,28 +46427,6 @@ var planningMethods = {
   })
 };
 
-// ../../packages/protocol/src/sessions.ts
-var SessionView = external_exports.object({
-  id: SessionId,
-  active: external_exports.boolean(),
-  delivery: DeliveryMode.default("push"),
-  description: external_exports.string().nullable(),
-  repo: external_exports.string().nullable(),
-  branch: external_exports.string().nullable(),
-  owns: external_exports.array(external_exports.string())
-});
-var MAX_DELIVERY_MESSAGES = 100;
-var SessionDelivery = MeshMessage.extend({ class: DeliveryClass.default("action") });
-var SessionInbound = external_exports.discriminatedUnion("type", [
-  external_exports.object({
-    type: external_exports.literal("deliver"),
-    messages: external_exports.array(SessionDelivery).min(1).max(MAX_DELIVERY_MESSAGES)
-  }),
-  external_exports.object({ type: external_exports.literal("expired") }),
-  external_exports.object({ type: external_exports.literal("check"), code: external_exports.string().min(1).max(20) })
-]);
-var SessionAck = external_exports.object({ delivered: external_exports.array(external_exports.string()) });
-
 // ../../packages/protocol/src/rpc/session.ts
 var sessionMethods = {
   "session.hello": defineMethod({
@@ -46409,12 +46439,19 @@ var sessionMethods = {
       /** This process's session before a reconnect: reused if still open, else reclaimed from. */
       previousSessionId: SessionId.optional(),
       /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
-      meshWindow: external_exports.boolean().optional()
+      meshWindow: external_exports.boolean().optional(),
+      /** Claude Code's conversation id, from the SessionStart hook: the hub resumes its closed session. */
+      claudeSessionId: ClaudeSessionId.optional()
     }),
     result: external_exports.object({
       self: PeerInfo,
       mesh: external_exports.object({ name: external_exports.string(), prefix: external_exports.string() }),
-      policy: external_exports.object({ instructions: external_exports.string(), git: GitPolicy }),
+      policy: external_exports.object({
+        instructions: external_exports.string(),
+        git: GitPolicy,
+        /** `relay.closedAskerEscalationMinutes`; older hubs don't send it. */
+        closedAskerEscalationMinutes: external_exports.number().int().positive().default(CLOSED_ASKER_DEFAULT_MINUTES)
+      }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
       unreadThreads: external_exports.number().int().nonnegative(),
       /** The hub-issued id this session sends on every call. */
@@ -46445,7 +46482,8 @@ var sessionMethods = {
     }).refine((p) => p.mode === "pull" || p.code !== void 0, {
       message: 'Pass the code from the test message, or mode "pull".'
     }),
-    result: SessionView
+    // `tookOver`: the threads a mesh window took from the agent's away windows (0.6.0 and later).
+    result: SessionView.extend({ tookOver: external_exports.array(external_exports.string()).default([]) })
   }),
   "session.deactivate": defineMethod({
     description: "Stop receiving work in this session.",
@@ -46745,6 +46783,13 @@ var PresenceConfig = external_exports.object({
   /** How long a silent (away) session keeps its threads before they are released. */
   ownershipGraceMinutes: external_exports.number().int().min(1).default(120)
 });
+var RelayConfig = external_exports.object({
+  /**
+   * A reply whose asking session closed waits this long for the owner's decision in the mesh
+   * window, then the hub pings them on Discord.
+   */
+  closedAskerEscalationMinutes: external_exports.number().int().min(1).max(1440).default(CLOSED_ASKER_DEFAULT_MINUTES)
+});
 
 // ../../packages/config/src/schema/rules.ts
 var Condition = external_exports.object({
@@ -46941,6 +46986,7 @@ var MeshConfigSchema = external_exports.object({
   review: ReviewConfig.prefault({}),
   leases: LeaseConfig.prefault({}),
   presence: PresenceConfig.prefault({}),
+  relay: RelayConfig.prefault({}),
   enrollment: EnrollmentConfig.prefault({}),
   planning: PlanningConfig.prefault({}),
   tasks: external_exports.object({ defaultWorkflow: external_exports.string().default("feature") }).prefault({}),
@@ -46988,6 +47034,16 @@ function validateReferences(config2) {
   checkDiscord(config2, add);
   checkIngest(config2, add);
   return issues;
+}
+function configWarnings(config2) {
+  return config2.services.flatMap(
+    (s, i) => s.canActAsHumans && s.id !== config2.discord.serviceId ? [
+      {
+        path: `services[${i}].canActAsHumans`,
+        message: `service "${s.id}" can act as any human, so it could send owner-marked commands to every agent; only the Discord bridge (discord.serviceId) should`
+      }
+    ] : []
+  );
 }
 function pendingInvitees(config2) {
   const listed = new Set([...config2.humans, ...config2.agents, ...config2.services].map((p) => p.id));
@@ -50134,6 +50190,9 @@ function renderIssues(file2, issues) {
   const noun = issues.length === 1 ? "problem" : "problems";
   return [`${file2}: ${issues.length} ${noun}`, ...lines].join("\n");
 }
+function renderWarnings(issues) {
+  return issues.map((i) => `warning: ${i.path}: ${i.message}`).join("\n");
+}
 function renderMissingEnv(names) {
   return `warning: environment variables without a value or fallback: ${names.join(", ")}
          (they become empty strings; set them in your shell or deploy/.env)`;
@@ -50174,7 +50233,8 @@ var validateCommand = {
   help: `Usage: agentmesh validate [--config <dir>]
 
 Loads the config exactly like the hub (with your current environment) and
-reports every problem with its path. Exit code 1 when the config is invalid.`,
+reports every problem with its path. Exit code 1 when the config is invalid.
+Risky but valid settings print as warnings and still exit 0.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -50186,6 +50246,8 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
       const loaded = loadConfig(file2, { env: ctx.env });
       ctx.stdout(renderSummary(loaded));
       if (loaded.missingEnv.length > 0) ctx.stderr(renderMissingEnv(loaded.missingEnv));
+      const warnings = configWarnings(loaded.config);
+      if (warnings.length > 0) ctx.stderr(renderWarnings(warnings));
       return 0;
     } catch (error62) {
       if (error62 instanceof ConfigError) {
@@ -50199,8 +50261,8 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
 
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
-import { isAbsolute as isAbsolute3, join as join18 } from "node:path";
+import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync14, statSync as statSync7 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join19 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { posix, win32 } from "node:path";
@@ -50212,15 +50274,15 @@ var START_COMMAND = "claude-mesh";
 var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
 var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
 function windowFiles(home, platform) {
-  const { join: join19 } = platform === "win32" ? win32 : posix;
-  const dir = join19(home, ".agentmesh");
+  const { join: join20 } = platform === "win32" ? win32 : posix;
+  const dir = join20(home, ".agentmesh");
   return {
     dir,
-    policy: join19(dir, "mesh-window.json"),
-    settings: join19(dir, "mesh-window.settings.json"),
-    launcher: join19(dir, launcherName(platform)),
-    emptyHooks: join19(dir, "empty-git-hooks"),
-    bin: join19(dir, "bin")
+    policy: join20(dir, "mesh-window.json"),
+    settings: join20(dir, "mesh-window.settings.json"),
+    launcher: join20(dir, launcherName(platform)),
+    emptyHooks: join20(dir, "empty-git-hooks"),
+    bin: join20(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -50288,9 +50350,97 @@ function pathDirs(path, win) {
   return path.split(win ? ";" : ":").map((d) => win ? d.trim().replace(/^"(.*)"$/, "$1") : d).filter((d) => d !== "" && absolute(d));
 }
 
+// ../../apps/cli/src/lib/shell-shadow-scan.ts
+import { readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
+
+// ../../apps/cli/src/lib/shell-shadow.ts
+import { join as join16 } from "node:path";
+var NAME = START_COMMAND;
+var END = "(?![\\w-])";
+var QUOTE = `['"]?`;
+var FUNCTION = `^\\s*function\\s+(?:\\w+:)?${QUOTE}${NAME}${END}`;
+var FUNCTION_EXACT = new RegExp(FUNCTION);
+var FUNCTION_ANY_CASE = new RegExp(FUNCTION, "i");
+var ALIAS_CMDLET = "(?:set-alias|new-alias|sal|nal)";
+var PATTERNS = [
+  // PowerShell: Set-Alias / New-Alias (or sal / nal) with the name first or as -Name
+  new RegExp(`^\\s*${ALIAS_CMDLET}\\s+${QUOTE}${NAME}${END}`, "i"),
+  new RegExp(`^\\s*${ALIAS_CMDLET}\\b.*\\s-name[\\s:]+${QUOTE}${NAME}${END}`, "i"),
+  // sh, bash, zsh: alias claude-mesh=...; fish: alias claude-mesh ...
+  new RegExp(`^\\s*alias\\s+(?:-\\w+\\s+)*${QUOTE}${NAME}${END}`),
+  // sh, bash, zsh: claude-mesh() { ... }
+  new RegExp(`^\\s*${NAME}\\s*\\(\\s*\\)`)
+];
+function shadowLines(text, powershell = false) {
+  const fn = powershell ? FUNCTION_ANY_CASE : FUNCTION_EXACT;
+  const hits = [];
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (fn.test(line) || PATTERNS.some((p) => p.test(line))) hits.push(i + 1);
+  });
+  return hits;
+}
+var POWERSHELL_PROFILES = [
+  ["WindowsPowerShell", "profile.ps1"],
+  ["WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"],
+  ["WindowsPowerShell", "Microsoft.VSCode_profile.ps1"],
+  ["PowerShell", "profile.ps1"],
+  ["PowerShell", "Microsoft.PowerShell_profile.ps1"],
+  ["PowerShell", "Microsoft.VSCode_profile.ps1"]
+];
+function startupFiles(platform, home, env, isFolder3) {
+  const files = [];
+  if (platform === "win32") {
+    const docs = /* @__PURE__ */ new Set([join16(env.USERPROFILE || home, "Documents")]);
+    for (const root of [env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial]) {
+      if (root && isFolder3(join16(root, "Documents"))) docs.add(join16(root, "Documents"));
+    }
+    for (const d of docs) for (const p of POWERSHELL_PROFILES) files.push(join16(d, ...p));
+  }
+  for (const p of [".bashrc", ".bash_profile", ".profile", ".bash_aliases", ".zshrc"]) {
+    files.push(join16(home, p));
+  }
+  files.push(join16(home, ".config", "fish", "config.fish"));
+  return files;
+}
+var definingFiles = (home) => [
+  join16(home, ".config", "fish", "functions", `${START_COMMAND}.fish`)
+];
+var shadowWarning = (file2, line) => `Warning: ${file2}:${line} defines ${START_COMMAND}, which runs instead of the launcher in that shell. Remove or rename it, then open a new terminal.`;
+
+// ../../apps/cli/src/lib/shell-shadow-scan.ts
+var isFolder = (p) => {
+  try {
+    return statSync6(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
+function readText(file2) {
+  try {
+    const buf = readFileSync12(file2);
+    return buf[0] === 255 && buf[1] === 254 ? buf.toString("utf16le") : buf.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+function shellShadowWarnings(ctx, platform) {
+  const warnings = [];
+  for (const file2 of startupFiles(platform, ctx.homeDir, ctx.env, isFolder)) {
+    const text = readText(file2);
+    if (text === null) continue;
+    for (const line of shadowLines(text, file2.endsWith(".ps1"))) {
+      warnings.push(shadowWarning(file2, line));
+    }
+  }
+  for (const file2 of definingFiles(ctx.homeDir)) {
+    if (readText(file2) !== null) warnings.push(shadowWarning(file2, 1));
+  }
+  return warnings;
+}
+
 // ../../apps/cli/src/lib/shim.ts
-import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync12, realpathSync } from "node:fs";
-import { dirname as dirname7, join as join16, posix as posix3, win32 as win323 } from "node:path";
+import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync13, realpathSync } from "node:fs";
+import { dirname as dirname7, join as join17, posix as posix3, win32 as win323 } from "node:path";
 
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
@@ -50409,7 +50559,7 @@ function isBelow(dir, home, platform) {
 }
 var isOwnShim = (p) => {
   try {
-    return isOurShim(readFileSync12(p, "utf8"));
+    return isOurShim(readFileSync13(p, "utf8"));
   } catch {
     return false;
   }
@@ -50430,12 +50580,12 @@ var realPath = (p) => {
 };
 function installShim(scripts, i) {
   const write = (dir2) => {
-    for (const s of scripts) writeFileAtomic(join16(dir2, s.name), s.content, 493);
+    for (const s of scripts) writeFileAtomic(join17(dir2, s.name), s.content, 493);
   };
   const dir = dirname7(i.claude);
   const [realDir, realHome] = [realPath(dir), realPath(i.home)];
   const below = realDir !== null && realHome !== null && isBelow(realDir, realHome, i.platform);
-  const foreign = below ? scripts.map((s) => join16(dir, s.name)).filter(foreignAt) : [];
+  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter(foreignAt) : [];
   if (below && foreign.length === 0) {
     try {
       write(dir);
@@ -50449,7 +50599,7 @@ function installShim(scripts, i) {
 }
 
 // ../../apps/cli/src/commands/window-start.ts
-import { isAbsolute as isAbsolute2, join as join17, relative as relative2 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join18, relative as relative2 } from "node:path";
 function gitBashCommand(dir, home) {
   const rel = relative2(home, dir);
   const inHome = rel !== "" && !rel.startsWith("..") && !isAbsolute2(rel);
@@ -50466,7 +50616,7 @@ function printStart(ctx, s) {
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
   );
   if (s.reachesOurs) return;
-  const ours = join17(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
+  const ours = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
   ctx.stdout(
     s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
   );
@@ -50485,28 +50635,28 @@ var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
 var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
 var read = (path) => {
   try {
-    return readFileSync13(path, "utf8");
+    return readFileSync14(path, "utf8");
   } catch {
     return null;
   }
 };
 function checkouts(dir) {
-  const found = existsSync13(join18(dir, ".git")) ? [dir] : [];
+  const found = existsSync13(join19(dir, ".git")) ? [dir] : [];
   let names = [];
   try {
     names = readdirSync5(dir).sort();
   } catch {
   }
   for (const n of names) {
-    const sub = join18(dir, n);
-    if (existsSync13(join18(sub, ".git")) && statSync6(sub).isDirectory()) found.push(sub);
+    const sub = join19(dir, n);
+    if (existsSync13(join19(sub, ".git")) && statSync7(sub).isDirectory()) found.push(sub);
   }
   return found;
 }
-var ignoresWorktrees = (checkout) => (read(join18(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
-var isFolder = (p) => {
+var ignoresWorktrees = (checkout) => (read(join19(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var isFolder2 = (p) => {
   try {
-    return statSync6(p).isDirectory();
+    return statSync7(p).isDirectory();
   } catch {
     return false;
   }
@@ -50539,7 +50689,7 @@ var present = (p) => {
     return false;
   }
 };
-function printNotes(ctx, n) {
+function printNotes(ctx, platform, n) {
   if (n.rerun) {
     ctx.stdout(
       "A mesh window that is already running keeps working; restart it to load the new settings."
@@ -50550,6 +50700,7 @@ function printNotes(ctx, n) {
       "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask."
     );
   }
+  for (const w of shellShadowWarnings(ctx, platform)) ctx.stdout(w);
   for (const line of worktreeWarnings(n.dir)) ctx.stdout(line);
   if (readdirSync5(n.emptyHooks).length > 0) {
     ctx.stdout(
@@ -50624,9 +50775,9 @@ that Claude account.
       files.launcher
     ]);
     const dir = resolveFrom(ctx, values.dir ?? ".");
-    if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
+    if (!isFolder2(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
     for (const p of [files.dir, files.bin]) {
-      if (present(p) && !isFolder(p)) {
+      if (present(p) && !isFolder2(p)) {
         throw usageError(`${p} is not a folder. Move it away and run window init again.`);
       }
     }
@@ -50667,7 +50818,7 @@ that Claude account.
       reached,
       reachesOurs: reached !== null && isOwnShim(reached)
     });
-    printNotes(ctx, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
+    printNotes(ctx, platform, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
     return 0;
   }
 };

@@ -1,12 +1,14 @@
 import { newMessageId } from '@agentmesh/common';
 import type { ConfigIndex } from '@agentmesh/config';
-import type {
-  DeliveryClass,
-  MeshMessage,
-  PeerInfo,
-  PresenceStatus,
-  SessionDelivery,
-  ThreadSummary,
+import {
+  type DeliveryClass,
+  type MeshMessage,
+  type PeerInfo,
+  type PresenceStatus,
+  type RelayAnswer,
+  type SessionDelivery,
+  SessionRelay,
+  type ThreadSummary,
 } from '@agentmesh/protocol';
 import type {
   CreateThreadInput,
@@ -144,6 +146,8 @@ export class FakeMessaging implements MessagingService {
 
   setOwnerReader(): void {}
 
+  setReleasedReader(): void {}
+
   /** Messages delivered to one participant, in order. */
   deliveredTo(participantId: string): MeshMessage[] {
     return this.posts.filter((p) => p.recipients.includes(participantId)).map((p) => p.message);
@@ -229,6 +233,19 @@ export class FakeTransport implements SessionTransport {
   readonly respond = new Map<string, (messages: SessionDelivery[]) => Promise<string[]>>();
   /** Set to make every check fail, as when nobody listens on the session subject. */
   checkError: Error | null = null;
+  readonly relays: Array<{ agentId: string; sessionId: string; relay: SessionRelay }> = [];
+  /** What every relay answers; a function can reject or never settle. */
+  relayAnswer: RelayAnswer | (() => Promise<RelayAnswer>) = {
+    forwarded: true,
+    reason: 'forwarded',
+  };
+
+  /** Parses with the plugin's schema, so a hub/plugin mismatch fails the hub's tests. */
+  async relay(agentId: string, sessionId: string, relay: SessionRelay): Promise<RelayAnswer> {
+    this.relays.push({ agentId, sessionId, relay: SessionRelay.parse(relay) });
+    const answer = this.relayAnswer;
+    return typeof answer === 'function' ? answer() : answer;
+  }
 
   async check(agentId: string, sessionId: string, code: string): Promise<void> {
     this.checks.push({ agentId, sessionId, code });

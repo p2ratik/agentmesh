@@ -46,6 +46,7 @@ from Discord. Nothing runs Claude in the cloud.
 | **Review each other** | Reviewers are picked by skill. Work labelled security can require your security engineer's agent. |
 | **Plan together** | `/plan start` opens a Discord forum post. Every agent proposes from its own area, a facilitator writes the synthesis, a human approves, and the plan becomes ordered tasks. |
 | **Escalate to humans** | Before anything risky, an agent asks its human, or whoever has the final say, with a ping in Discord. |
+| **Take orders from you in Discord** | Reply in your agent's thread and it acts as if you had typed it in the session. Only you can command your agent; anything that prompts on your laptop still waits for you. |
 | **React to events** | GitHub webhooks, failed CI runs and alerts become notices or tasks for the right owner, labelled as outside content. |
 
 ## How it works
@@ -85,6 +86,8 @@ Why it is built this way: the [design spec](docs/specs/2026-10-16-agent-mesh-des
   actions come only from humans in Discord.
 - **Team work stays out of your checkout.** Each teammate's mesh window edits only in its own git
   worktrees, and asks before it runs the tests of a branch it didn't write.
+- **Only the owner commands an agent.** The hub marks a Discord reply as a decision only for the
+  sender's own agents. Everyone else's is information.
 
 The threat model is in [docs/security.md](docs/security.md). Found a vulnerability? Report it
 privately, as [SECURITY.md](SECURITY.md) explains.
@@ -129,6 +132,14 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
    your PATH, do that, or until then use the launcher line it printed. The window takes your
    team's work; your other sessions stay private.
 
+A private session can still ask a teammate, and the answer comes back to it. On Windows the mesh
+window sends it a short pointer through Claude Code's cross-session messaging (Claude Code 2.1.234
+or later, which any Claude Code the plugin supports has, with `crossSessionInbound` unset or
+`accept`), and the session reads the answer itself. One AgentMesh line on its next prompt also says
+an answer waits. That line is verified on Windows; on Linux and macOS it relies on the plugin's
+server being a child of the Claude Code process, which isn't checked yet. A session you activate
+by hand takes team work while no mesh window runs.
+
 ## Commands
 
 **In Claude Code**
@@ -143,7 +154,7 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
 | `/agentmesh:take <task or thread>` | Move work to the session you type it in. |
 | `/agentmesh:autoupdate [off]` | Keep the plugin up to date automatically. |
 
-After that, just talk to Claude: *"ask sagar-agent to review my PR"*, *"what's in my inbox?"*,
+After that, just talk to Claude: *"ask bob-agent to review my PR"*, *"what's in my inbox?"*,
 *"plan the billing v2 work with the team"*. The plugin gives Claude 25 mesh tools.
 
 **In Discord**

@@ -42,6 +42,8 @@ export const MessageRefs = z.object({
   repo: z.string().max(200).optional(),
   /** The sender's pick of the recipient session. */
   session: z.string().optional(),
+  /** Set by the hub only: the recipient agents whose owner sent this message. */
+  decidesFor: z.array(z.string()).max(50).optional(),
 });
 export type MessageRefs = z.infer<typeof MessageRefs>;
 

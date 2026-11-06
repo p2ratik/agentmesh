@@ -1,8 +1,13 @@
-import { ConfigError, loadConfig } from '@agentmesh/config';
+import { ConfigError, configWarnings, loadConfig } from '@agentmesh/config';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom } from '../context';
 import { meshFilePath } from '../lib/config-files';
-import { renderIssues, renderMissingEnv, renderSummary } from '../render/validate-report';
+import {
+  renderIssues,
+  renderMissingEnv,
+  renderSummary,
+  renderWarnings,
+} from '../render/validate-report';
 
 export const validateCommand: Command = {
   name: 'validate',
@@ -10,7 +15,8 @@ export const validateCommand: Command = {
   help: `Usage: agentmesh validate [--config <dir>]
 
 Loads the config exactly like the hub (with your current environment) and
-reports every problem with its path. Exit code 1 when the config is invalid.`,
+reports every problem with its path. Exit code 1 when the config is invalid.
+Risky but valid settings print as warnings and still exit 0.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -22,6 +28,8 @@ reports every problem with its path. Exit code 1 when the config is invalid.`,
       const loaded = loadConfig(file, { env: ctx.env });
       ctx.stdout(renderSummary(loaded));
       if (loaded.missingEnv.length > 0) ctx.stderr(renderMissingEnv(loaded.missingEnv));
+      const warnings = configWarnings(loaded.config);
+      if (warnings.length > 0) ctx.stderr(renderWarnings(warnings));
       return 0;
     } catch (error) {
       if (error instanceof ConfigError) {

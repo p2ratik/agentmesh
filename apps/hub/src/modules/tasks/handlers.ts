@@ -18,7 +18,10 @@ const taskId = (raw: string) => internalId('task', raw);
  * branch name cut them, and a cut token no longer matches. (Rules redact their
  * titles in their own action, before cutting them.)
  */
-export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
+export function taskHandlers(
+  tasks: TaskServiceImpl,
+  isActiveSessionOf?: (agentId: string, sessionId: string) => boolean,
+): TaskHandlers {
   return {
     'task.create': (params, call) =>
       tasks.create(
@@ -39,7 +42,10 @@ export function taskHandlers(tasks: TaskServiceImpl): TaskHandlers {
             : undefined,
         },
         call.actor,
-        call.notes,
+        // A private session creating for its own agent must still send the brief: the window takes it.
+        call.session && isActiveSessionOf && !isActiveSessionOf(call.actor.id, call.session)
+          ? undefined
+          : call.notes,
       ),
 
     'task.get': (params, call) => tasks.get(taskId(params.taskId), call.actor),

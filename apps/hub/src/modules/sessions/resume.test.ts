@@ -1,0 +1,174 @@
+import { MINUTE_MS } from '@agentmesh/common';
+import { describe, expect, it, vi } from 'vitest';
+import type { OpenInput } from '../../contracts';
+import { createBobDispatchHarness } from '../../testing/services';
+import type { SessionsServiceImpl } from './sessions.service';
+
+const UUID = '0b6c1a52-3e9f-4d2a-9c11-5f2e8a7d4b10';
+const FORK = '7d1e0c3a-2b4f-4e6a-8c9d-1a2b3c4d5e6f';
+
+/** Bob's harness, with `p`: a session of conversation UUID that owns thread `t`. */
+function setup() {
+  const h = createBobDispatchHarness();
+  const { repo } = h.sessions as SessionsServiceImpl;
+  const open = (input: Partial<OpenInput> = {}, agent = 'bob-agent') =>
+    h.sessions.open(agent, { clientVersion: '0.6.0', ...input });
+  const p = open({ claudeSessionId: UUID }).session.id;
+  const t = h.thread();
+  h.sessions.take('bob-agent', p, t);
+  return { ...h, repo, open, p, t };
+}
+
+describe('resuming a conversation', () => {
+  it("a new session with a closed session's Claude id takes back its unowned threads, once", () => {
+    const h = setup();
+    h.sessions.close('bob-agent', h.p);
+    const n = h.open({ claudeSessionId: UUID });
+    expect(n.reclaimed).toEqual([h.t]);
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBe(n.session.id);
+    const scan = vi.spyOn(h.repo, 'resumable');
+    const again = h.open({ previousSessionId: n.session.id, claudeSessionId: UUID });
+    expect(again).toMatchObject({ session: { id: n.session.id }, reclaimed: [] });
+    expect(scan).not.toHaveBeenCalled();
+  });
+
+  it('takes over an away session with the same id: it closes it first', () => {
+    const h = setup();
+    h.sessions.unreachable(h.p);
+    expect(h.liveness(h.p)).toBe('away');
+    const n = h.open({ claudeSessionId: UUID });
+    expect(n.reclaimed).toEqual([h.t]);
+    expect(h.repo.get(h.p)?.liveness).toBe('closed');
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBe(n.session.id);
+  });
+
+  it('learns the id on a later hello of the same session', () => {
+    const h = setup();
+    h.sessions.close('bob-agent', h.p);
+    const n = h.open();
+    expect(n.reclaimed).toEqual([]);
+    const later = h.open({ previousSessionId: n.session.id, claudeSessionId: UUID });
+    expect(later).toMatchObject({ session: { id: n.session.id }, reclaimed: [h.t] });
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBe(n.session.id);
+  });
+
+  it("ignores live sessions, another agent's sessions, and a fork's new id", () => {
+    const live = setup();
+    expect(live.open({ claudeSessionId: UUID }).reclaimed).toEqual([]);
+    expect(live.sessions.ownerOf(live.t, 'bob-agent')).toBe(live.p);
+
+    const other = setup();
+    const a = other.open({ claudeSessionId: UUID }, 'alice-agent').session.id;
+    other.sessions.take('alice-agent', a, other.t);
+    other.sessions.close('alice-agent', a);
+    other.sessions.close('bob-agent', other.p);
+    expect(other.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    const b = other.open({ claudeSessionId: UUID }).reclaimed;
+    expect(b).toEqual([other.t]);
+    expect(other.sessions.ownerOf(other.t, 'alice-agent')).toBeNull();
+
+    const fork = setup();
+    fork.sessions.close('bob-agent', fork.p);
+    expect(fork.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(fork.sessions.ownerOf(fork.t, 'bob-agent')).toBeNull();
+  });
+
+  it("deletes the reclaimed threads' orphan rows, so nothing escalates", async () => {
+    const h = setup();
+    h.meshWindow();
+    h.sessions.close('bob-agent', h.p);
+    h.reply(h.t);
+    await h.outbox.flush();
+    const rows = () => h.ctx.db.all('SELECT thread_id FROM orphan_decisions');
+    expect(rows()).toEqual([{ thread_id: h.t }]);
+    expect(h.open({ claudeSessionId: UUID }).reclaimed).toEqual([h.t]);
+    expect(rows()).toEqual([]);
+    h.clock.advance(15 * MINUTE_MS);
+    expect(h.orphans.tick(h.clock.now())).toBe(0);
+  });
+
+  // Task 8: whoever takes a thread after the close leaves the closed session's release list, so
+  // a thread the window took and then let go again is no longer this conversation's.
+  it('reclaims only threads nobody owned since the close', () => {
+    const h = setup();
+    const w = h.meshWindow();
+    const t2 = h.thread();
+    h.sessions.take('bob-agent', h.p, t2);
+    h.sessions.close('bob-agent', h.p);
+    h.sessions.take('bob-agent', w, h.t);
+    h.sessions.deactivate('bob-agent', w);
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBeNull();
+    const n = h.open({ claudeSessionId: UUID });
+    expect(n.reclaimed).toEqual([t2]);
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBeNull();
+    expect(h.sessions.ownerOf(t2, 'bob-agent')).toBe(n.session.id);
+  });
+
+  // Final review I1: only a private asker's conversation resumes; team work stays where it is.
+  it("resuming a closed mesh window's conversation reclaims nothing", () => {
+    const h = setup();
+    const w = h.open({ claudeSessionId: FORK, meshWindow: true }).session.id;
+    h.sessions.activate('bob-agent', w, 'mesh window');
+    const t = h.thread();
+    h.sessions.take('bob-agent', w, t);
+    h.sessions.close('bob-agent', w);
+    expect(h.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBeNull();
+  });
+
+  it("resuming an away mesh window's conversation neither closes it nor reclaims anything", () => {
+    const h = setup();
+    const w = h.open({ claudeSessionId: FORK, meshWindow: true }).session.id;
+    h.sessions.activate('bob-agent', w, 'mesh window');
+    const t = h.thread();
+    h.sessions.take('bob-agent', w, t);
+    h.sessions.unreachable(w);
+    expect(h.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(h.liveness(w)).toBe('away');
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBe(w);
+  });
+
+  it('resuming an active, closed non-window session reclaims nothing', () => {
+    const h = setup();
+    const a = h.open({ claudeSessionId: FORK }).session.id;
+    h.sessions.activate('bob-agent', a, 'billing api');
+    const t = h.thread();
+    h.sessions.take('bob-agent', a, t);
+    h.sessions.close('bob-agent', a);
+    expect(h.open({ claudeSessionId: FORK }).reclaimed).toEqual([]);
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBeNull();
+  });
+
+  it('logs a resume only when it gave something back', () => {
+    const resumed = (h: ReturnType<typeof setup>) =>
+      vi.mocked(h.ctx.logger.info).mock.calls.filter(([, m]) => m === 'conversation resumed');
+    const empty = setup();
+    vi.spyOn(empty.ctx.logger, 'info');
+    empty.sessions.take('bob-agent', empty.meshWindow(), empty.t);
+    empty.sessions.close('bob-agent', empty.p);
+    expect(empty.open({ claudeSessionId: UUID }).reclaimed).toEqual([]);
+    expect(resumed(empty)).toEqual([]);
+
+    const h = setup();
+    vi.spyOn(h.ctx.logger, 'info');
+    h.sessions.close('bob-agent', h.p);
+    const n = h.open({ claudeSessionId: UUID }).session.id;
+    const log = { agent: 'bob-agent', session: n, resumed: h.p, reclaimed: [`thr-${h.t}`] };
+    expect(resumed(h)).toEqual([[log, 'conversation resumed']]);
+  });
+});
+
+describe('take', () => {
+  it("commits the owner and the closed sessions' release lists together", () => {
+    const h = setup();
+    h.sessions.close('bob-agent', h.p);
+    const w = h.meshWindow();
+    const run = h.ctx.db.run.bind(h.ctx.db);
+    vi.spyOn(h.ctx.db, 'run').mockImplementation((sql, params) => {
+      if (sql.includes('SET released')) throw new Error('disk full');
+      return run(sql, params);
+    });
+    expect(() => h.sessions.take('bob-agent', w, h.t)).toThrow('disk full');
+    expect(h.sessions.ownerOf(h.t, 'bob-agent')).toBeNull();
+  });
+});

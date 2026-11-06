@@ -3,6 +3,9 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 // src/guard.ts
 import { homedir } from "node:os";
 
+// ../../packages/common/src/version.ts
+var VERSION = "0.6.0";
+
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
 import { posix, win32 } from "node:path";
@@ -11,15 +14,15 @@ var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@age
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
-  const { join: join3 } = platform === "win32" ? win32 : posix;
-  const dir = join3(home, ".agentmesh");
+  const { join: join4 } = platform === "win32" ? win32 : posix;
+  const dir = join4(home, ".agentmesh");
   return {
     dir,
-    policy: join3(dir, "mesh-window.json"),
-    settings: join3(dir, "mesh-window.settings.json"),
-    launcher: join3(dir, launcherName(platform)),
-    emptyHooks: join3(dir, "empty-git-hooks"),
-    bin: join3(dir, "bin")
+    policy: join4(dir, "mesh-window.json"),
+    settings: join4(dir, "mesh-window.settings.json"),
+    launcher: join4(dir, launcherName(platform)),
+    emptyHooks: join4(dir, "empty-git-hooks"),
+    bin: join4(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -53,18 +56,24 @@ function parseWindowPolicy(text) {
   }
   return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
 }
-function readMarker(env, home, platform, agentId) {
+function readWindowPolicy(home, platform) {
+  try {
+    return parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function markerState(env, policy, agentId) {
   const value = env[MESH_WINDOW_ENV];
   if (!value) return { state: "none", policy: null };
-  let policy = null;
-  try {
-    policy = parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, "utf8"));
-  } catch {
-  }
   if (policy && policy.token === value && (agentId === void 0 || policy.agentId === agentId)) {
     return { state: "verified", policy };
   }
   return { state: "marked", policy: null };
+}
+function readMarker(env, home, platform, agentId) {
+  if (!env[MESH_WINDOW_ENV]) return { state: "none", policy: null };
+  return markerState(env, readWindowPolicy(home, platform), agentId);
 }
 
 // src/guard/checkout.ts
@@ -375,6 +384,123 @@ function classifyCommand(command, c) {
   return at === null ? ask(UNLISTED) : listed(at.rest, { ...c, cwd: at.dir }, p);
 }
 
+// src/relay/address.ts
+var WINDOWS_UDS = /^uds:\\\\\.\\pipe\\LOCAL\\cc-msg-([0-9a-f]{32})$/;
+function udsHex(address, platform) {
+  if (platform !== "win32" || typeof address !== "string") return null;
+  return WINDOWS_UDS.exec(address)?.[1] ?? null;
+}
+
+// src/relay/forward-record.ts
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync4,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from "node:fs";
+import { join as join2 } from "node:path";
+
+// src/pull/state.ts
+import { join } from "node:path";
+var STATE_MAX_AGE_MS = 2 * 6e4;
+var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+function pullStateDirs(env, home) {
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".agentmesh", "run")];
+  return [...new Set(dirs.filter((d) => !!d))];
+}
+
+// src/relay/pointer.ts
+var THREAD_ID = /^thr-[1-9]\d{0,11}$/;
+var MESSAGE_ID = /^msg-[0-9A-HJKMNP-TV-Z]{26}$/;
+var valid = (re, v) => typeof v === "string" && re.test(v);
+function pointerText({ from, threadId, messageId }) {
+  if (!valid(PARTICIPANT_ID, from) || !valid(THREAD_ID, threadId) || !valid(MESSAGE_ID, messageId)) {
+    return null;
+  }
+  return `AgentMesh: ${from} answered in ${threadId} (msg ${messageId}). Read it with thread ${threadId} and reply there. Do not reply to this message.`;
+}
+
+// src/relay/forward-record.ts
+var FORWARD_TTL_MS = 6e5;
+var HEX = /^[0-9a-f]{32}$/;
+function forwardFile(hex, messageId) {
+  return HEX.test(hex) && MESSAGE_ID.test(messageId) ? `fwd-${hex}-${messageId}.json` : null;
+}
+function candidate(dir, name, hex, now) {
+  try {
+    const v = JSON.parse(readFileSync4(join2(dir, name), "utf8"));
+    const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
+    const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
+    v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex, fields.messageId) === name;
+    return ok ? [{ name, fields }] : [];
+  } catch {
+    return [];
+  }
+}
+function readForwards(dir, hex, now) {
+  if (!HEX.test(hex)) return [];
+  let names;
+  try {
+    names = readdirSync2(dir);
+  } catch {
+    return [];
+  }
+  return names.filter((n) => n.startsWith(`fwd-${hex}-`) && n.endsWith(".json")).flatMap((n) => candidate(dir, n, hex, now));
+}
+var CLAIMED = ".claimed";
+function claimForward(dir, name) {
+  try {
+    closeSync(openSync(join2(dir, `${name}${CLAIMED}`), "wx", 384));
+  } catch {
+    return false;
+  }
+  if (!existsSync(join2(dir, name))) return false;
+  removeForward(dir, name);
+  return true;
+}
+function removeForward(dir, name) {
+  try {
+    rmSync(join2(dir, name), { force: true });
+  } catch {
+  }
+}
+
+// src/guard/send.ts
+var SEND_DENIED = "mesh window: SendMessage may only forward the reply pointer the plugin pushed (meta forward_to), exactly as pushed, once";
+var LIST_AGENTS = "mesh window: ListAgents is refused here; the plugin gives the address to send to";
+var forwardReader = (dir) => ({
+  read: (hex, now) => readForwards(dir, hex, now),
+  claim: (name) => claimForward(dir, name)
+});
+var KEYS = /* @__PURE__ */ new Set([
+  "to",
+  "recipient",
+  "recipient_kind",
+  "message",
+  "content",
+  "type",
+  "summary"
+]);
+var SUMMARY_MAX = 200;
+var DENIED = { kind: "deny", reason: SEND_DENIED };
+var shortLabel = (v) => v === void 0 || typeof v === "string" && v.length <= SUMMARY_MAX;
+var contentOf = (content, message) => content === message || typeof content === "string" && content.endsWith("\u2026") && content.length < message.length && message.startsWith(content.slice(0, -1));
+function sendMessage(args, ctx) {
+  if (!Object.keys(args).every((k) => KEYS.has(k))) return DENIED;
+  const hex = udsHex(args.to, ctx.platform);
+  if (hex === null) return DENIED;
+  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string") && typeof args.message === "string" && contentOf(args.content, args.message) && shortLabel(args.summary);
+  if (!aliases || !ctx.forwards) return DENIED;
+  const record = ctx.forwards.read(hex, ctx.now ?? Date.now()).find((c) => pointerText(c.fields) === args.message);
+  return record && ctx.forwards.claim(record.name) ? { kind: "pass" } : DENIED;
+}
+
 // src/guard/decide.ts
 var ACTIVATE_TOOL = "mcp__plugin_agentmesh_mesh__activate";
 var FILE_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
@@ -386,6 +512,12 @@ var NO_FILE = "mesh window: this edit names no file, so it is refused";
 var ENTER = "mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-\u2026";
 var ISOLATED = "mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-\u2026";
 var WORKFLOW = "mesh window: workflows need your human's approval here";
+var FIXED = /* @__PURE__ */ new Map([
+  [ACTIVATE_TOOL, { kind: "stamp" }],
+  ["EnterWorktree", deny(ENTER)],
+  ["Workflow", ask2(WORKFLOW)],
+  ["ListAgents", deny(LIST_AGENTS)]
+]);
 var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function edit(args, o) {
   const paths = [args.notebook_path, args.file_path].filter((p) => p !== void 0 && p !== null);
@@ -426,11 +558,9 @@ function decide(input, ctx) {
   if (tool === "PowerShell" || tool === "Monitor") {
     return ask2(`mesh window: ${tool} commands need your human's approval here`);
   }
-  if (tool === "EnterWorktree") return deny(ENTER);
   if (tool === "Agent") return "isolation" in args ? deny(ISOLATED) : PASS;
-  if (tool === "Workflow") return ask2(WORKFLOW);
-  if (tool === ACTIVATE_TOOL) return { kind: "stamp" };
-  return deny(`mesh window: the guard does not know ${tool}, so it is refused`);
+  if (tool === "SendMessage") return sendMessage(args, ctx);
+  return FIXED.get(tool) ?? deny(`mesh window: the guard does not know ${tool}, so it is refused`);
 }
 
 // src/guard/io.ts
@@ -466,24 +596,16 @@ function hookOutput(d) {
   return { exitCode: 0, stdout: "", stderr: "" };
 }
 
-// src/pull/state.ts
-import { join } from "node:path";
-var STATE_MAX_AGE_MS = 2 * 6e4;
-function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".agentmesh", "run")];
-  return [...new Set(dirs.filter((d) => !!d))];
-}
-
 // src/window/guard-stamp.ts
-import { mkdirSync, readFileSync as readFileSync4, renameSync, writeFileSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join3 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
-function writeGuardStamp(dir, now) {
-  mkdirSync(dir, { recursive: true, mode: 448 });
-  const file = join2(dir, GUARD_STAMP);
+function writeGuardStamp(dir, now, version) {
+  mkdirSync2(dir, { recursive: true, mode: 448 });
+  const file = join3(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
-  writeFileSync(staged, JSON.stringify({ at: now.toISOString() }), { mode: 384 });
-  renameSync(staged, file);
+  writeFileSync2(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
+  renameSync2(staged, file);
 }
 
 // src/guard.ts
@@ -504,8 +626,10 @@ async function main(marked2) {
   const home = homedir();
   const platform = process.platform;
   const { policy } = readMarker(env, home, platform);
-  const decision = decide(parse(text), { marked: marked2, policy, home, platform });
-  if (decision.kind === "stamp") writeGuardStamp(pullStateDirs(env, home)[0] ?? ".", /* @__PURE__ */ new Date());
+  const dir = pullStateDirs(env, home)[0] ?? ".";
+  const forwards = forwardReader(dir);
+  const decision = decide(parse(text), { marked: marked2, policy, home, platform, forwards });
+  if (decision.kind === "stamp") writeGuardStamp(dir, /* @__PURE__ */ new Date(), VERSION);
   const out = hookOutput(decision);
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);

@@ -81,11 +81,12 @@ export function buildModules(
       activePlans: planning?.activeCount() ?? 0,
     }),
   });
+  const isActiveSessionOf = (agentId: string, sessionId: string) =>
+    sessions?.activeSessions(agentId).some((s) => s.id === sessionId) ?? false;
   messaging = createMessagingModule(ctx, {
     control: control.service,
     presence: presence.service,
-    isActiveSessionOf: (agentId, sessionId) =>
-      sessions?.activeSessions(agentId).some((s) => s.id === sessionId) ?? false,
+    isActiveSessionOf,
     mayTakeUnowned: takeUnownedReader(() => sessions),
   });
   const sessionsModule = createSessionsModule(ctx, {
@@ -97,6 +98,7 @@ export function buildModules(
   });
   sessions = sessionsModule.service;
   messaging.service.setOwnerReader(ownerReader(sessionsModule.service));
+  messaging.service.setReleasedReader((...read) => sessionsModule.service.readReleased(...read));
   presence.service.setSessionReader((agentId) => sessionsModule.service.activeSessions(agentId));
   presence.service.setReadyReader((agentId) => sessionsModule.service.reach(agentId));
   const leases = createLeaseModule(ctx);
@@ -104,6 +106,7 @@ export function buildModules(
     messaging: messaging.service,
     presence: presence.service,
     leases: leases.service,
+    isActiveSessionOf,
   });
   tasks = taskModule.service;
   presence.service.setLoadReader(() => taskModule.service.activeLoad());

@@ -22,6 +22,10 @@ export interface SessionRow {
   closed_at: string | null;
   /** JSON array of thread ids released at close. */
   released: string;
+  /** 1: inactive and not the mesh window when it closed, so its released threads had an asker. */
+  private_at_close: number;
+  /** Claude Code's conversation id, once the plugin reported it. */
+  claude_session_id: string | null;
 }
 
 export interface NewSession {
@@ -34,6 +38,11 @@ export interface NewSession {
   meshWindow?: boolean;
   at: string;
 }
+
+/** A closed session that released a thread. */
+export type ReleasedBy = Pick<SessionRow, 'id' | 'private_at_close' | 'claude_session_id'> & {
+  closed_at: string;
+};
 
 const NOT_CLOSED = "liveness <> 'closed'";
 
@@ -77,12 +86,13 @@ export class SessionsRepo {
     );
   }
 
-  /** Heartbeat: bumps last_seen; repo/branch are replaced only when given. */
-  touch(id: string, at: string, git: { repo?: string | null; branch?: string | null } = {}): void {
+  /** Heartbeat or hello: bumps last_seen; repo, branch and client version are replaced when given. */
+  touch(id: string, at: string, seen: Partial<NewSession> = {}): void {
+    const { repo = null, branch = null, clientVersion = null } = seen;
     this.#db.run(
-      `UPDATE sessions SET last_seen = $at, repo = COALESCE($repo, repo), branch = COALESCE($branch, branch)
-       WHERE id = $id`,
-      { id, at, repo: git.repo ?? null, branch: git.branch ?? null },
+      `UPDATE sessions SET last_seen = $at, repo = COALESCE($repo, repo), branch = COALESCE($branch, branch),
+         client_version = COALESCE($clientVersion, client_version) WHERE id = $id`,
+      { id, at, repo, branch, clientVersion },
     );
   }
 
@@ -126,10 +136,46 @@ export class SessionsRepo {
   }
 
   /** Closes and deactivates the session. */
-  close(id: string, at: string): void {
+  close(id: string, at: string, privateAtClose: boolean): void {
     this.#db.run(
-      "UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at WHERE id = $id",
-      { id, at },
+      `UPDATE sessions SET liveness = 'closed', active = 0, closed_at = $at,
+         private_at_close = $private WHERE id = $id`,
+      { id, at, private: privateAtClose ? 1 : 0 },
+    );
+  }
+
+  /** Records the session's conversation id once; true when this call set it. */
+  setClaudeSession(id: string, claudeSessionId: string): boolean {
+    const { changes } = this.#db.run(
+      'UPDATE sessions SET claude_session_id = $cid WHERE id = $id AND claude_session_id IS NULL',
+      { id, cid: claudeSessionId },
+    );
+    return changes > 0;
+  }
+
+  /**
+   * The agent's latest private asker of that conversation, other than `exceptId`: closed private,
+   * or away while inactive and not the mesh window. A window's or an active session's team work
+   * never resumes into another session.
+   */
+  resumable(agentId: string, claudeSessionId: string, exceptId: string): SessionRow | undefined {
+    return this.#db.get<SessionRow>(
+      `SELECT * FROM sessions WHERE agent_id = $agentId AND claude_session_id = $cid AND id <> $exceptId
+         AND ((liveness = 'closed' AND private_at_close = 1)
+           OR (liveness = 'away' AND active = 0 AND mesh_window = 0))
+         ORDER BY COALESCE(closed_at, away_since) DESC, rowid DESC LIMIT 1`,
+      { agentId, cid: claudeSessionId, exceptId },
+    );
+  }
+
+  /** The agent's latest closed session whose `released` holds the thread. */
+  releasedBy(agentId: string, threadId: number): ReleasedBy | undefined {
+    return this.#db.get<ReleasedBy>(
+      `SELECT id, closed_at, private_at_close, claude_session_id FROM sessions
+       WHERE agent_id = $agentId AND liveness = 'closed'
+         AND EXISTS (SELECT 1 FROM json_each(released) WHERE value = $threadId)
+       ORDER BY closed_at DESC, rowid DESC LIMIT 1`,
+      { agentId, threadId },
     );
   }
 
@@ -142,13 +188,23 @@ export class SessionsRepo {
     );
   }
 
-  /** Creates or replaces the owner of a thread for an agent. */
+  /**
+   * Creates or replaces the owner of a thread for an agent. The agent's closed sessions no longer
+   * list it as released: whoever closed before this owner is not its asker any more.
+   */
   setOwner(threadId: number, agentId: string, sessionId: string, at: string): void {
     this.#db.run(
       `INSERT INTO thread_owners (thread_id, agent_id, session_id, since)
        VALUES ($threadId, $agentId, $sessionId, $at)
        ON CONFLICT (thread_id, agent_id) DO UPDATE SET session_id = $sessionId, since = $at`,
       { threadId, agentId, sessionId, at },
+    );
+    this.#db.run(
+      `UPDATE sessions SET released =
+         (SELECT json_group_array(value) FROM json_each(released) WHERE value <> $threadId)
+       WHERE agent_id = $agentId AND liveness = 'closed'
+         AND EXISTS (SELECT 1 FROM json_each(released) WHERE value = $threadId)`,
+      { threadId, agentId },
     );
   }
 

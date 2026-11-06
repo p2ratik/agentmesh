@@ -1,4 +1,4 @@
-import { isSafeInviteUrl } from '@agentmesh/protocol';
+import { CLOSED_ASKER_DEFAULT_MINUTES, isSafeInviteUrl } from '@agentmesh/protocol';
 import { z } from 'zod';
 
 export const GitConfig = z.object({
@@ -84,4 +84,18 @@ export const PresenceConfig = z.object({
   offlineAfterSeconds: z.number().int().min(10).default(75),
   /** How long a silent (away) session keeps its threads before they are released. */
   ownershipGraceMinutes: z.number().int().min(1).default(120),
+});
+
+/** Replies for private sessions (ADR 0009 part 3). */
+export const RelayConfig = z.object({
+  /**
+   * A reply whose asking session closed waits this long for the owner's decision in the mesh
+   * window, then the hub pings them on Discord.
+   */
+  closedAskerEscalationMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(1440)
+    .default(CLOSED_ASKER_DEFAULT_MINUTES),
 });

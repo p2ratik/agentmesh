@@ -1,13 +1,22 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLogger } from '@agentmesh/common';
+import { VERSION } from '@agentmesh/common/version';
 import { MESH_WINDOW_ENV } from '@agentmesh/common/window';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
 import { writeGuardStamp } from '../../plugins/agentmesh/src/window/guard-stamp';
-import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './support';
+import {
+  type Agent,
+  activate,
+  PLUGIN,
+  spawnAgent,
+  untilConnected,
+  WINDOW_TOKEN,
+  windowHome,
+} from './support';
 
 /**
  * The mesh window for real (ADR 0009): NATS (no auth), the hub and the bundled plugin over MCP
@@ -18,26 +27,9 @@ import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './supp
 const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
 const PREFIX = `win${Date.now().toString(36)}`;
 const QUIET_MS = 3000;
-const TOKEN = '0123456789abcdef0123456789abcdef';
 
 const threadOf = (sent: string) => /thr-\d+/.exec(sent)?.[0] ?? '';
 const quiet = () => new Promise((r) => setTimeout(r, QUIET_MS));
-
-/** A temp home whose ~/.agentmesh/mesh-window.json makes bob-agent's marked session verify. */
-function windowHome(): string {
-  const home = mkdtempSync(join(tmpdir(), 'am-e2e-home-'));
-  mkdirSync(join(home, '.agentmesh'));
-  const policy = {
-    version: 1,
-    agentId: 'bob-agent',
-    token: TOKEN,
-    ownBranchPrefix: 'agent/bob-agent/',
-    integrationBranch: 'agents',
-    testCommands: [],
-  };
-  writeFileSync(join(home, '.agentmesh', 'mesh-window.json'), JSON.stringify(policy));
-  return home;
-}
 
 describe.skipIf(!NATS || !existsSync(PLUGIN))('the mesh window end to end', () => {
   let hub: Hub;
@@ -51,7 +43,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('the mesh window end to end', () =
       prefix: PREFIX,
       ...(extra.home ? { home: extra.home } : {}),
       ...(extra.data
-        ? { extraEnv: { [MESH_WINDOW_ENV]: TOKEN, CLAUDE_PLUGIN_DATA: extra.data } }
+        ? { extraEnv: { [MESH_WINDOW_ENV]: WINDOW_TOKEN, CLAUDE_PLUGIN_DATA: extra.data } }
         : {}),
     });
     agents.push(agent);
@@ -86,7 +78,7 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('the mesh window end to end', () =
     await activate(b1, 'web client');
     const data = mkdtempSync(join(tmpdir(), 'am-e2e-window-data-'));
     const b2 = await spawn('bob-agent', { home: windowHome(), data });
-    writeGuardStamp(data, new Date());
+    writeGuardStamp(data, new Date(), VERSION);
     expect(await activate(b2, 'mesh window')).toContain('It is your mesh window.');
 
     // b1's own activation check came before; nothing may follow it.

@@ -47,6 +47,8 @@ function selectUnread(
  * unread count and newest `perThread` unread messages. Returned threads are marked
  * read up to their latest message; the rest stay unread for the next call. While the
  * mesh is paused a session's read marks nothing read and the result says `paused: true`.
+ * A closed asker's thread read by the mesh window carries its push's `released` marker,
+ * and what the read hands over counts as that push (`releasedRead`).
  */
 export function readInbox(
   messaging: MessagingServiceImpl,
@@ -70,10 +72,14 @@ export function readInbox(
           messaging.messages.maxSeq(entry.threadId),
         );
       }
+      // After the advance, so the hub's notice stays unread, as after a push.
+      const handed = paused ? [] : messages;
+      const released =
+        sessionId && messaging.releasedRead(participantId, sessionId, entry.threadId, handed);
       return {
         thread: messaging.summary(entry.threadId),
         unread: entry.unread,
-        messages,
+        messages: released ? messages.map((m) => ({ ...m, released })) : messages,
         fyi: entry.actions === 0,
       };
     });

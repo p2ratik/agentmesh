@@ -29,7 +29,10 @@ export function claimsWhenInactive(method: RpcMethodName, kind: ThreadKind): boo
   );
 }
 
-/** The action (non-FYI) threads an `inbox.get` result returned; none while paused. */
+/**
+ * The action (non-FYI) threads an `inbox.get` result returned; none while paused. A closed
+ * asker's thread (its messages carry `released`) claims nothing, as its push wouldn't.
+ */
 function inboxThreads(result: unknown): ClaimTarget[] {
   if (typeof result !== 'object' || result === null) return [];
   const { threads, paused } = result as Record<string, unknown>;
@@ -37,9 +40,10 @@ function inboxThreads(result: unknown): ClaimTarget[] {
   const out: ClaimTarget[] = [];
   for (const entry of threads) {
     if (typeof entry !== 'object' || entry === null) continue;
-    const { thread, fyi } = entry as Record<string, unknown>;
+    const { thread, fyi, messages } = entry as Record<string, unknown>;
     const key = str(thread, 'id');
-    if (key && fyi === false) out.push({ kind: 'thread', key });
+    const released = Array.isArray(messages) && messages.some((m) => m?.released !== undefined);
+    if (key && fyi === false && !released) out.push({ kind: 'thread', key });
   }
   return out;
 }

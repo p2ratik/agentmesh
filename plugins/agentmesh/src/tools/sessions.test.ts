@@ -7,7 +7,7 @@ const view = (active: boolean, description: string | null) => ({
   id: 's-aaaaaaaaaaaa',
   active,
   description,
-  repo: 'opzami/web',
+  repo: 'acme/web',
   branch: 'main',
   owns: [],
 });
@@ -68,6 +68,8 @@ describe('session tools', () => {
       lastDescription: 'checkout redesign',
       renewedFrom: null,
       pull: false,
+      guardVersion: null,
+      epoch: 0,
     });
   });
 
@@ -112,8 +114,15 @@ describe('session tools', () => {
     await callTool('describe_session', { description: 'billing v2' }, deps);
     expect(deps.activation.lastDescription).toBe('billing v2');
     deps.activation.renewedFrom = 'billing';
+    deps.activation.guardVersion = '0.6.0';
     await callTool('deactivate', {}, deps);
-    expect(deps.activation).toEqual({ lastDescription: null, renewedFrom: null, pull: false });
+    expect(deps.activation).toEqual({
+      lastDescription: null,
+      renewedFrom: null,
+      pull: false,
+      guardVersion: null,
+      epoch: 1,
+    });
     const took = await callTool('take', { task_id: 'task-9' }, deps);
     expect(text(took)).toContain('thr-9');
     await callTool('take', { thread_id: 'thr-9' }, deps);

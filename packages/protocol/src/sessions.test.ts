@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PeerInfo } from './primitives';
 import { RPC_METHODS } from './rpc';
-import { SessionId, SessionInbound } from './sessions';
+import { SessionAck, SessionId, SessionInbound } from './sessions';
 import { subjects } from './subjects';
 
 const minimalPeer = {
@@ -45,11 +45,45 @@ describe('session contracts', () => {
     expect(SessionInbound.safeParse({ type: 'check' }).success).toBe(false);
   });
 
+  it('parses a relay pointer with hub-issued ids only', () => {
+    const relay = {
+      type: 'relay',
+      threadId: 'thr-12',
+      messageId: 'msg-01JC0000000000000000000000',
+      from: 'alice-agent',
+      forSession: 's-abc123def456',
+    };
+    expect(SessionInbound.parse(relay)).toEqual(relay);
+    for (const bad of [{ forSession: 'S-X' }, { threadId: 'thr-x' }, { from: 'Bob' }]) {
+      expect(SessionInbound.safeParse({ ...relay, ...bad }).success).toBe(false);
+    }
+  });
+
+  it("a relay's ack may say whether it was forwarded, and why", () => {
+    const ack = { delivered: [], forwarded: false, reason: 'x' };
+    expect(SessionAck.parse(ack)).toEqual(ack);
+    expect(SessionAck.parse({ delivered: ['m'] })).toEqual({ delivered: ['m'] });
+  });
+
   it('session.take needs exactly one of threadId and taskId', () => {
     const p = RPC_METHODS['session.take'].params;
     expect(p.safeParse({ threadId: 'thr-1' }).success).toBe(true);
     expect(p.safeParse({}).success).toBe(false);
     expect(p.safeParse({ threadId: 'thr-1', taskId: 'task-1' }).success).toBe(false);
+  });
+
+  it("activate's result lists the threads a takeover moved here, empty from an older hub", () => {
+    const view = {
+      id: 's-000000000001',
+      active: true,
+      description: 'w',
+      repo: null,
+      branch: null,
+      owns: [],
+    };
+    const r = RPC_METHODS['session.activate'].result;
+    expect(r.parse(view).tookOver).toEqual([]);
+    expect(r.parse({ ...view, tookOver: ['thr-1'] }).tookOver).toEqual(['thr-1']);
   });
 
   it('session methods are agent-only', () => {

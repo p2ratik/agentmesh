@@ -1,4 +1,5 @@
 import type { MeshMessage } from '@agentmesh/protocol';
+import type { Released } from './closed-asker';
 
 /** One `notifications/claude/channel` payload. */
 export interface ChannelEvent {
@@ -22,28 +23,52 @@ export interface RenderOptions {
   /** An FYI in the footer is external, so the whole push is `trust=external`. */
   footerExternal?: boolean;
   maxChars?: number;
+  /** This session's agent: a message the hub marked for it came from its owner. */
+  selfId?: string;
+  /** The plugin's own note (a closed asker's choices): after the body, before the FYI footer. */
+  notice?: string;
+}
+
+/** Whether the hub marked `m` as a decision for `selfId`: its owner sent it. */
+export function decides(m: MeshMessage, selfId: string | undefined): boolean {
+  return selfId !== undefined && (m.refs.decidesFor?.includes(selfId) ?? false);
+}
+
+/**
+ * The last message the hub released from its closed private asker, which makes the window ask
+ * its human. None when the owner sent every message (decides=yes): that reply is the decision.
+ */
+export function closedAsker(
+  messages: readonly Released[],
+  selfId: string | undefined,
+): Released | undefined {
+  if (messages.every((m) => decides(m, selfId))) return undefined;
+  return messages.findLast((m) => m.released);
 }
 
 /**
  * Renders messages of ONE thread as one channel event. A single message is
  * its quoted body; several become a compact transcript. Meta describes the
  * latest message (plus `count`), and `trust` is `external` if any part,
- * footer included, is external.
+ * footer included, is external. `decides` is `yes` only if every message is
+ * the owner's; the FYI footer never carries the mark. `asker` is `closed`
+ * when `closedAsker` finds a released message.
  */
 export function renderEvent(
-  messages: readonly MeshMessage[],
-  { footer = '', footerExternal = false, maxChars = MAX_CONTENT }: RenderOptions = {},
+  messages: readonly Released[],
+  { footer, footerExternal = false, maxChars = MAX_CONTENT, selfId, notice }: RenderOptions = {},
 ): ChannelEvent {
   const last = messages.at(-1);
   if (!last) throw new Error('renderEvent needs at least one message');
   const body = clip(
-    messages.length === 1 ? quoteBody(last) : transcript(messages, last),
+    messages.length === 1 ? quoteBody(last) : transcript(messages, last, selfId),
     last.threadId,
     maxChars,
   );
-  const meta = buildMeta(messages, last);
+  const meta = buildMeta(messages, last, selfId);
   if (footerExternal) meta.trust = 'external';
-  return { content: escapeChannelTags(footer ? `${body}\n\n${footer}` : body), meta };
+  const content = [body, notice, footer].filter(Boolean).join('\n\n');
+  return { content: escapeChannelTags(content), meta };
 }
 
 /**
@@ -56,10 +81,19 @@ export function quoteBody(m: Pick<MeshMessage, 'body' | 'trust'>): string {
   return (m.trust === 'external' ? [EXTERNAL_MARK, ...lines] : lines).join('\n');
 }
 
-function transcript(messages: readonly MeshMessage[], last: MeshMessage): string {
+function transcript(
+  messages: readonly MeshMessage[],
+  last: MeshMessage,
+  selfId: string | undefined,
+): string {
   const header = `${messages.length} new messages in ${last.threadId} «${oneLine(last.subject)}»:`;
   const entries = messages.map((m) => {
-    const tags = [m.kind, m.status, m.trust === 'external' ? 'external' : null].filter(Boolean);
+    const tags = [
+      m.kind,
+      m.status,
+      m.trust === 'external' ? 'external' : null,
+      decides(m, selfId) ? 'DECIDES' : null,
+    ].filter(Boolean);
     return `--- ${m.from.displayName} (${tags.join(', ')}, ${m.createdAt.slice(11, 16)} UTC) ---\n${quoteBody(m)}`;
   });
   return [header, ...entries].join('\n\n');
@@ -76,8 +110,9 @@ function escapeChannelTags(text: string): string {
 }
 
 export function buildMeta(
-  messages: readonly MeshMessage[],
+  messages: readonly Released[],
   last: MeshMessage,
+  selfId?: string,
 ): Record<string, string> {
   const raw: Record<string, string | number | null | undefined> = {
     thread_id: last.threadId,
@@ -93,9 +128,11 @@ export function buildMeta(
     pr_url: last.refs.prUrl,
     verdict: last.refs.verdict,
     trust: messages.some((m) => m.trust === 'external') ? 'external' : 'team',
+    decides: messages.length > 0 && messages.every((m) => decides(m, selfId)) ? 'yes' : undefined,
     depth: last.depth,
     count: messages.length > 1 ? messages.length : undefined,
     subject: oneLine(last.subject),
+    asker: closedAsker(messages, selfId) ? 'closed' : undefined,
   };
   return sanitizeMeta(raw);
 }

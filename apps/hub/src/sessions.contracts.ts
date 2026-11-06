@@ -2,11 +2,14 @@
 import type {
   DeliveryMode,
   MeshMessage,
+  ReleasedMarker,
   RpcMethodName,
+  SessionDelivery,
   SessionSummary,
   SessionView,
 } from '@agentmesh/protocol';
 import type { CallContext } from './contracts';
+import type { RelayTarget } from './modules/sessions/relay';
 import type { Route } from './modules/sessions/routing';
 
 export interface SessionRecord {
@@ -37,6 +40,8 @@ export interface OpenInput {
   previousSessionId?: string;
   /** Set at insert only: a process keeps its marker. */
   meshWindow?: boolean;
+  /** Claude Code's conversation id; the first one a session reports resumes that conversation. */
+  claudeSessionId?: string;
 }
 
 /** One Claude Code session per plugin process; each thread is owned per agent by one session. */
@@ -44,13 +49,16 @@ export interface SessionsService {
   open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] };
   /** The agent's non-closed session, else not_found "Unknown or closed session <id>; reconnect". */
   verify(agentId: string, sessionId: string): SessionRecord;
-  /** `pull`: active, but never delivered to; it reads with `inbox` (ADR 0008). Default push. */
+  /**
+   * `pull`: active, but never delivered to; it reads with `inbox` (ADR 0008). Default push.
+   * `tookOver`: the threads a mesh window took from the agent's away windows (thread keys).
+   */
   activate(
     agentId: string,
     sessionId: string,
     description: string,
     delivery?: DeliveryMode,
-  ): SessionRecord;
+  ): SessionRecord & { tookOver: string[] };
   /** A clean stop: releases everything the session owns at once (spec §3). */
   deactivate(agentId: string, sessionId: string): SessionRecord;
   describe(agentId: string, sessionId: string, description: string): SessionRecord;
@@ -66,8 +74,21 @@ export interface SessionsService {
   unreachable(sessionId: string): void;
   /** Where a message for this agent goes now, by the routing rules. DB reads only. */
   route(agentId: string, message: MeshMessage): Route;
+  /** For a waiting reply to an inactive private session: the mesh window to point. DB reads only. */
+  relay(agentId: string, message: SessionDelivery): RelayTarget | null;
   /** After the session acked the message: a claiming route makes it own the thread. DB only. */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void;
+  /**
+   * A 0.6.0 mesh window's read of a thread whose private asker closed: the marker its push would
+   * carry, and that push's orphan bookkeeping for the action items the read `handed` over.
+   * Null for any other read.
+   */
+  readReleased(
+    agentId: string,
+    sessionId: string,
+    threadId: number,
+    handed: MeshMessage[],
+  ): ReleasedMarker | null;
   /** Tick: silent live sessions go away; away ones past the grace period close and release. */
   expire(now: Date): { away: number; closed: number };
   take(agentId: string, sessionId: string, threadId: number): { previous: string | null };

@@ -154,7 +154,6 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
         if (params.threadId) {
           threadId = internalId('thread', params.threadId);
           assertCanPost(messaging, threadId, actor);
-          messaging.addParticipants(threadId, [to]);
         } else {
           threadId = startThread(messaging, actor, {
             kind: 'escalation',
@@ -166,11 +165,17 @@ export function sendHandlers(messaging: MessagingServiceImpl): SendHandlers {
           threadId,
           senderId: actor.id,
           kind: 'escalation',
+          to: [to],
           body,
           status: 'needs_human',
           refs: taskRefs(params.taskId),
         });
       });
+      if (!index.human(to)?.discordUserId) {
+        call.notes.push(
+          `${to} has no Discord account mapped, so this escalation pinged nobody; reach them another way.`,
+        );
+      }
       return { threadId: result.message.threadId, messageId: result.message.id };
     },
   };

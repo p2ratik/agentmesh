@@ -1,8 +1,9 @@
-import { MeshError, newSessionId, parseId, redactSecrets } from '@agentmesh/common';
+import { MeshError, parseId, redactSecrets } from '@agentmesh/common';
 import type {
   DeliveryMode,
   MeshMessage,
   RpcMethodName,
+  SessionDelivery,
   SessionSummary,
   SessionView,
 } from '@agentmesh/protocol';
@@ -15,12 +16,17 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { claimsWhenInactive, claimTargets } from './claims';
-import { evictStalest, expireSessions, releaseAndClose } from './liveness';
-import { toRecord, toRouteSession, toSummary, toView } from './mappers';
-import { claimedThread, claimThread, reclaimReleased } from './ownership';
-import { chainOwner, type Route, type RouteInput, routeDelivery } from './routing';
+import { expireSessions, releaseAndClose } from './liveness';
+import { toRecord, toSummary, toView } from './mappers';
+import { openSession } from './open';
+import { OrphanDecisions } from './orphans';
+import { claimThread } from './ownership';
+import { recordClaims } from './record-claims';
+import { type RelayTarget, relayFor } from './relay';
+import { releasedForRead, releasedMarker, routeInput } from './route-input';
+import { chainOwner, type Route, routeDelivery } from './routing';
 import { type SessionRow, SessionsRepo } from './sessions.repo';
+import { type Adopted, adoptAwayWindows, logAdopted } from './takeover';
 
 export interface SessionsDeps {
   messaging: MessagingService;
@@ -35,6 +41,7 @@ export interface SessionsDeps {
  */
 export class SessionsServiceImpl implements SessionsService {
   readonly repo: SessionsRepo;
+  readonly orphans: OrphanDecisions;
   readonly #ctx: HubContext;
   readonly #deps: SessionsDeps;
 
@@ -42,37 +49,19 @@ export class SessionsServiceImpl implements SessionsService {
     this.#ctx = ctx;
     this.#deps = deps;
     this.repo = new SessionsRepo(ctx.db);
+    this.orphans = new OrphanDecisions(ctx, this.repo, deps.messaging);
   }
 
   /** Reuses an open previous session; after a closed one, reclaims what nobody took since. */
   open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] } {
-    const at = this.#now();
-    const git = { repo: input.repo ?? null, branch: input.branch ?? null };
-    const result = this.#ctx.db.transaction(() => {
-      const previous = input.previousSessionId ? this.repo.get(input.previousSessionId) : undefined;
-      const mine = previous?.agent_id === agentId ? previous : undefined;
-      if (mine && mine.liveness !== 'closed') {
-        this.repo.touch(mine.id, at, git);
-        // A window started before the hub upgrade (migration 007) says so on its next hello.
-        if (input.meshWindow) this.repo.markMeshWindow(mine.id);
-        if (this.repo.markLive(mine.id)) this.#ctx.outbox.kick();
-        return { session: this.verify(agentId, mine.id), reclaimed: [] };
-      }
-      const id = newSessionId();
-      const evicted = evictStalest(this.#ctx, this.repo, agentId, at);
-      const { clientVersion, meshWindow } = input;
-      this.repo.insert({ id, agentId, clientVersion, meshWindow, ...git, at });
-      const reclaimed = mine ? reclaimReleased(this.repo, mine, id, at) : [];
-      return { session: this.verify(agentId, id), reclaimed, evicted };
-    });
-    const { session, reclaimed, evicted = 0 } = result;
-    this.#ctx.logger.info(
-      { agent: agentId, session: session.id, reclaimed: reclaimed.length, evicted },
-      'session opened',
+    const { sessionId, reclaimed } = openSession(
+      this.#ctx,
+      this.repo,
+      this.orphans,
+      agentId,
+      input,
     );
-    // What the closed sessions owned goes elsewhere now.
-    if (evicted) this.#ctx.outbox.kick();
-    return result;
+    return { session: this.verify(agentId, sessionId), reclaimed };
   }
 
   verify(agentId: string, sessionId: string): SessionRecord {
@@ -89,7 +78,8 @@ export class SessionsServiceImpl implements SessionsService {
     sessionId: string,
     description: string,
     delivery: DeliveryMode = 'push',
-  ): SessionRecord {
+  ): SessionRecord & { tookOver: string[] } {
+    let adopted: Adopted = { closed: [], reclaimed: [] };
     const record = this.#change(
       agentId,
       sessionId,
@@ -98,10 +88,12 @@ export class SessionsServiceImpl implements SessionsService {
         if (row.active === 0) this.repo.setActive(sessionId, true, at);
         this.repo.setDelivery(sessionId, delivery);
         this.repo.setDescription(sessionId, redactSecrets(description));
+        adopted = adoptAwayWindows(this.repo, row, at);
       },
     );
+    logAdopted(this.#ctx.logger, agentId, sessionId, adopted);
     this.#ctx.outbox.kick();
-    return record;
+    return { ...record, tookOver: adopted.reclaimed.map(threadKey) };
   }
 
   /** A clean stop (spec §3): releases what the session owns at once; re-activating takes none of it back. */
@@ -148,40 +140,63 @@ export class SessionsServiceImpl implements SessionsService {
   route(agentId: string, message: MeshMessage): Route {
     // Lenient: a bad task ref must not wedge the agent's queue.
     const taskId = message.refs.taskId ? parseId('task', message.refs.taskId) : null;
-    const input = this.#routeInput(agentId, internalId('thread', message.threadId), taskId);
+    const threadId = internalId('thread', message.threadId);
+    const input = routeInput(this.repo, this.#deps, agentId, threadId, taskId);
     return routeDelivery({
       ...input,
       picked: message.refs.session ?? null,
       repo: message.refs.repo ?? input.repo,
+      released: releasedMarker(this.repo, agentId, threadId, input.threadOwner),
     });
+  }
+
+  relay(agentId: string, message: SessionDelivery): RelayTarget | null {
+    return relayFor(this.repo, agentId, message);
   }
 
   effectiveOwner(threadId: number, agentId: string): string | null {
     const { taskId } = this.#deps.messaging.thread(threadId);
-    return chainOwner(this.#routeInput(agentId, threadId, taskId))?.session.id ?? null;
+    const input = routeInput(this.repo, this.#deps, agentId, threadId, taskId);
+    return chainOwner(input)?.session.id ?? null;
   }
 
-  /** Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps it. */
+  /**
+   * Same precedence as an RPC claim: if another open session took the thread meanwhile, it keeps
+   * it. A closed asker's answer claims nothing; it reached the window (`OrphanDecisions.reached`).
+   */
   delivered(agentId: string, sessionId: string, message: MeshMessage, route: Route): void {
-    if (route.kind !== 'deliver' || !route.claim) return;
+    if (route.kind !== 'deliver') return;
     const threadId = internalId('thread', message.threadId);
-    claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
+    if (route.released) this.orphans.reached(agentId, threadId, route.released, message);
+    if (route.claim) claimThread(this.repo, { agentId, sessionId, threadId, at: this.#now() });
+  }
+
+  /** A window's read of a closed asker's thread: the push's marker; each `handed` item reached. */
+  readReleased(agentId: string, sessionId: string, threadId: number, handed: MeshMessage[]) {
+    return this.#ctx.db.transaction(() => {
+      const released = releasedForRead(this.repo, this.#deps, agentId, sessionId, threadId);
+      if (released) for (const m of handed) this.orphans.reached(agentId, threadId, released, m);
+      return released;
+    });
   }
 
   expire(now: Date) {
     return expireSessions(this.#ctx, this.repo, now);
   }
 
-  /** Moves a thread the agent takes part in to this session. */
+  /** Moves a thread the agent takes part in to this session (the owner and release lists at once). */
   take(agentId: string, sessionId: string, threadId: number): { previous: string | null } {
-    this.#row(agentId, sessionId);
-    const { messaging } = this.#deps;
-    messaging.thread(threadId);
-    if (!messaging.participants(threadId).includes(agentId)) {
-      throw new MeshError('forbidden', `You are not a participant of ${threadKey(threadId)}`);
-    }
-    const previous = this.repo.owner(threadId, agentId);
-    if (previous !== sessionId) this.repo.setOwner(threadId, agentId, sessionId, this.#now());
+    const previous = this.#ctx.db.transaction(() => {
+      this.#row(agentId, sessionId);
+      const { messaging } = this.#deps;
+      messaging.thread(threadId);
+      if (!messaging.participants(threadId).includes(agentId)) {
+        throw new MeshError('forbidden', `You are not a participant of ${threadKey(threadId)}`);
+      }
+      const owner = this.repo.owner(threadId, agentId);
+      if (owner !== sessionId) this.repo.setOwner(threadId, agentId, sessionId, this.#now());
+      return owner;
+    });
     this.#ctx.logger.info(
       { agent: agentId, session: sessionId, thread: threadKey(threadId), previous },
       'thread taken',
@@ -192,18 +207,7 @@ export class SessionsServiceImpl implements SessionsService {
 
   /** Agent callers with a verified session only. Never moves work another open session owns. */
   recordClaims(call: CallContext, method: RpcMethodName, params: unknown, result: unknown): void {
-    const { session: sessionId } = call;
-    if (call.caller.kind !== 'agent' || !sessionId) return;
-    const inactive = this.repo.get(sessionId)?.active !== 1;
-    for (const target of claimTargets(method, params, result)) {
-      const threadId = claimedThread(target, this.#deps);
-      if (threadId === null) continue;
-      if (inactive && !claimsWhenInactive(method, this.#deps.messaging.thread(threadId).kind))
-        continue;
-      const claim = { agentId: call.caller.id, sessionId, threadId, at: this.#now() };
-      const note = claimThread(this.repo, claim);
-      if (note) call.notes.push(note);
-    }
+    recordClaims(this.repo, this.#deps, this.#now(), call, method, params, result);
   }
 
   view(sessionId: string): SessionView {
@@ -214,10 +218,11 @@ export class SessionsServiceImpl implements SessionsService {
 
   /** Active, non-closed sessions with the tasks whose threads they own. */
   activeSessions(agentId: string): SessionSummary[] {
+    const grace = this.#ctx.loaded.config.presence.ownershipGraceMinutes;
     return this.repo
       .listLive(agentId)
       .filter((s) => s.active === 1)
-      .map((s) => toSummary(s, this.#ownedTasks(s.id)));
+      .map((s) => toSummary(s, this.#ownedTasks(s.id), grace));
   }
 
   hasLiveSession(agentId: string): boolean {
@@ -238,20 +243,6 @@ export class SessionsServiceImpl implements SessionsService {
 
   ownerOf(threadId: number, agentId: string): string | null {
     return this.repo.owner(threadId, agentId);
-  }
-
-  /** Routing's view of a thread: the agent's open sessions and the owner chain; no sender pick. */
-  #routeInput(agentId: string, threadId: number, taskId: number | null): RouteInput {
-    const owner = (id: number | null) => (id === null ? null : this.repo.owner(id, agentId));
-    const task = taskId === null ? null : this.#deps.locate(taskId);
-    return {
-      sessions: this.repo.listLive(agentId).map(toRouteSession),
-      threadOwner: owner(threadId),
-      parentOwner: owner(this.#deps.messaging.thread(threadId).parentId),
-      taskOwner: task && task.threadId !== threadId ? owner(task.threadId) : null,
-      picked: null,
-      repo: task?.repo ?? null,
-    };
   }
 
   #row(agentId: string, sessionId: string): SessionRow {

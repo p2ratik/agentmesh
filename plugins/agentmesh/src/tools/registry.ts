@@ -65,6 +65,7 @@ export async function callTool(
   const result = await callConfigured(tool, rawArgs, deps);
   // A cancelled call still runs to the end, but Claude never sees its result: keep the FYIs.
   if (signal?.aborted) return result;
+  for (const notice of deps.notices.splice(0)) result.content.push({ type: 'text', text: notice });
   const fyi = deps.fyi.take();
   if (fyi.items.length > 0) {
     result.content.push({ type: 'text', text: formatFyi(fyi) });

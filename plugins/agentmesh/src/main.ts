@@ -1,5 +1,5 @@
 import { createLogger, type Logger } from '@agentmesh/common';
-import type { RpcResult } from '@agentmesh/protocol';
+import { CLOSED_ASKER_DEFAULT_MINUTES, type RpcResult } from '@agentmesh/protocol';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { type PluginConfig, resolveConfig } from './config';
 import { buildInstructions } from './instructions';
@@ -8,6 +8,7 @@ import { CONNECT_TOOL, callConnectTool, connectToolListing } from './join/connec
 import { callJoinTool, JOIN_TOOL, joinToolListing } from './join/tool';
 import { createMcpServer, type ToolHandler, VERSION } from './server';
 import { openSession, type Session, startSession } from './session';
+import { once, watchSignals } from './shutdown-signals';
 import { meshToolHandler } from './tools/registry';
 import type { ToolDeps } from './tools/types';
 
@@ -113,13 +114,19 @@ async function runUnenrolled(logger: Logger): Promise<void> {
   logger.info({ version: VERSION }, 'agentmesh plugin waiting for join');
 }
 
-/** The mesh tools; after each call a pull session's counts may have changed (read, answered). */
+/**
+ * The mesh tools; after each call the counts may have changed (read, answered), and a private
+ * session that used the mesh starts keeping its local record.
+ */
 function meshTools(session: Session, agentId: string): ToolHandler {
   const tools = meshToolHandler(toolDeps(session, agentId));
   return {
     list: tools.list,
     call: (name, args, signal) =>
-      tools.call(name, args, signal).finally(() => void session.pull.refresh()),
+      tools.call(name, args, signal).finally(() => {
+        session.pull.markUsed();
+        void session.pull.refresh();
+      }),
   };
 }
 
@@ -127,27 +134,28 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
   return {
     hub: session.hub,
     agentId,
+    prefix: session.config.prefix,
     activation: session.activation,
     fyi: session.fyi,
+    notices: session.notices,
     listening: session.listening.promise,
     window: session.window,
+    teamPolicy: () => session.hello?.policy.instructions ?? null,
+    closedAskerMinutes: () =>
+      session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
   };
 }
 
 /** Exits when Claude Code closes stdin, on signals, or if orphaned. */
 function watchLifecycle(logger: Logger): void {
-  let stopping = false;
-  const shutdown = (reason: string) => {
-    if (stopping) return;
-    stopping = true;
+  const shutdown = once((reason: string) => {
     logger.info({ reason }, 'agentmesh plugin stopping');
     void cleanup().finally(() => process.exit(0));
     setTimeout(() => process.exit(0), 1000).unref();
-  };
+  });
   process.stdin.on('end', () => shutdown('stdin end'));
   process.stdin.on('close', () => shutdown('stdin close'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  watchSignals(process.platform, process, shutdown);
   setInterval(() => {
     if (process.stdin.destroyed || process.stdin.readableEnded) shutdown('orphaned');
   }, 5000).unref();

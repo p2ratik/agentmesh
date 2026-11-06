@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { MeshMessage, ReplyStatus, SendableKind, ThreadKind, ThreadSummary } from '../messages';
+import { ReplyStatus, SendableKind, ThreadKind, ThreadSummary } from '../messages';
 import { GitRef, IdRef } from '../primitives';
+import { ReadMessage } from '../sessions';
 import { ANY_CALLER, defineMethod, PARTICIPANTS } from './define';
 
 /** Most sender ids an `inbox.peek` names. */
@@ -51,7 +52,7 @@ export const messagingMethods = {
       limit: z.number().int().min(1).max(200).default(50),
       beforeId: IdRef.optional(),
     }),
-    result: z.object({ thread: ThreadSummary, messages: z.array(MeshMessage) }),
+    result: z.object({ thread: ThreadSummary, messages: z.array(ReadMessage) }),
   }),
   'thread.list': defineMethod({
     description: 'List threads, newest activity first.',
@@ -78,7 +79,7 @@ export const messagingMethods = {
         z.object({
           thread: ThreadSummary,
           unread: z.number().int().nonnegative(),
-          messages: z.array(MeshMessage),
+          messages: z.array(ReadMessage),
           /** True when every unread message in the thread is status for the caller. */
           fyi: z.boolean().default(false),
         }),

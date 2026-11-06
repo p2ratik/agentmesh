@@ -74,7 +74,7 @@ function within(inner: string, outer: string, o: PathOptions): boolean {
 const DOS_DEVICE =
   /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
 
-/** Why a path is refused before the disk is touched (no UNC host is ever contacted), or null.
+/** Why a path is refused before the disk is touched (no UNC or device spelling is opened), or null.
  * `.` and `..` are refused rather than resolved: a writer that folds them as text and a kernel that
  * follows a link before its `..` land in different places. */
 export function badInput(file: unknown, o: PathOptions): Refusal | null {

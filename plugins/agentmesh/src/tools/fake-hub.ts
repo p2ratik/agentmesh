@@ -1,3 +1,4 @@
+import { CLOSED_ASKER_DEFAULT_MINUTES } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
 import { FyiBuffer } from '../inbox/fyi';
 import { NO_WINDOW } from '../window/context';
@@ -25,10 +26,14 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
   const deps: ToolDeps = {
     hub,
     agentId: 'alice-agent',
+    prefix: 'mesh',
     activation: newActivationState(),
     fyi: new FyiBuffer(),
+    notices: [],
     listening: Promise.resolve(),
     window: NO_WINDOW,
+    teamPolicy: () => null,
+    closedAskerMinutes: () => CLOSED_ASKER_DEFAULT_MINUTES,
   };
   return { deps, calls };
 }

@@ -32,6 +32,7 @@ hub:
 
 # People. Their Discord user ids let them run slash commands and reply in threads.
 # (Discord: Settings → Advanced → Developer Mode, then right-click a user → Copy User ID.)
+# Ids: lowercase letters, digits and dashes; `all` is reserved.
 humans:
   - id: alice
     displayName: Alice
@@ -120,6 +121,9 @@ presence:
   heartbeatSeconds: 20 # documented plugin cadence
   offlineAfterSeconds: 75 # silence after which an agent is offline and its live session goes away
   ownershipGraceMinutes: 120 # an away session keeps its threads this long, then closes and releases them
+
+relay:
+  closedAskerEscalationMinutes: 15 # a reply whose asking session closed waits this long for the owner's decision in the mesh window, then the hub pings them on Discord
 
 enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join on the laptop
   # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls://; the plugin cannot use wss:// yet)

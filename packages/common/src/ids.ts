@@ -44,8 +44,11 @@ export function parseId(kind: SequentialKind, raw: string): number | null {
 /** Participant ids double as NATS subject tokens, so they must stay this strict. */
 export const PARTICIPANT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
+/** Ids no participant may take: `task_list(assignee: "all")` means every assignee. */
+export const RESERVED_PARTICIPANT_IDS: readonly string[] = ['all'];
+
 export function isValidParticipantId(id: string): boolean {
-  return PARTICIPANT_ID_PATTERN.test(id);
+  return PARTICIPANT_ID_PATTERN.test(id) && !RESERVED_PARTICIPANT_IDS.includes(id);
 }
 
 /** Turns free text into a git-branch-safe slug. */

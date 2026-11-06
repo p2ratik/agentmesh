@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildModules } from '../../runtime/modules';
 import { testTeamConfig } from '../../testing/fixtures';
 import { createTestHarness } from '../../testing/harness';
+import { createBobDispatchHarness } from '../../testing/services';
 
 function setup() {
   const h = createTestHarness();
@@ -65,6 +66,18 @@ describe('session liveness', () => {
     sessions.unreachable(s1);
     expect(liveness()).toBe('away');
   });
+
+  it('records whether a session was private when it closed', () => {
+    const { ctx, sessions, s1 } = setup();
+    const open = (meshWindow: boolean) =>
+      sessions.open('alice-agent', { clientVersion: '0.6.0', meshWindow }).session.id;
+    const [inactive, win] = [open(false), open(true)];
+    for (const id of [inactive, s1, win]) sessions.close('alice-agent', id);
+    const privateAtClose = (id: string) =>
+      ctx.db.get<{ p: number }>('SELECT private_at_close AS p FROM sessions WHERE id = $id', { id })
+        ?.p;
+    expect([inactive, s1, win].map(privateAtClose)).toEqual([1, 0, 0]);
+  });
 });
 
 describe('session limits', () => {
@@ -108,6 +121,38 @@ describe('session limits', () => {
     expect(openIds()).toEqual([s1, s2].sort());
   });
 
+  // Final re-review N1: an evicted private asker is still a closed asker (a crashed, away one is
+  // evicted first); a live one's next hello reclaims its thread, which settles the timer.
+  it('an evicted private session keeps the closed-asker marker, and its next hello reclaims', async () => {
+    const h = createBobDispatchHarness();
+    h.ctx.loaded.config.limits.maxSessionsPerAgent = 2;
+    const p = h.sessions.open('bob-agent', { clientVersion: '0.6.0' }).session.id;
+    const t = h.thread();
+    h.sessions.take('bob-agent', p, t);
+    h.clock.advance(1000);
+    const w = h.meshWindow();
+    h.sessions.open('bob-agent', { clientVersion: '0.6.0' });
+    expect(
+      h.ctx.db.get('SELECT liveness, private_at_close FROM sessions WHERE id = $p', { p }),
+    ).toEqual({ liveness: 'closed', private_at_close: 1 });
+    const r = h.reply(t);
+    await h.outbox.flush();
+    const pushed = h.transport.batches.flat().find((m) => m.id === r.id);
+    expect(pushed?.released).toMatchObject({ bySession: p });
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBeNull();
+    const rows = () => h.ctx.db.all('SELECT thread_id FROM orphan_decisions');
+    expect(rows()).toEqual([{ thread_id: t }]);
+    // The live process says hello again (room for it, so the window isn't evicted in turn).
+    h.ctx.loaded.config.limits.maxSessionsPerAgent = 20;
+    const back = h.sessions.open('bob-agent', { clientVersion: '0.6.0', previousSessionId: p });
+    expect(back.reclaimed).toEqual([t]);
+    expect(h.sessions.ownerOf(t, 'bob-agent')).toBe(back.session.id);
+    expect(h.liveness(w)).toBe('live');
+    h.clock.advance(15 * 60_000);
+    expect(h.orphans.tick(h.clock.now())).toBe(0);
+    expect(rows()).toEqual([]);
+  });
+
   it('deletes sessions closed more than 30 days ago', () => {
     const { clock, ctx, sessions, open } = capped(5);
     const old = open();
@@ -119,5 +164,25 @@ describe('session limits', () => {
     sessions.expire(clock.now());
     const ids = ctx.db.all<{ id: string }>('SELECT id FROM sessions').map((r) => r.id);
     expect(ids).toEqual([recent]);
+  });
+});
+
+describe('away sessions in the active list', () => {
+  it('labels an away session with when it went away and when it closes, from config', () => {
+    const { ctx, clock, sessions } = setup();
+    ctx.loaded.config.presence.ownershipGraceMinutes = 30;
+    expect(sessions.activeSessions('alice-agent')[0]).toMatchObject({
+      liveness: 'live',
+      awaySince: null,
+      closesAt: null,
+    });
+    clock.advance(76_000);
+    sessions.expire(clock.now());
+    const away = clock.now().toISOString();
+    expect(sessions.activeSessions('alice-agent')[0]).toMatchObject({
+      liveness: 'away',
+      awaySince: away,
+      closesAt: new Date(clock.now().getTime() + 30 * 60_000).toISOString(),
+    });
   });
 });

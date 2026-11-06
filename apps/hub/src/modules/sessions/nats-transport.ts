@@ -3,9 +3,11 @@ import type { NatsConnection } from '@agentmesh/bus';
 import type { Logger } from '@agentmesh/common';
 import {
   MAX_DELIVERY_MESSAGES,
+  type RelayAnswer,
   SessionAck,
   type SessionDelivery,
   type SessionInbound,
+  type SessionRelay,
   subjects,
 } from '@agentmesh/protocol';
 import type { SessionTransport } from './dispatcher';
@@ -16,6 +18,15 @@ const DEFAULT_MAX_PAYLOAD = 1024 * 1024;
 const ENVELOPE_BYTES = 1024;
 
 const byteSize = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
+
+/** The reply's JSON, or null when it is not JSON. */
+function readJson(reply: { json(): unknown }): unknown {
+  try {
+    return reply.json();
+  } catch {
+    return null;
+  }
+}
 
 /** The message with its body cut to fit `maxBytes`; the hub keeps the full text. */
 function clipToFit(message: SessionDelivery, maxBytes: number): SessionDelivery {
@@ -100,6 +111,18 @@ export class NatsSessionTransport implements SessionTransport {
   async check(agentId: string, sessionId: string, code: string): Promise<void> {
     const body: SessionInbound = { type: 'check', code };
     await this.#ask(agentId, sessionId, JSON.stringify(body));
+  }
+
+  /**
+   * An ack without the relay fields comes from a window that cannot forward. Any ack counts as
+   * answered: one the hub cannot read is not forwarded, so it is not sent again every flush.
+   */
+  async relay(agentId: string, sessionId: string, relay: SessionRelay): Promise<RelayAnswer> {
+    const reply = await this.#ask(agentId, sessionId, JSON.stringify(relay));
+    const ack = SessionAck.safeParse(readJson(reply));
+    if (!ack.success) return { forwarded: false, reason: 'unreadable ack' };
+    const { forwarded = false, reason = 'no reason given' } = ack.data;
+    return { forwarded, reason };
   }
 
   expired(agentId: string, sessionId: string): void {

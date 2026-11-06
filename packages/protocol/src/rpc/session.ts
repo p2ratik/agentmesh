@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ClaudeSessionId,
   DeclaredStatus,
   DeliveryMode,
   GitPolicy,
@@ -8,7 +9,7 @@ import {
   PeerInfo,
   SessionId,
 } from '../primitives';
-import { SessionView } from '../sessions';
+import { CLOSED_ASKER_DEFAULT_MINUTES, SessionView } from '../sessions';
 import { ANY_CALLER, defineMethod } from './define';
 
 export const sessionMethods = {
@@ -23,11 +24,22 @@ export const sessionMethods = {
       previousSessionId: SessionId.optional(),
       /** Started by the mesh window launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work. */
       meshWindow: z.boolean().optional(),
+      /** Claude Code's conversation id, from the SessionStart hook: the hub resumes its closed session. */
+      claudeSessionId: ClaudeSessionId.optional(),
     }),
     result: z.object({
       self: PeerInfo,
       mesh: z.object({ name: z.string(), prefix: z.string() }),
-      policy: z.object({ instructions: z.string(), git: GitPolicy }),
+      policy: z.object({
+        instructions: z.string(),
+        git: GitPolicy,
+        /** `relay.closedAskerEscalationMinutes`; older hubs don't send it. */
+        closedAskerEscalationMinutes: z
+          .number()
+          .int()
+          .positive()
+          .default(CLOSED_ASKER_DEFAULT_MINUTES),
+      }),
       /** Threads with messages this agent has not read yet (see `inbox.get`). */
       unreadThreads: z.number().int().nonnegative(),
       /** The hub-issued id this session sends on every call. */
@@ -63,7 +75,8 @@ export const sessionMethods = {
       .refine((p) => p.mode === 'pull' || p.code !== undefined, {
         message: 'Pass the code from the test message, or mode "pull".',
       }),
-    result: SessionView,
+    // `tookOver`: the threads a mesh window took from the agent's away windows (0.6.0 and later).
+    result: SessionView.extend({ tookOver: z.array(z.string()).default([]) }),
   }),
   'session.deactivate': defineMethod({
     description: 'Stop receiving work in this session.',

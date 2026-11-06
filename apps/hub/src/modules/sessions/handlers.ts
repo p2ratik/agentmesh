@@ -83,7 +83,11 @@ export function sessionHandlers(
       return {
         self: presence.peer(agentId),
         mesh: { name: config.mesh.name, prefix: config.mesh.prefix },
-        policy: { instructions: ctx.loaded.policyText, git: config.git },
+        policy: {
+          instructions: ctx.loaded.policyText,
+          git: config.git,
+          closedAskerEscalationMinutes: config.relay.closedAskerEscalationMinutes,
+        },
         unreadThreads: messaging.unreadThreadCount(agentId),
         sessionId: session.id,
         reclaimed: reclaimed.map(threadKey),
@@ -115,12 +119,19 @@ export function sessionHandlers(
     'session.activate': (params, call) => {
       const session = own(call);
       if (params.mode === 'push') checks.confirm(session, params.code ?? '', now());
-      sessions.activate(call.actor.id, session, params.description, params.mode);
-      return sessions.view(session);
+      const { tookOver } = sessions.activate(
+        call.actor.id,
+        session,
+        params.description,
+        params.mode,
+      );
+      return { ...sessions.view(session), tookOver };
     },
+    /** Also forgets the session's check code, so a check started before the off can't finish. */
     'session.deactivate': (_params, call) => {
       const session = own(call);
       sessions.deactivate(call.actor.id, session);
+      checks.forget(session);
       return sessions.view(session);
     },
     'session.describe': (params, call) => {

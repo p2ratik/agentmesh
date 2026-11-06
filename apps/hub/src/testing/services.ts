@@ -1,5 +1,5 @@
 import type { LoadedConfig } from '@agentmesh/config';
-import type { MessageRefs, SessionDelivery } from '@agentmesh/protocol';
+import type { MessageRefs, ReplyStatus, SessionDelivery } from '@agentmesh/protocol';
 import type {
   ControlService,
   MessagingService,
@@ -11,7 +11,9 @@ import { createMessagingModule } from '../modules/messaging';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
 import { SessionDispatcher } from '../modules/sessions/dispatcher';
+import type { OrphanDecisions } from '../modules/sessions/orphans';
 import { ownerReader, takeUnownedReader } from '../modules/sessions/readers';
+import type { SessionsServiceImpl } from '../modules/sessions/sessions.service';
 import type { DeliveryPort } from '../ports';
 import { FakeLeases, FakeTransport } from './fakes';
 import { createTestHarness, type TestHarness } from './harness';
@@ -77,6 +79,7 @@ export function createServiceHarness(
 
 export interface DispatchHarness extends ServiceHarness {
   sessions: SessionsService;
+  orphans: OrphanDecisions;
   transport: FakeTransport;
   dispatcher: SessionDispatcher;
 }
@@ -109,13 +112,15 @@ export function createDispatchHarness(): DispatchHarness {
   sessionsService = sessions;
   h.presence.setReadyReader((id) => sessions.reach(id));
   h.messaging.setOwnerReader(ownerReader(sessions));
+  h.messaging.setReleasedReader((...read) => sessions.readReleased(...read));
   dispatcher = new SessionDispatcher({
     sessions,
     messaging: h.messaging,
     transport,
     logger: h.ctx.logger,
   });
-  return { ...h, sessions, transport, dispatcher };
+  const { orphans } = sessions as SessionsServiceImpl;
+  return { ...h, sessions, orphans, transport, dispatcher };
 }
 
 /** The dispatch harness with helpers for alice-agent writing to bob-agent's sessions. */
@@ -150,6 +155,23 @@ export function createBobDispatchHarness() {
       body: `n${++n}`,
       deliveryClass: 'status',
     }).message;
+  /** Posts a reply from alice-agent; a `working` or `info` one is status for bob. */
+  const reply = (threadId: number, status?: ReplyStatus) =>
+    h.messaging.post({
+      threadId,
+      senderId: 'alice-agent',
+      kind: 'reply',
+      body: `r${++n}`,
+      status: status ?? null,
+      deliveryClass: status === 'working' || status === 'info' ? 'status' : 'action',
+    }).message;
+  /** A bob-agent mesh window at that client version, activated. */
+  const meshWindow = (version = '0.6.0') => {
+    const id = h.sessions.open('bob-agent', { clientVersion: version, meshWindow: true }).session
+      .id;
+    h.sessions.activate('bob-agent', id, 'mesh window');
+    return id;
+  };
   const pending = () =>
     h.ctx.db
       .all<{ message_id: string }>(
@@ -157,5 +179,5 @@ export function createBobDispatchHarness() {
       )
       .map((r) => r.message_id);
   const liveness = (sessionId: string) => h.sessions.verify('bob-agent', sessionId).liveness;
-  return { ...h, active, thread, ask, note, pending, liveness };
+  return { ...h, active, thread, ask, note, reply, meshWindow, pending, liveness };
 }
