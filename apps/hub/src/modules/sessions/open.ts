@@ -1,6 +1,7 @@
 import { newSessionId } from '@agentmesh/common';
 import type { HubContext } from '../../context';
 import type { OpenInput } from '../../contracts';
+import { recordHub } from '../observe/hub-event';
 import { evictStalest } from './liveness';
 import type { OrphanDecisions } from './orphans';
 import { reclaimReleased } from './ownership';
@@ -45,13 +46,15 @@ export function openSession(
     }
     const s = { agentId, sessionId, claudeSessionId, at };
     reclaimed.push(...learnClaudeSession(ctx, repo, orphans, s));
-    return { sessionId, reclaimed, evicted, back };
+    return { sessionId, reclaimed, evicted, back, reused: !!mine && mine.liveness !== 'closed' };
   });
-  const { sessionId, reclaimed, evicted, back } = result;
+  const { sessionId, reclaimed, evicted, back, reused } = result;
   ctx.logger.info(
     { agent: agentId, session: sessionId, reclaimed: reclaimed.length, evicted },
     'session opened',
   );
+  recordHub(ctx, agentId, sessionId, { kind: 'session', phase: reused ? 'hello' : 'opened' });
+  if (back) recordHub(ctx, agentId, sessionId, { kind: 'session', phase: 'live' });
   // Back from away, or what the closed sessions owned goes elsewhere (or here) now.
   if (back || evicted || reclaimed.length > 0) ctx.outbox.kick();
   return { sessionId, reclaimed };

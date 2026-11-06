@@ -21,7 +21,7 @@ function setup() {
   const adopt = (id: string) => {
     const row = repo.get(id);
     if (!row) throw new Error('no row');
-    return adoptAwayWindows(repo, row, h.clock.now().toISOString());
+    return adoptAwayWindows(h.ctx, repo, row, h.clock.now().toISOString());
   };
   /** A window of `agent` that owns two threads and has gone away. */
   const awayWindow = (agent = 'alice-agent', meshWindow = true) => {

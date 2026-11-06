@@ -8,6 +8,7 @@ import type {
 } from '../contracts';
 import { createControlModule } from '../modules/control';
 import { createMessagingModule } from '../modules/messaging';
+import { hubRecorder } from '../modules/observe/hub-event';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
 import { SessionDispatcher } from '../modules/sessions/dispatcher';
@@ -118,6 +119,7 @@ export function createDispatchHarness(): DispatchHarness {
     messaging: h.messaging,
     transport,
     logger: h.ctx.logger,
+    record: hubRecorder(h.ctx),
   });
   const { orphans } = sessions as SessionsServiceImpl;
   return { ...h, sessions, orphans, transport, dispatcher };

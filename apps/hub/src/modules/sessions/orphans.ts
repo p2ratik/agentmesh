@@ -3,6 +3,7 @@ import type { MeshMessage, ReleasedMarker } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { MessagingService } from '../../contracts';
 import { threadKey } from '../../core/ids';
+import { recordHub } from '../observe/hub-event';
 import { type OrphanRow, OrphansRepo } from './orphans.repo';
 import type { SessionsRepo } from './sessions.repo';
 
@@ -35,6 +36,7 @@ export class OrphanDecisions {
     if (this.#repo.owner(threadId, agentId) !== null) return;
     const dueAt = new Date(this.#ctx.clock.now().getTime() + this.#minutes() * MINUTE_MS);
     if (!this.#rows.insertOrphan(threadId, agentId, releasedBy, dueAt.toISOString())) return;
+    this.#note(agentId, threadId, 'recorded');
     this.#messaging.post({
       threadId,
       senderId: this.#messaging.hubId,
@@ -59,6 +61,10 @@ export class OrphanDecisions {
     this.#rows.markOrphanEscalated(threadId, agentId, this.#ctx.clock.now().toISOString());
   }
 
+  #note(agentId: string, threadId: number, phase: 'recorded' | 'escalated' | 'settled'): void {
+    recordHub(this.#ctx, agentId, null, { kind: 'orphan', thread: threadKey(threadId), phase });
+  }
+
   /** Settles every due row, each in its own transaction; returns how many escalated. */
   tick(now: Date): number {
     // ponytail: escalated rows are rechecked each tick until their thread is owned or closed; a
@@ -78,7 +84,10 @@ export class OrphanDecisions {
 
   /** Stops the timers of these threads (their asker took them back). */
   forget(agentId: string, threadIds: readonly number[]): void {
-    for (const threadId of threadIds) this.#rows.deleteOrphan(threadId, agentId);
+    for (const threadId of threadIds) {
+      this.#rows.deleteOrphan(threadId, agentId);
+      this.#note(agentId, threadId, 'settled');
+    }
   }
 
   /**
@@ -90,10 +99,12 @@ export class OrphanDecisions {
     const owned = this.#repo.owner(threadId, agent) !== null;
     if (owned || this.#messaging.thread(threadId).status === 'closed') {
       this.#rows.deleteOrphan(threadId, agent);
+      this.#note(agent, threadId, 'settled');
       return false;
     }
     if (row.escalated_at !== null) return false;
     this.#rows.markOrphanEscalated(threadId, agent, at);
+    this.#note(agent, threadId, 'escalated');
     const { index, logger } = this.#ctx;
     const owner = index.agent(agent)?.owner;
     if (!owner) return false;

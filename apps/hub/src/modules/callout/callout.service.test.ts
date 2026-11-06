@@ -145,3 +145,12 @@ describe('callout refusal logs', () => {
     expect(s.logs[1]?.fields).toMatchObject({ reason: 'unknown key', nkey: user.getPublicKey() });
   });
 });
+
+describe('callout observability', () => {
+  it('a callout denial records auth denied', async () => {
+    const s = setup();
+    await s.connect('203.0.113.7');
+    const rows = s.ctx.db.all<{ kind: string; body: string }>('SELECT kind, body FROM events');
+    expect(rows.map((r) => [r.kind, JSON.parse(r.body).event])).toEqual([['auth', 'denied']]);
+  });
+});

@@ -28,6 +28,8 @@ export interface RouterDeps {
   sessions?: Pick<SessionsService, 'verify' | 'recordClaims'>;
   /** `db.transaction`: a claiming handler and its claims commit together. */
   transaction<T>(fn: () => T): T;
+  /** Told of every failed call: who, which method, which error code. Never the params. */
+  onError?: (caller: string, method: string, code: string) => void;
   /** Milliseconds, for the rate limiter; defaults to `Date.now`. */
   now?: () => number;
 }
@@ -40,7 +42,7 @@ export interface RouterDeps {
 export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
   const limiter = new RpcRateLimiter();
   const now = deps.now ?? Date.now;
-  return async (ctx: RpcCallContext, rawParams: unknown) => {
+  const dispatch = async (ctx: RpcCallContext, rawParams: unknown) => {
     if (!isRpcMethodName(ctx.method)) {
       throw new MeshError('not_found', `Unknown method "${ctx.method}"`);
     }
@@ -65,6 +67,21 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
     const key = ctx.idempotencyKey;
     if (!key) return run();
     return runOnce(deps.idempotency, caller.id, key, method, def.cacheResponse === false, run);
+  };
+  return async (ctx, rawParams) => {
+    try {
+      return await dispatch(ctx, rawParams);
+    } catch (error) {
+      // Only known methods; `telemetry.report` is how events arrive, so its failures stay out.
+      if (isRpcMethodName(ctx.method) && ctx.method !== 'telemetry.report') {
+        deps.onError?.(
+          ctx.caller,
+          ctx.method,
+          error instanceof MeshError ? error.code : 'internal',
+        );
+      }
+      throw error;
+    }
   };
 }
 

@@ -52,8 +52,9 @@ describe('observe.timeline over the router', () => {
     }
     return h.dispatch({ caller, method, session: known.get(caller) }, params);
   };
+  // These tests are about reported events; the hub's own (session hellos) are left out.
   const read = (h: Hub, caller: string, params: object = {}) =>
-    call(h, caller, 'observe.timeline', params) as Promise<{
+    call(h, caller, 'observe.timeline', { kinds: ['tool'], ...params }) as Promise<{
       events: Array<{ agent: string; id: string }>;
       text: string;
       truncated: boolean;

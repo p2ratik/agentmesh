@@ -4,6 +4,7 @@ import { PublicNkey } from '@agentmesh/protocol';
 import type { KeyPair } from '@nats-io/nkeys';
 import type { HubContext } from '../../context';
 import type { EnrollmentService } from '../../contracts';
+import { recordHub } from '../observe/hub-event';
 import { type AuthRequest, type Decision, decide, serverRequest } from './decide';
 import { parseJwt, signedByIssuer, signJwt } from './jwt';
 import { FailureLimiter } from './limiter';
@@ -122,6 +123,9 @@ export class CalloutService {
       );
     } else {
       this.#logRefusal(host, decision.refused, request);
+      // No reason code: the fixed list has none for auth; the refusal text stays in the log.
+      const hubId = this.#ctx.loaded.config.hub.serviceId;
+      recordHub(this.#ctx, hubId, null, { kind: 'auth', event: 'denied' });
     }
     const response = signJwt(
       this.#keys.issuer,

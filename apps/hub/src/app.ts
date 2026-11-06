@@ -9,6 +9,7 @@ import { Db } from './db/database';
 import { migrate } from './db/migrate';
 import { CalloutService, type LoadedCalloutKeys } from './modules/callout';
 import { createNatsIngestTransport } from './modules/ingest';
+import { hubRecorder, recordHub } from './modules/observe/hub-event';
 import { type Subscription, startPresenceListener } from './modules/presence';
 import { SessionDispatcher } from './modules/sessions/dispatcher';
 import { NatsSessionTransport } from './modules/sessions/nats-transport';
@@ -126,6 +127,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       messaging,
       transport: sessionTransport,
       logger,
+      record: hubRecorder(context),
     });
   }
   if (sys && options.callout) {
@@ -138,6 +140,8 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     handlers: built.handlers,
     idempotency,
     logger,
+    onError: (caller, method, code) =>
+      recordHub(context, caller, null, { kind: 'rpc', method, caller, code }),
     sessions: built.services.sessions,
     transaction: (fn) => db.transaction(fn),
     now: () => clock.now().getTime(),

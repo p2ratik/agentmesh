@@ -1,5 +1,6 @@
 import { DAY_MS } from '@agentmesh/common';
 import type { HubContext } from '../../context';
+import { recordHub } from '../observe/hub-event';
 import type { SessionRow, SessionsRepo } from './sessions.repo';
 
 /** Closed sessions are kept this long (a returning process reclaims from its closed one), then deleted. */
@@ -10,13 +11,26 @@ const CLOSED_RETENTION_MS = 30 * DAY_MS;
  * session (inactive, not the mesh window) is recorded as one: its threads' answers then go to
  * the window as a closed asker's. A window restart or an active session's close is not. An
  * eviction counts too: a live private process it closes may cause one spurious notice before its
- * next hello reclaims its threads.
+ * next hello reclaims its threads. Records `closed` (or `evicted`).
  */
-export function releaseAndClose(repo: SessionsRepo, sessionId: string, at: string): number[] {
+export function releaseAndClose(
+  ctx: HubContext,
+  repo: SessionsRepo,
+  sessionId: string,
+  at: string,
+  phase: 'closed' | 'evicted' = 'closed',
+): number[] {
   const row = repo.get(sessionId);
   const released = repo.releaseOwned(sessionId);
   repo.close(sessionId, at, row?.active === 0 && row.mesh_window === 0);
+  if (row) recordHub(ctx, row.agent_id, sessionId, { kind: 'session', phase });
   return released;
+}
+
+/** A session that was away is live again: records it, and what waited for it goes now. */
+export function backLive(ctx: HubContext, agentId: string, sessionId: string): void {
+  recordHub(ctx, agentId, sessionId, { kind: 'session', phase: 'live' });
+  ctx.outbox.kick();
 }
 
 /**
@@ -35,9 +49,12 @@ export function expireSessions(
   const graceBefore = new Date(now.getTime() - ownershipGraceMinutes * 60_000).toISOString();
   const result = ctx.db.transaction(() => {
     const stale = repo.staleLive(staleBefore);
-    for (const row of stale) repo.markAway(row.id, at);
+    for (const row of stale) {
+      repo.markAway(row.id, at);
+      recordHub(ctx, row.agent_id, row.id, { kind: 'session', phase: 'away' });
+    }
     const expired = repo.awayBefore(graceBefore);
-    for (const row of expired) releaseAndClose(repo, row.id, at);
+    for (const row of expired) releaseAndClose(ctx, repo, row.id, at);
     return { away: stale.length, closed: expired.length };
   });
   if (result.away || result.closed) ctx.logger.info(result, 'sessions expired');
@@ -69,6 +86,6 @@ export function evictStalest(
 ): number {
   const keep = ctx.loaded.config.limits.maxSessionsPerAgent - 1;
   const evicted = stalest(repo.listLive(agentId), keep);
-  for (const row of evicted) releaseAndClose(repo, row.id, at);
+  for (const row of evicted) releaseAndClose(ctx, repo, row.id, at, 'evicted');
   return evicted.length;
 }

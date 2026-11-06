@@ -1,5 +1,7 @@
 import type { Logger } from '@agentmesh/common';
+import type { HubContext } from '../../context';
 import { threadKey } from '../../core/ids';
+import { recordHub } from '../observe/hub-event';
 import { releaseAndClose } from './liveness';
 import { reclaimReleased } from './ownership';
 import type { SessionRow, SessionsRepo } from './sessions.repo';
@@ -15,18 +17,31 @@ export interface Adopted {
  * of after the ownership grace. Live windows, private sessions and other agents are never
  * touched. DB only; run inside the activating transaction.
  */
-export function adoptAwayWindows(repo: SessionsRepo, window: SessionRow, at: string): Adopted {
+export function adoptAwayWindows(
+  ctx: HubContext,
+  repo: SessionsRepo,
+  window: SessionRow,
+  at: string,
+): Adopted {
   const result: Adopted = { closed: [], reclaimed: [] };
   if (window.mesh_window !== 1) return result;
   const stale = repo
     .listLive(window.agent_id)
     .filter((s) => s.id !== window.id && s.mesh_window === 1 && s.liveness === 'away');
   for (const { id } of stale) {
-    releaseAndClose(repo, id, at);
+    releaseAndClose(ctx, repo, id, at);
     // Closing changed its `released`: read it again.
     const closed = repo.get(id);
     result.closed.push(id);
-    if (closed) result.reclaimed.push(...reclaimReleased(repo, closed, window.id, at));
+    const taken = closed ? reclaimReleased(repo, closed, window.id, at) : [];
+    result.reclaimed.push(...taken);
+    const threads = taken.map(threadKey);
+    const replaced = { replacedSession: id, ...(threads.length ? { threads } : {}) };
+    recordHub(ctx, window.agent_id, window.id, {
+      kind: 'session',
+      phase: 'taken_over',
+      ...replaced,
+    });
   }
   return result;
 }
