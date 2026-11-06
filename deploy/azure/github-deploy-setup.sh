@@ -18,6 +18,9 @@
 # deleted; nothing secret is printed. Safe to re-run: it reuses what exists and rotates the key.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1 # Git Bash: never rewrite /subscriptions/… arguments into Windows paths
+# Git Bash: az on Windows ends its output lines with \r\n and $(…) keeps the \r, so every id stored
+# below would carry an invisible \r (secrets with it break the deploy's Azure sign-in). Strip it.
+az() { command az "$@" | tr -d '\r'; }
 
 : "${REPO:?set REPO to owner/name of the GitHub repository}"
 : "${RG:?set RG to the resource group of the VM}"
@@ -53,15 +56,24 @@ APP_ID=$(az ad app list --display-name "$APP_NAME" --query '[0].appId' -o tsv)
 SP_ID=$(az ad sp list --filter "appId eq '$APP_ID'" --query '[0].id' -o tsv)
 [ -n "$SP_ID" ] || SP_ID=$(az ad sp create --id "$APP_ID" --query id -o tsv)
 
-# Tokens GitHub issues for jobs in this repo's environment are the only way to sign in.
-if [ "$(az ad app federated-credential list --id "$APP_ID" --query "length([?name=='github-$ENVIRONMENT'])" -o tsv)" = 0 ]; then
-  cat >"$TMP/federation.json" <<EOF
+# Tokens GitHub issues for jobs in this repo's environment are the only way to sign in. Their
+# subject starts with the repo's prefix as GitHub reports it: with immutable subjects that is
+# repo:<owner>@<owner id>/<repo>@<repo id>, older repos use repo:<owner>/<repo>.
+PREFIX=$(gh api "repos/$REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null) || PREFIX=
+SUBJECT="${PREFIX:-repo:$REPO}:environment:$ENVIRONMENT"
+cat >"$TMP/federation.json" <<EOF
 {"name": "github-$ENVIRONMENT", "issuer": "https://token.actions.githubusercontent.com",
- "subject": "repo:$REPO:environment:$ENVIRONMENT", "audiences": ["api://AzureADTokenExchange"],
+ "subject": "$SUBJECT", "audiences": ["api://AzureADTokenExchange"],
  "description": "GitHub Actions deploys of $REPO"}
 EOF
+if [ "$(az ad app federated-credential list --id "$APP_ID" --query "length([?name=='github-$ENVIRONMENT'])" -o tsv)" = 0 ]; then
   az ad app federated-credential create --id "$APP_ID" --parameters "$(azfile "$TMP/federation.json")" --output none
+else
+  # A re-run fixes a subject an earlier version of this script got wrong.
+  az ad app federated-credential update --id "$APP_ID" --federated-credential-id "github-$ENVIRONMENT" \
+    --parameters "$(azfile "$TMP/federation.json")" --output none
 fi
+echo "Azure trusts tokens with the subject $SUBJECT"
 
 # Add, change and remove rules on the NSG: nothing else, on nothing else.
 if [ "$(az role definition list --custom-role-only true --name "$ROLE_NAME" --query 'length(@)' -o tsv)" = 0 ]; then

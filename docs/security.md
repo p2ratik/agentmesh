@@ -1190,8 +1190,10 @@ identity (Azure), and a moment when SSH is open to an address other than the adm
   admin's authenticated session. **Residual risk:** if a runner dies before its cleanup, its
   address (one shared GitHub-hosted IP) can reach sshd until the next deploy. It still needs a key.
 - **Threat: a leaked cloud credential.** **Mitigation:** none exists to leak. The app registration
-  has no client secret: Azure accepts only GitHub's OIDC tokens for the subject
-  `repo:<owner>/<repo>:environment:production`. Its custom role can only read, write and delete
+  has no client secret: Azure accepts only GitHub's OIDC tokens for the repo's `production`
+  environment. With immutable subjects
+  (`repo:<owner>@<owner id>/<repo>@<repo id>:environment:production`), a repo deleted and
+  re-created under the same name cannot match it. Its custom role can only read, write and delete
   rules on the one NSG, so it cannot touch the VM, its disks or its run commands. **Residual risk:**
   a compromised deploy job could open other ports in that NSG. Behind them, the hub's HTTP port
   listens on 127.0.0.1 only and NATS is already public.
