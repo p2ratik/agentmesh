@@ -417,8 +417,11 @@ DEPLOY_HOST=<the VM's DNS name> ./deploy/azure/github-deploy-setup.sh
 
 It:
 - **Azure:** creates the Entra app registration `agentmesh-deploy-<owner>-<repo>`, with a
-  federated credential for `repo:<owner>/<repo>:environment:production` and no client secret. It
-  also creates a custom role, "AgentMesh deploy NSG rules (<rg>)", which can only read, write and
+  federated credential for the repo's `production` environment and no client secret. Its subject
+  is the prefix GitHub reports for the repo (`gh api repos/<owner>/<repo>/actions/oidc/customization/sub`)
+  plus `:environment:production`. With immutable subjects, the GitHub default for new repos, that
+  is `repo:<owner>@<owner id>/<repo>@<repo id>:environment:production`, otherwise
+  `repo:<owner>/<repo>:environment:production`. A re-run corrects it. It also creates a custom role, "AgentMesh deploy NSG rules (<rg>)", which can only read, write and
   delete rules, and assigns it on that one NSG.
 - **Server:** generates an ed25519 deploy key and installs `agentmesh-deploy` and the key on the
   server (`deploy/auto-deploy/install.sh`; the key's line starts
