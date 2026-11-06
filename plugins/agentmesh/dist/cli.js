@@ -840,13 +840,13 @@ var require_redact = __commonJS({
         paths = [],
         censor = "[REDACTED]",
         serialize = JSON.stringify,
-        strict = true,
+        strict: strict2 = true,
         remove = false
       } = options;
       validatePaths(paths);
       const pathStructure = buildPathStructure(paths);
       return function redact(obj) {
-        if (strict && (obj === null || typeof obj !== "object")) {
+        if (strict2 && (obj === null || typeof obj !== "object")) {
           if (obj === null || obj === void 0) {
             return serialize ? serialize(obj) : obj;
           }
@@ -958,7 +958,7 @@ var require_redaction = __commonJS({
     var { redactFmtSym, wildcardFirstSym } = require_symbols();
     var rx = /[^.[\]]+|\[([^[\]]*?)\]/g;
     var CENSOR = "[Redacted]";
-    var strict = false;
+    var strict2 = false;
     function redaction(opts, serialize) {
       const { paths, censor, remove } = handle(opts);
       const shape = paths.reduce((o, str) => {
@@ -993,7 +993,7 @@ var require_redaction = __commonJS({
         return o;
       }, /* @__PURE__ */ Object.create(null));
       const result = Object.assign(/* @__PURE__ */ Object.create(null), {
-        [redactFmtSym]: Redact({ paths, censor, serialize, strict, remove })
+        [redactFmtSym]: Redact({ paths, censor, serialize, strict: strict2, remove })
       });
       const topCensor = (...args) => {
         return typeof censor === "function" ? serialize(censor(...args)) : serialize(censor);
@@ -1009,7 +1009,7 @@ var require_redaction = __commonJS({
             paths: shape[k],
             censor: wrappedCensor,
             serialize,
-            strict,
+            strict: strict2,
             remove
           });
         }
@@ -9073,7 +9073,7 @@ var require_resolve_block_scalar = __commonJS({
       const end = start + header.length + scalar.source.length;
       return { value, type, comment: header.comment, range: [start, end, end] };
     }
-    function parseBlockScalarHeader({ offset, props }, strict, onError) {
+    function parseBlockScalarHeader({ offset, props }, strict2, onError) {
       if (props[0].type !== "block-scalar-header") {
         onError(props[0], "IMPOSSIBLE", "Block scalar header not found");
         return null;
@@ -9110,7 +9110,7 @@ var require_resolve_block_scalar = __commonJS({
             length += token.source.length;
             break;
           case "comment":
-            if (strict && !hasSpace) {
+            if (strict2 && !hasSpace) {
               const message = "Comments must be separated from other tokens by white space characters";
               onError(token, "MISSING_CHAR", message);
             }
@@ -9153,7 +9153,7 @@ var require_resolve_flow_scalar = __commonJS({
     "use strict";
     var Scalar = require_Scalar();
     var resolveEnd = require_resolve_end();
-    function resolveFlowScalar(scalar, strict, onError) {
+    function resolveFlowScalar(scalar, strict2, onError) {
       const { offset, type, source, end } = scalar;
       let _type;
       let value;
@@ -9182,7 +9182,7 @@ var require_resolve_flow_scalar = __commonJS({
           };
       }
       const valueEnd = offset + source.length;
-      const re = resolveEnd.resolveEnd(end, valueEnd, strict, onError);
+      const re = resolveEnd.resolveEnd(end, valueEnd, strict2, onError);
       return {
         value,
         type: _type,
@@ -9844,7 +9844,7 @@ var require_cst_scalar = __commonJS({
     var resolveFlowScalar = require_resolve_flow_scalar();
     var errors = require_errors();
     var stringifyString = require_stringifyString();
-    function resolveAsScalar(token, strict = true, onError) {
+    function resolveAsScalar(token, strict2 = true, onError) {
       if (token) {
         const _onError = (pos, code, message) => {
           const offset = typeof pos === "number" ? pos : Array.isArray(pos) ? pos[0] : pos.offset;
@@ -9857,9 +9857,9 @@ var require_cst_scalar = __commonJS({
           case "scalar":
           case "single-quoted-scalar":
           case "double-quoted-scalar":
-            return resolveFlowScalar.resolveFlowScalar(token, strict, _onError);
+            return resolveFlowScalar.resolveFlowScalar(token, strict2, _onError);
           case "block-scalar":
-            return resolveBlockScalar.resolveBlockScalar({ options: { strict } }, token, _onError);
+            return resolveBlockScalar.resolveBlockScalar({ options: { strict: strict2 } }, token, _onError);
         }
       }
       return null;
@@ -46047,6 +46047,209 @@ var LeaseConflict = external_exports.object({
   expiresAt: IsoDate
 });
 
+// ../../packages/protocol/src/observe-codes.ts
+var REASON_CODES = [
+  "send.unknown_key",
+  "send.bad_address",
+  "send.alias_mismatch",
+  "send.content_mismatch",
+  "send.no_record",
+  "send.claim_failed",
+  "list_agents",
+  "path.outside_worktree",
+  "path.no_file",
+  "command.not_listed",
+  "command.needs_approval",
+  "tool.unknown",
+  "tool.enter_worktree",
+  "tool.agent_isolated",
+  "tool.workflow",
+  "marker.unverified",
+  "guard.unreadable",
+  "guard.error",
+  "activation.wrong_code",
+  "activation.guard_down",
+  "activation.not_window",
+  "activation.another_window_live",
+  "activation.no_proof",
+  "activation.hub_error"
+];
+var EVENT_SOURCES = ["plugin", "guard", "hook"];
+var REPORTED_KINDS = [
+  "connected",
+  "nats",
+  "activation",
+  "tool",
+  "delivery",
+  "relay",
+  "guard",
+  "hook",
+  "dropped"
+];
+var HUB_KINDS = ["session", "delivery", "relay", "orphan", "rpc", "auth"];
+var NATS_EVENTS = ["disconnect", "reconnect", "error"];
+var ACTIVATION_PHASES = [
+  "check_sent",
+  "activated",
+  "refused",
+  "failed",
+  "renewed",
+  "renewal_fallback",
+  "deactivated"
+];
+var DELIVERY_MODES = ["push", "pull"];
+var PLUGIN_DELIVERY_STAGES = [
+  "received",
+  "pushed",
+  "push_failed",
+  "deduped",
+  "held"
+];
+var PLUGIN_RELAY_STAGES = ["pushed", "claimed", "expired", "denied"];
+var GUARD_DECISIONS = ["deny", "ask"];
+var HOOK_NOTES = [
+  "note_shown",
+  "pointer_labelled",
+  "window_labelled",
+  "not_mesh_labelled",
+  "error"
+];
+var HUB_SESSION_PHASES = [
+  "opened",
+  "hello",
+  "away",
+  "live",
+  "closed",
+  "evicted",
+  "taken_over"
+];
+var HUB_DELIVERY_STAGES = ["sent", "acked", "failed", "no_session"];
+var HUB_RELAY_STAGES = ["sent", "forwarded", "not_forwarded"];
+var ORPHAN_PHASES = ["recorded", "escalated", "settled"];
+var AUTH_EVENTS = ["denied", "budget_hit"];
+
+// ../../packages/protocol/src/observe.ts
+var ThreadRef = external_exports.string().regex(/^thr-\d{1,12}$/);
+var MessageRef = external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/);
+var TaskRef = external_exports.string().regex(/^task-\d{1,12}$/);
+var PlanRef = external_exports.string().regex(/^plan-\d{1,12}$/);
+var Token = external_exports.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
+var Ms = external_exports.number().int().nonnegative();
+var Count = external_exports.number().int().nonnegative();
+var Reason = external_exports.enum(REASON_CODES);
+var Time = external_exports.iso.datetime({ offset: true }).max(40);
+var common = { id: external_exports.uuid().max(36), at: Time, session: SessionId.nullable() };
+var reported = { ...common, source: external_exports.enum(EVENT_SOURCES) };
+var hub = { ...common, source: external_exports.literal("hub") };
+var strict = (shape) => external_exports.object(shape).strict();
+var ReportedEvent = external_exports.discriminatedUnion("kind", [
+  strict({
+    ...reported,
+    kind: external_exports.literal("connected"),
+    pluginVersion: Token,
+    claudeCodeVersion: Token.nullable(),
+    os: Token,
+    arch: Token,
+    node: Token,
+    meshWindow: external_exports.boolean(),
+    pull: external_exports.boolean()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("nats"),
+    event: external_exports.enum(NATS_EVENTS),
+    code: Token.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("activation"),
+    phase: external_exports.enum(ACTIVATION_PHASES),
+    mode: external_exports.enum(DELIVERY_MODES),
+    reason: Reason.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("tool"),
+    tool: Token,
+    /** `ok` or an error code. */
+    outcome: Token,
+    ms: Ms,
+    thread: ThreadRef.optional(),
+    task: TaskRef.optional(),
+    plan: PlanRef.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("delivery"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(PLUGIN_DELIVERY_STAGES),
+    sinceReceivedMs: Ms
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("relay"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(PLUGIN_RELAY_STAGES),
+    reason: Reason.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("guard"),
+    tool: Token,
+    decision: external_exports.enum(GUARD_DECISIONS),
+    reason: Reason,
+    /** The offending key name of a `send.unknown_key`, kept only when it is a plain identifier. */
+    key: external_exports.string().regex(/^[A-Za-z_]{1,40}$/).optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("hook"),
+    note: external_exports.enum(HOOK_NOTES),
+    unread: Count.optional()
+  }),
+  strict({ ...reported, kind: external_exports.literal("dropped"), count: Count })
+]);
+var HubEvent = external_exports.discriminatedUnion("kind", [
+  strict({
+    ...hub,
+    kind: external_exports.literal("session"),
+    phase: external_exports.enum(HUB_SESSION_PHASES),
+    replacedSession: SessionId.optional(),
+    threads: external_exports.array(ThreadRef).max(50).optional()
+  }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("delivery"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(HUB_DELIVERY_STAGES),
+    code: Token.optional()
+  }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("relay"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(HUB_RELAY_STAGES),
+    reason: Reason.optional()
+  }),
+  strict({ ...hub, kind: external_exports.literal("orphan"), thread: ThreadRef, phase: external_exports.enum(ORPHAN_PHASES) }),
+  strict({ ...hub, kind: external_exports.literal("rpc"), method: Token, caller: Token, code: Token }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("auth"),
+    event: external_exports.enum(AUTH_EVENTS),
+    reason: Reason.optional()
+  })
+]);
+var stored = { agent: external_exports.string().max(64), receivedAt: Time };
+var ObservedEvent = external_exports.union([
+  ...ReportedEvent.options.map((o) => o.extend(stored)),
+  ...HubEvent.options.map((o) => o.extend(stored))
+]);
+
 // ../../packages/protocol/src/rpc/define.ts
 var defineMethod = (def) => def;
 var ANY_CALLER = ["agent", "human", "service"];
@@ -46368,6 +46571,43 @@ var messagingMethods = {
   })
 };
 
+// ../../packages/protocol/src/rpc/observe.ts
+var MAX_REPORT_EVENTS = 100;
+var MAX_TIMELINE_EVENTS = 2e3;
+var When = external_exports.union([
+  external_exports.iso.datetime({ offset: true }).max(40),
+  external_exports.string().regex(/^\d{1,4}[mhd]$/)
+]);
+var observeMethods = {
+  "telemetry.report": defineMethod({
+    description: "Ship a batch of this session's behaviour events (ids, counts and codes only).",
+    callers: ["agent"],
+    params: external_exports.object({ events: external_exports.array(ReportedEvent).max(MAX_REPORT_EVENTS) }),
+    result: external_exports.object({
+      accepted: external_exports.number().int().nonnegative(),
+      dropped: external_exports.number().int().nonnegative()
+    })
+  }),
+  "observe.timeline": defineMethod({
+    description: "Read the event timeline. Only humans listed in observability.viewers may.",
+    callers: ["agent"],
+    params: external_exports.object({
+      agent: ParticipantId.optional(),
+      session: SessionId.optional(),
+      thread: external_exports.string().regex(/^thr-\d{1,12}$/).optional(),
+      since: When.default("2h"),
+      until: When.optional(),
+      kinds: external_exports.array(external_exports.enum([...REPORTED_KINDS, ...HUB_KINDS])).max(20).optional(),
+      limit: external_exports.number().int().min(1).max(MAX_TIMELINE_EVENTS).default(500)
+    }),
+    result: external_exports.object({
+      events: external_exports.array(ObservedEvent),
+      text: external_exports.string(),
+      truncated: external_exports.boolean()
+    })
+  })
+};
+
 // ../../packages/protocol/src/rpc/planning.ts
 var planningMethods = {
   "plan.start": defineMethod({
@@ -46457,7 +46697,9 @@ var sessionMethods = {
       /** The hub-issued id this session sends on every call. */
       sessionId: SessionId,
       /** Thread keys taken back from the previous session because nobody else took them. */
-      reclaimed: external_exports.array(external_exports.string())
+      reclaimed: external_exports.array(external_exports.string()),
+      /** Whether to record events (`observability.enabled`); older hubs send nothing, so a plugin records nothing. */
+      observability: external_exports.object({ enabled: external_exports.boolean(), maxBufferedEvents: external_exports.number().int().positive() }).default({ enabled: false, maxBufferedEvents: 500 })
     })
   }),
   "session.bye": defineMethod({
@@ -46628,7 +46870,8 @@ var RPC_METHODS = {
   ...planningMethods,
   ...leaseMethods,
   ...adminMethods,
-  ...enrollmentMethods
+  ...enrollmentMethods,
+  ...observeMethods
 };
 
 // ../../packages/config/src/schema/integrations.ts
@@ -46789,6 +47032,16 @@ var RelayConfig = external_exports.object({
    * window, then the hub pings them on Discord.
    */
   closedAskerEscalationMinutes: external_exports.number().int().min(1).max(1440).default(CLOSED_ASKER_DEFAULT_MINUTES)
+});
+var ObservabilityConfig = external_exports.object({
+  /** Plugins report and the hub stores; false turns both off (hub metrics stay). */
+  enabled: external_exports.boolean().default(true),
+  /** Humans whose agents may read timelines; empty means nobody via the mesh. */
+  viewers: external_exports.array(external_exports.string()).default([]),
+  retentionDays: external_exports.number().int().min(1).default(14),
+  /** Events the hub accepts per agent per minute; the rest are counted as dropped. */
+  maxEventsPerMinute: external_exports.number().int().min(1).default(300),
+  client: external_exports.object({ maxBufferedEvents: external_exports.number().int().min(50).default(500) }).prefault({})
 });
 
 // ../../packages/config/src/schema/rules.ts
@@ -46987,6 +47240,7 @@ var MeshConfigSchema = external_exports.object({
   leases: LeaseConfig.prefault({}),
   presence: PresenceConfig.prefault({}),
   relay: RelayConfig.prefault({}),
+  observability: ObservabilityConfig.prefault({}),
   enrollment: EnrollmentConfig.prefault({}),
   planning: PlanningConfig.prefault({}),
   tasks: external_exports.object({ defaultWorkflow: external_exports.string().default("feature") }).prefault({}),
@@ -47030,6 +47284,14 @@ function validateReferences(config2) {
   if (facilitator !== "initiator") expectKind("planning.facilitator", facilitator, "agent");
   config2.rules.forEach((rule, i) => {
     checkRule(rule, `rules[${i}]`, expectKind, workflowIds, add);
+  });
+  config2.observability.viewers.forEach((id, i) => {
+    if (!humans.has(id)) {
+      add(
+        `observability.viewers[${i}]`,
+        `observability.viewers: "${id}" is not a human in this mesh`
+      );
+    }
   });
   checkDiscord(config2, add);
   checkIngest(config2, add);
@@ -48836,11 +49098,11 @@ function requireKeys(keys, hubId) {
   return { issuer: keys.issuer, xkey: keys.xkey, sysNkey: keys.sysNkey };
 }
 function renderCalloutAuth(staticUsers, prefix, keys) {
-  const hub = staticUsers.find((u) => u.kind === "hub");
-  if (!hub) {
+  const hub2 = staticUsers.find((u) => u.kind === "hub");
+  if (!hub2) {
     throw new MeshError("invalid_request", "--auth-callout needs the hub nkey (`keys add hub`).");
   }
-  const { issuer, xkey, sysNkey } = requireKeys(keys, hub.id);
+  const { issuer, xkey, sysNkey } = requireKeys(keys, hub2.id);
   const authUsers = [...staticUsers.map((u) => u.nkey), sysNkey];
   return [
     "",
@@ -48854,7 +49116,7 @@ function renderCalloutAuth(staticUsers, prefix, keys) {
     "  }",
     `  ${SYS_ACCOUNT} {`,
     "    users: [",
-    renderNkeyUser(`${hub.id} system user (kick only)`, sysNkey, SYS_USER_PERMISSIONS, "      "),
+    renderNkeyUser(`${hub2.id} system user (kick only)`, sysNkey, SYS_USER_PERMISSIONS, "      "),
     "    ]",
     "  }",
     "}",

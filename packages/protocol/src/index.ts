@@ -3,6 +3,7 @@ export * from './events';
 export * from './ingest';
 export * from './leases';
 export * from './messages';
+export * from './observe';
 export * from './planning';
 export * from './primitives';
 export * from './rpc';

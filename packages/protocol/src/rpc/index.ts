@@ -3,6 +3,7 @@ import { adminMethods } from './admin';
 import { enrollmentMethods } from './enrollment';
 import { leaseMethods } from './leases';
 import { messagingMethods } from './messaging';
+import { observeMethods } from './observe';
 import { planningMethods } from './planning';
 import { sessionMethods } from './session';
 import { taskMethods } from './tasks';
@@ -10,6 +11,7 @@ import { taskMethods } from './tasks';
 export * from './define';
 export * from './envelope';
 export { MAX_PEEK_SENDERS } from './messaging';
+export { MAX_REPORT_EVENTS, MAX_TIMELINE_EVENTS } from './observe';
 export { TaskCreateParams } from './tasks';
 
 export const RPC_METHODS = {
@@ -20,6 +22,7 @@ export const RPC_METHODS = {
   ...leaseMethods,
   ...adminMethods,
   ...enrollmentMethods,
+  ...observeMethods,
 } as const;
 
 export type RpcMethods = typeof RPC_METHODS;

@@ -840,13 +840,13 @@ var require_redact = __commonJS({
         paths = [],
         censor = "[REDACTED]",
         serialize = JSON.stringify,
-        strict = true,
+        strict: strict2 = true,
         remove = false
       } = options;
       validatePaths(paths);
       const pathStructure = buildPathStructure(paths);
       return function redact(obj) {
-        if (strict && (obj === null || typeof obj !== "object")) {
+        if (strict2 && (obj === null || typeof obj !== "object")) {
           if (obj === null || obj === void 0) {
             return serialize ? serialize(obj) : obj;
           }
@@ -958,7 +958,7 @@ var require_redaction = __commonJS({
     var { redactFmtSym, wildcardFirstSym } = require_symbols();
     var rx = /[^.[\]]+|\[([^[\]]*?)\]/g;
     var CENSOR = "[Redacted]";
-    var strict = false;
+    var strict2 = false;
     function redaction(opts, serialize) {
       const { paths, censor, remove } = handle(opts);
       const shape = paths.reduce((o, str) => {
@@ -993,7 +993,7 @@ var require_redaction = __commonJS({
         return o;
       }, /* @__PURE__ */ Object.create(null));
       const result = Object.assign(/* @__PURE__ */ Object.create(null), {
-        [redactFmtSym]: Redact({ paths, censor, serialize, strict, remove })
+        [redactFmtSym]: Redact({ paths, censor, serialize, strict: strict2, remove })
       });
       const topCensor = (...args) => {
         return typeof censor === "function" ? serialize(censor(...args)) : serialize(censor);
@@ -1009,7 +1009,7 @@ var require_redaction = __commonJS({
             paths: shape[k],
             censor: wrappedCensor,
             serialize,
-            strict,
+            strict: strict2,
             remove
           });
         }
@@ -45665,6 +45665,209 @@ var LeaseConflict = external_exports.object({
   expiresAt: IsoDate
 });
 
+// ../../packages/protocol/src/observe-codes.ts
+var REASON_CODES = [
+  "send.unknown_key",
+  "send.bad_address",
+  "send.alias_mismatch",
+  "send.content_mismatch",
+  "send.no_record",
+  "send.claim_failed",
+  "list_agents",
+  "path.outside_worktree",
+  "path.no_file",
+  "command.not_listed",
+  "command.needs_approval",
+  "tool.unknown",
+  "tool.enter_worktree",
+  "tool.agent_isolated",
+  "tool.workflow",
+  "marker.unverified",
+  "guard.unreadable",
+  "guard.error",
+  "activation.wrong_code",
+  "activation.guard_down",
+  "activation.not_window",
+  "activation.another_window_live",
+  "activation.no_proof",
+  "activation.hub_error"
+];
+var EVENT_SOURCES = ["plugin", "guard", "hook"];
+var REPORTED_KINDS = [
+  "connected",
+  "nats",
+  "activation",
+  "tool",
+  "delivery",
+  "relay",
+  "guard",
+  "hook",
+  "dropped"
+];
+var HUB_KINDS = ["session", "delivery", "relay", "orphan", "rpc", "auth"];
+var NATS_EVENTS = ["disconnect", "reconnect", "error"];
+var ACTIVATION_PHASES = [
+  "check_sent",
+  "activated",
+  "refused",
+  "failed",
+  "renewed",
+  "renewal_fallback",
+  "deactivated"
+];
+var DELIVERY_MODES = ["push", "pull"];
+var PLUGIN_DELIVERY_STAGES = [
+  "received",
+  "pushed",
+  "push_failed",
+  "deduped",
+  "held"
+];
+var PLUGIN_RELAY_STAGES = ["pushed", "claimed", "expired", "denied"];
+var GUARD_DECISIONS = ["deny", "ask"];
+var HOOK_NOTES = [
+  "note_shown",
+  "pointer_labelled",
+  "window_labelled",
+  "not_mesh_labelled",
+  "error"
+];
+var HUB_SESSION_PHASES = [
+  "opened",
+  "hello",
+  "away",
+  "live",
+  "closed",
+  "evicted",
+  "taken_over"
+];
+var HUB_DELIVERY_STAGES = ["sent", "acked", "failed", "no_session"];
+var HUB_RELAY_STAGES = ["sent", "forwarded", "not_forwarded"];
+var ORPHAN_PHASES = ["recorded", "escalated", "settled"];
+var AUTH_EVENTS = ["denied", "budget_hit"];
+
+// ../../packages/protocol/src/observe.ts
+var ThreadRef = external_exports.string().regex(/^thr-\d{1,12}$/);
+var MessageRef = external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/);
+var TaskRef = external_exports.string().regex(/^task-\d{1,12}$/);
+var PlanRef = external_exports.string().regex(/^plan-\d{1,12}$/);
+var Token = external_exports.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
+var Ms = external_exports.number().int().nonnegative();
+var Count = external_exports.number().int().nonnegative();
+var Reason = external_exports.enum(REASON_CODES);
+var Time = external_exports.iso.datetime({ offset: true }).max(40);
+var common = { id: external_exports.uuid().max(36), at: Time, session: SessionId.nullable() };
+var reported = { ...common, source: external_exports.enum(EVENT_SOURCES) };
+var hub = { ...common, source: external_exports.literal("hub") };
+var strict = (shape) => external_exports.object(shape).strict();
+var ReportedEvent = external_exports.discriminatedUnion("kind", [
+  strict({
+    ...reported,
+    kind: external_exports.literal("connected"),
+    pluginVersion: Token,
+    claudeCodeVersion: Token.nullable(),
+    os: Token,
+    arch: Token,
+    node: Token,
+    meshWindow: external_exports.boolean(),
+    pull: external_exports.boolean()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("nats"),
+    event: external_exports.enum(NATS_EVENTS),
+    code: Token.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("activation"),
+    phase: external_exports.enum(ACTIVATION_PHASES),
+    mode: external_exports.enum(DELIVERY_MODES),
+    reason: Reason.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("tool"),
+    tool: Token,
+    /** `ok` or an error code. */
+    outcome: Token,
+    ms: Ms,
+    thread: ThreadRef.optional(),
+    task: TaskRef.optional(),
+    plan: PlanRef.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("delivery"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(PLUGIN_DELIVERY_STAGES),
+    sinceReceivedMs: Ms
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("relay"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(PLUGIN_RELAY_STAGES),
+    reason: Reason.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("guard"),
+    tool: Token,
+    decision: external_exports.enum(GUARD_DECISIONS),
+    reason: Reason,
+    /** The offending key name of a `send.unknown_key`, kept only when it is a plain identifier. */
+    key: external_exports.string().regex(/^[A-Za-z_]{1,40}$/).optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("hook"),
+    note: external_exports.enum(HOOK_NOTES),
+    unread: Count.optional()
+  }),
+  strict({ ...reported, kind: external_exports.literal("dropped"), count: Count })
+]);
+var HubEvent = external_exports.discriminatedUnion("kind", [
+  strict({
+    ...hub,
+    kind: external_exports.literal("session"),
+    phase: external_exports.enum(HUB_SESSION_PHASES),
+    replacedSession: SessionId.optional(),
+    threads: external_exports.array(ThreadRef).max(50).optional()
+  }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("delivery"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(HUB_DELIVERY_STAGES),
+    code: Token.optional()
+  }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("relay"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(HUB_RELAY_STAGES),
+    reason: Reason.optional()
+  }),
+  strict({ ...hub, kind: external_exports.literal("orphan"), thread: ThreadRef, phase: external_exports.enum(ORPHAN_PHASES) }),
+  strict({ ...hub, kind: external_exports.literal("rpc"), method: Token, caller: Token, code: Token }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("auth"),
+    event: external_exports.enum(AUTH_EVENTS),
+    reason: Reason.optional()
+  })
+]);
+var stored = { agent: external_exports.string().max(64), receivedAt: Time };
+var ObservedEvent = external_exports.union([
+  ...ReportedEvent.options.map((o) => o.extend(stored)),
+  ...HubEvent.options.map((o) => o.extend(stored))
+]);
+
 // ../../packages/protocol/src/rpc/define.ts
 var defineMethod = (def) => def;
 var ANY_CALLER = ["agent", "human", "service"];
@@ -45986,6 +46189,43 @@ var messagingMethods = {
   })
 };
 
+// ../../packages/protocol/src/rpc/observe.ts
+var MAX_REPORT_EVENTS = 100;
+var MAX_TIMELINE_EVENTS = 2e3;
+var When = external_exports.union([
+  external_exports.iso.datetime({ offset: true }).max(40),
+  external_exports.string().regex(/^\d{1,4}[mhd]$/)
+]);
+var observeMethods = {
+  "telemetry.report": defineMethod({
+    description: "Ship a batch of this session's behaviour events (ids, counts and codes only).",
+    callers: ["agent"],
+    params: external_exports.object({ events: external_exports.array(ReportedEvent).max(MAX_REPORT_EVENTS) }),
+    result: external_exports.object({
+      accepted: external_exports.number().int().nonnegative(),
+      dropped: external_exports.number().int().nonnegative()
+    })
+  }),
+  "observe.timeline": defineMethod({
+    description: "Read the event timeline. Only humans listed in observability.viewers may.",
+    callers: ["agent"],
+    params: external_exports.object({
+      agent: ParticipantId.optional(),
+      session: SessionId.optional(),
+      thread: external_exports.string().regex(/^thr-\d{1,12}$/).optional(),
+      since: When.default("2h"),
+      until: When.optional(),
+      kinds: external_exports.array(external_exports.enum([...REPORTED_KINDS, ...HUB_KINDS])).max(20).optional(),
+      limit: external_exports.number().int().min(1).max(MAX_TIMELINE_EVENTS).default(500)
+    }),
+    result: external_exports.object({
+      events: external_exports.array(ObservedEvent),
+      text: external_exports.string(),
+      truncated: external_exports.boolean()
+    })
+  })
+};
+
 // ../../packages/protocol/src/rpc/planning.ts
 var planningMethods = {
   "plan.start": defineMethod({
@@ -46075,7 +46315,9 @@ var sessionMethods = {
       /** The hub-issued id this session sends on every call. */
       sessionId: SessionId,
       /** Thread keys taken back from the previous session because nobody else took them. */
-      reclaimed: external_exports.array(external_exports.string())
+      reclaimed: external_exports.array(external_exports.string()),
+      /** Whether to record events (`observability.enabled`); older hubs send nothing, so a plugin records nothing. */
+      observability: external_exports.object({ enabled: external_exports.boolean(), maxBufferedEvents: external_exports.number().int().positive() }).default({ enabled: false, maxBufferedEvents: 500 })
     })
   }),
   "session.bye": defineMethod({
@@ -46246,7 +46488,8 @@ var RPC_METHODS = {
   ...planningMethods,
   ...leaseMethods,
   ...adminMethods,
-  ...enrollmentMethods
+  ...enrollmentMethods,
+  ...observeMethods
 };
 
 // ../../node_modules/.pnpm/@modelcontextprotocol+sdk@1.32.1_zod@4.6.7/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
@@ -48124,12 +48367,12 @@ var PullWatcher = class {
   }
   /** An inactive private session's record, with the threads it started that have unread replies. */
   async #record(hubSessionId) {
-    const { hub, activation, agentId, prefix, dir } = this.#deps;
+    const { hub: hub2, activation, agentId, prefix, dir } = this.#deps;
     const name = localSessionFile(prefix, agentId, hubSessionId);
     if (!name) return this.clear();
-    const peek = await hub.call("inbox.peek", {});
+    const peek = await hub2.call("inbox.peek", {});
     if (activation.lastDescription !== null || activation.pull) return;
-    if (hub.sessionId !== hubSessionId) return;
+    if (hub2.sessionId !== hubSessionId) return;
     const base = { ...this.#deps, hubSessionId, claudeSessionId: this.#deps.claudeSessionId() };
     const record2 = localSessionRecord(base, peek, (/* @__PURE__ */ new Date()).toISOString());
     await this.#writeFile(join6(dir, name), record2);
@@ -48140,8 +48383,8 @@ var PullWatcher = class {
     this.clear();
   }
   async #refresh() {
-    const { hub, activation, logger, meshWindow, marked } = this.#deps;
-    const sessionId = hub.sessionId;
+    const { hub: hub2, activation, logger, meshWindow, marked } = this.#deps;
+    const sessionId = hub2.sessionId;
     if (!sessionId) return this.clear();
     const inactive = activation.lastDescription === null && !activation.pull;
     if (inactive && !meshWindow && !marked && this.#used) {
@@ -48160,8 +48403,8 @@ var PullWatcher = class {
       }
     }
     try {
-      const peek = await hub.call("inbox.peek", {});
-      if (!activation.pull || hub.sessionId !== sessionId) return;
+      const peek = await hub2.call("inbox.peek", {});
+      if (!activation.pull || hub2.sessionId !== sessionId) return;
       const { agentId, prefix, dir, projectDir } = this.#deps;
       const state = {
         agentId,
@@ -48183,11 +48426,11 @@ var PullWatcher = class {
 
 // src/resume/conversation.ts
 var SHUTDOWN_MS = 250;
-async function byeQuietly(hub, sessionId = hub.sessionId) {
+async function byeQuietly(hub2, sessionId = hub2.sessionId) {
   if (!sessionId) return;
   const options = { timeoutMs: SHUTDOWN_MS, session: sessionId };
   await Promise.race([
-    hub.call("session.bye", {}, options).catch(() => void 0),
+    hub2.call("session.bye", {}, options).catch(() => void 0),
     new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS))
   ]);
 }
@@ -48195,12 +48438,12 @@ async function followConversation(session, next) {
   const previous = session.claudeSessionId;
   if (next === null || next === previous) return;
   session.claudeSessionId = next;
-  const { activation, hub } = session;
+  const { activation, hub: hub2 } = session;
   if (previous !== null) {
     if (activation.lastDescription !== null || activation.pull) return;
-    const old = hub.sessionId;
-    hub.sessionId = null;
-    await byeQuietly(hub, old);
+    const old = hub2.sessionId;
+    hub2.sessionId = null;
+    await byeQuietly(hub2, old);
   }
   await session.sayHello();
 }
@@ -48579,19 +48822,19 @@ async function enroll(summary, code, seed, clientVersion) {
     await nc.close().catch(() => void 0);
   }
 }
-function refusedOrUnreachable(error63, hub) {
+function refusedOrUnreachable(error63, hub2) {
   const text3 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
   if (/authori[sz]ation/i.test(text3)) return new MeshError("unauthenticated", REFUSED);
   if (/tls/i.test(text3)) {
     return new MeshError(
       "unavailable",
-      `${hub} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
+      `${hub2} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
     );
   }
   if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text3)) {
     return new MeshError(
       "unavailable",
-      `Could not reach the hub at ${hub}. Check your network and try again.`
+      `Could not reach the hub at ${hub2}. Check your network and try again.`
     );
   }
   return new MeshError(
@@ -48614,8 +48857,8 @@ function readInvite(code) {
   return { payload, hub: url2.port ? `${url2.hostname}:${url2.port}` : url2.hostname };
 }
 function confirmationText(summary) {
-  const { payload, hub } = summary;
-  return `This invite joins the mesh at ${hub} as ${payload.agentId} (subject prefix "${payload.prefix}", invite ${payload.inviteId}).`;
+  const { payload, hub: hub2 } = summary;
+  return `This invite joins the mesh at ${hub2} as ${payload.agentId} (subject prefix "${payload.prefix}", invite ${payload.inviteId}).`;
 }
 
 // src/join/flow.ts
@@ -48673,9 +48916,9 @@ function joinedText(done) {
     ""
   ].join("\n");
 }
-async function confirmed(rl, hub, yes) {
+async function confirmed(rl, hub2, yes) {
   if (yes) return true;
-  const answer = await rl.question(`Is ${hub} your team's hub? [y/N] `);
+  const answer = await rl.question(`Is ${hub2} your team's hub? [y/N] `);
   return /^y(es)?$/i.test(answer.trim());
 }
 async function runJoinCli(argv, clientVersion) {
@@ -48989,8 +49232,8 @@ var leaseTools = [
       task_id: external_exports.string().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const r = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const r = await hub2.call(
         "lease.acquire",
         {
           paths: args.paths,
@@ -49018,8 +49261,8 @@ ${formatLeases(r.granted)}`;
     description: "Release your leases on the given paths, or all of them.",
     input: external_exports.object({ paths: external_exports.array(external_exports.string()).optional(), all: external_exports.boolean().optional() }),
     mutating: false,
-    run: async (args, { hub }) => {
-      const r = await hub.call("lease.release", {
+    run: async (args, { hub: hub2 }) => {
+      const r = await hub2.call("lease.release", {
         ...args.paths ? { paths: args.paths } : {},
         all: args.all ?? false
       });
@@ -49031,8 +49274,8 @@ ${formatLeases(r.granted)}`;
     description: "List active leases (optionally for one holder or repo).",
     input: external_exports.object({ holder: external_exports.string().optional(), repo: external_exports.string().optional() }),
     mutating: false,
-    run: async (args, { hub }) => formatLeases(
-      (await hub.call("lease.list", {
+    run: async (args, { hub: hub2 }) => formatLeases(
+      (await hub2.call("lease.list", {
         ...args.holder ? { holder: args.holder } : {},
         ...args.repo ? { repo: args.repo } : {}
       })).leases
@@ -49081,7 +49324,7 @@ var messagingTools = [
     description: "List teammates (agents and humans) with presence, load, skills and owned areas. Use before asking or assigning.",
     input: external_exports.object({ kind: external_exports.enum(["agent", "human", "all"]).optional() }),
     mutating: false,
-    run: async (args, { hub }) => formatPeers((await hub.call("peers.list", { kind: args.kind ?? "all" })).peers)
+    run: async (args, { hub: hub2 }) => formatPeers((await hub2.call("peers.list", { kind: args.kind ?? "all" })).peers)
   }),
   defineTool({
     name: "set_status",
@@ -49091,8 +49334,8 @@ var messagingTools = [
       note: external_exports.string().max(200).optional()
     }),
     mutating: false,
-    run: async (args, { hub }) => {
-      const peer = await hub.call("presence.set", {
+    run: async (args, { hub: hub2 }) => {
+      const peer = await hub2.call("presence.set", {
         status: args.status,
         ...args.note ? { note: args.note } : {}
       });
@@ -49111,8 +49354,8 @@ var messagingTools = [
       repo: external_exports.string().max(200).optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const r = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const r = await hub2.call(
         "message.send",
         {
           kind: "ask",
@@ -49138,8 +49381,8 @@ var messagingTools = [
       pr_url: external_exports.string().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const r = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const r = await hub2.call(
         "message.send",
         {
           kind: "reply",
@@ -49162,8 +49405,8 @@ var messagingTools = [
       subject: external_exports.string().max(200).optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const r = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const r = await hub2.call(
         "message.send",
         {
           kind: "broadcast",
@@ -49182,8 +49425,8 @@ var messagingTools = [
     input: external_exports.object({ limit: external_exports.number().int().min(1).max(50).optional() }),
     mutating: false,
     run: async (args, deps) => {
-      const { hub, agentId } = deps;
-      const r = await hub.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
+      const { hub: hub2, agentId } = deps;
+      const r = await hub2.call("inbox.get", { limit: args.limit ?? 10, perThread: 5 });
       const others = r.otherSessions;
       if (r.threads.length === 0 && others.length === 0 && !r.waiting)
         return "Inbox zero \u2014 nothing unread.";
@@ -49235,8 +49478,8 @@ ${fyi.join("\n")}`);
       urgent: external_exports.boolean().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const r = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const r = await hub2.call(
         "escalate",
         {
           question: args.question,
@@ -49277,8 +49520,8 @@ var planningTools = [
       round_minutes: external_exports.number().positive().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const plan = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const plan = await hub2.call(
         "plan.start",
         {
           topic: args.topic,
@@ -49296,8 +49539,8 @@ var planningTools = [
     description: "Read a planning session with every contribution so far.",
     input: external_exports.object({ plan_id: external_exports.string() }),
     mutating: false,
-    run: async (args, { hub }) => {
-      const r = await hub.call("plan.get", { planId: args.plan_id });
+    run: async (args, { hub: hub2 }) => {
+      const r = await hub2.call("plan.get", { planId: args.plan_id });
       return formatPlan(r.plan, r.contributions);
     }
   }),
@@ -49306,8 +49549,8 @@ var planningTools = [
     description: "Add your contribution to the current round of a planning session (you may contribute more than once).",
     input: external_exports.object({ plan_id: external_exports.string(), body: external_exports.string().min(1) }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const r = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const r = await hub2.call(
         "plan.contribute",
         { planId: args.plan_id, body: args.body },
         withKey(key)
@@ -49324,8 +49567,8 @@ var planningTools = [
       tasks: external_exports.array(DraftInput).min(1)
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const plan = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const plan = await hub2.call(
         "plan.submit",
         {
           planId: args.plan_id,
@@ -49452,11 +49695,11 @@ function checkEvent(code, previous) {
     meta: { kind: "system", from: "agentmesh" }
   };
 }
-async function activateSession(hub, activation, params, stamp) {
+async function activateSession(hub2, activation, params, stamp) {
   const epoch = activation.epoch;
-  const view = await hub.call("session.activate", params);
+  const view = await hub2.call("session.activate", params);
   if (activation.epoch !== epoch) {
-    await hub.call("session.deactivate", {});
+    await hub2.call("session.deactivate", {});
     return null;
   }
   activation.lastDescription = view.description ?? params.description;
@@ -49480,10 +49723,10 @@ function renewalRefused(window, activation, stamp, others) {
   return null;
 }
 async function answerCheck(code, deps) {
-  const { hub, activation, logger } = deps;
+  const { hub: hub2, activation, logger } = deps;
   const previous = activation.renewedFrom;
   if (previous === null) return deps.push(checkEvent(code));
-  const session = hub.sessionId;
+  const session = hub2.sessionId;
   const { window } = deps;
   const stamp = window.state === "verified" ? freshGuardStamp(window.dataDir, Date.now()) : null;
   const others = deps.agentSessions().filter((s) => s.id !== session);
@@ -49495,7 +49738,7 @@ async function answerCheck(code, deps) {
   const epoch = activation.epoch;
   let took;
   try {
-    took = await activateSession(hub, activation, { code, description: previous }, stamp);
+    took = await activateSession(hub2, activation, { code, description: previous }, stamp);
   } catch (err) {
     logger.warn({ session, err }, "could not re-activate the new hub session");
     if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
@@ -49515,13 +49758,13 @@ ${tookOverLines(took)}` : "";
   });
 }
 async function reactivatePull(deps) {
-  const { hub, activation, logger } = deps;
+  const { hub: hub2, activation, logger } = deps;
   const description = activation.lastDescription;
   if (description === null) return;
-  const session = hub.sessionId;
+  const session = hub2.sessionId;
   logger.info({ session }, "new hub session; re-activating it in pull mode");
   try {
-    if (await activateSession(hub, activation, { mode: "pull", description }, null) === null) {
+    if (await activateSession(hub2, activation, { mode: "pull", description }, null) === null) {
       logger.warn({ session }, "deactivated while re-activating the pull session; it stays off");
       return;
     }
@@ -49565,7 +49808,7 @@ var sessionTools = [
       pull: external_exports.boolean().optional()
     }),
     mutating: false,
-    run: async (args, { hub, activation, listening, window, agentId, teamPolicy }) => {
+    run: async (args, { hub: hub2, activation, listening, window, agentId, teamPolicy }) => {
       if (window.state === "marked") {
         throw new ToolRefusal(
           `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`
@@ -49576,7 +49819,7 @@ var sessionTools = [
       if (args.pull) {
         if (isWindow) throw new ToolRefusal(PULL_REFUSED);
         if (!args.description) throw needDescription();
-        const view = await hub.call("session.activate", {
+        const view = await hub2.call("session.activate", {
           mode: "pull",
           description: args.description
         });
@@ -49588,12 +49831,12 @@ var sessionTools = [
       if (args.code === void 0) {
         endRenewal(activation);
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
-        await hub.call("session.check", {});
+        await hub2.call("session.check", {});
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
       if (!args.description) throw needDescription();
       const params = { code: args.code, description: args.description };
-      const took = await activateSession(hub, activation, params, stamp);
+      const took = await activateSession(hub2, activation, params, stamp);
       if (took === null) {
         return "This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.";
       }
@@ -49617,13 +49860,13 @@ ${windowRules(window.policy)}${full}`;
     description: "Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing, and the work it owns is released.",
     input: external_exports.object({}),
     mutating: false,
-    run: async (_args, { hub, activation }) => {
+    run: async (_args, { hub: hub2, activation }) => {
       activation.epoch += 1;
       activation.lastDescription = null;
       activation.renewedFrom = null;
       activation.pull = false;
       activation.guardVersion = null;
-      await hub.call("session.deactivate", {});
+      await hub2.call("session.deactivate", {});
       return "This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.";
     }
   }),
@@ -49632,8 +49875,8 @@ ${windowRules(window.policy)}${full}`;
     description: "Replace the one-line description teammates see for this session. Call it when the session\u2019s focus changes.",
     input: external_exports.object({ description: Description }),
     mutating: false,
-    run: async (args, { hub, activation }) => {
-      const view = await hub.call("session.describe", { description: args.description });
+    run: async (args, { hub: hub2, activation }) => {
+      const view = await hub2.call("session.describe", { description: args.description });
       if (view.active) activation.lastDescription = view.description;
       return `This session is now described as \u201C${view.description ?? args.description}\u201D.`;
     }
@@ -49645,8 +49888,8 @@ ${windowRules(window.policy)}${full}`;
       message: "Pass exactly one of task_id and thread_id."
     }),
     mutating: false,
-    run: async (args, { hub }) => {
-      const r = await hub.call("session.take", {
+    run: async (args, { hub: hub2 }) => {
+      const r = await hub2.call("session.take", {
         ...args.task_id ? { taskId: args.task_id } : {},
         ...args.thread_id ? { threadId: args.thread_id } : {}
       });
@@ -49740,8 +49983,8 @@ function worktreeCommonDir(dir, target, platform2) {
   const resolved = p.resolve(dir, target);
   if (badInput(resolved, { platform: platform2, home: "" })) return null;
   const worktrees = p.dirname(resolved);
-  const common = p.dirname(worktrees);
-  return p.basename(worktrees) === "worktrees" && p.basename(common) === ".git" ? common : null;
+  const common2 = p.dirname(worktrees);
+  return p.basename(worktrees) === "worktrees" && p.basename(common2) === ".git" ? common2 : null;
 }
 function gitDir(dir, followWorktree) {
   const dotGit = join9(dir, ".git");
@@ -49750,8 +49993,8 @@ function gitDir(dir, followWorktree) {
   if (!followWorktree || !stat.isFile() || stat.size > MAX_GIT_FILE) return null;
   const line = readFileSync9(dotGit, "utf8").replace(/[\r\n]+$/, "");
   const target = /^gitdir: (.+)$/.exec(line)?.[1];
-  const common = target ? worktreeCommonDir(dir, target, process.platform) : null;
-  return common && lstatSync(common).isDirectory() ? common : null;
+  const common2 = target ? worktreeCommonDir(dir, target, process.platform) : null;
+  return common2 && lstatSync(common2).isDirectory() ? common2 : null;
 }
 function originRepo(dir, followWorktree = false) {
   try {
@@ -49828,8 +50071,8 @@ var taskTools = [
       parent_thread_id: external_exports.string().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const task = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const task = await hub2.call(
         "task.create",
         {
           title: args.title,
@@ -49860,9 +50103,9 @@ var taskTools = [
       include_done: external_exports.boolean().optional()
     }),
     mutating: false,
-    run: async (args, { hub }) => {
+    run: async (args, { hub: hub2 }) => {
       const assignee = args.assignee ?? "me";
-      const { tasks } = await hub.call("task.list", {
+      const { tasks } = await hub2.call("task.list", {
         // The hub lists every task when the assignee is absent.
         ...assignee === "all" ? {} : { assignee },
         ...args.state ? { state: args.state } : {},
@@ -49878,8 +50121,8 @@ var taskTools = [
     description: "Full task details: state, branch, PR, reviews, history and the actions you can take now.",
     input: external_exports.object({ task_id: external_exports.string() }),
     mutating: false,
-    run: async (args, { hub, window, prefix, agentId }) => {
-      const task = await hub.call("task.get", { taskId: args.task_id });
+    run: async (args, { hub: hub2, window, prefix, agentId }) => {
+      const task = await hub2.call("task.get", { taskId: args.task_id });
       const out = formatTask(task);
       if (window.state !== "verified") return out;
       const lines = [out, checkoutLine(task.repo, window.folder)];
@@ -49902,8 +50145,8 @@ var taskTools = [
       to: external_exports.string().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const task = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const task = await hub2.call(
         "task.act",
         {
           taskId: args.task_id,
@@ -49931,8 +50174,8 @@ var taskTools = [
       area: external_exports.string().optional()
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const task = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const task = await hub2.call(
         "review.request",
         {
           prUrl: args.pr_url,
@@ -49957,8 +50200,8 @@ var taskTools = [
       body: external_exports.string().min(1)
     }),
     mutating: true,
-    run: async (args, { hub }, key) => {
-      const task = await hub.call(
+    run: async (args, { hub: hub2 }, key) => {
+      const task = await hub2.call(
         "review.submit",
         { taskId: args.task_id, verdict: args.verdict, body: args.body },
         withKey(key)
@@ -50012,11 +50255,11 @@ async function callConfigured(tool, rawArgs, deps) {
 ${issues.join("\n")}`);
   }
   const notes = [];
-  const hub = {
+  const hub2 = {
     call: (method, params, options) => deps.hub.call(method, params, options, notes),
     reportSeen: (ids) => deps.hub.reportSeen(ids)
   };
-  const result = await run(tool, parsed.data, { ...deps, hub });
+  const result = await run(tool, parsed.data, { ...deps, hub: hub2 });
   if (notes.length > 0) result.content.push({ type: "text", text: notes.join("\n") });
   return result;
 }
@@ -52032,7 +52275,7 @@ var RecentIds = class {
 
 // src/inbox/session-subscription.ts
 function followSessionSubject(options, handle) {
-  const { hub, logger } = options;
+  const { hub: hub2, logger } = options;
   let sub = null;
   let stopped = false;
   let failed = false;
@@ -52041,9 +52284,9 @@ function followSessionSubject(options, handle) {
     sub?.unsubscribe();
     sub = null;
     failed = false;
-    const { connection: nc, sessionId } = hub;
+    const { connection: nc, sessionId } = hub2;
     if (stopped || !nc || !sessionId) return;
-    const subject = subjects(hub.config.prefix).session(hub.config.agentId, sessionId);
+    const subject = subjects(hub2.config.prefix).session(hub2.config.agentId, sessionId);
     try {
       sub = nc.subscribe(subject, {
         callback: (err, msg) => {
@@ -52080,7 +52323,7 @@ function followSessionSubject(options, handle) {
 
 // src/inbox/session-inbox.ts
 function runSessionInbox(options) {
-  const { hub, logger } = options;
+  const { hub: hub2, logger } = options;
   const seen = new RecentIds();
   const handle = async (msg) => {
     let inbound;
@@ -52101,7 +52344,7 @@ function runSessionInbox(options) {
     const shown2 = inbound.type === "deliver" ? await deliver(inbound.messages, delivered) : [];
     const ack = { delivered };
     msg.respond(JSON.stringify(ack));
-    hub.reportSeen(shown2);
+    hub2.reportSeen(shown2);
   };
   const deliver = async (messages, delivered) => {
     const status = messages.filter((m) => m.class === "status");
@@ -52113,7 +52356,7 @@ function runSessionInbox(options) {
       const fresh = thread.filter((m) => !seen.has(m.id));
       delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
       if (fresh.length === 0) continue;
-      const owner = fresh.every((m) => decides(m, hub.config.agentId));
+      const owner = fresh.every((m) => decides(m, hub2.config.agentId));
       const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
       if (await pushThread(fresh, fyi, delivered)) shown2.push(...seenIds(fyi));
       else options.fyi.putBack(fyi);
@@ -52122,9 +52365,9 @@ function runSessionInbox(options) {
   };
   const pushThread = async (fresh, fyi, delivered) => {
     try {
-      const notice = threadNotice(fresh, options.closedAskerMinutes(), hub.config.agentId);
+      const notice = threadNotice(fresh, options.closedAskerMinutes(), hub2.config.agentId);
       const footer = { footer: formatFyi(fyi), footerExternal: anyExternal(fyi), notice };
-      await options.push(renderEvent(fresh, { selfId: hub.config.agentId, ...footer }));
+      await options.push(renderEvent(fresh, { selfId: hub2.config.agentId, ...footer }));
     } catch (err) {
       logger.warn(
         { err, thread: fresh[0]?.threadId },
@@ -52147,8 +52390,8 @@ var Presence = class {
   #cwd;
   #git = {};
   #timers = [];
-  constructor(hub, logger, cwd) {
-    this.#hub = hub;
+  constructor(hub2, logger, cwd) {
+    this.#hub = hub2;
     this.#logger = logger;
     this.#cwd = cwd;
   }
@@ -52376,18 +52619,18 @@ function meshWindowContext(env, home, platform2, folder, agentId) {
 var HELLO_WAIT_MS2 = 4e3;
 async function openSession(config2, logger) {
   const startedAt = Date.now();
-  const hub = new HubClient(config2, logger);
+  const hub2 = new HubClient(config2, logger);
   const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
-  const presence = new Presence(hub, logger, projectDir);
+  const presence = new Presence(hub2, logger, projectDir);
   const activation = newActivationState();
   const window = meshWindowContext(process.env, homedir7(), platform(), projectDir, config2.agentId);
   const uds = ownAddress(process.env.CLAUDE_CODE_MESSAGING_SOCKET);
-  hub.connect();
+  hub2.connect();
   await presence.refreshGit();
   let inFlight = null;
   const session = {
     config: config2,
-    hub,
+    hub: hub2,
     presence,
     hello: null,
     window,
@@ -52396,7 +52639,7 @@ async function openSession(config2, logger) {
     onHello: null,
     listening: Promise.withResolvers(),
     pull: new PullWatcher({
-      hub,
+      hub: hub2,
       activation,
       agentId: config2.agentId,
       prefix: config2.prefix,
@@ -52421,7 +52664,7 @@ async function openSession(config2, logger) {
       return inFlight;
     }
   };
-  hub.sayHello = session.sayHello;
+  hub2.sayHello = session.sayHello;
   session.hello = await Promise.race([
     session.sayHello(),
     new Promise((resolve) => setTimeout(() => resolve(null), HELLO_WAIT_MS2))
@@ -52429,11 +52672,11 @@ async function openSession(config2, logger) {
   return session;
 }
 function startSession(server, session, logger, pushDelayMs) {
-  const { hub, presence } = session;
+  const { hub: hub2, presence } = session;
   const abort = new AbortController();
   let inbox = null;
   const rehello = () => void session.sayHello();
-  hub.onSessionLost = rehello;
+  hub2.onSessionLost = rehello;
   session.onHello = (renewed) => {
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);
@@ -52445,19 +52688,19 @@ function startSession(server, session, logger, pushDelayMs) {
     () => readClaudeSession(session.window.dataDir, process.ppid, session.startedAt)
   );
   const retry = setInterval(
-    () => hub.sessionId ? inbox?.retryFailed() : rehello(),
-    hub.config.heartbeatSeconds * 1e3
+    () => hub2.sessionId ? inbox?.retryFailed() : rehello(),
+    hub2.config.heartbeatSeconds * 1e3
   );
   retry.unref();
   const startPushes = () => {
     inbox = runSessionInbox({
-      hub,
+      hub: hub2,
       logger,
       signal: abort.signal,
       fyi: session.fyi,
       push: (event2) => pushEvent(server, event2),
       pushCheck: (code) => answerCheck(code, {
-        hub,
+        hub: hub2,
         activation: session.activation,
         window: session.window,
         logger,
@@ -52475,7 +52718,7 @@ function startSession(server, session, logger, pushDelayMs) {
         agentId: session.config.agentId,
         prefix: session.config.prefix,
         ownUds: session.uds,
-        ownSession: hub.sessionId,
+        ownSession: hub2.sessionId,
         guardVersion: session.activation.guardVersion,
         platform: process.platform,
         now: Date.now(),
@@ -52484,7 +52727,7 @@ function startSession(server, session, logger, pushDelayMs) {
       }),
       closedAskerMinutes: () => session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES
     });
-    if (!hub.sessionId) rehello();
+    if (!hub2.sessionId) rehello();
   };
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
@@ -52492,39 +52735,39 @@ function startSession(server, session, logger, pushDelayMs) {
     session.pull.stop();
     abort.abort();
     clearInterval(retry);
-    hub.onSessionLost = null;
+    hub2.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    await byeQuietly(hub);
-    await hub.close(SHUTDOWN_MS);
+    await byeQuietly(hub2);
+    await hub2.close(SHUTDOWN_MS);
   };
 }
 function recheck(session, logger) {
-  const { activation, hub } = session;
+  const { activation, hub: hub2 } = session;
   if (activation.lastDescription === null) return;
   if (activation.pull) {
-    void reactivatePull({ hub, activation, logger, refresh: () => session.pull.refresh() });
+    void reactivatePull({ hub: hub2, activation, logger, refresh: () => session.pull.refresh() });
     return;
   }
   activation.renewedFrom = activation.lastDescription;
   void session.pull.refresh();
-  logger.info({ session: hub.sessionId }, "new hub session; re-running the activation check");
-  void hub.call("session.check", {}).catch((err) => logger.warn({ err }, "could not start the activation check"));
+  logger.info({ session: hub2.sessionId }, "new hub session; re-running the activation check");
+  void hub2.call("session.check", {}).catch((err) => logger.warn({ err }, "could not start the activation check"));
 }
 async function register(session, logger) {
-  const { hub, presence } = session;
+  const { hub: hub2, presence } = session;
   try {
-    await hub.whenConnected();
-    const previous = hub.sessionId;
+    await hub2.whenConnected();
+    const previous = hub2.sessionId;
     const { claudeSessionId } = session;
-    const hello = await hub.call("session.hello", {
+    const hello = await hub2.call("session.hello", {
       clientVersion: VERSION,
       ...presence.git,
       ...session.window.state === "verified" ? { meshWindow: true } : {},
       ...previous ? { previousSessionId: previous } : {},
       ...claudeSessionId ? { claudeSessionId } : {}
     });
-    hub.sessionId = hello.sessionId;
+    hub2.sessionId = hello.sessionId;
     logger.info({ session: hello.sessionId, previous, reclaimed: hello.reclaimed }, "hub session");
     return { hello, renewed: previous !== null && previous !== hello.sessionId };
   } catch (err) {

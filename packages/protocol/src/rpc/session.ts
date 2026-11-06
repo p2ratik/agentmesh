@@ -46,6 +46,10 @@ export const sessionMethods = {
       sessionId: SessionId,
       /** Thread keys taken back from the previous session because nobody else took them. */
       reclaimed: z.array(z.string()),
+      /** Whether to record events (`observability.enabled`); older hubs send nothing, so a plugin records nothing. */
+      observability: z
+        .object({ enabled: z.boolean(), maxBufferedEvents: z.number().int().positive() })
+        .default({ enabled: false, maxBufferedEvents: 500 }),
     }),
   }),
   'session.bye': defineMethod({

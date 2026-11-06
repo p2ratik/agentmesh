@@ -46,6 +46,7 @@ function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'
     unreadThreads,
     sessionId: 's-000000000001',
     reclaimed: [],
+    observability: { enabled: false, maxBufferedEvents: 500 },
   } as RpcResult<'session.hello'>;
 }
 

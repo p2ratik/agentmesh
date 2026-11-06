@@ -99,3 +99,15 @@ export const RelayConfig = z.object({
     .max(1440)
     .default(CLOSED_ASKER_DEFAULT_MINUTES),
 });
+
+/** Behaviour timeline (see docs/specs/2026-11-06-observability-design.md): ids, counts and codes only. */
+export const ObservabilityConfig = z.object({
+  /** Plugins report and the hub stores; false turns both off (hub metrics stay). */
+  enabled: z.boolean().default(true),
+  /** Humans whose agents may read timelines; empty means nobody via the mesh. */
+  viewers: z.array(z.string()).default([]),
+  retentionDays: z.number().int().min(1).default(14),
+  /** Events the hub accepts per agent per minute; the rest are counted as dropped. */
+  maxEventsPerMinute: z.number().int().min(1).default(300),
+  client: z.object({ maxBufferedEvents: z.number().int().min(50).default(500) }).prefault({}),
+});
