@@ -91,8 +91,10 @@ export function sessionHandlers(
         unreadThreads: messaging.unreadThreadCount(agentId),
         sessionId: session.id,
         reclaimed: reclaimed.map(threadKey),
-        // ponytail: contract only; the hub fills this from config.observability in the event-store task.
-        observability: { enabled: false, maxBufferedEvents: 500 },
+        observability: {
+          enabled: config.observability.enabled,
+          maxBufferedEvents: config.observability.client.maxBufferedEvents,
+        },
       };
     },
     /** The participant goes offline only with its last live session. */

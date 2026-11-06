@@ -15,7 +15,7 @@ import {
   PLUGIN_RELAY_STAGES,
   REASON_CODES,
 } from './observe-codes';
-import { SessionId } from './primitives';
+import { ParticipantId, SessionId } from './primitives';
 
 export * from './observe-codes';
 
@@ -150,7 +150,7 @@ export const HubEvent = z.discriminatedUnion('kind', [
 export type HubEvent = z.infer<typeof HubEvent>;
 
 /** What the hub stores and the timeline returns: the event, its agent and when the hub saw it. */
-const stored = { agent: z.string().max(64), receivedAt: Time };
+const stored = { agent: ParticipantId, receivedAt: Time };
 export const ObservedEvent = z.union([
   ...ReportedEvent.options.map((o) => o.extend(stored)),
   ...HubEvent.options.map((o) => o.extend(stored)),

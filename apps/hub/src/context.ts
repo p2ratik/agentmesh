@@ -1,7 +1,8 @@
 import type { Clock, Logger } from '@agentmesh/common';
 import type { ConfigIndex, LoadedConfig } from '@agentmesh/config';
-import type { Outbox } from './contracts';
+import type { EventSink, Outbox } from './contracts';
 import type { Db } from './db/database';
+import { createEventSink } from './modules/observe/observe.service';
 
 /** Shared infrastructure handed to every module factory. */
 export interface HubContext {
@@ -18,15 +19,18 @@ export interface HubContext {
   clock: Clock;
   logger: Logger;
   outbox: Outbox;
+  /** The hub's own behaviour events (observability). */
+  events: EventSink;
 }
 
 export function createHubContext(
-  fields: Omit<HubContext, 'index' | 'setIndex'> & { index: ConfigIndex },
+  fields: Omit<HubContext, 'index' | 'setIndex' | 'events'> & { index: ConfigIndex },
 ): HubContext {
   const { index, ...rest } = fields;
   let current = index;
-  return {
+  const context: HubContext = {
     ...rest,
+    events: { record: () => {} },
     get index() {
       return current;
     },
@@ -34,4 +38,6 @@ export function createHubContext(
       current = next;
     },
   };
+  context.events = createEventSink(context);
+  return context;
 }

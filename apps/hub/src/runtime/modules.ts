@@ -18,6 +18,7 @@ import { createEnrollmentModule } from '../modules/enrollment';
 import { createIngestModule, type IngestTransport } from '../modules/ingest';
 import { createLeaseModule } from '../modules/leases';
 import { createMessagingModule, type MessagingModule } from '../modules/messaging';
+import { createObserveModule } from '../modules/observe';
 import { createPlanningModule } from '../modules/planning';
 import { createPresenceModule } from '../modules/presence';
 import { createSessionsModule } from '../modules/sessions';
@@ -124,6 +125,7 @@ export function buildModules(
     health: http.health,
   });
 
+  const observe = createObserveModule(ctx);
   const modules: Array<HubModule<unknown>> = [
     enrollment,
     control,
@@ -134,6 +136,7 @@ export function buildModules(
     taskModule,
     planningModule,
     ingest,
+    observe,
   ];
   return {
     services: {

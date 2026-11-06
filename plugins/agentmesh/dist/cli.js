@@ -46244,7 +46244,7 @@ var HubEvent = external_exports.discriminatedUnion("kind", [
     reason: Reason.optional()
   })
 ]);
-var stored = { agent: external_exports.string().max(64), receivedAt: Time };
+var stored = { agent: ParticipantId, receivedAt: Time };
 var ObservedEvent = external_exports.union([
   ...ReportedEvent.options.map((o) => o.extend(stored)),
   ...HubEvent.options.map((o) => o.extend(stored))

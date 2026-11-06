@@ -6,6 +6,7 @@
 import type {
   DeliveryClass,
   DeliveryMode,
+  HubEvent,
   IngestEvent,
   MemberRecord,
   MeshMessage,
@@ -66,6 +67,11 @@ export type RpcHandlerMap = { [M in RpcMethodName]: RpcHandler<M> };
 export interface TickJob {
   name: string;
   run(now: Date): void | Promise<void>;
+}
+
+/** The hub's own behaviour events, written to the event store. No-op when observability is off; never throws. */
+export interface EventSink {
+  record(agent: string, event: HubEvent): void;
 }
 
 /** What every module factory returns. `app.ts` wires them together. */
