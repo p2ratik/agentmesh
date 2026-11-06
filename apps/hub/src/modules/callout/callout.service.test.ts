@@ -157,6 +157,18 @@ describe('callout observability', () => {
     expect(rows[0]?.body).not.toContain('203.0.113');
   });
 
+  it('a flag reset that falls due cannot let the same address record budget_hit twice', async () => {
+    const s = setup({ enrollment: { connectAttemptsPerMinute: 1 } });
+    await s.connect('203.0.113.7');
+    s.clock.advance(59 * MINUTE_MS + 59_000);
+    await s.connect('203.0.113.7');
+    s.clock.advance(2000);
+    await s.connect('203.0.113.7');
+    await s.connect('203.0.113.7');
+    const rows = s.ctx.db.all<{ body: string }>('SELECT body FROM events');
+    expect(rows.map((r) => JSON.parse(r.body).event)).toEqual(['denied', 'denied', 'budget_hit']);
+  });
+
   it('records budget_hit once per address however many connects are blocked', async () => {
     const s = setup({ enrollment: { connectAttemptsPerMinute: 1 } });
     for (let i = 0; i < 4; i++) await s.connect('203.0.113.7');

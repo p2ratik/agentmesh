@@ -158,6 +158,30 @@ describe('the hub records its own events', () => {
     expect(phases(h)).toEqual(['opened', 'away']);
   });
 
+  it('unreachable records away once, and not for an away or closed session', () => {
+    const h = createBobDispatchHarness();
+    const s = h.active();
+    h.sessions.unreachable(s);
+    h.sessions.unreachable(s);
+    expect(phases(h)).toEqual(['opened', 'away']);
+    h.sessions.close('bob-agent', s);
+    h.sessions.unreachable(s);
+    expect(phases(h)).toEqual(['opened', 'away', 'closed']);
+  });
+
+  it('forgets the oldest no_session memory past the cap', async () => {
+    const h = createBobDispatchHarness();
+    h.sessions.open('bob-agent', { clientVersion: '0.2.0' });
+    const m = h.ask(h.thread());
+    const copies = Array.from({ length: 1001 }, (_, i) => ({
+      ...m,
+      id: `msg-${String(i).padStart(26, '0')}`,
+    }));
+    await h.dispatcher.deliver('bob-agent', copies);
+    expect(h.dispatcher.notedCount).toBe(1000);
+    expect(recorded(h, 'delivery')).toHaveLength(1001);
+  });
+
   it('hello vs opened, and a full agent evicts', () => {
     const h = createTestHarness(testTeamConfig({ limits: { maxSessionsPerAgent: 1 } }));
     const { sessions } = buildModules(h.ctx, null, { kick: null }).services;

@@ -155,11 +155,17 @@ describe('callout decisions', () => {
 
     const elsewhere = request(createUser(), { token: invite() });
     elsewhere.client_info = { ...elsewhere.client_info, host: '198.51.100.9' };
-    expect(await decide(elsewhere, d)).toMatchObject({ refused: 'too many failed redemptions' });
+    expect(await decide(elsewhere, d)).toMatchObject({
+      refused: 'too many failed redemptions',
+      code: 'auth.too_many_redemptions',
+    });
 
     clock.advance(MINUTE_MS);
     await decide(request(createUser(), { token: invite() }), d);
     expect(redeemed).toHaveLength(3);
+    expect(await decide(request(createUser(), { token: invite('inv-9') }), d)).toMatchObject({
+      code: 'auth.invite_refused',
+    });
   });
 
   it('counts malformed invite codes against the address', async () => {

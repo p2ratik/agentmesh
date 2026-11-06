@@ -35,8 +35,10 @@ export function markAwayRecorded(
   at: string,
 ): void {
   const row = repo.get(sessionId);
+  // Only a live session changes: a repeat, or a failed send to a closed one, records nothing.
+  if (row?.liveness !== 'live') return;
   repo.markAway(sessionId, at);
-  if (row) recordHub(ctx, row.agent_id, sessionId, { kind: 'session', phase: 'away' });
+  recordHub(ctx, row.agent_id, sessionId, { kind: 'session', phase: 'away' });
 }
 
 /** A session that was away is live again: records it, and what waited for it goes now. */

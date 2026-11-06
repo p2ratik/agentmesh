@@ -103,6 +103,7 @@ export class CalloutService {
     if (this.#budget.blocked(host)) {
       this.#logRefusal(host, 'connect budget spent; left unanswered');
       // Once per address per hour: a flood is visible without one row per blocked connect.
+      this.#resetFlags();
       if (!this.#flagged.has(host)) {
         if (this.#flagged.size >= 1000) this.#flagged.clear();
         this.#flagged.add(host);
@@ -183,12 +184,16 @@ export class CalloutService {
     );
   }
 
-  #auth(event: 'denied' | 'budget_hit', reason?: ReasonCode): void {
+  /** Forgets the flagged addresses once an hour. */
+  #resetFlags(): void {
     const at = this.#ctx.clock.now().getTime();
-    if (at - this.#flagReset > HOUR_MS) {
-      this.#flagged.clear();
-      this.#flagReset = at;
-    }
+    if (at - this.#flagReset <= HOUR_MS) return;
+    this.#flagged.clear();
+    this.#flagReset = at;
+  }
+
+  #auth(event: 'denied' | 'budget_hit', reason?: ReasonCode): void {
+    this.#resetFlags();
     const hubId = this.#ctx.loaded.config.hub.serviceId;
     recordHub(this.#ctx, hubId, null, { kind: 'auth', event, ...(reason ? { reason } : {}) });
   }
