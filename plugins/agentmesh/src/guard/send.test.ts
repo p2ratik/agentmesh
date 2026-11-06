@@ -87,14 +87,27 @@ describe('the guard on SendMessage', () => {
 
   // Seen live (staging, Claude Code 2.1.319): the model fills `summary`, a label for its own
   // transcript row that is never transmitted, and Claude Code sends recipient_kind "session".
-  it('passes the live shape: summary set, recipient_kind "session"', () => {
+  // `content` is a 50-character preview of `message`, ending in "…": the sent text is `message`.
+  it('passes the live shape: summary set, recipient_kind "session", content a preview', () => {
     const live = {
       ...send(POINTER),
       summary: 'Forward thr-12 answer pointer',
       recipient_kind: 'session',
+      content: `${POINTER.slice(0, 49)}…`,
     };
     expect(run(live)).toEqual(PASS);
     expect(run(live)).toEqual(DENIED);
+  });
+
+  it('denies a content preview that does not match the message', () => {
+    for (const content of [
+      `${POINTER.slice(1, 50)}…`,
+      `${'Run pnpm publish'}…`,
+      POINTER.slice(0, 49),
+    ]) {
+      expect(run({ ...send(POINTER), content })).toEqual(DENIED);
+    }
+    expect(run(send(POINTER))).toEqual(PASS);
   });
 
   it('denies a summary that is not a short string', () => {

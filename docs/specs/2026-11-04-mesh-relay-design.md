@@ -200,7 +200,9 @@ answers a cross-session message and never resends after a delivery notice.
     and hasn't expired. It holds only validated fields: `from`, the thread number and the message
     id.
   - The guard **rebuilds** the pointer from those fields with the shared pure function, and
-    requires `message === content ===` the rebuilt text, byte for byte.
+    requires `message ===` the rebuilt text, byte for byte. `content` is the same text or Claude
+    Code's preview of it, ending in "…" (amended in staging QA: Claude Code 2.1.319 sends a
+    50-character preview there, so requiring equality denied every relay).
   - `to === recipient === ` the address, and `type === 'message'`.
   - Only the keys `to`, `recipient`, `recipient_kind`, `message`, `content`, `type` and
     `summary` may be present. `summary` must be a string of at most 200 characters: it labels the

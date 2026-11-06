@@ -86,7 +86,7 @@ describe('the built hook and guard bundles', () => {
       type: 'message',
       recipient: to,
       recipient_kind: 'session',
-      content: message,
+      content: `${message.slice(0, 49)}…`,
     };
     const env = { AGENTMESH_MESH_WINDOW: MARK };
     expect(run('guard', tool('SendMessage', send), env)).toMatchObject({ status: 0, stderr: '' });
