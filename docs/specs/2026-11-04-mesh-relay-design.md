@@ -202,8 +202,11 @@ answers a cross-session message and never resends after a delivery notice.
   - The guard **rebuilds** the pointer from those fields with the shared pure function, and
     requires `message === content ===` the rebuilt text, byte for byte.
   - `to === recipient === ` the address, and `type === 'message'`.
-  - Only the keys `to`, `recipient`, `recipient_kind`, `message`, `content` and `type` may be
-    present. `summary`, `notify_when_idle` and any unknown key deny.
+  - Only the keys `to`, `recipient`, `recipient_kind`, `message`, `content`, `type` and
+    `summary` may be present. `summary` must be a string of at most 200 characters: it labels the
+    sender's own transcript row and is never transmitted. `notify_when_idle` and any unknown key
+    deny. (Amended in staging QA: the model fills `summary` on almost every send, so denying it
+    blocked every relay.)
 
   The guard **claims the record** by creating `<record>.claimed` exclusively (`wx`), and denies if
   that fails. Only then does it pass, so a replayed or parallel send is denied. (Amended in the

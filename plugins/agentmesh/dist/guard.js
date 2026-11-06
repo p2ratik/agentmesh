@@ -478,13 +478,23 @@ var forwardReader = (dir) => ({
   read: (hex, now) => readForwards(dir, hex, now),
   claim: (name) => claimForward(dir, name)
 });
-var KEYS = /* @__PURE__ */ new Set(["to", "recipient", "recipient_kind", "message", "content", "type"]);
+var KEYS = /* @__PURE__ */ new Set([
+  "to",
+  "recipient",
+  "recipient_kind",
+  "message",
+  "content",
+  "type",
+  "summary"
+]);
+var SUMMARY_MAX = 200;
 var DENIED = { kind: "deny", reason: SEND_DENIED };
+var shortLabel = (v) => v === void 0 || typeof v === "string" && v.length <= SUMMARY_MAX;
 function sendMessage(args, ctx) {
   if (!Object.keys(args).every((k) => KEYS.has(k))) return DENIED;
   const hex = udsHex(args.to, ctx.platform);
   if (hex === null) return DENIED;
-  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string") && typeof args.message === "string" && args.content === args.message;
+  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string") && typeof args.message === "string" && args.content === args.message && shortLabel(args.summary);
   if (!aliases || !ctx.forwards) return DENIED;
   const record = ctx.forwards.read(hex, ctx.now ?? Date.now()).find((c) => pointerText(c.fields) === args.message);
   return record && ctx.forwards.claim(record.name) ? { kind: "pass" } : DENIED;

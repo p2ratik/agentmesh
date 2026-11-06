@@ -78,7 +78,16 @@ describe('the built hook and guard bundles', () => {
     const fields = { from: 'alice-agent', threadId: 'thr-7', messageId: `msg-${'0'.repeat(26)}` };
     writeForward(data(), hex, fields, Date.now() + FORWARD_TTL_MS);
     const message = pointerText(fields) ?? '';
-    const send = { to, recipient: to, type: 'message', message, content: message };
+    // The shape seen live: the model's summary, and Claude Code's recipient_kind "session".
+    const send = {
+      to,
+      message,
+      summary: 'Forward thr-7 answer pointer',
+      type: 'message',
+      recipient: to,
+      recipient_kind: 'session',
+      content: message,
+    };
     const env = { AGENTMESH_MESH_WINDOW: MARK };
     expect(run('guard', tool('SendMessage', send), env)).toMatchObject({ status: 0, stderr: '' });
     expect(run('guard', tool('SendMessage', send), env)).toMatchObject({ status: 2 });

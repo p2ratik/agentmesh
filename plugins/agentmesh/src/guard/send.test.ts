@@ -85,8 +85,27 @@ describe('the guard on SendMessage', () => {
     expect(run(send(POINTER))).toEqual(PASS);
   });
 
-  it('denies unknown keys, summary and notify_when_idle', () => {
-    for (const extra of [{ summary: 'x' }, { notify_when_idle: true }, { cc: ADDR }]) {
+  // Seen live (staging, Claude Code 2.1.319): the model fills `summary`, a label for its own
+  // transcript row that is never transmitted, and Claude Code sends recipient_kind "session".
+  it('passes the live shape: summary set, recipient_kind "session"', () => {
+    const live = {
+      ...send(POINTER),
+      summary: 'Forward thr-12 answer pointer',
+      recipient_kind: 'session',
+    };
+    expect(run(live)).toEqual(PASS);
+    expect(run(live)).toEqual(DENIED);
+  });
+
+  it('denies a summary that is not a short string', () => {
+    for (const summary of [7, null, { a: 1 }, 'x'.repeat(201)]) {
+      expect(run({ ...send(POINTER), summary })).toEqual(DENIED);
+    }
+    expect(run({ ...send(POINTER), summary: 'x'.repeat(200) })).toEqual(PASS);
+  });
+
+  it('denies unknown keys and notify_when_idle', () => {
+    for (const extra of [{ notify_when_idle: true }, { cc: ADDR }]) {
       expect(run({ ...send(POINTER), ...extra })).toEqual(DENIED);
     }
     expect(run(JSON.parse(`{"__proto__":{},${JSON.stringify(send(POINTER)).slice(1)}`))).toEqual(
