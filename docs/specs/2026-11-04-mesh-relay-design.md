@@ -321,8 +321,10 @@ model's report: the row stays pending and the note stays on until the owner read
   - The MCP env `CLAUDE_CODE_SESSION_ID` goes stale after `--continue`, `/clear` or `/resume`.
     `--resume <id>` was verified.
   - A fork gets a new id, so it gets nothing back, which is correct.
-- `hello.reclaimed` is shown to Claude ("your earlier question in thr-12 has an answer; read it
-  with thread"). Today it is only logged.
+- `hello.reclaimed` is shown to Claude ("thr-12 is back with this session, which held it before
+  the hub closed it; read it with thread thr-12 to catch up"). Today it is only logged. (Amended
+  in staging QA: the first wording, "your earlier question", was wrong for a session that had
+  been answering in the thread, which any reconnecting session may have.)
 - The "reopen" choice prints the exact command `claude --resume <uuid>`. `--continue` doesn't keep
   the id.
 

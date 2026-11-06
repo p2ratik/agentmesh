@@ -180,7 +180,10 @@ follow, as built.
   messages carry `released: { bySession, closedAt, claudeSessionId }`. An older window gets it as
   before.
 - The window's push has meta `asker="closed"` and three choices for its human: continue it here
-  (`take`), reopen that session (`claude --resume <uuid>`), or drop it (`take` and stay quiet).
+  (`take`), reopen that session (`claude --resume <uuid>`), or drop it (`take`). After either
+  `take`, the window says in one line in the thread what its human chose, so the teammate who
+  read the hub's notice isn't left waiting (amended in staging QA: "drop and stay quiet" left the
+  teammate with a stale "waits for … decision").
 - The hub posts one status notice in the thread, "The session that asked this has closed; the
   follow-up waits for <owner>'s decision.", and starts a timer (`orphan_decisions`). After
   `relay.closedAskerEscalationMinutes` (default 15) it pings the owner once, in the thread, unless

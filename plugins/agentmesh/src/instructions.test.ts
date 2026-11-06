@@ -117,7 +117,7 @@ describe('buildInstructions', () => {
     const text = buildInstructions({ agentId: 'bob-agent', hello: h, problems: [] });
     expect(text.length).toBeLessThanOrEqual(MAX_INSTRUCTIONS);
     expect(text.slice(0, 900)).toContain(
-      'Your earlier question in thr-12 has come back to this session; read it with thread thr-12 for its answer.',
+      'thr-12 is back with this session, which held it before the hub closed it; read it with thread thr-12 to catch up.',
     );
   });
 

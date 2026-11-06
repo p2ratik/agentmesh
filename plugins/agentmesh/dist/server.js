@@ -48222,7 +48222,7 @@ function noteReclaimed(session, reclaimed) {
 }
 function reclaimedLines(threads) {
   return threads.map(
-    (t) => `Your earlier question in ${t} has come back to this session; read it with thread ${t} for its answer.`
+    (t) => `${t} is back with this session, which held it before the hub closed it; read it with thread ${t} to catch up.`
   ).join("\n");
 }
 
@@ -49044,9 +49044,9 @@ function closedAskerNotice(threadId, released, minutes) {
   const reopen = released.claudeSessionId ? `- Reopen that session: they run claude --resume ${released.claudeSessionId} in that project's folder, and the thread goes back to it.` : "- Reopen that session: not possible, its conversation id is unknown.";
   return [
     `AgentMesh: the session that asked this (${released.bySession}) has closed. Don't act on this answer: ask your human which they want.`,
-    `- Continue it here: take(thread_id: "${threadId}"), then work on it in a fresh worktree.`,
+    `- Continue it here: take(thread_id: "${threadId}"), say in one line in the thread that your human continues it here, then work on it in a fresh worktree.`,
     reopen,
-    `- Drop it: take(thread_id: "${threadId}") and stay quiet.`,
+    `- Drop it: take(thread_id: "${threadId}") and say in one line in the thread that your human dropped it.`,
     `If they don't answer within ${minutes} minutes, the hub pings them on Discord.`
   ].join("\n");
 }

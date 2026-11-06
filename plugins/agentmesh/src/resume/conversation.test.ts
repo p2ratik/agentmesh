@@ -140,8 +140,8 @@ describe('followEvery', () => {
 describe('reclaimedLines', () => {
   it('says where each reclaimed thread has come back', () => {
     expect(reclaimedLines(['thr-12', 'thr-3'])).toBe(
-      'Your earlier question in thr-12 has come back to this session; read it with thread thr-12 for its answer.\n' +
-        'Your earlier question in thr-3 has come back to this session; read it with thread thr-3 for its answer.',
+      'thr-12 is back with this session, which held it before the hub closed it; read it with thread thr-12 to catch up.\n' +
+        'thr-3 is back with this session, which held it before the hub closed it; read it with thread thr-3 to catch up.',
     );
   });
 });
