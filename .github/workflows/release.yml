@@ -118,3 +118,6 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       version: ${{ needs.release.outputs.version }}
+    # A called workflow gets no secrets unless its caller passes them, not even the `production`
+    # environment's: without this, the deploy job sees them empty (0.6.0's first deploy did).
+    secrets: inherit

@@ -18,6 +18,9 @@
 # deleted; nothing secret is printed. Safe to re-run: it reuses what exists and rotates the key.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1 # Git Bash: never rewrite /subscriptions/… arguments into Windows paths
+# Git Bash: az on Windows ends its output lines with \r\n and $(…) keeps the \r, so every id stored
+# below would carry an invisible \r (secrets with it break the deploy's Azure sign-in). Strip it.
+az() { command az "$@" | tr -d '\r'; }
 
 : "${REPO:?set REPO to owner/name of the GitHub repository}"
 : "${RG:?set RG to the resource group of the VM}"
