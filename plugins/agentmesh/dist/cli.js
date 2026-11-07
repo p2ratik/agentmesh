@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join20 } = __require("path");
+    var { join: join21 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join20(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join21(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2554,7 +2554,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync14 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join20, isAbsolute: isAbsolute4, sep } = __require("node:path");
+    var { join: join21, isAbsolute: isAbsolute4, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join21(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join21(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join20(__dirname, "..", "file.js");
+          return join21(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join20 = ",";
+            let join21 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join20 = `,
+                join21 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join20;
+                res += join21;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join20 = `,
+              join21 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join20;
+                separator = join21;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join20;
+              separator = join21;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join20 = ",";
+            let join21 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join20 = `,
+                join21 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join20;
+                res += join21;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join20 = `,
+              join21 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join20;
+                separator = join21;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join21 = `,
+              const join22 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join21;
+                res2 += join22;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join22}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join20 = `,
+            const join21 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join20, maximumBreadth);
+              res += stringifyTypedArray(value, join21, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join20;
+              separator = join21;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join20;
+                separator = join21;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join20;
+              separator = join21;
             }
             if (separator !== "") {
               res = `
@@ -48196,6 +48196,65 @@ function permissionsFor(user, prefix) {
   }
 }
 
+// ../../packages/bus/src/rpc-client.ts
+var RpcClient = class {
+  #nc;
+  #subjects;
+  #caller;
+  #timeoutMs;
+  constructor(nc, prefix, callerId, timeoutMs = 15e3) {
+    this.#nc = nc;
+    this.#subjects = subjects(prefix);
+    this.#caller = callerId;
+    this.#timeoutMs = timeoutMs;
+  }
+  async call(method, params, options = {}) {
+    return (await this.callWithNotes(method, params, options)).result;
+  }
+  /** Like `call`, also returning the hub's advisory notes (empty when none). */
+  async callWithNotes(method, params, options = {}) {
+    const envelope = {
+      v: PROTOCOL_VERSION,
+      params,
+      ...options.session ? { session: options.session } : {},
+      ...options.actAs ? { actAs: options.actAs } : {},
+      ...options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}
+    };
+    let reply;
+    try {
+      reply = await this.#nc.request(
+        this.#subjects.rpc(this.#caller, method),
+        JSON.stringify(envelope),
+        {
+          timeout: options.timeoutMs ?? this.#timeoutMs
+        }
+      );
+    } catch (error62) {
+      throw translateTransportError(error62);
+    }
+    const response = reply.json();
+    if (!response.ok) throw MeshError.fromPayload(response.error);
+    return {
+      result: RPC_METHODS[method].result.parse(response.result),
+      notes: response.notes ?? []
+    };
+  }
+};
+function translateTransportError(error62) {
+  const text = `${error62?.name ?? ""} ${error62?.message ?? ""}`.toLowerCase();
+  if (text.includes("no responders") || text.includes("503")) {
+    return new MeshError("unavailable", "The mesh hub is not reachable right now.");
+  }
+  if (text.includes("timeout"))
+    return new MeshError("timeout", "The mesh hub did not answer in time.");
+  if (text.includes("permission"))
+    return new MeshError("forbidden", "NATS permissions rejected the request.");
+  return new MeshError(
+    "unavailable",
+    `Mesh transport error: ${error62?.message ?? "unknown"}`
+  );
+}
+
 // ../../packages/bus/src/topology.ts
 var import_jetstream = __toESM(require_mod4(), 1);
 var import_transport_node2 = __toESM(require_transport_node(), 1);
@@ -50425,6 +50484,84 @@ var setupStatusCommand = {
   }
 };
 
+// ../../apps/cli/src/commands/timeline.ts
+import { readFileSync as readFileSync12 } from "node:fs";
+import { join as join15 } from "node:path";
+var callTimeline = async (s, params) => {
+  const nc = await connectOnce({
+    servers: [s.natsUrl],
+    name: `timeline-${s.agentId}`,
+    credentials: { nkeySeed: s.nkeySeed }
+  });
+  try {
+    return await new RpcClient(nc, s.prefix, s.agentId).call("observe.timeline", params);
+  } finally {
+    await nc.close();
+  }
+};
+var NOT_JOINED = "No agent settings found: run /agentmesh:join or agentmesh agent-setup --write first.";
+function readSettings(ctx) {
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync12(join15(agentmeshDir(ctx.homeDir), "agent.json"), "utf8"));
+  } catch {
+    throw new MeshError("not_found", NOT_JOINED);
+  }
+  const { agentId, natsUrl, nkeySeed, prefix } = raw;
+  if (typeof agentId !== "string" || typeof natsUrl !== "string" || typeof nkeySeed !== "string") {
+    throw new MeshError("not_found", NOT_JOINED);
+  }
+  return { agentId, natsUrl, nkeySeed, prefix: typeof prefix === "string" ? prefix : "mesh" };
+}
+var timelineCommand = {
+  name: "timeline",
+  summary: "Show the mesh's event timeline (operators only)",
+  help: `Usage: agentmesh timeline [--agent <id>] [--session <id>] [--thread thr-N] [--since 2h]
+                          [--until <time>] [--limit N] [--json]
+
+For this mesh's operators only (humans in observability.viewers); anyone else is refused.
+Reads ~/.agentmesh/agent.json, asks the hub and prints the timeline: ids, counts, outcomes and
+timings, never message contents. --since and --until take an ISO time or a duration (30m, 2h, 1d).
+
+--json   one event per line`,
+  async run(argv, ctx) {
+    const { values: v } = parseCommandArgs(
+      argv,
+      {
+        agent: { type: "string" },
+        session: { type: "string" },
+        thread: { type: "string" },
+        since: { type: "string" },
+        until: { type: "string" },
+        limit: { type: "string" },
+        json: { type: "boolean", default: false }
+      },
+      { min: 0, max: 0, names: "" }
+    );
+    const settings = readSettings(ctx);
+    const params = {
+      ...v.agent ? { agent: v.agent } : {},
+      ...v.session ? { session: v.session } : {},
+      ...v.thread ? { thread: v.thread } : {},
+      ...v.since ? { since: v.since } : {},
+      ...v.until ? { until: v.until } : {},
+      ...v.limit ? { limit: Number(v.limit) } : {}
+    };
+    try {
+      const r = await (ctx.observeCall ?? callTimeline)(settings, params);
+      if (v.json) for (const e of r.events) ctx.stdout(JSON.stringify(e));
+      else ctx.stdout(r.text);
+      return 0;
+    } catch (error62) {
+      if (error62 instanceof MeshError) {
+        ctx.stderr(`error: ${error62.message}`);
+        return 1;
+      }
+      throw error62;
+    }
+  }
+};
+
 // ../../apps/cli/src/commands/upgrade.ts
 var upgradeCommand = {
   name: "upgrade",
@@ -50538,8 +50675,8 @@ Risky but valid settings print as warnings and still exit 0.`,
 
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync14, statSync as statSync7 } from "node:fs";
-import { isAbsolute as isAbsolute3, join as join19 } from "node:path";
+import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync15, statSync as statSync7 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join20 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { posix, win32 } from "node:path";
@@ -50551,15 +50688,15 @@ var START_COMMAND = "claude-mesh";
 var launcherDisplay = (platform) => `~/.agentmesh/${launcherName(platform)}`;
 var LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
 function windowFiles(home, platform) {
-  const { join: join20 } = platform === "win32" ? win32 : posix;
-  const dir = join20(home, ".agentmesh");
+  const { join: join21 } = platform === "win32" ? win32 : posix;
+  const dir = join21(home, ".agentmesh");
   return {
     dir,
-    policy: join20(dir, "mesh-window.json"),
-    settings: join20(dir, "mesh-window.settings.json"),
-    launcher: join20(dir, launcherName(platform)),
-    emptyHooks: join20(dir, "empty-git-hooks"),
-    bin: join20(dir, "bin")
+    policy: join21(dir, "mesh-window.json"),
+    settings: join21(dir, "mesh-window.settings.json"),
+    launcher: join21(dir, launcherName(platform)),
+    emptyHooks: join21(dir, "empty-git-hooks"),
+    bin: join21(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -50603,7 +50740,7 @@ function ownBranchPrefix(template, owner, agent) {
 
 // ../../apps/cli/src/lib/path-lookup.ts
 import { statSync as statSync5 } from "node:fs";
-import { join as join15, posix as posix2, win32 as win322 } from "node:path";
+import { join as join16, posix as posix2, win32 as win322 } from "node:path";
 var isRegularFile = (p) => {
   try {
     return statSync5(p).isFile();
@@ -50616,7 +50753,7 @@ function findOnPath(name, env, platform, isFile) {
   const exts = win ? (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean).map((e) => e.toLowerCase()) : [""];
   for (const dir of pathDirs(env.PATH ?? "", win)) {
     for (const ext of exts) {
-      const candidate = join15(dir, name + ext);
+      const candidate = join16(dir, name + ext);
       if (isFile(candidate)) return candidate;
     }
   }
@@ -50628,10 +50765,10 @@ function pathDirs(path, win) {
 }
 
 // ../../apps/cli/src/lib/shell-shadow-scan.ts
-import { readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
+import { readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
 
 // ../../apps/cli/src/lib/shell-shadow.ts
-import { join as join16 } from "node:path";
+import { join as join17 } from "node:path";
 var NAME = START_COMMAND;
 var END = "(?![\\w-])";
 var QUOTE = `['"]?`;
@@ -50667,20 +50804,20 @@ var POWERSHELL_PROFILES = [
 function startupFiles(platform, home, env, isFolder3) {
   const files = [];
   if (platform === "win32") {
-    const docs = /* @__PURE__ */ new Set([join16(env.USERPROFILE || home, "Documents")]);
+    const docs = /* @__PURE__ */ new Set([join17(env.USERPROFILE || home, "Documents")]);
     for (const root of [env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial]) {
-      if (root && isFolder3(join16(root, "Documents"))) docs.add(join16(root, "Documents"));
+      if (root && isFolder3(join17(root, "Documents"))) docs.add(join17(root, "Documents"));
     }
-    for (const d of docs) for (const p of POWERSHELL_PROFILES) files.push(join16(d, ...p));
+    for (const d of docs) for (const p of POWERSHELL_PROFILES) files.push(join17(d, ...p));
   }
   for (const p of [".bashrc", ".bash_profile", ".profile", ".bash_aliases", ".zshrc"]) {
-    files.push(join16(home, p));
+    files.push(join17(home, p));
   }
-  files.push(join16(home, ".config", "fish", "config.fish"));
+  files.push(join17(home, ".config", "fish", "config.fish"));
   return files;
 }
 var definingFiles = (home) => [
-  join16(home, ".config", "fish", "functions", `${START_COMMAND}.fish`)
+  join17(home, ".config", "fish", "functions", `${START_COMMAND}.fish`)
 ];
 var shadowWarning = (file2, line) => `Warning: ${file2}:${line} defines ${START_COMMAND}, which runs instead of the launcher in that shell. Remove or rename it, then open a new terminal.`;
 
@@ -50694,7 +50831,7 @@ var isFolder = (p) => {
 };
 function readText(file2) {
   try {
-    const buf = readFileSync12(file2);
+    const buf = readFileSync13(file2);
     return buf[0] === 255 && buf[1] === 254 ? buf.toString("utf16le") : buf.toString("utf8");
   } catch {
     return null;
@@ -50716,8 +50853,8 @@ function shellShadowWarnings(ctx, platform) {
 }
 
 // ../../apps/cli/src/lib/shim.ts
-import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync13, realpathSync } from "node:fs";
-import { dirname as dirname7, join as join17, posix as posix3, win32 as win323 } from "node:path";
+import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync14, realpathSync } from "node:fs";
+import { dirname as dirname7, join as join18, posix as posix3, win32 as win323 } from "node:path";
 
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
@@ -50836,7 +50973,7 @@ function isBelow(dir, home, platform) {
 }
 var isOwnShim = (p) => {
   try {
-    return isOurShim(readFileSync13(p, "utf8"));
+    return isOurShim(readFileSync14(p, "utf8"));
   } catch {
     return false;
   }
@@ -50857,12 +50994,12 @@ var realPath = (p) => {
 };
 function installShim(scripts, i) {
   const write = (dir2) => {
-    for (const s of scripts) writeFileAtomic(join17(dir2, s.name), s.content, 493);
+    for (const s of scripts) writeFileAtomic(join18(dir2, s.name), s.content, 493);
   };
   const dir = dirname7(i.claude);
   const [realDir, realHome] = [realPath(dir), realPath(i.home)];
   const below = realDir !== null && realHome !== null && isBelow(realDir, realHome, i.platform);
-  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter(foreignAt) : [];
+  const foreign = below ? scripts.map((s) => join18(dir, s.name)).filter(foreignAt) : [];
   if (below && foreign.length === 0) {
     try {
       write(dir);
@@ -50876,7 +51013,7 @@ function installShim(scripts, i) {
 }
 
 // ../../apps/cli/src/commands/window-start.ts
-import { isAbsolute as isAbsolute2, join as join18, relative as relative2 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join19, relative as relative2 } from "node:path";
 function gitBashCommand(dir, home) {
   const rel = relative2(home, dir);
   const inHome = rel !== "" && !rel.startsWith("..") && !isAbsolute2(rel);
@@ -50893,7 +51030,7 @@ function printStart(ctx, s) {
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
   );
   if (s.reachesOurs) return;
-  const ours = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
+  const ours = join19(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
   ctx.stdout(
     s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
   );
@@ -50912,25 +51049,25 @@ var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
 var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
 var read = (path) => {
   try {
-    return readFileSync14(path, "utf8");
+    return readFileSync15(path, "utf8");
   } catch {
     return null;
   }
 };
 function checkouts(dir) {
-  const found = existsSync13(join19(dir, ".git")) ? [dir] : [];
+  const found = existsSync13(join20(dir, ".git")) ? [dir] : [];
   let names = [];
   try {
     names = readdirSync5(dir).sort();
   } catch {
   }
   for (const n of names) {
-    const sub = join19(dir, n);
-    if (existsSync13(join19(sub, ".git")) && statSync7(sub).isDirectory()) found.push(sub);
+    const sub = join20(dir, n);
+    if (existsSync13(join20(sub, ".git")) && statSync7(sub).isDirectory()) found.push(sub);
   }
   return found;
 }
-var ignoresWorktrees = (checkout) => (read(join19(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var ignoresWorktrees = (checkout) => (read(join20(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
 var isFolder2 = (p) => {
   try {
     return statSync7(p).isDirectory();
@@ -51118,7 +51255,8 @@ var COMMANDS = [
   doctorCommand,
   upgradeCommand,
   autoupdateCommand,
-  windowInitCommand
+  windowInitCommand,
+  timelineCommand
 ];
 function usage() {
   const width = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;

@@ -50,7 +50,7 @@ const thread = (id: string, subject: string, taskId: string | null) => ({
 describe('tool registry', () => {
   it('lists every tool with an object JSON schema', () => {
     const tools = listTools();
-    expect(tools.length).toBe(25);
+    expect(tools.length).toBe(26);
     const ask = tools.find((t) => t.name === 'ask');
     expect(ask?.inputSchema.type).toBe('object');
     expect(ask?.inputSchema).not.toHaveProperty('$schema');

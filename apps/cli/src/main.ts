@@ -12,6 +12,7 @@ import { setupHostCommand } from './commands/setup/host';
 import { setupInvitesCommand } from './commands/setup/invites';
 import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
+import { timelineCommand } from './commands/timeline';
 import { upgradeCommand } from './commands/upgrade';
 import { validateCommand } from './commands/validate';
 import { windowInitCommand } from './commands/window';
@@ -35,6 +36,7 @@ export const COMMANDS: readonly Command[] = [
   upgradeCommand,
   autoupdateCommand,
   windowInitCommand,
+  timelineCommand,
 ];
 
 function usage(): string {

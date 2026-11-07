@@ -49719,6 +49719,34 @@ ${fyi.join("\n")}`);
   })
 ];
 
+// src/tools/observe.ts
+var observeTools = [
+  defineTool({
+    name: "timeline",
+    description: "Operator only: this mesh's event timeline for an agent, session or thread (no message contents). Others are refused.",
+    input: external_exports.object({
+      agent: external_exports.string().optional(),
+      session: external_exports.string().optional(),
+      thread_id: external_exports.string().optional(),
+      since: external_exports.string().optional(),
+      until: external_exports.string().optional(),
+      limit: external_exports.number().int().positive().optional()
+    }),
+    mutating: false,
+    run: async (args, { hub: hub2 }) => {
+      const r = await hub2.call("observe.timeline", {
+        ...args.agent ? { agent: args.agent } : {},
+        ...args.session ? { session: args.session } : {},
+        ...args.thread_id ? { thread: args.thread_id } : {},
+        ...args.since ? { since: args.since } : {},
+        ...args.until ? { until: args.until } : {},
+        ...args.limit ? { limit: args.limit } : {}
+      });
+      return r.text;
+    }
+  })
+];
+
 // src/tools/planning.ts
 var DraftInput = external_exports.object({
   key: external_exports.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
@@ -50460,7 +50488,8 @@ var ALL_TOOLS = [
   ...taskTools,
   ...planningTools,
   ...leaseTools,
-  ...sessionTools
+  ...sessionTools,
+  ...observeTools
 ];
 function listTools(tools = ALL_TOOLS) {
   return tools.map((tool) => {

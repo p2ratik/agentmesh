@@ -5,6 +5,7 @@ import { formatFyi, seenIds } from '../inbox/fyi';
 import { recordShown, recordTool } from '../telemetry/plugin-events';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
+import { observeTools } from './observe';
 import { planningTools } from './planning';
 import { sessionTools } from './sessions';
 import { taskTools } from './tasks';
@@ -16,6 +17,7 @@ export const ALL_TOOLS: readonly ToolDef[] = [
   ...planningTools,
   ...leaseTools,
   ...sessionTools,
+  ...observeTools,
 ] as readonly ToolDef[];
 
 export interface ToolListing {
