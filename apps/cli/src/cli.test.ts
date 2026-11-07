@@ -2,10 +2,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '@agentmesh/config';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type CliContext, cliCommand } from './context';
 import { findExamplesDir } from './lib/repo-paths';
-import { runCli } from './main';
+import { EXIT_GRACE_MS, runCli, runMain } from './main';
 
 const SECRETS = {
   HERMES_INGEST_TOKEN: 'hermes-token-0123456789abcdef',
@@ -171,6 +171,25 @@ describe('agentmesh CLI', () => {
     expect(await h.run('validate')).toBe(0);
     const lines = h.err.join('\n').split('\n');
     expect(lines.some((l) => l.startsWith('warning: services[1].canActAsHumans:'))).toBe(true);
+  });
+});
+
+describe('runMain', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    process.exitCode = undefined;
+  });
+
+  // nats.js keeps the socket of a connect that timed out; that must not keep the command alive.
+  it('sets the exit code, and exits anyway if Node has not after the grace period', async () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    expect(await runMain(['nope'], harness().ctx, exit)).toBe(2);
+    expect(process.exitCode).toBe(2);
+    vi.advanceTimersByTime(EXIT_GRACE_MS - 1);
+    expect(exit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(exit).toHaveBeenCalledWith(2);
   });
 });
 

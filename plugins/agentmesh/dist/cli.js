@@ -51305,14 +51305,14 @@ ${usage()}`);
     return 1;
   }
 }
-var isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
-if (isEntry) {
-  runCli(process.argv.slice(2), processContext()).then((code) => {
-    process.exitCode = code;
-  });
+var EXIT_GRACE_MS = 2e3;
+async function runMain(argv, ctx = processContext(), exit = (code) => process.exit(code)) {
+  const code = await runCli(argv, ctx);
+  process.exitCode = code;
+  setTimeout(() => exit(code), EXIT_GRACE_MS).unref();
+  return code;
 }
+if (process.argv[1] && /main\.(ts|js)$/.test(process.argv[1])) void runMain(process.argv.slice(2));
 
 // src/cli.ts
-runCli(process.argv.slice(2), processContext()).then((code) => {
-  process.exitCode = code;
-});
+void runMain(process.argv.slice(2));

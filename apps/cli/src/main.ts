@@ -88,10 +88,25 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
   }
 }
 
-const isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
-// Not process.exit: right after a fetch it aborts Node 24 on Windows (exit 127), even on success.
-if (isEntry) {
-  runCli(process.argv.slice(2), processContext()).then((code) => {
-    process.exitCode = code;
-  });
+/** How long a finished command may wait for Node to exit on its own. */
+export const EXIT_GRACE_MS = 2_000;
+
+/**
+ * Runs the CLI as this process. It sets the exit code and lets Node exit on its own:
+ * `process.exit` right after a `fetch` aborts Node 24 on Windows (exit 127) even on success. A
+ * finished command must not hang on a handle left open, though: nats.js keeps the socket of a
+ * connect that timed out (a server that accepts but never answers), so after EXIT_GRACE_MS the
+ * process exits anyway.
+ */
+export async function runMain(
+  argv: string[],
+  ctx: CliContext = processContext(),
+  exit: (code: number) => void = (code) => process.exit(code),
+): Promise<number> {
+  const code = await runCli(argv, ctx);
+  process.exitCode = code;
+  setTimeout(() => exit(code), EXIT_GRACE_MS).unref();
+  return code;
 }
+
+if (process.argv[1] && /main\.(ts|js)$/.test(process.argv[1])) void runMain(process.argv.slice(2));
