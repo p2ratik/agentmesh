@@ -28,16 +28,19 @@ const hubEvent = (): HubEvent => ({
   thread: 'thr-1',
   phase: 'recorded',
 });
-const rows = (ctx: ReturnType<typeof createTestHarness>['ctx']) =>
-  ctx.db.all<{ agent: string; body: string }>('SELECT agent, body FROM events');
+const rows = (ctx: ReturnType<typeof createTestHarness>['ctx']) => {
+  ctx.events.flush();
+  return ctx.db.all<{ agent: string; body: string }>('SELECT agent, body FROM events');
+};
 
 describe('ObserveService', () => {
-  it("stores reported events under the caller, and the caller's id wins over a reported agent field", () => {
+  it('stores reported events under the caller, and drops one that names an agent', () => {
     const { ctx } = createTestHarness();
     const service = new ObserveService(ctx, () => true);
     const forged = { ...tool(), agent: 'mallory-agent' } as unknown as ReportedEvent;
-    expect(service.report('alice-agent', [forged])).toEqual({ accepted: 1, dropped: 0 });
+    expect(service.report('alice-agent', [forged, tool()])).toEqual({ accepted: 1, dropped: 1 });
     expect(rows(ctx).map((r) => r.agent)).toEqual(['alice-agent']);
+    expect(rows(ctx).map((r) => JSON.parse(r.body).agent)).toEqual([undefined]);
     const [event] = service.query({});
     expect(event?.agent).toBe('alice-agent');
   });

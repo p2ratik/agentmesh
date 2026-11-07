@@ -1,9 +1,10 @@
 import { MeshError } from '@agentmesh/common';
 import {
-  type HubEvent,
+  HubEvent,
   OBSERVABILITY_OFF,
   type ObservedEvent,
-  type ReportedEvent,
+  ParticipantId,
+  ReportedEvent,
 } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { EventSink } from '../../contracts';
@@ -81,24 +82,34 @@ export class ObserveService {
     return this.#budget.size;
   }
 
-  /** Stores what `agent` (proven by NATS) reported. Any `agent` inside an event is ignored. */
-  report(agent: string, events: ReportedEvent[]): { accepted: number; dropped: number } {
+  /**
+   * Stores what `agent` (proven by NATS) reported, in one transaction. Each event is checked on its
+   * own, so one a newer plugin knows and this hub doesn't costs only itself: it counts as dropped.
+   * The strict schema refuses an `agent` field, so the caller is the only attribution.
+   */
+  report(agent: string, events: readonly unknown[]): { accepted: number; dropped: number } {
     const { enabled, maxEventsPerMinute } = this.ctx.loaded.config.observability;
     if (!enabled) throw new MeshError('forbidden', OBSERVABILITY_OFF);
+    const valid = events.flatMap((e): ReportedEvent[] => {
+      const parsed = ReportedEvent.safeParse(e);
+      return parsed.success ? [parsed.data] : [];
+    });
     const nowMs = this.ctx.clock.now().getTime();
     const receivedAt = new Date(nowMs).toISOString();
     // A resent event counts as accepted (the plugin stops retrying) and still takes budget.
-    const room = this.#budget.take(agent, nowMs, maxEventsPerMinute, events.length);
+    const room = this.#budget.take(agent, nowMs, maxEventsPerMinute, valid.length);
     const owned = new Map<string, boolean>();
     const mine = (session: string) => {
       if (!owned.has(session)) owned.set(session, this.ownsSession(agent, session));
       return owned.get(session);
     };
-    for (const event of events.slice(0, room)) {
-      // A session that is not the caller's own is not recorded, so nobody can pin events on another's.
-      const stored = event.session && !mine(event.session) ? { ...event, session: null } : event;
-      this.#repo.insert(agent, stored, receivedAt);
-    }
+    this.ctx.db.transaction(() => {
+      for (const event of valid.slice(0, room)) {
+        // A session that is not the caller's own is not recorded, so nobody can pin events on another's.
+        const stored = event.session && !mine(event.session) ? { ...event, session: null } : event;
+        this.#repo.insert(agent, stored, receivedAt);
+      }
+    });
     return { accepted: room, dropped: events.length - room };
   }
 
@@ -140,10 +151,14 @@ export class ObserveService {
 const UNAUTHENTICATED = '(unauthenticated)';
 
 /**
- * The hub's own events into the same store. Off when observability is off; never throws. A
- * caller's failed calls (`rpc`, per caller) and the callout's refusals (`auth`, one shared budget)
- * are capped at `maxEventsPerMinute` like reports, so a loop or an unauthenticated flood cannot
- * grow the table without bound; the hub's session, delivery, relay and orphan events are not.
+ * The hub's own events into the same store. Off when observability is off; never throws. An event
+ * (or agent) that fails its schema is not stored, so no row can break a timeline read. A caller's
+ * failed calls (`rpc`, per caller) and the callout's refusals (`auth`, one shared budget) are
+ * capped at `maxEventsPerMinute` like reports, so a loop or an unauthenticated flood cannot grow
+ * the table without bound; the hub's session, delivery, relay and orphan events are not. Events
+ * queue and are written in one transaction of their own once the current task yields (a
+ * microtask), so a flush's many events cost one commit and never share the outbox's transaction.
+ * Best-effort: a crash before the write loses them.
  */
 export function createEventSink(
   ctx: Pick<HubContext, 'db' | 'clock' | 'loaded' | 'logger'>,
@@ -152,23 +167,44 @@ export function createEventSink(
   const budget = new MinuteWindow();
   /** Budgets that have filled once: the first time warns, later drops log at debug. */
   const full = new Set<string>();
+  let queue: Array<{ agent: string; event: HubEvent; at: string }> = [];
+  const flush = () => {
+    const batch = queue;
+    queue = [];
+    if (batch.length === 0) return;
+    try {
+      ctx.db.transaction(() => {
+        for (const { agent, event, at } of batch) repo.insert(agent, event, at);
+      });
+    } catch (err) {
+      ctx.logger.debug({ err, count: batch.length }, 'could not record events');
+    }
+  };
+  /** False, with a log line, when a capped kind is over its budget this minute. */
+  const withinBudget = (agent: string, event: HubEvent, nowMs: number): boolean => {
+    const key = event.kind === 'auth' ? UNAUTHENTICATED : event.kind === 'rpc' ? agent : null;
+    const max = ctx.loaded.config.observability.maxEventsPerMinute;
+    if (key === null || budget.take(key, nowMs, max, 1) > 0) return true;
+    const level = full.has(key) ? 'debug' : 'warn';
+    full.add(key);
+    ctx.logger[level](
+      { budget: key, kind: event.kind },
+      'hub events over the per-minute cap; not recorded',
+    );
+    return false;
+  };
   return {
+    flush,
     record(agent, event: HubEvent) {
       try {
-        const { enabled, maxEventsPerMinute } = ctx.loaded.config.observability;
-        if (!enabled) return;
-        const now = ctx.clock.now();
-        const key = event.kind === 'auth' ? UNAUTHENTICATED : event.kind === 'rpc' ? agent : null;
-        if (key !== null && budget.take(key, now.getTime(), maxEventsPerMinute, 1) === 0) {
-          const level = full.has(key) ? 'debug' : 'warn';
-          full.add(key);
-          ctx.logger[level](
-            { budget: key, kind: event.kind },
-            'hub events over the per-minute cap; not recorded',
-          );
+        if (!ctx.loaded.config.observability.enabled) return;
+        if (!HubEvent.safeParse(event).success || !ParticipantId.safeParse(agent).success) {
+          ctx.logger.debug({ kind: event?.kind }, 'hub event fails its schema; not recorded');
           return;
         }
-        repo.insert(agent, event, now.toISOString());
+        const now = ctx.clock.now();
+        if (!withinBudget(agent, event, now.getTime())) return;
+        if (queue.push({ agent, event, at: now.toISOString() }) === 1) queueMicrotask(flush);
       } catch (err) {
         ctx.logger.debug({ err, kind: event.kind }, 'could not record an event');
       }

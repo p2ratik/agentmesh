@@ -105,16 +105,39 @@ function details(e: ObservedEvent): string {
   }
 }
 
-/** Skew note when any plugin-sourced event's own clock is far from the hub's receive time. */
-function skew(group: ObservedEvent[]): string {
-  for (const e of group) {
-    if (e.source === 'hub') continue;
-    const diff = Date.parse(e.receivedAt) - Date.parse(e.at);
-    if (Math.abs(diff) < SKEW_MIN_MS) continue;
-    const min = Math.round(diff / 60_000);
-    return ` (clock ${min > 0 ? '+' : ''}${min}m)`;
+const minutes = (ms: number) => Math.round(ms / 60_000);
+/** When the hub opened each session (`agent/session` → ms), from its `opened` events. */
+type Opened = Map<string, number>;
+
+/**
+ * `(clock ±Nm)` only when a reported event's own time is impossible: later than the hub received
+ * it (the laptop's clock is ahead), or before the hub opened its session (behind). Otherwise
+ * `(sent late, +Nm)` when it reached the hub more than 2 minutes after it happened: it waited in
+ * the plugin's buffer, an outage say. Hub events carry neither.
+ */
+function mark(group: ObservedEvent[], opened: Opened): string {
+  const reported = group.filter((e) => e.source !== 'hub');
+  for (const e of reported) {
+    const at = Date.parse(e.at);
+    const ahead = at - Date.parse(e.receivedAt);
+    if (ahead > SKEW_MIN_MS) return ` (clock +${minutes(ahead)}m)`;
+    const start = opened.get(`${e.agent}/${e.session}`);
+    if (start !== undefined && start - at > SKEW_MIN_MS) return ` (clock -${minutes(start - at)}m)`;
+  }
+  for (const e of reported) {
+    const late = Date.parse(e.receivedAt) - Date.parse(e.at);
+    if (late > SKEW_MIN_MS) return ` (sent late, +${minutes(late)}m)`;
   }
   return '';
+}
+
+function openedSessions(events: ObservedEvent[]): Opened {
+  const opened: Opened = new Map();
+  for (const e of events) {
+    if (e.kind === 'session' && e.phase === 'opened' && e.session)
+      opened.set(`${e.agent}/${e.session}`, Date.parse(e.at));
+  }
+  return opened;
 }
 
 const versions = (sorted: ObservedEvent[], agent: string) => {
@@ -163,12 +186,17 @@ function groupEvents(sorted: ObservedEvent[]): ObservedEvent[][] {
   return [...groups.values()];
 }
 
-/** Plain text, one line per event, oldest first. Pure: no I/O. Times are in the process zone. */
+/**
+ * Plain text, one line per event, in the order they happened by each source's own clock (the
+ * hub's receive time breaks ties). Pure: no I/O. Times are in the process zone.
+ */
 export function formatTimeline(events: ObservedEvent[], opts: TimelineOptions): string {
   if (events.length === 0) return 'no events in this window';
   const sorted = [...events].sort(
-    (a, b) => a.receivedAt.localeCompare(b.receivedAt) || a.at.localeCompare(b.at),
+    (a, b) =>
+      Date.parse(a.at) - Date.parse(b.at) || Date.parse(a.receivedAt) - Date.parse(b.receivedAt),
   );
+  const opened = openedSessions(sorted);
   const agents = [...new Set(sorted.map((e) => e.agent))];
   const manySessions = new Set(sorted.map((e) => e.session ?? '-')).size > 1;
   const lines = headerLines(sorted, agents, opts.title);
@@ -186,7 +214,7 @@ export function formatTimeline(events: ObservedEvent[], opts: TimelineOptions): 
     const when = local(e.at);
     const stamp = when.date === day ? when.time : `${when.date} ${when.time}`;
     day = when.date;
-    lines.push(`${stamp}  ${e.kind.padEnd(13)}  ${who}${session}${text}${skew(group)}`);
+    lines.push(`${stamp}  ${e.kind.padEnd(13)}  ${who}${session}${text}${mark(group, opened)}`);
   }
   return lines.join('\n');
 }

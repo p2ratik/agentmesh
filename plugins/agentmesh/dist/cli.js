@@ -46186,6 +46186,7 @@ var common = { id: external_exports.uuid().max(36), at: Time, session: SessionId
 var reported = { ...common, source: external_exports.enum(EVENT_SOURCES) };
 var hub = { ...common, source: external_exports.literal("hub") };
 var strict = (shape) => external_exports.object(shape).strict();
+var MAX_TAKEN_THREADS = 50;
 var ReportedEvent = external_exports.discriminatedUnion("kind", [
   strict({
     ...reported,
@@ -46262,7 +46263,8 @@ var HubEvent = external_exports.discriminatedUnion("kind", [
     kind: external_exports.literal("session"),
     phase: external_exports.enum(HUB_SESSION_PHASES),
     replacedSession: SessionId.optional(),
-    threads: external_exports.array(ThreadRef).max(50).optional()
+    threads: external_exports.array(ThreadRef).max(MAX_TAKEN_THREADS).optional(),
+    threadCount: Count.optional()
   }),
   strict({
     ...hub,
@@ -46624,7 +46626,9 @@ var observeMethods = {
   "telemetry.report": defineMethod({
     description: "Ship a batch of this session's behaviour events (ids, counts and codes only).",
     callers: ["agent"],
-    params: external_exports.object({ events: external_exports.array(ReportedEvent).max(MAX_REPORT_EVENTS) }),
+    // Each event is checked by the hub on its own (`ReportedEvent`), so one this hub doesn't know
+    // (from a newer plugin) costs only itself, counted in `dropped`.
+    params: external_exports.object({ events: external_exports.array(external_exports.unknown()).max(MAX_REPORT_EVENTS) }),
     result: external_exports.object({
       accepted: external_exports.number().int().nonnegative(),
       dropped: external_exports.number().int().nonnegative()

@@ -57,8 +57,8 @@ Constraints:
   `observability.retentionDays` (14), pruned on the scheduler tick. A 5–15 person team needs no
   log platform.
 - **The hub clock is the reference.** A reported event keeps the sender's `at`, and the hub adds
-  `receivedAt`. Queries and ordering use `receivedAt`, and a gap of 2 minutes or more is marked
-  on the line.
+  `receivedAt`. Queries use `receivedAt`. The text orders lines by each source's own time and
+  marks an event that arrived late or whose time is impossible (amended below).
 - **Free-listed, with its own cap.** `telemetry.report` and `observe.timeline` take no token from
   `limits.rpcBurst`, so telemetry never competes with real work. Instead the hub accepts at most
   `observability.maxEventsPerMinute` (300) events per agent per minute, and counts the rest as
@@ -144,6 +144,28 @@ code to match:
   method stops reporting for the whole process.
 - **Owner-only files.** On macOS and Linux the events file is created 600, in a 700 folder when
   the writer creates it, like the plugin's other state files.
+
+### Fixes after the final review (amended 2026-11-08)
+
+- **No stored row can break a read.** The hub checks each of its own events against `HubEvent`
+  (and its agent against `ParticipantId`) before storing it, and drops one that fails with a debug
+  log. A `taken_over` event lists at most 50 threads, with `threadCount` for the total: a
+  long-lived window's takeover could pass the schema's cap, and one such row failed every timeline
+  read that held it.
+- **Lines in the order things happened.** The text orders lines by each event's own time, the
+  laptop's for reported events and the hub's for its own, with the receive time breaking ties. An
+  event that waited in the plugin's buffer through an outage is marked `(sent late, +Nm)` where it
+  happened, not printed after the reconnect as clock skew. `(clock ±Nm)` is kept for impossible
+  times: later than the hub received it, or before the hub opened its session. The session's start
+  is the hub's `opened` event rather than the plugin's `connected` event, because a `connected`
+  event can itself arrive late, and its receive time would then mark honest events as skewed.
+- **Batched writes.** A report is stored in one transaction. The hub's own events queue in memory
+  and are written in one transaction of their own once the current task yields, never inside the
+  outbox's. Measured: 100 autocommit inserts took 110 ms, one transaction 1.4 ms.
+- **Each reported event is validated on its own.** `telemetry.report` takes up to 100 values, and
+  the hub checks each against `ReportedEvent`, storing the valid ones and counting the rest in
+  `dropped`. Every 0.7 hub becomes the older hub for later plugins, so one new kind or reason code
+  must cost only that event, not the batch.
 
 ### Phase 1 and phase 2
 

@@ -42,6 +42,9 @@ const hub = { ...common, source: z.literal('hub') };
 
 const strict = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
 
+/** A `taken_over` event lists at most this many threads; `threadCount` says how many it took. */
+export const MAX_TAKEN_THREADS = 50;
+
 /** Events a plugin, its guard or its hook report (`telemetry.report`). */
 export const ReportedEvent = z.discriminatedUnion('kind', [
   strict({
@@ -125,7 +128,8 @@ export const HubEvent = z.discriminatedUnion('kind', [
     kind: z.literal('session'),
     phase: z.enum(HUB_SESSION_PHASES),
     replacedSession: SessionId.optional(),
-    threads: z.array(ThreadRef).max(50).optional(),
+    threads: z.array(ThreadRef).max(MAX_TAKEN_THREADS).optional(),
+    threadCount: Count.optional(),
   }),
   strict({
     ...hub,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ObservedEvent, ReportedEvent } from '../observe';
+import { ObservedEvent } from '../observe';
 import { HUB_KINDS, REPORTED_KINDS } from '../observe-codes';
 import { ParticipantId, SessionId } from '../primitives';
 import { defineMethod } from './define';
@@ -16,7 +16,9 @@ export const observeMethods = {
   'telemetry.report': defineMethod({
     description: "Ship a batch of this session's behaviour events (ids, counts and codes only).",
     callers: ['agent'],
-    params: z.object({ events: z.array(ReportedEvent).max(MAX_REPORT_EVENTS) }),
+    // Each event is checked by the hub on its own (`ReportedEvent`), so one this hub doesn't know
+    // (from a newer plugin) costs only itself, counted in `dropped`.
+    params: z.object({ events: z.array(z.unknown()).max(MAX_REPORT_EVENTS) }),
     result: z.object({
       accepted: z.number().int().nonnegative(),
       dropped: z.number().int().nonnegative(),

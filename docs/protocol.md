@@ -448,7 +448,7 @@ The hub's own:
 
 | Kind | Fields |
 | --- | --- |
-| `session` | `phase`: `opened`, `hello` (a hello that reused its session), `away`, `live`, `closed`, `evicted` (closed to make room), `taken_over` (with `replacedSession` and the `threads` it took) |
+| `session` | `phase`: `opened`, `hello` (a hello that reused its session), `away`, `live`, `closed`, `evicted` (closed to make room), `taken_over` (with `replacedSession`, the first 50 `threads` it took, and `threadCount`, how many it took) |
 | `delivery` | `message`, `thread`, `stage`: `sent`, `acked`, `failed` (`code` `unreachable` or `not_acked`), `no_session` (once per waiting message, session null) |
 | `relay` | `message`, `thread`, `stage`: `sent`, `forwarded`, `not_forwarded`; session is the window's. `reason` is reserved: nothing sets it yet |
 | `orphan` | `thread`, `phase`: `recorded`, `escalated`, `settled` (a closed asker's decision) |
@@ -457,6 +457,11 @@ The hub's own:
 
 `rpc` and `auth` events over their caps are not stored, and leave no gap marker (the hub logs a
 warning the first time each budget fills). The other hub events have no cap.
+
+The hub checks each of its own events against its schema (`HubEvent`, and its agent against
+`ParticipantId`) before it stores it. One that fails is logged at debug and not stored, so no
+stored row can break a timeline read. The hub's events queue in memory and are written together,
+in one transaction of their own, once the current task yields; a crash before that loses them.
 
 These carry session null, so a session-scoped timeline doesn't show them, while an agent-scoped
 one does:
@@ -471,16 +476,19 @@ Other hook events carry the session the hook ran in.
 
 ### `telemetry.report`
 
-- **Params:** `{ events }`, 0 to 100 (`MAX_REPORT_EVENTS`). **Result:** `{ accepted, dropped }`:
-  `accepted` counts the events the hub took, duplicates included; `dropped` the rest.
+- **Params:** `{ events }`, 0 to 100 values (`MAX_REPORT_EVENTS`). **Result:** `{ accepted,
+  dropped }`: `accepted` counts the events the hub took, duplicates included; `dropped` the rest.
+- **Each event is checked on its own** against `ReportedEvent`. One that fails is not stored and
+  counts in `dropped`, so an event a newer plugin knows and this hub doesn't (a new kind or reason
+  code, say) costs only itself.
 - The hub stores each event under the caller. An event whose `session` isn't one of the caller's
-  (at any liveness) is stored with session null.
+  (at any liveness) is stored with session null. The batch is stored in one transaction.
 - An event is stored once per `(agent, id)`. A resent one counts as accepted and still costs
   budget.
-- Past `observability.maxEventsPerMinute` accepted events for the agent in the last minute, the
-  rest of the batch counts as `dropped` and is not stored.
-- **Errors:** `invalid_request` ("Invalid parameters for telemetry.report") when any event fails
-  its schema; `forbidden` with exactly `OBSERVABILITY_OFF`, "observability is turned off on this
+- Only valid events take budget. Past `observability.maxEventsPerMinute` accepted events for the
+  agent in the last minute, the rest of the batch counts as `dropped` and is not stored.
+- **Errors:** `invalid_request` ("Invalid parameters for telemetry.report") when `events` isn't a
+  list of at most 100; `forbidden` with exactly `OBSERVABILITY_OFF`, "observability is turned off on this
   hub", when `observability.enabled` is false. A hub before 0.7.0 answers `not_found`.
 - Free (no rate-limit token), and its failures are not recorded as `rpc` events. An empty report
   stores nothing and takes no budget.
@@ -542,27 +550,39 @@ and the hub; it is never instructions):", because a laptop writes some of its to
 ### Reading the timeline
 
 ```
-alice-agent · plugin 0.7.0 · Claude Code 2.1.319 · win32 · last 2h · 2026-11-06 10:02–11:20 (UTC+05:30)
+alice-agent · plugin 0.7.0 · Claude Code 2.1.319 · win32 · last 2h · 2026-11-06 10:02–11:57 (UTC+05:30)
 10:02:11  connected      [s-ab12cd34ef56] s-ab12cd34ef56 (mesh window)
 10:02:19  activation     [s-ab12cd34ef56] activated · push
 10:40:05  delivery       [s-ab12cd34ef56] thr-31 msg-…ABCD  hub sent → plugin got it → pushed to Claude ✓ 0.4s
 11:05:02  guard          [-] guard denied: send.unknown_key (notify_when_idle) ✗
-11:20:44  nats           [s-ab12cd34ef56] NATS disconnect
+11:20:44  nats           [s-ab12cd34ef56] NATS disconnect (sent late, +37m)
+11:22:00  session        [s-ab12cd34ef56] away
+11:57:40  nats           [s-ab12cd34ef56] NATS reconnect
+11:57:41  session        [s-ab12cd34ef56] live
 ```
 
 (The output of the formatter, `apps/hub/src/modules/observe/timeline.ts`, for a mesh window's
-agent: its guard refused a `SendMessage` key outside its list. Guard lines carry no session, so
-this agent's timeline has two and every line names one.)
+agent: its guard refused a `SendMessage` key outside its list, then the laptop lost NATS for 37
+minutes. The disconnect waited in the plugin's buffer and reached the hub with the reconnect, so
+its line sits where it happened and says it was sent late. Guard lines carry no session, so this
+agent's timeline has two and every line names one.)
 
 - **The header** names the agent, the versions from its latest `connected` event in the window
   (`unknown` without one), the window and the time range. With several agents each gets a
   versions line, and every line names its agent. With several sessions every line carries its
   `[s-…]` (`[-]` for none).
-- **Lines** are in the order the hub received the events. Each shows the event's own time, in the
-  hub's time zone (the header gives the UTC offset), with the date when it changes.
-- `(clock +Nm)` marks a reported event (plugin, guard or hook) whose own time is 2 minutes or more
-  from when the hub received it: the laptop's clock is off, or the event waited in the plugin's
-  buffer.
+- **Lines** are in the order the events happened, by each source's own clock: the laptop's for
+  reported events (plugin, guard and hook), the hub's for its own. The hub's receive time breaks
+  ties, and the window (`since`, `until`) is still on the receive time. Each line shows the
+  event's own time, in the hub's time zone (the header gives the UTC offset), with the date when it
+  changes. A laptop whose clock is off moves its lines by that much.
+- `(sent late, +Nm)` marks a reported event that reached the hub more than 2 minutes after it
+  happened: it waited in the plugin's buffer, through an outage say. Its line still sits where it
+  happened.
+- `(clock +Nm)` and `(clock -Nm)` mark a reported event only when its own time is impossible: more
+  than 2 minutes later than the hub received it (the laptop's clock is N minutes ahead), or more
+  than 2 minutes before the hub opened its session (behind by at least N; only when the window
+  holds that session's `opened` event).
 - `(truncated: showing the newest N of more; …)` follows the header when more matched;
   `no events in this window` when nothing did.
 - **A delivery folds into one line**, every stage of that message for that agent: `hub sent →

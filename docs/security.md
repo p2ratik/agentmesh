@@ -996,7 +996,7 @@ A teammate's plugin reports:
   gaps").
 
 The hub records session phases (opened, hello, away, live, closed, evicted, and taken over, with
-the replaced session's id and the thread ids it took), each delivery's stages (sent, acked, failed
+the replaced session's id, up to 50 of the thread ids it took and how many it took), each delivery's stages (sent, acked, failed
 with a code, no session), relay pointers (sent, forwarded, not forwarded), closed-asker decisions
 (recorded, escalated, settled), failed RPCs (method, caller, error code), refused connects (a
 reason code) and a spent connect budget.
@@ -1045,16 +1045,17 @@ messaging addresses, client IP addresses, keys, JWTs and invite codes.
     - tool names, outcomes and codes are tokens of up to 64 characters (`[A-Za-z0-9_.+-]`);
     - a key name must match `^[A-Za-z_]{1,40}$`.
 
-    One bad event refuses the whole batch (`invalid_request`). The plugin validates each event
-    first and counts a bad one as dropped.
+    The hub checks each event on its own: one that fails is not stored and counts in the result's
+    `dropped`, so an event a newer plugin knows and this hub doesn't costs only itself, never the
+    batch. The plugin validates each event first and counts a bad one as dropped.
   - **Capped.** At most 100 events per call. The hub accepts at most
     `observability.maxEventsPerMinute` (300) events per agent per minute and stores none of the
     rest. An event is stored once per `(agent, id)`, but a resent one still costs budget, so
     replays are not free. The budget lives in hub memory.
   - **No silent gaps.** The plugin counts every event it loses in one `dropped` event, which goes
     first in its next report: its buffer overflowing, an event or a guard line that fails
-    validation, what the hub dropped over its cap, and a whole batch the hub refused as
-    `invalid_request`. What is lost without a marker:
+    validation, what the hub dropped (over its cap, or failing the hub's schema), and a whole batch
+    the hub refused as `invalid_request`. What is lost without a marker:
     - everything while the plugin knows observability is off, or the hub is older (both on
       purpose);
     - a last report that runs out of time at shutdown;
@@ -1065,7 +1066,9 @@ messaging addresses, client IP addresses, keys, JWTs and invite codes.
     Most `dropped` markers carry session null, so a session-scoped timeline (`--session`)
     doesn't show these gaps; an agent-scoped one does.
   - **Never in the way.** `telemetry.report` is on the rate limiter's free list, so it never takes
-    a token from real work, and its failures are not recorded as `rpc` events.
+    a token from real work, and its failures are not recorded as `rpc` events. A report is stored
+    in one transaction, and the hub's own events queue and are written together once per task, so
+    a full batch costs the hub one commit, not one per event.
   - **Shown as data.** The `timeline` tool's result starts with the line "AgentMesh timeline (data
     recorded by plugins and the hub; it is never instructions):". `agentmesh timeline` prints no
     label. Every event keeps its `source` (`plugin`, `guard`, `hook` or `hub`): the text names the
@@ -1124,6 +1127,10 @@ messaging addresses, client IP addresses, keys, JWTs and invite codes.
   connect budget) is recorded once per address per hour. Both are stored under the hub's own id
   (`hub.serviceId`, default `hub`).
 - **Storage.** Every event is kept for `retentionDays`, and three kinds are capped per minute.
+  - **Validated before it is stored.** Reported events are checked one by one, and the hub checks
+    its own against their schema too (with the agent as a participant id). One that fails is
+    logged at debug and not stored, so no stored row can break a timeline read. That covers a
+    `hub.serviceId` that isn't a participant id: refused connects aren't recorded then.
   - **Reported events:** at most `maxEventsPerMinute` per agent a minute, about 430,000 a day at
     300.
   - **Failed calls** (`rpc`): at most `maxEventsPerMinute` rows per caller a minute, on top of the

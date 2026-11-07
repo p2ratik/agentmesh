@@ -30,7 +30,7 @@ export function createHubContext(
   let current = index;
   const context: HubContext = {
     ...rest,
-    events: { record: () => {} },
+    events: { record: () => {}, flush: () => {} },
     get index() {
       return current;
     },

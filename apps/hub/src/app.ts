@@ -201,6 +201,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       await outbox.flush().catch((err) => logger.warn({ err }, 'final outbox flush failed'));
       if (sys) await sys.drain().catch(() => undefined);
       if (nats) await nats.nc.drain().catch(() => undefined);
+      context.events.flush();
       db.close();
     },
   };

@@ -83,16 +83,54 @@ describe('formatTimeline', () => {
     expect(out[1]).toMatch(/guard denied: send\.unknown_key \(summary\) ✗$/);
   });
 
-  it('marks a skewed plugin clock, also on a folded delivery whose hub event comes first', () => {
-    const late = { receivedAt: '2026-10-16T10:40:05.000Z' };
-    expect(lines([dropped('2026-10-16T10:35:05.000Z', late)])[1]).toMatch(
+  it("orders lines by each event's own time: a buffered disconnect prints first, sent late", () => {
+    const s = { session: 's-ab12cd34ef56' };
+    const hub = (phase: string, at: string) =>
+      ev({ source: 'hub', kind: 'session', phase, at, receivedAt: at, ...s });
+    const nats = (event: string, at: string) =>
+      ev({ kind: 'nats', event, at, receivedAt: '2026-10-16T10:38:05.000Z', ...s });
+    // As the hub stores them: in the order it received them.
+    const out = lines([
+      hub('opened', '2026-10-16T09:30:00.000Z'),
+      hub('away', '2026-10-16T10:02:16.000Z'),
+      hub('live', '2026-10-16T10:38:01.000Z'),
+      nats('disconnect', '2026-10-16T10:01:00.000Z'),
+      nats('reconnect', '2026-10-16T10:38:00.000Z'),
+    ]);
+    expect(out.slice(1)).toEqual([
+      '15:00:00  session        opened',
+      '15:31:00  nats           NATS disconnect (sent late, +37m)',
+      '15:32:16  session        away',
+      '16:08:00  nats           NATS reconnect',
+      '16:08:01  session        live',
+    ]);
+  });
+
+  it('marks the clock only when a time is impossible: after its receipt, or before its session', () => {
+    const ahead = { receivedAt: '2026-10-16T10:40:05.000Z' };
+    expect(lines([dropped('2026-10-16T10:45:05.000Z', ahead)])[1]).toMatch(
       /1 events dropped \(clock \+5m\)$/,
     );
+    const s = { session: 's-ab12cd34ef56' };
+    const out = lines([
+      ev({ source: 'hub', kind: 'session', phase: 'opened', at: '2026-10-16T10:00:00.000Z', ...s }),
+      ev({ kind: 'tool', tool: 'ask', outcome: 'ok', ms: 5, at: '2026-10-16T09:30:00.000Z', ...s }),
+      ev({ kind: 'tool', tool: 'ask', outcome: 'ok', ms: 5, at: '2026-10-16T10:05:00.000Z', ...s }),
+    ]);
+    expect(out.slice(1)).toEqual([
+      '15:00:00  tool           ask ok 5ms (clock -30m)',
+      '15:30:00  session        opened',
+      '15:35:00  tool           ask ok 5ms (sent late, +35m)',
+    ]);
+  });
+
+  it('marks a folded delivery whose plugin events were sent late', () => {
+    const late = { receivedAt: '2026-10-16T10:45:05.000Z' };
     const folded = lines([
       delivery('hub', 'sent', '2026-10-16T10:40:00.000Z'),
-      delivery('plugin', 'received', '2026-10-16T10:35:05.000Z', 0, late),
+      delivery('plugin', 'received', '2026-10-16T10:40:01.000Z', 0, late),
     ]);
-    expect(folded[1]).toMatch(/hub sent → plugin got it ✗ \(not pushed\) \(clock \+5m\)$/);
+    expect(folded[1]).toMatch(/hub sent → plugin got it ✗ \(not pushed\) \(sent late, \+5m\)$/);
   });
 
   it("the header uses the latest connected event's versions", () => {

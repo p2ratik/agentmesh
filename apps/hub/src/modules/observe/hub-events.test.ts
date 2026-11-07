@@ -14,11 +14,15 @@ import type { MessagingServiceImpl } from '../messaging/messaging.service';
 import { hubRecorder } from './hub-event';
 
 type Row = Record<string, unknown>;
-const recorded = (h: { ctx: { db: { all<T>(sql: string): T[] } } }, kind?: string): Row[] =>
-  h.ctx.db
+type HasDb = { ctx: { db: { all<T>(sql: string): T[] }; events: { flush(): void } } };
+/** The stored hub events, once the queued ones are written. */
+const recorded = (h: HasDb, kind?: string): Row[] => {
+  h.ctx.events.flush();
+  return h.ctx.db
     .all<{ body: string }>('SELECT body FROM events ORDER BY rowid')
     .map((r) => HubEvent.parse(JSON.parse(r.body)) as unknown as Row)
     .filter((e) => !kind || e.kind === kind);
+};
 const phases = (h: Parameters<typeof recorded>[0], kind = 'session') =>
   recorded(h, kind).map((e) => e.phase);
 
@@ -149,6 +153,7 @@ describe('the hub records its own events', () => {
     ).rejects.toThrow();
     const [e] = recorded(h, 'rpc');
     expect(e).toMatchObject({ method: 'mesh.status', caller: 'alice-agent', code: 'not_found' });
+    h.ctx.events.flush();
     const raw = JSON.stringify(h.ctx.db.all('SELECT * FROM events'));
     expect(raw).not.toMatch(/p4rams|secret-text/);
   });

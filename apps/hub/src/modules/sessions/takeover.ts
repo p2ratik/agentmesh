@@ -1,4 +1,5 @@
 import type { Logger } from '@agentmesh/common';
+import { MAX_TAKEN_THREADS } from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import { threadKey } from '../../core/ids';
 import { recordHub } from '../observe/hub-event';
@@ -35,8 +36,10 @@ export function adoptAwayWindows(
     result.closed.push(id);
     const taken = closed ? reclaimReleased(repo, closed, window.id, at) : [];
     result.reclaimed.push(...taken);
-    const threads = taken.map(threadKey);
-    const replaced = { replacedSession: id, ...(threads.length ? { threads } : {}) };
+    // The event keeps the first MAX_TAKEN_THREADS and the count; the hub log has them all.
+    const threads = taken.slice(0, MAX_TAKEN_THREADS).map(threadKey);
+    const took = threads.length ? { threads, threadCount: taken.length } : {};
+    const replaced = { replacedSession: id, ...took };
     recordHub(ctx, window.agent_id, window.id, {
       kind: 'session',
       phase: 'taken_over',
