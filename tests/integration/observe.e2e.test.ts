@@ -14,9 +14,9 @@ import { type Agent, cleanEnv, PLUGIN, PLUGIN_CLI, spawnAgent, untilConnected } 
 
 /**
  * Observability phase 1 for real: a nats-server of its own (killed and restarted for the offline
- * case), the hub, the bundled plugin over MCP and the bundled `agentmesh timeline`. alice is the
- * only viewer; carol is an admin who is not one; bob is a plain member whose plugin makes the
- * events. Needs AGENTMESH_TEST_NATS_BIN and a built plugin (dist/server.js, dist/cli.js).
+ * case; a second, with nkey auth, refuses a key), the hub, the bundled plugin over MCP and the
+ * bundled `agentmesh timeline`. alice is the only viewer; carol is an admin who is not one; bob is
+ * a plain member whose plugin makes the events. Needs AGENTMESH_TEST_NATS_BIN and a built plugin.
  */
 const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
 const PORT = 8100 + Math.floor(Date.now() % 400);
@@ -73,38 +73,39 @@ const jsonLines = (r: Run): ObservedEvent[] =>
     .split('\n')
     .map((line) => JSON.parse(line) as ObservedEvent);
 
-/** A port nothing listens on, and a server that accepts and never says a word. */
-async function deadEnds(): Promise<{ closed: number; silent: Server }> {
-  const listen = async (server: Server) => {
-    server.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    return (server.address() as AddressInfo).port;
-  };
-  const gone = createServer();
-  const closed = await listen(gone);
-  await new Promise((r) => gone.close(r));
-  const silent = createServer((socket) => socket.on('error', () => undefined));
-  await listen(silent);
-  return { closed, silent };
+/** A server listening on a free local port, and that port. */
+async function listening(server: Server): Promise<number> {
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  return (server.address() as AddressInfo).port;
+}
+
+/** A port that was free a moment ago: nothing listens on it. */
+async function freePort(): Promise<number> {
+  const probe = createServer();
+  const port = await listening(probe);
+  await new Promise((r) => probe.close(r));
+  return port;
+}
+
+/** Kills a nats-server and waits for it to exit (its store stays locked until then). */
+async function stop(p: ChildProcess | undefined): Promise<void> {
+  if (!p || p.exitCode !== null || p.signalCode !== null) return;
+  const exited = once(p, 'exit');
+  p.kill();
+  await exited;
 }
 
 describe.skipIf(
   !NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN) || !existsSync(PLUGIN_CLI),
 )('observability end to end', () => {
-  const store = mkdtempSync(join(tmpdir(), 'am-e2e-obs-nats-'));
-  const temps: string[] = [store];
+  const temps: string[] = [];
+  let store = '';
   const startNats = () =>
     spawn(NATS_BIN, ['-js', '-p', String(PORT), '-a', '127.0.0.1', '-sd', store], {
       stdio: 'ignore',
     });
   let server: ChildProcess;
-  /** Kills nats-server and waits for it to exit (its store stays locked until then). */
-  const stopNats = async () => {
-    if (!server || server.exitCode !== null || server.signalCode !== null) return;
-    const exited = once(server, 'exit');
-    server.kill();
-    await exited;
-  };
   let hub: Hub;
   let bob: Agent;
   let alice: Agent;
@@ -140,6 +141,8 @@ describe.skipIf(
     });
 
   beforeAll(async () => {
+    store = mkdtempSync(join(tmpdir(), 'am-e2e-obs-nats-'));
+    temps.push(store);
     server = startNats();
     const human = (id: string, n: number, admin: boolean) => ({
       id,
@@ -173,7 +176,7 @@ describe.skipIf(
   afterAll(async () => {
     await Promise.all([bob, alice, carol].map((a) => a?.client.close().catch(() => undefined)));
     await hub?.stop();
-    await stopNats();
+    await stop(server);
     for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
   });
 
@@ -233,12 +236,39 @@ describe.skipIf(
     }
   }, 30_000);
 
-  it('agentmesh timeline exits 1 in bounded time when the hub is unreachable', async () => {
-    const { closed, silent } = await deadEnds();
+  it('agentmesh timeline exits 1 when NATS refuses its key, with no credentials shown', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'am-e2e-obs-auth-'));
+    temps.push(dir);
+    const port = await freePort();
+    // This NATS knows one nkey, and it is not the laptop's.
+    const users = `authorization { users: [{ nkey: "${createUser().getPublicKey()}" }] }`;
+    writeFileSync(join(dir, 'nats.conf'), `port: ${port}\n${users}\n`);
+    const auth = spawn(NATS_BIN, ['-c', join(dir, 'nats.conf'), '-a', '127.0.0.1'], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
     try {
-      const port = (silent.address() as AddressInfo).port;
-      for (const url of [`nats://127.0.0.1:${closed}`, `nats://127.0.0.1:${port}`]) {
-        const { home, seed } = laptop('alice-agent', url);
+      await new Promise<void>((ready) =>
+        auth.stderr?.on('data', (b: Buffer) => {
+          if (b.toString().includes('Server is ready')) ready();
+        }),
+      );
+      const { home, seed } = laptop('alice-agent', `nats://127.0.0.1:${port}`);
+      const r = await timeline(home);
+      expect(r).toMatchObject({ code: 1, stdout: '' });
+      // NATS closes on a refusal, so it can show as a reset before its -ERR is read (Windows).
+      expect(r.stderr).toMatch(/^error: .*(authorization|ECONNRESET)/i);
+      expect(r.stderr).not.toContain(seed);
+    } finally {
+      await stop(auth);
+    }
+  }, 30_000);
+
+  it('agentmesh timeline exits 1 in bounded time when the hub is unreachable', async () => {
+    // A port nothing listens on, and a server that accepts and never says a word.
+    const silent = createServer((socket) => socket.on('error', () => undefined));
+    try {
+      for (const port of [await freePort(), await listening(silent)]) {
+        const { home, seed } = laptop('alice-agent', `nats://127.0.0.1:${port}`);
         const r = await timeline(home);
         expect(r.code).toBe(1);
         expect(r.stdout).toBe('');
@@ -254,7 +284,7 @@ describe.skipIf(
 
   it('an offline plugin ships its buffer when it reconnects', async () => {
     const viewer = laptop('alice-agent').home;
-    await stopNats();
+    await stop(server);
     // Longer than a beat: a ship falls in the outage and its batch goes back to the buffer.
     await new Promise((r) => setTimeout(r, (BEAT_SECONDS + 1) * 1000));
     const restarted = new Date().toISOString();
