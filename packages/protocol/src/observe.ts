@@ -10,6 +10,8 @@ import {
   HUB_RELAY_STAGES,
   HUB_SESSION_PHASES,
   NATS_EVENTS,
+  NODE_ARCHES,
+  NODE_PLATFORMS,
   ORPHAN_PHASES,
   PLUGIN_DELIVERY_STAGES,
   PLUGIN_RELAY_STAGES,
@@ -25,7 +27,7 @@ const ThreadRef = z.string().regex(/^thr-\d{1,12}$/);
 const MessageRef = z.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/);
 const TaskRef = z.string().regex(/^task-\d{1,12}$/);
 const PlanRef = z.string().regex(/^plan-\d{1,12}$/);
-/** Tool, method, error code, version, OS: a short token, never a sentence. */
+/** Tool, method, error code, version (semver-ish, build tags too): a short token, never a sentence. */
 const Token = z.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
 const Ms = z.number().int().nonnegative();
 const Count = z.number().int().nonnegative();
@@ -45,8 +47,8 @@ export const ReportedEvent = z.discriminatedUnion('kind', [
     kind: z.literal('connected'),
     pluginVersion: Token,
     claudeCodeVersion: Token.nullable(),
-    os: Token,
-    arch: Token,
+    os: z.enum(NODE_PLATFORMS),
+    arch: z.enum(NODE_ARCHES),
     node: Token,
     meshWindow: z.boolean(),
     pull: z.boolean(),

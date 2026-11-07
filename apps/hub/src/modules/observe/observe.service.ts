@@ -1,5 +1,10 @@
 import { MeshError } from '@agentmesh/common';
-import type { HubEvent, ObservedEvent, ReportedEvent } from '@agentmesh/protocol';
+import {
+  type HubEvent,
+  OBSERVABILITY_OFF,
+  type ObservedEvent,
+  type ReportedEvent,
+} from '@agentmesh/protocol';
 import type { HubContext } from '../../context';
 import type { EventSink } from '../../contracts';
 import { EventsRepo } from './events.repo';
@@ -26,6 +31,28 @@ function parseWhen(value: string, name: 'since' | 'until', now: Date): string {
   return new Date(ms).toISOString();
 }
 
+/**
+ * Each key's receive times (ms) in the last minute, in memory: what it may still store under a
+ * per-minute budget. A key whose window is empty is forgotten.
+ */
+class MinuteWindow {
+  readonly #recent = new Map<string, number[]>();
+
+  get size(): number {
+    return this.#recent.size;
+  }
+
+  /** Takes up to `wanted` of `max` a minute for `key` at `nowMs`; returns how many it got. */
+  take(key: string, nowMs: number, max: number, wanted: number): number {
+    const recent = (this.#recent.get(key) ?? []).filter((t) => nowMs - t < MINUTE_MS);
+    const granted = Math.max(0, Math.min(wanted, max - recent.length));
+    for (let i = 0; i < granted; i++) recent.push(nowMs);
+    if (recent.length) this.#recent.set(key, recent);
+    else this.#recent.delete(key);
+    return granted;
+  }
+}
+
 export interface TimelineParams {
   agent?: string;
   session?: string;
@@ -38,8 +65,8 @@ export interface TimelineParams {
 
 export class ObserveService {
   readonly #repo: EventsRepo;
-  /** Receive times (ms) of each agent's stored events in the last minute. In memory. */
-  readonly #recent = new Map<string, number[]>();
+  /** Each agent's stored reports in the last minute. */
+  readonly #budget = new MinuteWindow();
 
   /** `ownsSession`: whether the agent has this (non-closed) session; the sessions module answers. */
   constructor(
@@ -51,38 +78,28 @@ export class ObserveService {
 
   /** How many agents have budget entries (for tests: it must not grow forever). */
   get trackedAgents(): number {
-    return this.#recent.size;
+    return this.#budget.size;
   }
 
   /** Stores what `agent` (proven by NATS) reported. Any `agent` inside an event is ignored. */
   report(agent: string, events: ReportedEvent[]): { accepted: number; dropped: number } {
     const { enabled, maxEventsPerMinute } = this.ctx.loaded.config.observability;
-    if (!enabled) throw new MeshError('forbidden', 'observability is turned off on this hub');
+    if (!enabled) throw new MeshError('forbidden', OBSERVABILITY_OFF);
     const nowMs = this.ctx.clock.now().getTime();
     const receivedAt = new Date(nowMs).toISOString();
-    const recent = (this.#recent.get(agent) ?? []).filter((t) => nowMs - t < MINUTE_MS);
+    // A resent event counts as accepted (the plugin stops retrying) and still takes budget.
+    const room = this.#budget.take(agent, nowMs, maxEventsPerMinute, events.length);
     const owned = new Map<string, boolean>();
     const mine = (session: string) => {
       if (!owned.has(session)) owned.set(session, this.ownsSession(agent, session));
       return owned.get(session);
     };
-    let accepted = 0;
-    let dropped = 0;
-    for (const event of events) {
-      if (recent.length >= maxEventsPerMinute) {
-        dropped += 1;
-        continue;
-      }
+    for (const event of events.slice(0, room)) {
       // A session that is not the caller's own is not recorded, so nobody can pin events on another's.
       const stored = event.session && !mine(event.session) ? { ...event, session: null } : event;
-      // A resent event counts as accepted (the plugin stops retrying) and still takes budget.
       this.#repo.insert(agent, stored, receivedAt);
-      recent.push(nowMs);
-      accepted += 1;
     }
-    if (recent.length) this.#recent.set(agent, recent);
-    else this.#recent.delete(agent);
-    return { accepted, dropped };
+    return { accepted: room, dropped: events.length - room };
   }
 
   /** The newest events first (up to `limit`). */
@@ -119,16 +136,35 @@ export class ObserveService {
   }
 }
 
-/** The hub's own events into the same store. Off when observability is off; never throws. */
+/** The callout's refusals name no agent, so they share one budget. */
+const UNAUTHENTICATED = '(unauthenticated)';
+
+/**
+ * The hub's own events into the same store. Off when observability is off; never throws. A
+ * caller's failed calls (`rpc`, per caller) and the callout's refusals (`auth`, one shared budget)
+ * are capped at `maxEventsPerMinute` like reports, so a loop or an unauthenticated flood cannot
+ * grow the table without bound; the hub's session, delivery, relay and orphan events are not.
+ */
 export function createEventSink(
   ctx: Pick<HubContext, 'db' | 'clock' | 'loaded' | 'logger'>,
 ): EventSink {
   const repo = new EventsRepo(ctx.db);
+  const budget = new MinuteWindow();
   return {
     record(agent, event: HubEvent) {
       try {
-        if (!ctx.loaded.config.observability.enabled) return;
-        repo.insert(agent, event, ctx.clock.now().toISOString());
+        const { enabled, maxEventsPerMinute } = ctx.loaded.config.observability;
+        if (!enabled) return;
+        const now = ctx.clock.now();
+        const key = event.kind === 'auth' ? UNAUTHENTICATED : event.kind === 'rpc' ? agent : null;
+        if (key !== null && budget.take(key, now.getTime(), maxEventsPerMinute, 1) === 0) {
+          ctx.logger.debug(
+            { agent, kind: event.kind },
+            'over the per-minute cap; event not recorded',
+          );
+          return;
+        }
+        repo.insert(agent, event, now.toISOString());
       } catch (err) {
         ctx.logger.debug({ err, kind: event.kind }, 'could not record an event');
       }

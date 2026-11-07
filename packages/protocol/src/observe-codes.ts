@@ -101,3 +101,30 @@ export const HUB_DELIVERY_STAGES = ['sent', 'acked', 'failed', 'no_session'] as 
 export const HUB_RELAY_STAGES = ['sent', 'forwarded', 'not_forwarded'] as const;
 export const ORPHAN_PHASES = ['recorded', 'escalated', 'settled'] as const;
 export const AUTH_EVENTS = ['denied', 'budget_hit'] as const;
+/** Node's `process.platform` values (@types/node's list; observe.test.ts pins it). */
+export const NODE_PLATFORMS = [
+  'aix',
+  'android',
+  'darwin',
+  'freebsd',
+  'haiku',
+  'linux',
+  'openbsd',
+  'sunos',
+  'win32',
+  'cygwin',
+  'netbsd',
+] as const;
+/** Node's `process.arch` values (@types/node's list; observe.test.ts pins it). */
+export const NODE_ARCHES = [
+  'arm',
+  'arm64',
+  'ia32',
+  'loong64',
+  'mips',
+  'mipsel',
+  'ppc64',
+  'riscv64',
+  's390x',
+  'x64',
+] as const;

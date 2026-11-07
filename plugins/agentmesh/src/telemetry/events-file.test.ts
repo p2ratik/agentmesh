@@ -88,6 +88,13 @@ describe('the events file', () => {
     expect(existsSync(join(dir, OWN))).toBe(true);
   });
 
+  it.skipIf(process.platform === 'win32')('is private to the user: folder 700, file 600', () => {
+    const run = join(dir, 'run');
+    appendEvent(run, event, 'alice-agent');
+    expect(statSync(run).mode & 0o777).toBe(0o700);
+    expect(statSync(join(run, NAMED)).mode & 0o777).toBe(0o600);
+  });
+
   it("names the file by its agent, and refuses an agent that isn't an id", () => {
     appendEvent(dir, event, 'alice-agent');
     expect(readdirSync(dir)).toEqual([NAMED]);

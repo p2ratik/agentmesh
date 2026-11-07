@@ -6,6 +6,8 @@ import { defineMethod } from './define';
 
 export const MAX_REPORT_EVENTS = 100;
 export const MAX_TIMELINE_EVENTS = 2000;
+/** `telemetry.report`'s `forbidden` message on a hub with observability off: plugins stop on it. */
+export const OBSERVABILITY_OFF = 'observability is turned off on this hub';
 
 /** An ISO time or a relative duration back from now (`30m`, `2h`, `1d`); the hub parses it. */
 const When = z.string().max(40);

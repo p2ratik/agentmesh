@@ -130,11 +130,7 @@ export class CalloutService {
         { agentId: decision.agentId, cid: request.client_info?.id },
         'agent admitted',
       );
-    } else {
-      this.#logRefusal(host, decision.refused, request);
-      // The reason code only: never the presented key or token, and the refusal text stays in the log.
-      this.#auth('denied', decision.code);
-    }
+    } else this.#refuse(host, decision, request);
     const response = signJwt(
       this.#keys.issuer,
       {
@@ -166,10 +162,22 @@ export class CalloutService {
   }
 
   /**
+   * Logs a refusal, and records `auth denied` only when the log warns (once per address and reason
+   * per window), so a retry loop or a flood adds no row per connect. The reason code only: never
+   * the presented key or token, and the refusal text stays in the log.
+   */
+  #refuse(host: string, decision: { refused: string; code: ReasonCode }, request: AuthRequest) {
+    if (this.#logRefusal(host, decision.refused, request) === 'warn') {
+      this.#auth('denied', decision.code);
+    }
+  }
+
+  /**
    * Keyed by address, not by the client's nkey: plugins retry a refused connect every few
    * seconds, and a flood can bring a fresh key each time. Only a well-formed nkey is logged.
+   * Returns the level it logged at.
    */
-  #logRefusal(host: string, reason: string, request?: AuthRequest): void {
+  #logRefusal(host: string, reason: string, request?: AuthRequest): 'warn' | 'debug' {
     const { level, repeated } = this.#refusals.note(`${host}|${reason}`);
     const nkey = request?.connect_opts?.nkey;
     this.#ctx.logger[level](
@@ -182,6 +190,7 @@ export class CalloutService {
       },
       'agent refused',
     );
+    return level;
   }
 
   /** Forgets the flagged addresses once an hour. */

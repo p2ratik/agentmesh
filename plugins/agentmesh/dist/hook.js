@@ -328,9 +328,9 @@ function appendEvent(dataDir, event, agent = null) {
     const size = statSync2(file, { throwIfNoEntry: false })?.size;
     const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
     if (full) return;
-    mkdirSync2(dataDir, { recursive: true });
+    mkdirSync2(dataDir, { recursive: true, mode: 448 });
     appendFileSync(file, `${JSON.stringify(event)}
-`);
+`, { mode: 384 });
   } catch {
   }
 }

@@ -49,7 +49,8 @@ function waiting(dir: string, agent: string | null): number {
 
 /**
  * Appends one JSON line to this process's file, named by `agent` when it is a participant id.
- * Never throws, so a guard's decision never depends on it.
+ * The file is the user's alone (600, in a 700 folder when this creates it), like the other state
+ * files. Never throws, so a guard's decision never depends on it.
  */
 export function appendEvent(dataDir: string, event: object, agent: string | null = null): void {
   try {
@@ -62,8 +63,8 @@ export function appendEvent(dataDir: string, event: object, agent: string | null
         ? waiting(dataDir, agent) >= MAX_EVENT_FILES
         : size >= MAX_EVENTS_FILE_BYTES;
     if (full) return;
-    mkdirSync(dataDir, { recursive: true });
-    appendFileSync(file, `${JSON.stringify(event)}\n`);
+    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+    appendFileSync(file, `${JSON.stringify(event)}\n`, { mode: 0o600 });
   } catch {
     // An event lost is better than a guard that fails.
   }

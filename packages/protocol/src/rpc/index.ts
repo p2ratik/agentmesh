@@ -11,7 +11,7 @@ import { taskMethods } from './tasks';
 export * from './define';
 export * from './envelope';
 export { MAX_PEEK_SENDERS } from './messaging';
-export { MAX_REPORT_EVENTS, MAX_TIMELINE_EVENTS } from './observe';
+export { MAX_REPORT_EVENTS, MAX_TIMELINE_EVENTS, OBSERVABILITY_OFF } from './observe';
 export { TaskCreateParams } from './tasks';
 
 export const RPC_METHODS = {

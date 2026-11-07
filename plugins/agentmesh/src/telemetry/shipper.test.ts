@@ -80,13 +80,15 @@ describe('the shipper', () => {
     expect(calls.map((c) => c.method)).toEqual(['telemetry.report']);
     expect(calls[0]?.options).toEqual({ timeoutMs: BEAT });
     expect(sentEvents(calls)[0]).toHaveLength(100);
-    // The hub took 40 of the next 50 (some over its cap): the other 10 go again.
+    // The hub took 40 of the next 50 and dropped 10 over its cap: those 10 count in the gap,
+    // and the 10 it never answered for go again.
     answers['telemetry.report'] = { accepted: 30, dropped: 10 };
     await vi.advanceTimersByTimeAsync(BEAT);
     await vi.advanceTimersByTimeAsync(BEAT);
     const [, second, third] = sentEvents(calls);
     expect(second).toHaveLength(50);
-    expect(third).toEqual(second?.slice(40));
+    const gap = expect.objectContaining({ kind: 'dropped', count: 10 });
+    expect(third).toEqual([gap, ...(second ?? []).slice(40)]);
     await stop();
   });
 
@@ -165,10 +167,24 @@ describe('the shipper', () => {
     await stop();
   });
 
-  it('stops after an unknown-method error, and records nothing more', async () => {
-    const answers = {
-      'telemetry.report': new MeshError('not_found', 'Unknown method "telemetry.report"'),
-    };
+  it('counts a batch the hub calls invalid in the gap, with the gap it carried', async () => {
+    const invalid = new MeshError('invalid_request', 'Invalid params for telemetry.report');
+    const answers: Record<string, unknown> = { 'telemetry.report': invalid };
+    const { calls, stop } = start(answers, 5, 3);
+    await vi.advanceTimersByTimeAsync(BEAT);
+    answers['telemetry.report'] = { accepted: 1, dropped: 0 };
+    await vi.advanceTimersByTimeAsync(BEAT);
+    const [first, second] = sentEvents(calls);
+    expect(first).toMatchObject([{ kind: 'dropped', count: 2 }, { ms: 2 }, { ms: 3 }, { ms: 4 }]);
+    expect(second).toMatchObject([{ kind: 'dropped', count: 5 }]);
+    await stop();
+  });
+
+  it.each([
+    ['an unknown-method error', new MeshError('not_found', 'Unknown method "telemetry.report"')],
+    ['observability off', new MeshError('forbidden', 'observability is turned off on this hub')],
+  ])('stops after %s, and records nothing more', async (_, error) => {
+    const answers = { 'telemetry.report': error };
     const { recorder, calls, stop } = start(answers, 3);
     await vi.advanceTimersByTimeAsync(BEAT);
     recorder.record(tool(9));

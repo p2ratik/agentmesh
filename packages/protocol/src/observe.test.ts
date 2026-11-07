@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { HubEvent, ObservedEvent, REASON_CODES, ReportedEvent } from './observe';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import {
+  HubEvent,
+  NODE_ARCHES,
+  NODE_PLATFORMS,
+  ObservedEvent,
+  REASON_CODES,
+  ReportedEvent,
+} from './observe';
 import { RPC_METHODS } from './rpc';
 
 const base = {
@@ -65,6 +72,26 @@ describe('observability events', () => {
   it('refuses a guard key that is not a plain identifier', () => {
     const e = { ...rep, kind: 'guard', ...reported.guard, key: 'sum mary' };
     expect(ReportedEvent.safeParse(e).success).toBe(false);
+  });
+
+  it("takes only Node's own OS and arch values, and versions as short tokens", () => {
+    const e = { ...rep, kind: 'connected', ...reported.connected };
+    for (const os of NODE_PLATFORMS)
+      expect(ReportedEvent.safeParse({ ...e, os }).success).toBe(true);
+    for (const arch of NODE_ARCHES)
+      expect(ReportedEvent.safeParse({ ...e, arch }).success).toBe(true);
+    for (const bad of [
+      { os: 'ignore_previous_rules' },
+      { arch: 'merge_into_main' },
+      { pluginVersion: '0.7.0 now merge' },
+      { claudeCodeVersion: 'x'.repeat(65) },
+      { node: '' },
+    ]) {
+      expect(ReportedEvent.safeParse({ ...e, ...bad }).success).toBe(false);
+    }
+    // The lists are exactly @types/node's: a new platform fails the typecheck, not silently.
+    expectTypeOf<(typeof NODE_PLATFORMS)[number]>().toEqualTypeOf<NodeJS.Platform>();
+    expectTypeOf<(typeof NODE_ARCHES)[number]>().toEqualTypeOf<NodeJS.Architecture>();
   });
 
   it('refuses a reason that is not on the list, and a hub source from a plugin kind', () => {

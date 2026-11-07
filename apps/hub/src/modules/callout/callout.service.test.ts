@@ -175,4 +175,22 @@ describe('callout observability', () => {
     const rows = s.ctx.db.all<{ body: string }>('SELECT body FROM events');
     expect(rows.map((r) => JSON.parse(r.body).event)).toEqual(['denied', 'budget_hit']);
   });
+
+  const recorded = (s: ReturnType<typeof setup>) =>
+    s.ctx.db.all<{ body: string }>('SELECT body FROM events').map((r) => JSON.parse(r.body).event);
+
+  it('records denied only when the refusal log warns: once per address and reason per 10 min', async () => {
+    const s = setup();
+    for (let i = 0; i < 3; i++) await s.connect('203.0.113.7');
+    await s.connect('198.51.100.9');
+    s.clock.advance(10 * MINUTE_MS);
+    await s.connect('203.0.113.7');
+    expect(recorded(s)).toEqual(['denied', 'denied', 'denied']);
+  });
+
+  it('caps denials from any address under one shared budget a minute', async () => {
+    const s = setup({ observability: { maxEventsPerMinute: 2 } });
+    for (const host of ['203.0.113.7', '198.51.100.9', '192.0.2.1']) await s.connect(host);
+    expect(recorded(s)).toEqual(['denied', 'denied']);
+  });
 });

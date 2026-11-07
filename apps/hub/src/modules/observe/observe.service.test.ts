@@ -78,6 +78,32 @@ describe('ObserveService', () => {
     expect(rows(off.ctx)).toEqual([]);
   });
 
+  it('ctx.events caps rpc events per caller a minute, and auth events under one shared budget', () => {
+    const { ctx, clock } = createTestHarness(testTeamConfig(obs({ maxEventsPerMinute: 2 })));
+    const base = { id: '', at: '2026-10-16T09:00:00.000Z', session: null, source: 'hub' } as const;
+    const rpc = (caller: string): HubEvent => {
+      const fields = { kind: 'rpc', method: 'mesh.status', caller, code: 'forbidden' } as const;
+      return { ...base, id: randomUUID(), ...fields };
+    };
+    const denied = (): HubEvent => {
+      const fields = { kind: 'auth', event: 'denied', reason: 'auth.no_signature' } as const;
+      return { ...base, id: randomUUID(), ...fields };
+    };
+    const count = (key: string) =>
+      rows(ctx).filter((r) => `${r.agent} ${JSON.parse(r.body).kind}` === key).length;
+    for (let i = 0; i < 3; i++) {
+      ctx.events.record('alice-agent', rpc('alice-agent'));
+      ctx.events.record('bob-agent', rpc('bob-agent'));
+      ctx.events.record('hub', denied());
+      ctx.events.record('alice-agent', hubEvent()); // the hub's own state changes: not capped
+    }
+    const keys = ['alice-agent rpc', 'bob-agent rpc', 'hub auth', 'alice-agent orphan'];
+    expect(keys.map(count)).toEqual([2, 2, 2, 3]);
+    clock.advance(61_000);
+    ctx.events.record('alice-agent', rpc('alice-agent'));
+    expect(count('alice-agent rpc')).toBe(3);
+  });
+
   it('ctx.events never throws', () => {
     const { ctx } = createTestHarness();
     ctx.db.exec('DROP TABLE events');

@@ -46145,6 +46145,31 @@ var HUB_DELIVERY_STAGES = ["sent", "acked", "failed", "no_session"];
 var HUB_RELAY_STAGES = ["sent", "forwarded", "not_forwarded"];
 var ORPHAN_PHASES = ["recorded", "escalated", "settled"];
 var AUTH_EVENTS = ["denied", "budget_hit"];
+var NODE_PLATFORMS = [
+  "aix",
+  "android",
+  "darwin",
+  "freebsd",
+  "haiku",
+  "linux",
+  "openbsd",
+  "sunos",
+  "win32",
+  "cygwin",
+  "netbsd"
+];
+var NODE_ARCHES = [
+  "arm",
+  "arm64",
+  "ia32",
+  "loong64",
+  "mips",
+  "mipsel",
+  "ppc64",
+  "riscv64",
+  "s390x",
+  "x64"
+];
 
 // ../../packages/protocol/src/observe.ts
 var ThreadRef = external_exports.string().regex(/^thr-\d{1,12}$/);
@@ -46166,8 +46191,8 @@ var ReportedEvent = external_exports.discriminatedUnion("kind", [
     kind: external_exports.literal("connected"),
     pluginVersion: Token,
     claudeCodeVersion: Token.nullable(),
-    os: Token,
-    arch: Token,
+    os: external_exports.enum(NODE_PLATFORMS),
+    arch: external_exports.enum(NODE_ARCHES),
     node: Token,
     meshWindow: external_exports.boolean(),
     pull: external_exports.boolean()
@@ -47049,12 +47074,16 @@ var RelayConfig = external_exports.object({
   closedAskerEscalationMinutes: external_exports.number().int().min(1).max(1440).default(CLOSED_ASKER_DEFAULT_MINUTES)
 });
 var ObservabilityConfig = external_exports.object({
-  /** Plugins report and the hub stores; false turns both off (hub metrics stay). */
+  /** Plugins report and the hub stores; false turns both off. */
   enabled: external_exports.boolean().default(true),
   /** Humans whose agents may read timelines; empty means nobody via the mesh. */
   viewers: external_exports.array(external_exports.string()).default([]),
   retentionDays: external_exports.number().int().min(1).default(14),
-  /** Events the hub accepts per agent per minute; the rest are counted as dropped. */
+  /**
+   * Events the hub accepts per agent per minute; the rest are counted as dropped. The same cap
+   * applies, separately, to the hub's own failed-call events per caller and to connect refusals
+   * (one shared budget).
+   */
   maxEventsPerMinute: external_exports.number().int().min(1).default(300),
   client: external_exports.object({ maxBufferedEvents: external_exports.number().int().min(50).default(500) }).prefault({})
 });

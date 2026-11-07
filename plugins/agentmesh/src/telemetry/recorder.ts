@@ -47,7 +47,10 @@ export class Recorder {
     this.#now = opts.now ?? (() => new Date());
   }
 
-  /** Off for good (a hub without `telemetry.report`): drops what it holds, records nothing more. */
+  /**
+   * Off for this process (a hub without `telemetry.report`, or with observability off): drops what
+   * it holds and records nothing more, whatever a later hello says.
+   */
   off(): void {
     this.#off = true;
     this.#events = [];
