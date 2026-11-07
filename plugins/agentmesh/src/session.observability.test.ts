@@ -11,6 +11,7 @@ vi.mock('@agentmesh/bus', async (importOriginal) => ({
 }));
 
 const BEAT = config.heartbeatSeconds * 1000;
+const OFF = { code: 'forbidden', message: 'observability is turned off on this hub' };
 
 describe('observability turned off and on again', () => {
   let data: string;
@@ -25,15 +26,13 @@ describe('observability turned off and on again', () => {
     rmSync(data, { recursive: true, force: true });
   });
 
-  it('a forbidden report stops reporting until a hello says observability is on', async () => {
-    const { hello, errors, sent } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
-    hello.observability = { enabled: true, maxBufferedEvents: 500 };
-    errors['telemetry.report'] = {
-      code: 'forbidden',
-      message: 'observability is turned off on this hub',
-    };
+  /** A started session whose hub refuses telemetry.report with `error`; its reports' events. */
+  async function started(error: { code: string; message: string }) {
+    const hub = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
+    hub.hello.observability = { enabled: true, maxBufferedEvents: 500 };
+    hub.errors['telemetry.report'] = error;
     const reports = () =>
-      sent
+      hub.sent
         .filter(([subject]) => subject.endsWith('telemetry.report'))
         .map(([, params]) => (params as { events: Array<{ kind: string }> }).events);
     const session = await openSession(config, logger);
@@ -41,22 +40,47 @@ describe('observability turned off and on again', () => {
     const stop = startSession(fakeServer().server, session, logger, 0); // records connected
     await vi.advanceTimersByTimeAsync(BEAT);
     expect(reports()).toMatchObject([[{ kind: 'connected' }]]);
+    return { ...hub, session, stop, reports };
+  }
 
-    // Refused: what it held is dropped, and nothing more is recorded or sent.
-    session.hub.onStatus?.('disconnect');
+  // The hub restarts to change its config, and sessions outlive that: no hello need follow.
+  it('while off, each beat checks back with an empty report; once the hub takes one, events ship', async () => {
+    const { session, stop, reports, errors, hellos } = await started(OFF);
+    session.hub.onStatus?.('disconnect'); // recorded while off: dropped
     await vi.advanceTimersByTimeAsync(2 * BEAT);
-    expect(reports()).toHaveLength(1);
+    expect(reports().slice(1)).toEqual([[], []]);
 
-    // The team turns it back on: the next hello says so, and new events ship again.
+    delete errors['telemetry.report']; // the team turned it back on
+    await vi.advanceTimersByTimeAsync(BEAT); // the check is taken: recording resumes
+    session.hub.onStatus?.('reconnect');
+    await vi.advanceTimersByTimeAsync(BEAT);
+    expect(reports().slice(3)).toMatchObject([[], [{ kind: 'nats', event: 'reconnect' }]]);
+    expect(hellos).toHaveLength(1);
+    await stop();
+  });
+
+  it('a hello that says observability is on ends the pause too', async () => {
+    const { session, stop, reports, errors } = await started(OFF);
     delete errors['telemetry.report'];
     await session.sayHello();
     session.hub.onStatus?.('reconnect');
     await vi.advanceTimersByTimeAsync(BEAT);
-    expect(reports()).toHaveLength(2);
-    expect(reports()[1]).toMatchObject([
-      { kind: 'connected', session: 's-bbbbbbbbbbbb' },
-      { kind: 'nats', event: 'reconnect' },
+    expect(reports().slice(1)).toMatchObject([
+      [
+        { kind: 'connected', session: 's-bbbbbbbbbbbb' },
+        { kind: 'nats', event: 'reconnect' },
+      ],
     ]);
+    await stop();
+  });
+
+  it('a hub without telemetry.report gets nothing more, not even a check', async () => {
+    const gone = { code: 'not_found', message: 'Unknown method "telemetry.report"' };
+    const { session, stop, reports, errors } = await started(gone);
+    delete errors['telemetry.report'];
+    session.hub.onStatus?.('reconnect');
+    await vi.advanceTimersByTimeAsync(3 * BEAT);
+    expect(reports()).toHaveLength(1);
     await stop();
   });
 });

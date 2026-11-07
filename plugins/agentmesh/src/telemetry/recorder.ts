@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { VERSION } from '@agentmesh/common';
-import type { ReportedEvent } from '@agentmesh/protocol';
+import { type ReportedEvent, Version } from '@agentmesh/protocol';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Session } from '../session';
 
@@ -61,9 +61,14 @@ export class Recorder {
     this.#gap = null;
   }
 
-  /** A hello landed: a pause ends, and the hello's `observability.enabled` decides again. */
+  /** A hello landed, or the hub took a check: a pause ends, and `observability.enabled` decides. */
   on(): void {
     this.#paused = false;
+  }
+
+  /** Paused by a hub that said observability is off: the shipper checks back each beat. */
+  get paused(): boolean {
+    return this.#paused && !this.#off;
   }
 
   #on(): boolean {
@@ -133,12 +138,15 @@ export function connectedEvent(
   session: Pick<Session, 'hub' | 'window' | 'activation'>,
   server: Pick<Server, 'getClientVersion'>,
 ): Recordable {
+  // Null (the timeline says unknown) when the host didn't say, or said something that isn't a
+  // version, so a dev build's `dev` never costs the whole event.
+  const version = server.getClientVersion()?.version;
   return {
     kind: 'connected',
     source: 'plugin',
     session: session.hub.sessionId,
     pluginVersion: VERSION,
-    claudeCodeVersion: server.getClientVersion()?.version ?? null, // the timeline says unknown
+    claudeCodeVersion: version && Version.safeParse(version).success ? version : null,
     os: process.platform,
     arch: process.arch,
     node: process.versions.node,

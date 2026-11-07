@@ -30,7 +30,7 @@ const PlanRef = z.string().regex(/^plan-\d{1,12}$/);
 /** Tool, method, error code: a short token, never a sentence. */
 const Token = z.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
 /** A version: semver-ish with build tags, and it starts with a digit, so it is never a word. */
-const Version = z.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
+export const Version = z.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
 const Ms = z.number().int().nonnegative();
 const Count = z.number().int().nonnegative();
 const Reason = z.enum(REASON_CODES);

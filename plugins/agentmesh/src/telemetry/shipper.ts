@@ -47,8 +47,9 @@ export interface ShipperDeps {
  * Every `intervalMs`, collects the guard's and hook's files into the recorder and sends up to
  * MAX_REPORT_EVENTS events with `telemetry.report`. Events leave the buffer only once the hub
  * acknowledged them; a failed call puts them back for the next beat, with a debug log only. A
- * hub without the method stops it and the recorder for this process; a hub with observability off
- * pauses the recorder until the next hello (the session calls `recorder.on()`).
+ * hub without the method stops it and the recorder for this process. A hub with observability off
+ * pauses the recorder: each beat then sends an empty report (free on the hub's rate limiter), and
+ * the first one the hub takes, or the next hello (the session calls `recorder.on()`), ends it.
  * Events that fail validation, that the hub drops over its cap, or that are in a batch it calls
  * invalid count as dropped, so none vanish without a gap marker. The returned stop sends one last
  * report, waiting at most FLUSH_MS.
@@ -63,31 +64,39 @@ export function startShipper(deps: ShipperDeps): () => Promise<void> {
   let lastSend = 0;
   let early: NodeJS.Timeout | null = null;
 
+  /** A report that failed: what becomes of the batch, and of reporting. */
+  const failed = (err: unknown, events: ReportedEvent[]) => {
+    if (unknownMethod(err)) {
+      halt();
+      recorder.off();
+      logger.info('this hub does not take telemetry.report; not reporting events');
+      return;
+    }
+    if (turnedOff(err)) {
+      // The hub restarts to change its config and sessions outlive it, so no hello need follow:
+      // each beat checks back with an empty report until the hub takes one.
+      if (!recorder.paused) logger.info('observability is turned off on this hub; checking back');
+      recorder.pause();
+      return;
+    }
+    // A batch the hub calls invalid never gets better, so it counts in the gap; anything else
+    // goes again next beat.
+    if (err instanceof MeshError && err.code === 'invalid_request') {
+      recorder.countDropped(lost(events));
+    } else recorder.putBack(events);
+    logger.debug({ err }, 'could not ship events; retrying next beat');
+  };
+
   const send = async (events: ReportedEvent[], options: CallOptions) => {
     try {
       const { accepted, dropped } = await hub.call('telemetry.report', { events }, options);
+      // The hub took it, so observability is on: a pause (this was its empty check) ends.
+      recorder.on();
       // What the hub dropped over its cap counts in the gap; what it didn't answer for goes again.
       recorder.countDropped(lost(events.slice(accepted, accepted + dropped)));
       recorder.putBack(events.slice(accepted + dropped));
     } catch (err) {
-      if (unknownMethod(err)) {
-        halt();
-        recorder.off();
-        logger.info('this hub does not take telemetry.report; not reporting events');
-        return;
-      }
-      if (turnedOff(err)) {
-        // The beat keeps running but sends nothing: the recorder holds nothing until a hello.
-        recorder.pause();
-        logger.info('observability is turned off on this hub; not reporting until a hello says on');
-        return;
-      }
-      // A batch the hub calls invalid never gets better, so it counts in the gap; anything else
-      // goes again next beat.
-      if (err instanceof MeshError && err.code === 'invalid_request') {
-        recorder.countDropped(lost(events));
-      } else recorder.putBack(events);
-      logger.debug({ err }, 'could not ship events; retrying next beat');
+      failed(err, events);
     }
   };
 
@@ -112,8 +121,8 @@ export function startShipper(deps: ShipperDeps): () => Promise<void> {
       }
       recorder.countDropped(bad);
       if (relayExpiry) recordExpired(recorder, hub.sessionId, dataDir);
-      const events = batch();
-      if (events.length > 0) await send(events, { timeoutMs: intervalMs });
+      const events = batch(); // none while paused: then this is the empty check
+      if (events.length > 0 || recorder.paused) await send(events, { timeoutMs: intervalMs });
     } finally {
       sending = false;
       if (missedEarly) {

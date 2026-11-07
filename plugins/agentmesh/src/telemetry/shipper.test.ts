@@ -180,16 +180,17 @@ describe('the shipper', () => {
     await stop();
   });
 
+  // Off sends an empty check each beat (logged once); an older hub gets nothing more at all.
   it.each([
-    ['an unknown-method error', new MeshError('not_found', 'Unknown method "telemetry.report"')],
-    ['observability off', new MeshError('forbidden', 'observability is turned off on this hub')],
-  ])('stops after %s, and records nothing more', async (_, error) => {
+    ['an unknown-method', new MeshError('not_found', 'Unknown method "telemetry.report"'), []],
+    ['an off', new MeshError('forbidden', 'observability is turned off on this hub'), [[], [], []]],
+  ])('after %s answer records nothing more', async (_, error, checks) => {
     const answers = { 'telemetry.report': error };
     const { recorder, calls, stop } = start(answers, 3);
     await vi.advanceTimersByTimeAsync(BEAT);
     recorder.record(tool(9));
     await vi.advanceTimersByTimeAsync(3 * BEAT);
-    expect(calls).toHaveLength(1);
+    expect(sentEvents(calls).slice(1)).toEqual(checks);
     expect(logger.info).toHaveBeenCalledOnce();
     expect(recorder.take(10)).toEqual([]);
     await stop();

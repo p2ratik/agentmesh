@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger, ManualClock } from '@agentmesh/common';
 import type { HubEvent, ReportedEvent } from '@agentmesh/protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createHub, type Hub } from '../../app';
 import { MemoryPorts } from '../../ports';
 import { testTeamConfig } from '../../testing/fixtures';
@@ -91,6 +91,8 @@ describe('ObserveService', () => {
     };
     const count = (key: string) =>
       rows(ctx).filter((r) => `${r.agent} ${JSON.parse(r.body).kind}` === key).length;
+    const warn = vi.fn();
+    ctx.logger = { warn, debug: vi.fn() } as never;
     for (let i = 0; i < 3; i++) {
       ctx.events.record('alice-agent', rpc('alice-agent'));
       ctx.events.record('bob-agent', rpc('bob-agent'));
@@ -99,6 +101,9 @@ describe('ObserveService', () => {
     }
     const keys = ['alice-agent rpc', 'bob-agent rpc', 'hub auth', 'alice-agent orphan'];
     expect(keys.map(count)).toEqual([2, 2, 2, 3]);
+    // One warning per budget the first time it fills; later drops log at debug.
+    const warned = warn.mock.calls.map(([fields]) => fields.budget);
+    expect(warned).toEqual(['alice-agent', 'bob-agent', '(unauthenticated)']);
     clock.advance(61_000);
     ctx.events.record('alice-agent', rpc('alice-agent'));
     expect(count('alice-agent rpc')).toBe(3);

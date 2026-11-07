@@ -49,11 +49,17 @@ describe('Recorder', () => {
     expect(recorder.take(10)).toEqual([]);
   });
 
-  it('connected names an unknown Claude Code version null, and validates', () => {
+  // A version it wasn't told, or one that isn't a version (a dev build says `dev`), is null, so
+  // the session's connected event still validates.
+  it.each([
+    [undefined, null],
+    ['dev', null],
+    ['2.1.319', '2.1.319'],
+  ])('connected names Claude Code version %s as %s, and validates', (version, expected) => {
     const session = { hub: { sessionId: 's-aaaaaaaaaaaa' }, window: { state: 'none' } };
-    const server = { getClientVersion: () => undefined };
+    const server = { getClientVersion: () => (version ? { name: 'x', version } : undefined) };
     const e = connectedEvent({ ...session, activation: { pull: false } } as never, server);
-    expect(e).toMatchObject({ claudeCodeVersion: null, node: process.versions.node });
+    expect(e).toMatchObject({ claudeCodeVersion: expected, node: process.versions.node });
     expect(ReportedEvent.safeParse({ ...e, id: randomUUID(), at }).success).toBe(true);
   });
 

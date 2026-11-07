@@ -150,6 +150,8 @@ export function createEventSink(
 ): EventSink {
   const repo = new EventsRepo(ctx.db);
   const budget = new MinuteWindow();
+  /** Budgets that have filled once: the first time warns, later drops log at debug. */
+  const full = new Set<string>();
   return {
     record(agent, event: HubEvent) {
       try {
@@ -158,9 +160,11 @@ export function createEventSink(
         const now = ctx.clock.now();
         const key = event.kind === 'auth' ? UNAUTHENTICATED : event.kind === 'rpc' ? agent : null;
         if (key !== null && budget.take(key, now.getTime(), maxEventsPerMinute, 1) === 0) {
-          ctx.logger.debug(
-            { agent, kind: event.kind },
-            'over the per-minute cap; event not recorded',
+          const level = full.has(key) ? 'debug' : 'warn';
+          full.add(key);
+          ctx.logger[level](
+            { budget: key, kind: event.kind },
+            'hub events over the per-minute cap; not recorded',
           );
           return;
         }

@@ -52894,9 +52894,13 @@ var Recorder = class {
     this.#events = [];
     this.#gap = null;
   }
-  /** A hello landed: a pause ends, and the hello's `observability.enabled` decides again. */
+  /** A hello landed, or the hub took a check: a pause ends, and `observability.enabled` decides. */
   on() {
     this.#paused = false;
+  }
+  /** Paused by a hub that said observability is off: the shipper checks back each beat. */
+  get paused() {
+    return this.#paused && !this.#off;
   }
   #on() {
     return !this.#off && !this.#paused && this.#enabled();
@@ -52951,13 +52955,13 @@ var Recorder = class {
   }
 };
 function connectedEvent(session, server) {
+  const version2 = server.getClientVersion()?.version;
   return {
     kind: "connected",
     source: "plugin",
     session: session.hub.sessionId,
     pluginVersion: VERSION,
-    claudeCodeVersion: server.getClientVersion()?.version ?? null,
-    // the timeline says unknown
+    claudeCodeVersion: version2 && Version.safeParse(version2).success ? version2 : null,
     os: process.platform,
     arch: process.arch,
     node: process.versions.node,
@@ -53026,27 +53030,31 @@ function startShipper(deps) {
   let missedEarly = false;
   let lastSend = 0;
   let early = null;
+  const failed = (err, events) => {
+    if (unknownMethod(err)) {
+      halt();
+      recorder.off();
+      logger.info("this hub does not take telemetry.report; not reporting events");
+      return;
+    }
+    if (turnedOff(err)) {
+      if (!recorder.paused) logger.info("observability is turned off on this hub; checking back");
+      recorder.pause();
+      return;
+    }
+    if (err instanceof MeshError && err.code === "invalid_request") {
+      recorder.countDropped(lost(events));
+    } else recorder.putBack(events);
+    logger.debug({ err }, "could not ship events; retrying next beat");
+  };
   const send = async (events, options) => {
     try {
       const { accepted, dropped } = await hub2.call("telemetry.report", { events }, options);
+      recorder.on();
       recorder.countDropped(lost(events.slice(accepted, accepted + dropped)));
       recorder.putBack(events.slice(accepted + dropped));
     } catch (err) {
-      if (unknownMethod(err)) {
-        halt();
-        recorder.off();
-        logger.info("this hub does not take telemetry.report; not reporting events");
-        return;
-      }
-      if (turnedOff(err)) {
-        recorder.pause();
-        logger.info("observability is turned off on this hub; not reporting until a hello says on");
-        return;
-      }
-      if (err instanceof MeshError && err.code === "invalid_request") {
-        recorder.countDropped(lost(events));
-      } else recorder.putBack(events);
-      logger.debug({ err }, "could not ship events; retrying next beat");
+      failed(err, events);
     }
   };
   const batch = () => {
@@ -53069,7 +53077,7 @@ function startShipper(deps) {
       recorder.countDropped(bad);
       if (relayExpiry) recordExpired(recorder, hub2.sessionId, dataDir);
       const events = batch();
-      if (events.length > 0) await send(events, { timeoutMs: intervalMs });
+      if (events.length > 0 || recorder.paused) await send(events, { timeoutMs: intervalMs });
     } finally {
       sending = false;
       if (missedEarly) {
