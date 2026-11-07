@@ -1,7 +1,7 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/guard.ts
-import { homedir } from "node:os";
+import { homedir as homedir2 } from "node:os";
 
 // ../../packages/common/src/version.ts
 var VERSION = "0.6.0";
@@ -14,15 +14,15 @@ var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@age
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
-  const { join: join4 } = platform === "win32" ? win32 : posix;
-  const dir = join4(home, ".agentmesh");
+  const { join: join5 } = platform === "win32" ? win32 : posix;
+  const dir = join5(home, ".agentmesh");
   return {
     dir,
-    policy: join4(dir, "mesh-window.json"),
-    settings: join4(dir, "mesh-window.settings.json"),
-    launcher: join4(dir, launcherName(platform)),
-    emptyHooks: join4(dir, "empty-git-hooks"),
-    bin: join4(dir, "bin")
+    policy: join5(dir, "mesh-window.json"),
+    settings: join5(dir, "mesh-window.settings.json"),
+    launcher: join5(dir, launcherName(platform)),
+    emptyHooks: join5(dir, "empty-git-hooks"),
+    bin: join5(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -290,8 +290,9 @@ var NO_POLICY = "mesh window: ~/.agentmesh/mesh-window.json is missing or invali
 var TEST_OUTSIDE = "mesh window: run tests inside a task worktree (cd <worktree> && <test>)";
 var UNLISTED = "mesh window: this command isn't on the window's list, so your human decides";
 var foreign = (branch) => `mesh window: ${branch ?? "a detached checkout"} isn't your branch, so running its tests needs your human's approval`;
-var ask = (reason) => ({ ask: reason });
+var ask = (reason, code2) => ({ ask: reason, code: code2 });
 var pass = () => ({ pass: true });
+var unlisted = () => ask(UNLISTED, "command.not_listed");
 var PATH_RAW = "(?!-|//)(?:[A-Za-z]:(?=/))?[A-Za-z0-9._/-]+";
 var PATH_QUOTED = "(?!-|//)(?:[A-Za-z]:(?=/))?[A-Za-z0-9._/ -]+";
 var PATH = `(?:${PATH_RAW}|"${PATH_QUOTED}")`;
@@ -361,27 +362,28 @@ function delivers(rest, branch, p) {
 var isDelivery = (rest) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(rest));
 function inWorktree(command, c, p) {
   const test = p.testCommands.includes(command);
-  if (!test && !isDelivery(command)) return ask(UNLISTED);
+  if (!test && !isDelivery(command)) return unlisted();
   const wt = c.worktreeOf(c.cwd);
   const branch = wt?.branch ?? null;
   const prefix = p.ownBranchPrefix;
   const own = branch !== null && prefix !== null && branch.startsWith(prefix);
-  if (test) return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE);
-  return own && delivers(command, branch, p) ? pass() : ask(UNLISTED);
+  if (test)
+    return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE, "command.needs_approval");
+  return own && delivers(command, branch, p) ? pass() : unlisted();
 }
 function listed(command, c, p) {
   if (EXACT.has(command) || reads(command, c)) return pass();
   const change = worktreeChange(command, c, p);
-  if (change !== null) return change ? pass() : ask(UNLISTED);
+  if (change !== null) return change ? pass() : unlisted();
   return inWorktree(command, c, p);
 }
 function classifyCommand(command, c) {
   const p = c.policy;
-  if (!p) return ask(NO_POLICY);
-  if (typeof command !== "string" || typeof c.cwd !== "string") return ask(UNLISTED);
+  if (!p) return ask(NO_POLICY, "marker.unverified");
+  if (typeof command !== "string" || typeof c.cwd !== "string") return unlisted();
   if (CD.test(command)) return pass();
   const at = placed(command, c.cwd);
-  return at === null ? ask(UNLISTED) : listed(at.rest, { ...c, cwd: at.dir }, p);
+  return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
 }
 
 // src/relay/address.ts
@@ -488,25 +490,39 @@ var KEYS = /* @__PURE__ */ new Set([
   "summary"
 ]);
 var SUMMARY_MAX = 200;
-var DENIED = { kind: "deny", reason: SEND_DENIED };
+var KEY_NAME = /^[A-Za-z_]{1,40}$/;
+var denied = (code2, key2) => ({
+  kind: "deny",
+  reason: SEND_DENIED,
+  code: code2,
+  ...key2 !== void 0 && KEY_NAME.test(key2) ? { key: key2 } : {}
+});
 var shortLabel = (v) => v === void 0 || typeof v === "string" && v.length <= SUMMARY_MAX;
 var contentOf = (content, message) => content === message || typeof content === "string" && content.endsWith("\u2026") && content.length < message.length && message.startsWith(content.slice(0, -1));
 function sendMessage(args, ctx) {
-  if (!Object.keys(args).every((k) => KEYS.has(k))) return DENIED;
+  const unknown = Object.keys(args).find((k) => !KEYS.has(k));
+  if (unknown !== void 0) return denied("send.unknown_key", unknown);
   const hex = udsHex(args.to, ctx.platform);
-  if (hex === null) return DENIED;
-  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string") && typeof args.message === "string" && contentOf(args.content, args.message) && shortLabel(args.summary);
-  if (!aliases || !ctx.forwards) return DENIED;
-  const record = ctx.forwards.read(hex, ctx.now ?? Date.now()).find((c) => pointerText(c.fields) === args.message);
-  return record && ctx.forwards.claim(record.name) ? { kind: "pass" } : DENIED;
+  if (hex === null) return denied("send.bad_address");
+  const { message } = args;
+  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string");
+  if (!aliases || typeof message !== "string") return denied("send.alias_mismatch");
+  if (!contentOf(args.content, message)) return denied("send.content_mismatch");
+  if (!shortLabel(args.summary)) return denied("send.bad_summary");
+  if (!ctx.forwards) return denied("send.no_record");
+  const record = ctx.forwards.read(hex, ctx.now ?? Date.now()).find((c) => pointerText(c.fields) === message);
+  if (!record) return denied("send.no_record");
+  if (!ctx.forwards.claim(record.name)) return denied("send.claim_failed");
+  const { messageId, threadId } = record.fields;
+  return { kind: "pass", claimed: { message: messageId, thread: threadId } };
 }
 
 // src/guard/decide.ts
 var ACTIVATE_TOOL = "mcp__plugin_agentmesh_mesh__activate";
 var FILE_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
 var PASS = { kind: "pass" };
-var deny = (reason) => ({ kind: "deny", reason });
-var ask2 = (reason) => ({ kind: "ask", reason });
+var deny = (reason, code2) => ({ kind: "deny", reason, code: code2 });
+var ask2 = (reason, code2) => ({ kind: "ask", reason, code: code2 });
 var UNREADABLE = "mesh window: the guard could not read this tool call, so it is refused";
 var NO_FILE = "mesh window: this edit names no file, so it is refused";
 var ENTER = "mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-\u2026";
@@ -514,18 +530,20 @@ var ISOLATED = "mesh window: subagents run here, without isolation; worktrees ar
 var WORKFLOW = "mesh window: workflows need your human's approval here";
 var FIXED = /* @__PURE__ */ new Map([
   [ACTIVATE_TOOL, { kind: "stamp" }],
-  ["EnterWorktree", deny(ENTER)],
-  ["Workflow", ask2(WORKFLOW)],
-  ["ListAgents", deny(LIST_AGENTS)]
+  ["EnterWorktree", deny(ENTER, "tool.enter_worktree")],
+  ["Workflow", ask2(WORKFLOW, "tool.workflow")],
+  ["ListAgents", deny(LIST_AGENTS, "list_agents")]
 ]);
 var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function edit(args, o) {
   const paths = [args.notebook_path, args.file_path].filter((p) => p !== void 0 && p !== null);
-  if (paths.length === 0 || paths.includes("")) return deny(NO_FILE);
+  if (paths.length === 0 || paths.includes("")) return deny(NO_FILE, "path.no_file");
   for (const path3 of paths) {
     const target = editTarget(path3, o);
-    if ("refused" in target)
-      return deny(`mesh window: work only inside a task worktree (${target.refused})`);
+    if ("refused" in target) {
+      const reason = `mesh window: work only inside a task worktree (${target.refused})`;
+      return deny(reason, "path.outside_worktree");
+    }
   }
   return PASS;
 }
@@ -542,25 +560,42 @@ function bash(command, cwd, ctx, o) {
       remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
       freeSlot: (top, name) => freeSlot(top, name, o)
     });
-    return "ask" in d ? ask2(d.ask) : PASS;
+    return "ask" in d ? ask2(d.ask, d.code) : PASS;
   } catch {
-    return ask2(UNLISTED);
+    return ask2(UNLISTED, "guard.error");
   }
 }
-function decide(input, ctx) {
+function decide(input2, ctx) {
   if (!ctx.marked) return PASS;
-  if (!isObject(input)) return deny(UNREADABLE);
-  const { tool_name: tool, tool_input: args, cwd } = input;
-  if (typeof tool !== "string" || !isObject(args)) return deny(UNREADABLE);
+  if (!isObject(input2)) return deny(UNREADABLE, "guard.unreadable");
+  const { tool_name: tool, tool_input: args, cwd } = input2;
+  if (typeof tool !== "string" || !isObject(args)) return deny(UNREADABLE, "guard.unreadable");
   const o = { home: ctx.home, platform: ctx.platform };
   if (FILE_TOOLS.includes(tool)) return edit(args, o);
   if (tool === "Bash") return bash(args.command, cwd, ctx, o);
   if (tool === "PowerShell" || tool === "Monitor") {
-    return ask2(`mesh window: ${tool} commands need your human's approval here`);
+    const reason = `mesh window: ${tool} commands need your human's approval here`;
+    return ask2(reason, "command.needs_approval");
   }
-  if (tool === "Agent") return "isolation" in args ? deny(ISOLATED) : PASS;
+  if (tool === "Agent") return "isolation" in args ? deny(ISOLATED, "tool.agent_isolated") : PASS;
   if (tool === "SendMessage") return sendMessage(args, ctx);
-  return FIXED.get(tool) ?? deny(`mesh window: the guard does not know ${tool}, so it is refused`);
+  const unknown = `mesh window: the guard does not know ${tool}, so it is refused`;
+  return FIXED.get(tool) ?? deny(unknown, "tool.unknown");
+}
+
+// src/guard/event.ts
+var TOKEN = /^[A-Za-z0-9_.+-]{1,64}$/;
+function toolName(input2) {
+  const name = typeof input2 === "object" && input2 !== null ? input2.tool_name : void 0;
+  const short = typeof name === "string" ? name.slice(0, 64) : "";
+  return TOKEN.test(short) ? short : "unknown";
+}
+function guardEvent(input2, d) {
+  if (d.kind === "deny" || d.kind === "ask") {
+    const key2 = d.kind === "deny" && d.key !== void 0 ? { key: d.key } : {};
+    return { kind: "guard", tool: toolName(input2), decision: d.kind, reason: d.code, ...key2 };
+  }
+  return d.kind === "pass" && d.claimed ? { kind: "relay", stage: "claimed", ...d.claimed } : null;
 }
 
 // src/guard/io.ts
@@ -596,13 +631,46 @@ function hookOutput(d) {
   return { exitCode: 0, stdout: "", stderr: "" };
 }
 
-// src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+// src/telemetry/events-file.ts
+import { randomUUID } from "node:crypto";
+import {
+  appendFileSync,
+  mkdirSync as mkdirSync2,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync5,
+  statSync as statSync2,
+  unlinkSync
+} from "node:fs";
+import { homedir } from "node:os";
 import { join as join3 } from "node:path";
+var MAX_EVENTS_FILE_BYTES = 256 * 1024;
+function appendEvent(dataDir, event) {
+  try {
+    const file = join3(dataDir, `events-${process.pid}.jsonl`);
+    if ((statSync2(file, { throwIfNoEntry: false })?.size ?? 0) >= MAX_EVENTS_FILE_BYTES) return;
+    mkdirSync2(dataDir, { recursive: true });
+    appendFileSync(file, `${JSON.stringify(event)}
+`);
+  } catch {
+  }
+}
+function leaveEvent(source, session, fields) {
+  try {
+    const dir = pullStateDirs(process.env, homedir())[0];
+    const event = dir ? fields() : null;
+    if (!dir || !event) return;
+    appendEvent(dir, { id: randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), session, source, ...event });
+  } catch {
+  }
+}
+
+// src/window/guard-stamp.ts
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync6, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join4 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 function writeGuardStamp(dir, now, version) {
-  mkdirSync2(dir, { recursive: true, mode: 448 });
-  const file = join3(dir, GUARD_STAMP);
+  mkdirSync3(dir, { recursive: true, mode: 448 });
+  const file = join4(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
   writeFileSync2(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
   renameSync2(staged, file);
@@ -611,6 +679,7 @@ function writeGuardStamp(dir, now, version) {
 // src/guard.ts
 var UNMARKED_STDIN_MS = 1e3;
 var FAILED = "mesh window: the guard failed on this call, so it is refused";
+var input = null;
 function parse(text) {
   try {
     return JSON.parse(text);
@@ -623,16 +692,18 @@ async function main(marked2) {
   process.stdin.destroy();
   if (!marked2) return 0;
   const env = process.env;
-  const home = homedir();
+  const home = homedir2();
   const platform = process.platform;
   const { policy } = readMarker(env, home, platform);
   const dir = pullStateDirs(env, home)[0] ?? ".";
   const forwards = forwardReader(dir);
-  const decision = decide(parse(text), { marked: marked2, policy, home, platform, forwards });
+  input = parse(text);
+  const decision = decide(input, { marked: marked2, policy, home, platform, forwards });
   if (decision.kind === "stamp") writeGuardStamp(dir, /* @__PURE__ */ new Date(), VERSION);
   const out = hookOutput(decision);
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
+  leaveEvent("guard", null, () => guardEvent(input, decision));
   return out.exitCode;
 }
 var marked = !!process.env[MESH_WINDOW_ENV];
@@ -643,5 +714,7 @@ main(marked).then(
   () => {
     if (marked) process.stderr.write(FAILED);
     process.exitCode = marked ? 2 : 0;
+    const failed = { kind: "deny", reason: FAILED, code: "guard.error" };
+    if (marked) leaveEvent("guard", null, () => guardEvent(input, failed));
   }
 );

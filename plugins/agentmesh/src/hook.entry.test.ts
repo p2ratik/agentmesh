@@ -13,8 +13,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { windowFiles } from '@agentmesh/common/window';
+import { ReportedEvent } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { NOT_MESH, WINDOW_LABEL } from './hook/prompt';
+import { replyNote } from './relay/local-session';
 import { HINT_SETUP, HINT_START } from './window/session-start';
 
 // The prompt hook as Claude Code runs it: a process with the event on stdin. tsx stands in for the
@@ -99,6 +101,45 @@ describe('dist/hook.js (from source)', () => {
       hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: NOT_MESH },
     });
     expect(await hook(big, { CLAUDE_PID: '4243' })).toEqual({ status: 0, stdout: '' });
+  }, 30_000);
+
+  it('records note_shown with the unread count for the reply note, and never the prompt', async () => {
+    const data = join(base, 'data');
+    mkdirSync(data, { recursive: true });
+    const record = {
+      ...{ agentId: 'bob-agent', prefix: 'mesh', hubSessionId: 's-aaaaaaaaaaaa', uds: null },
+      ...{ claudePid: 4242, claudeSessionId: null, projectDir: base, relay: true, threads: 3 },
+      ...{ from: ['alice-agent'], updatedAt: new Date().toISOString() },
+    };
+    writeFileSync(join(data, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(record));
+    const prompt = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: 'secret plan' });
+    const r = await hook(prompt, { CLAUDE_PID: '4242' });
+    expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toBe(replyNote(record));
+    // the window labels a cross-session turn; a prompt with no line records nothing
+    await hook(turn('hi'), { AGENTMESH_MESH_WINDOW: 'x' });
+    await hook(prompt, { CLAUDE_PID: '4243' });
+    const files = readdirSync(data).filter((n) => /^events-\d+\.jsonl$/.test(n));
+    const text = files.map((n) => readFileSync(join(data, n), 'utf8')).join('');
+    expect(text).not.toContain('secret');
+    const events = text
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => ReportedEvent.parse(JSON.parse(l)));
+    expect(events).toEqual(
+      expect.arrayContaining([
+        {
+          id: expect.any(String),
+          at: expect.any(String),
+          session: 's-aaaaaaaaaaaa',
+          source: 'hook',
+          kind: 'hook',
+          note: 'note_shown',
+          unread: 3,
+        },
+        expect.objectContaining({ session: null, note: 'window_labelled' }),
+      ]),
+    );
+    expect(events).toHaveLength(2);
   }, 30_000);
 
   it('keeps the conversation id by CLAUDE_PID from session start to session end', async () => {

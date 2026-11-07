@@ -1,8 +1,17 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ReportedEvent } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LIST_AGENTS, SEND_DENIED } from './guard/send';
 import { WINDOW_LABEL } from './hook/prompt';
@@ -38,6 +47,13 @@ function run(bundle: 'hook' | 'guard', input: unknown, env: Record<string, strin
 }
 
 const context = (stdout: string) => JSON.parse(stdout).hookSpecificOutput.additionalContext;
+
+/** The event lines the bundles left in the data folder, as the shipper reads them. */
+const events = () =>
+  readdirSync(data())
+    .filter((n) => /^events-\d+\.jsonl$/.test(n))
+    .flatMap((n) => readFileSync(join(data(), n), 'utf8').split('\n').filter(Boolean))
+    .map((l) => ReportedEvent.parse(JSON.parse(l)));
 const tool = (tool_name: string, tool_input: Record<string, unknown>) => ({
   hook_event_name: 'PreToolUse',
   tool_name,
@@ -70,6 +86,16 @@ describe('the built hook and guard bundles', () => {
       status: 2,
       stderr: LIST_AGENTS,
     });
+    // each refusal leaves its guard line, with the check that failed
+    const reason = process.platform === 'win32' ? 'send.no_record' : 'send.bad_address';
+    expect(
+      events()
+        .map((e) => e.kind === 'guard' && [e.tool, e.reason])
+        .sort(),
+    ).toEqual([
+      ['ListAgents', 'list_agents'],
+      ['SendMessage', reason],
+    ]);
   });
 
   it.runIf(process.platform === 'win32')('the guard passes a pushed pointer once', () => {
@@ -91,6 +117,11 @@ describe('the built hook and guard bundles', () => {
     const env = { AGENTMESH_MESH_WINDOW: MARK };
     expect(run('guard', tool('SendMessage', send), env)).toMatchObject({ status: 0, stderr: '' });
     expect(run('guard', tool('SendMessage', send), env)).toMatchObject({ status: 2 });
+    expect(
+      events()
+        .map((e) => (e.kind === 'guard' ? e.reason : e.kind === 'relay' && e.stage))
+        .sort(),
+    ).toEqual(['claimed', 'send.no_record']);
   });
 
   it('the hook labels a cross-session turn in the mesh window', () => {
@@ -128,6 +159,9 @@ describe('the built hook and guard bundles', () => {
     const r = run('hook', prompt, { CLAUDE_PID: '4242' });
     expect(context(r.stdout)).toBe(replyNote(record));
     expect(run('hook', prompt, { CLAUDE_PID: '4243' }).stdout).toBe('');
+    expect(events()).toEqual([
+      expect.objectContaining({ source: 'hook', note: 'note_shown', unread: 2 }),
+    ]);
   });
 
   it('the hook writes cc-<CLAUDE_PID>.json at session start and deletes it at its end', () => {

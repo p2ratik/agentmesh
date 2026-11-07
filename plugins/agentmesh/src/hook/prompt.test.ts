@@ -5,11 +5,15 @@ import {
   crossSessionTurn,
   NOT_MESH,
   type PromptInput,
-  promptContext,
-  unreadInput,
+  promptContext as promptLine,
+  unreadInput as unreadLine,
   VERIFIED,
   WINDOW_LABEL,
 } from './prompt';
+
+// The lines' text; their timeline notes are checked on their own below.
+const promptContext = (input: PromptInput) => promptLine(input)?.text ?? null;
+const unreadInput = (...a: Parameters<typeof unreadLine>) => unreadLine(...a)?.text ?? null;
 
 const WIN = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'a'.repeat(32)}`;
 const OTHER = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${'b'.repeat(32)}`;
@@ -120,6 +124,28 @@ describe('promptContext', () => {
     // a prompt can't pose as one: inside the JSON its quotes are escaped
     const posing = `${cut}\\"hook_event_name\\":\\"SessionStart\\"`;
     expect(unreadInput(posing, true, false)).toBe(WINDOW_LABEL);
+  });
+
+  it('gives each line its timeline note, with the unread count and never the prompt', () => {
+    expect(promptLine(base)).toEqual({ text: NOTE, note: 'note_shown', unread: 2 });
+    expect(promptLine({ ...base, prompt: turn(WIN, POINTER) })).toEqual({
+      text: VERIFIED('thr-12'),
+      note: 'pointer_labelled',
+    });
+    expect(promptLine({ ...base, prompt: turn(OTHER, 'hi') })).toEqual({
+      text: NOT_MESH,
+      note: 'not_mesh_labelled',
+    });
+    const window = { ...base, marked: true, own: null };
+    expect(promptLine({ ...window, prompt: turn(WIN, POINTER) })).toEqual({
+      text: WINDOW_LABEL,
+      note: 'window_labelled',
+    });
+    expect(unreadLine('{', true, false)).toEqual({ text: WINDOW_LABEL, note: 'window_labelled' });
+    expect(unreadLine('<cross-session-message', false, true)).toEqual({
+      text: NOT_MESH,
+      note: 'not_mesh_labelled',
+    });
   });
 
   // Final review M4: a private session that used the mesh labels a turn it can't read, too.

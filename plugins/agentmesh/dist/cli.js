@@ -46053,6 +46053,7 @@ var REASON_CODES = [
   "send.bad_address",
   "send.alias_mismatch",
   "send.content_mismatch",
+  "send.bad_summary",
   "send.no_record",
   "send.claim_failed",
   "list_agents",

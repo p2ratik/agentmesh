@@ -32,7 +32,9 @@ describe('readAll', () => {
 
 describe('hookOutput', () => {
   it('denies with exit 2 and the reason on stderr', () => {
-    expect(hookOutput({ kind: 'deny', reason: 'no' })).toEqual({
+    // the code and key are for the timeline only
+    const d = { kind: 'deny', reason: 'no', code: 'send.unknown_key', key: 'cc' } as const;
+    expect(hookOutput(d)).toEqual({
       exitCode: 2,
       stdout: '',
       stderr: 'no',
@@ -40,7 +42,7 @@ describe('hookOutput', () => {
   });
 
   it('asks with a PreToolUse permission decision', () => {
-    expect(hookOutput({ kind: 'ask', reason: 'why' })).toEqual({
+    expect(hookOutput({ kind: 'ask', reason: 'why', code: 'command.not_listed' })).toEqual({
       exitCode: 0,
       stdout: JSON.stringify({
         hookSpecificOutput: {
@@ -56,6 +58,8 @@ describe('hookOutput', () => {
   it('says nothing for pass and stamp', () => {
     const quiet = { exitCode: 0, stdout: '', stderr: '' };
     expect(hookOutput({ kind: 'pass' })).toEqual(quiet);
+    const claimed = { message: `msg-${'0'.repeat(26)}`, thread: 'thr-7' };
+    expect(hookOutput({ kind: 'pass', claimed })).toEqual(quiet);
     expect(hookOutput({ kind: 'stamp' })).toEqual(quiet);
   });
 });

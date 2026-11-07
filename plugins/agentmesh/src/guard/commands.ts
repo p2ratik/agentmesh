@@ -5,6 +5,7 @@
 // so a rule's wildcard can never approve extra flags, refspecs or a second command.
 import { resolve, sep } from 'node:path';
 import { isBranchName, type WindowPolicy } from '@agentmesh/common/window';
+import type { ReasonCode } from '@agentmesh/protocol/observe-codes';
 import type { MeshWorktree } from './paths';
 
 export interface CommandContext {
@@ -19,7 +20,7 @@ export interface CommandContext {
   freeSlot: (top: string, name: string) => boolean;
 }
 
-export type CommandDecision = { pass: true } | { ask: string };
+export type CommandDecision = { pass: true } | { ask: string; code: ReasonCode };
 
 const NO_POLICY =
   "mesh window: ~/.agentmesh/mesh-window.json is missing or invalid, so every command needs your human's approval";
@@ -29,8 +30,9 @@ export const UNLISTED =
 const foreign = (branch: string | null) =>
   `mesh window: ${branch ?? 'a detached checkout'} isn't your branch, so running its tests needs your human's approval`;
 
-const ask = (reason: string): CommandDecision => ({ ask: reason });
+const ask = (reason: string, code: ReasonCode): CommandDecision => ({ ask: reason, code });
 const pass = (): CommandDecision => ({ pass: true });
+const unlisted = (): CommandDecision => ask(UNLISTED, 'command.not_listed');
 
 /** A path bash and node read alike: no leading dash (`cd -` is OLDPWD, `-P` an option), no
  * leading `//` (a UNC host in Git Bash), and a colon only after a drive letter (`C:t` and `a:b`
@@ -145,20 +147,21 @@ const isDelivery = (rest: string) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(
  * commands are compared by string equality, never by pattern. */
 function inWorktree(command: string, c: CommandContext, p: WindowPolicy): CommandDecision {
   const test = p.testCommands.includes(command);
-  if (!test && !isDelivery(command)) return ask(UNLISTED);
+  if (!test && !isDelivery(command)) return unlisted();
   const wt = c.worktreeOf(c.cwd);
   const branch = wt?.branch ?? null;
   const prefix = p.ownBranchPrefix;
   const own = branch !== null && prefix !== null && branch.startsWith(prefix);
-  if (test) return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE);
-  return own && delivers(command, branch, p) ? pass() : ask(UNLISTED);
+  if (test)
+    return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE, 'command.needs_approval');
+  return own && delivers(command, branch, p) ? pass() : unlisted();
 }
 
 /** A listed command, run in `c.cwd`. */
 function listed(command: string, c: CommandContext, p: WindowPolicy): CommandDecision {
   if (EXACT.has(command) || reads(command, c)) return pass();
   const change = worktreeChange(command, c, p);
-  if (change !== null) return change ? pass() : ask(UNLISTED);
+  if (change !== null) return change ? pass() : unlisted();
   return inWorktree(command, c, p);
 }
 
@@ -166,9 +169,10 @@ function listed(command: string, c: CommandContext, p: WindowPolicy): CommandDec
  * command may follow `cd PATH && `, and is classified as if it ran in PATH. */
 export function classifyCommand(command: string, c: CommandContext): CommandDecision {
   const p = c.policy;
-  if (!p) return ask(NO_POLICY);
-  if (typeof command !== 'string' || typeof c.cwd !== 'string') return ask(UNLISTED);
+  // The guard has no policy when the marker doesn't match a valid one (readMarker: 'marked').
+  if (!p) return ask(NO_POLICY, 'marker.unverified');
+  if (typeof command !== 'string' || typeof c.cwd !== 'string') return unlisted();
   if (CD.test(command)) return pass();
   const at = placed(command, c.cwd);
-  return at === null ? ask(UNLISTED) : listed(at.rest, { ...c, cwd: at.dir }, p);
+  return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
 }
