@@ -1,10 +1,17 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { connectOnce } from '@agentmesh/bus';
 import { MeshError } from '@agentmesh/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CliContext } from '../context';
 import { runCli } from '../main';
+import { callTimeline } from './timeline';
+
+vi.mock('@agentmesh/bus', async (original) => ({
+  ...(await original<typeof import('@agentmesh/bus')>()),
+  connectOnce: vi.fn(),
+}));
 
 function setup(opts: { agentJson?: boolean; call?: CliContext['observeCall'] } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'agentmesh-timeline-'));
@@ -78,6 +85,30 @@ describe('agentmesh timeline', () => {
     });
     expect(await t.run()).toBe(1);
     expect(t.err.join('')).toContain('operators only');
+  });
+
+  // The hub answers only into the caller's own inbox; any other reply subject gets no answer.
+  it('connects as the agent with replies to its own inbox, and closes on an error', async () => {
+    const close = vi.fn(async () => undefined);
+    const request = vi.fn(async (_subject: string) => {
+      throw new Error('no hub');
+    });
+    vi.mocked(connectOnce).mockResolvedValue({ close, request } as never);
+    const settings = {
+      agentId: 'pratik-agent',
+      natsUrl: 'nats://x:4222',
+      nkeySeed: '/seed.nk',
+      prefix: 'mesh',
+    };
+    await expect(callTimeline(settings, {})).rejects.toThrow();
+    expect(connectOnce).toHaveBeenCalledWith({
+      servers: ['nats://x:4222'],
+      name: 'timeline-pratik-agent',
+      inboxPrefix: '_INBOX_pratik-agent',
+      credentials: { nkeySeed: '/seed.nk' },
+    });
+    expect(request.mock.calls[0]?.[0]).toBe('mesh.rpc.pratik-agent.observe.timeline');
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('asks to join first when agent.json is missing', async () => {

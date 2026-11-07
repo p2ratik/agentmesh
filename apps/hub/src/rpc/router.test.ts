@@ -140,6 +140,10 @@ describe('RPC router sessions', () => {
       'message.send': send,
       'session.hello': () => ({ sessionId: 's-good' }),
       'session.bye': () => ({ ok: true }),
+      'observe.timeline': (_params: unknown, call: CallContext) => {
+        seen.push(`timeline ${call.session}`);
+        return { events: [], text: '', truncated: false };
+      },
     };
     const dispatch = createRpcRouter({
       index: () => h.ctx.index,
@@ -184,6 +188,25 @@ describe('RPC router sessions', () => {
     });
     const asBob = { caller: 'discord-bridge', method: 'message.send', actAs: 'bob' };
     await expect(dispatch(asBob, params)).resolves.toMatchObject({ threadId: 'thr-1' });
+  });
+
+  // `agentmesh timeline` is one connection and one call: it has no session to send.
+  it('takes observe.timeline without a session, and still verifies one that is sent', async () => {
+    const { dispatch, seen } = sessionSetup();
+    const timeline = (session?: string) =>
+      dispatch(
+        { caller: 'alice-agent', method: 'observe.timeline', ...(session ? { session } : {}) },
+        {},
+      );
+    await expect(timeline()).resolves.toMatchObject({ truncated: false });
+    await expect(timeline('s-good')).resolves.toMatchObject({ truncated: false });
+    await expect(timeline('s-bad')).rejects.toMatchObject({ code: 'not_found' });
+    expect(seen).toEqual([
+      'timeline null',
+      'verify alice-agent s-good',
+      'timeline s-good',
+      'verify alice-agent s-bad',
+    ]);
   });
 
   it('router verifies the session and records claims after success', async () => {

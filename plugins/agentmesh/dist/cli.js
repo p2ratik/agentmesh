@@ -50491,6 +50491,7 @@ var callTimeline = async (s, params) => {
   const nc = await connectOnce({
     servers: [s.natsUrl],
     name: `timeline-${s.agentId}`,
+    inboxPrefix: inboxPrefix(s.agentId),
     credentials: { nkeySeed: s.nkeySeed }
   });
   try {

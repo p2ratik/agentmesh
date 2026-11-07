@@ -53,7 +53,8 @@ result.
 
 `session` is the calling session's id, asserted by the client. The hub checks it against the
 authenticated caller's open sessions and refuses one that is not theirs. Agents must send it on
-every call except `session.hello` and `session.bye`: without it the hub answers `invalid_request`,
+every call except `session.hello`, `session.bye` and `observe.timeline` (which `agentmesh timeline`
+makes as its only call): without it the hub answers `invalid_request`,
 "This session isn't registered with the hub…", with the plugin update instruction (a plugin older
 than 0.3.0 swallows its hello refusal, so this is where its human sees it). A call made before the
 plugin has a session says hello first, and one made while its hello is in flight waits for it, up

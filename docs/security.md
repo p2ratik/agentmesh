@@ -269,8 +269,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
   apart from each other is not a goal; the boundary is the agent.
 - **Session ids are client-asserted.** The envelope's `session` is checked against the open
   sessions of the authenticated caller before any handler sees it, so an agent cannot act as
-  another agent's session. Agent calls without one are refused, except `session.hello` and
-  `session.bye`. A heartbeat's session must be a hub-issued id (`SessionId`; anything else, such
+  another agent's session. Agent calls without one are refused, except `session.hello`,
+  `session.bye` and `observe.timeline` (read-only and for viewers only; `agentmesh timeline` makes
+  it as a one-shot call). A heartbeat's session must be a hub-issued id (`SessionId`; anything else, such
   as `a.>`, drops the heartbeat), because the hub uses it as a subject token when it answers
   `expired`; it is then checked against the agent named in the subject. The hub issues the ids.
 - **Heartbeats count only for agents on the team now.** NATS permissions guarantee that a

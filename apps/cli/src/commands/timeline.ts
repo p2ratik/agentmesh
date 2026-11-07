@@ -2,14 +2,19 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { connectOnce, RpcClient } from '@agentmesh/bus';
 import { agentmeshDir, MeshError } from '@agentmesh/common';
+import { inboxPrefix } from '@agentmesh/protocol';
 import { parseCommandArgs } from '../args';
 import type { AgentSettings, CliContext, Command, ObserveCall } from '../context';
 
-/** One connection as the saved agent, one `observe.timeline` call, then close. */
+/**
+ * One connection as the saved agent, one `observe.timeline` call, then close. The hub answers
+ * only into the caller's own inbox, so the connection takes the agent's inbox prefix.
+ */
 export const callTimeline: ObserveCall = async (s, params) => {
   const nc = await connectOnce({
     servers: [s.natsUrl],
     name: `timeline-${s.agentId}`,
+    inboxPrefix: inboxPrefix(s.agentId),
     credentials: { nkeySeed: s.nkeySeed },
   });
   try {
