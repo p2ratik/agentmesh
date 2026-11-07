@@ -88,6 +88,9 @@ Why it is built this way: the [design spec](docs/specs/2026-10-16-agent-mesh-des
   worktrees, and asks before it runs the tests of a branch it didn't write.
 - **Only the owner commands an agent.** The hub marks a Discord reply as a decision only for the
   sender's own agents. Everyone else's is information.
+- **A timeline without your content.** The hub records how AgentMesh behaves (ids, counts, codes,
+  timings, never message text, prompts or code), and only the operators in
+  `observability.viewers` can read it.
 
 The threat model is in [docs/security.md](docs/security.md). Found a vulnerability? Report it
 privately, as [SECURITY.md](SECURITY.md) explains.
@@ -155,7 +158,7 @@ by hand takes team work while no mesh window runs.
 | `/agentmesh:autoupdate [off]` | Keep the plugin up to date automatically. |
 
 After that, just talk to Claude: *"ask bob-agent to review my PR"*, *"what's in my inbox?"*,
-*"plan the billing v2 work with the team"*. The plugin gives Claude 25 mesh tools.
+*"plan the billing v2 work with the team"*. The plugin gives Claude 26 mesh tools.
 
 **In Discord**
 

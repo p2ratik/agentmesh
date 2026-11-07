@@ -44,8 +44,9 @@ lenient `repo` in results, so a plan stored before this rule still reads. The pl
 - in the mesh window, `task_get` names a task's repo only when it is plain `owner/name`.
 
 Calls that change state are rate-limited per agent or human (`limits.rpcBurst` at once, then
-`limits.rpcPerMinute`); reads, `messages.seen` and `session.bye` are free. Past the limit the hub
-answers `rate_limited` with `details.retryAfterSeconds`.
+`limits.rpcPerMinute`); reads, `messages.seen`, `session.bye`, `observe.timeline` and
+`telemetry.report` (which has its own per-agent cap) are free. Past the limit the hub answers
+`rate_limited` with `details.retryAfterSeconds`.
 
 `actAs` is honoured only for services with `canActAsHumans` (the Discord bridge); the hub then
 authorises as that human. A retried request with the same `idempotencyKey` returns the original
@@ -73,7 +74,7 @@ per caller and method, so one interaction may use the same key for, say, `invite
 
 | Method | Callers | Purpose |
 | --- | --- | --- |
-| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300), `previousSessionId` (a hub-issued id), `meshWindow` (optional; true when the launcher's marker matched, see [Routing](#routing)) and `claudeSessionId` (optional; Claude Code's conversation id, a UUID, see [Sessions and liveness](#sessions-and-liveness)). The hub stores `meshWindow` when it creates the session. A hello that reuses its session can set the stored flag (a window started before the hub had migration 007) but never clears it, and it updates the stored `clientVersion`. The result has self, git policy, team policy, `policy.closedAskerEscalationMinutes` (`relay.closedAskerEscalationMinutes`; read as 15 from an older hub), `unreadThreads`, `sessionId` and `reclaimed` (the threads given back to this session). Plugins older than 0.3.0 are refused with an update instruction. |
+| `session.hello` | agent, service | Register a session. Params carry `clientVersion` (up to 32 characters), `repo` and `branch` (300), `previousSessionId` (a hub-issued id), `meshWindow` (optional; true when the launcher's marker matched, see [Routing](#routing)) and `claudeSessionId` (optional; Claude Code's conversation id, a UUID, see [Sessions and liveness](#sessions-and-liveness)). The hub stores `meshWindow` when it creates the session. A hello that reuses its session can set the stored flag (a window started before the hub had migration 007) but never clears it, and it updates the stored `clientVersion`. The result has self, git policy, team policy, `policy.closedAskerEscalationMinutes` (`relay.closedAskerEscalationMinutes`; read as 15 from an older hub), `unreadThreads`, `sessionId`, `reclaimed` (the threads given back to this session) and `observability` (`{ enabled, maxBufferedEvents }`, see [Observability](#observability)). Plugins older than 0.3.0 are refused with an update instruction. |
 | `session.check` | agent | Have the hub send this session a test message carrying an activation code (see [Sessions and liveness](#sessions-and-liveness)). Fails with `unavailable` when nothing answers on the session subject. |
 | `session.activate` | agent | Turn this session on: `{ mode, code, description }`. `mode` is `push` (default) or `pull`. Push needs the code from the latest check; a wrong or stale code is refused with `invalid_request`. Pull needs no code (see [Pull mode](#pull-mode)). The result's `delivery` says which. A mesh window that activates closes the agent's away mesh windows and takes their threads; the result's `tookOver` lists them (empty from a hub before 0.6.0), and the plugin tells Claude to read each one. |
 | `session.deactivate` · `session.describe` | agent | Turn this session off (it releases everything it owns at once, and the hub forgets its pending activation code), or change its description |
@@ -100,6 +101,8 @@ per caller and method, so one interaction may use the same key for, say, `invite
 | `refs.set` · `refs.get` · `refs.find` | service | External ids for bridges (e.g. Discord thread ids) |
 | `enrollment.invite` · `enrollment.cancelInvite` · `enrollment.remove` | human (admin) | Invite-only onboarding. The `code` returned by `invite` is a one-time secret. `cancelInvite` takes `{ inviteId }` or `{ humanId }` (that person's latest invite) and returns `status`: `cancelled`, `used`, `expired`, `already_cancelled` or `not_found`. Only `cancelled` changes anything, so repeating it is safe. `remove` emits `member.removed`; members defined in mesh.yaml are refused. |
 | `enrollment.list` | service (bridge) | Enrolled members, active and revoked, plus the open invites (metadata only, never codes), for a bridge to build its index and autocomplete. |
+| `telemetry.report` | agent | Ship up to 100 behaviour events; the result is `{ accepted, dropped }` (see [Observability](#observability)). |
+| `observe.timeline` | agent | Read the event timeline, for the humans in `observability.viewers` only. Needs no session (see [Observability](#observability)). |
 
 Members join when the hub redeems their code. That happens inside the hub (the NATS auth callout),
 not over RPC. Redemption emits `member.joined`, creates the agent's inbox, and makes the new agent
@@ -411,6 +414,145 @@ task's thread is `external`. Hubs that predate the field send none, and clients 
 
 `notice.posted` is `{ channel, text, severity, trust }`. `trust` is `external` for rule notices
 and for `post_notice` on an external task; an event without it is read as `external`.
+
+## Observability
+
+Plugins, their guards and hooks report behaviour events, and the hub records its own, in one
+event store (the `observe` module, migration 009). Operators read it as a timeline. Why:
+[ADR 0011](adr/0011-observability.md). What is and isn't recorded, and the threat notes:
+[security.md](security.md#observability). The schemas are in
+`packages/protocol/src/observe.ts`, the reason codes in `observe-codes.ts`.
+
+### Events
+
+Every event has `id` (a uuid), `at` (the sender's ISO time), `session` (a hub session id, or
+null), `source` (`plugin`, `guard`, `hook` or `hub`) and `kind`. The other fields are fixed per kind,
+and none of them is free text. The store adds `agent` (the NATS-proven caller) and `receivedAt`
+(the hub's clock).
+
+Reported with `telemetry.report`:
+
+| Kind | Source | Fields |
+| --- | --- | --- |
+| `connected` | plugin | `pluginVersion`, `claudeCodeVersion`, `os`, `arch`, `node`, `meshWindow`, `pull`; each time a hello lands |
+| `nats` | plugin | `event`: `disconnect`, `reconnect` or `error`, and an optional `code` |
+| `activation` | plugin | `phase`: `check_sent`, `activated`, `refused`, `failed`, `renewed`, `renewal_fallback`, `deactivated`; `mode` (`push`, `pull`); `reason` when it says no |
+| `tool` | plugin | `tool`, `outcome` (`ok`, `refused`, a hub error code, or `internal`), `ms`, and the `thread`, `task` or `plan` it named |
+| `delivery` | plugin | `message`, `thread`, `stage` (`received`, `pushed`, `push_failed`, `deduped`, `held`), `sinceReceivedMs` |
+| `relay` | plugin, guard | `message`, `thread`, `stage`: `pushed` (the window pushed the pointer), `claimed` (the guard passed its `SendMessage`), `expired` (its record expired unclaimed). `denied` is in the schema but not recorded: a refused `SendMessage` is a `guard` event |
+| `guard` | guard | `tool`, `decision` (`deny`, `ask`), `reason`, and `key` for `send.unknown_key` |
+| `hook` | hook | `note` (`note_shown`, `pull_shown`, `pointer_labelled`, `window_labelled`, `not_mesh_labelled`, `error`) and an optional `unread` count |
+| `dropped` | plugin | `count`: events the plugin lost (a gap marker) |
+
+The hub's own:
+
+| Kind | Fields |
+| --- | --- |
+| `session` | `phase`: `opened`, `hello` (a hello that reused its session), `away`, `live`, `closed`, `evicted` (closed to make room), `taken_over` (with `replacedSession` and the `threads` it took) |
+| `delivery` | `message`, `thread`, `stage`: `sent`, `acked`, `failed` (`code` `unreachable` or `not_acked`), `no_session` (once per waiting message, session null) |
+| `relay` | `message`, `thread`, `stage`: `sent`, `forwarded`, `not_forwarded`; session is the window's |
+| `orphan` | `thread`, `phase`: `recorded`, `escalated`, `settled` (a closed asker's decision) |
+| `rpc` | `method`, `caller`, `code`: failed calls only, never `telemetry.report` or an unknown method |
+| `auth` | `event` (`denied` with a `reason`, or `budget_hit`), stored under `hub.serviceId` |
+
+Guard events, a `no_session` delivery, and `orphan`, `rpc` and `auth` events carry session null,
+so a session-scoped timeline doesn't show them. Hook events carry the session the hook ran in,
+when it knows it.
+
+### `telemetry.report`
+
+- **Params:** `{ events }`, at most 100 (`MAX_REPORT_EVENTS`). **Result:** `{ accepted, dropped }`.
+- The hub stores each event under the caller. An event whose `session` isn't one of the caller's
+  (at any liveness) is stored with session null.
+- An event is stored once per `(agent, id)`. A resent one counts as accepted and still costs
+  budget.
+- Past `observability.maxEventsPerMinute` stored events for the agent in the last minute, the rest
+  of the batch counts as `dropped` and is not stored.
+- **Errors:** `invalid_request` ("Invalid parameters for telemetry.report") when any event fails
+  its schema; `forbidden` ("observability is turned off on this hub") when
+  `observability.enabled` is false. A hub before 0.7.0 answers `not_found`.
+- Free (no rate-limit token), and its failures are not recorded as `rpc` events.
+
+**How the plugin ships:**
+- It records nothing until a hello answers `observability.enabled: true`. An older hub sends no
+  `observability`, which the plugin reads as off.
+- It buffers up to `maxBufferedEvents` (500) in memory. Over that, the oldest go, and one
+  `dropped` event counts them; it goes first in the next batch.
+- Every heartbeat (`AGENTMESH_HEARTBEAT_SECONDS`, 20 by default, at least 5) it collects the
+  guard's and hook's files, then sends up to 100 events. It starts only once the hub has answered a
+  hello. An error-kind event (a NATS error, an activation that failed or was refused, a push that
+  failed, a guard denial) sends early, at most every 2 s.
+- Events leave the buffer only once the hub acknowledges them. A failed call puts them back for
+  the next beat, with a debug log only; nothing reaches Claude or the human. Events the hub counts
+  as `dropped` are not sent again.
+- A batch refused as `invalid_request` is dropped, so it can't block later ones.
+- A hub without `telemetry.report` (`not_found`) stops the recording and shipping for that process,
+  logged once.
+- On shutdown it sends one last report, bounded at 100 ms, then the bye, bounded at 150 ms.
+- The mesh window also reports its forward records that expired unclaimed.
+
+### `observe.timeline`
+
+- **Params:** `agent`, `session`, `thread` (`thr-N`), `since` (default `2h`), `until`, `kinds`
+  (up to 20 event kinds) and `limit` (1–2000, default 500), all optional. Without `agent`,
+  `session` or `thread` it reads every agent.
+- **`since` and `until`** take an ISO time with a date and a time (`2026-11-06T10:00:00Z`), or
+  `<n>m`, `<n>h` or `<n>d` (up to 4 digits) before now. They are compared with the hub's receive
+  time. Anything else is `invalid_request`: "since must be an ISO time or a duration like 30m,
+  2h, 1d" (or "until must be …").
+- **Result:** `{ events, text, truncated }`. `events` are the newest `limit` matches, oldest
+  first, each with `agent` and `receivedAt`. `text` is the timeline below. `truncated` says more
+  matched.
+- **Errors:** `forbidden`, "the timeline is for this mesh's operators only", unless the calling
+  agent's owner is in `observability.viewers`. Admins are refused too.
+- It needs no session (with `session.hello` and `session.bye`, the router's `SESSIONLESS` set).
+  Called without one, it touches neither presence nor sessions, so the one-shot `agentmesh
+  timeline` leaves the operator's presence alone. Free, like reads.
+
+The plugin's `timeline` tool and `agentmesh timeline` both print `text`; `--json` prints `events`,
+one per line.
+
+### Reading the timeline
+
+```
+alice-agent · plugin 0.7.0 · Claude Code 2.1.319 · win32 · last 2h · 2026-11-06 10:02–11:20 (UTC+05:30)
+10:02:11  connected      [s-ab12cd34ef56] s-ab12cd34ef56 (mesh window)
+10:02:19  activation     [s-ab12cd34ef56] activated · push
+10:40:05  delivery       [s-ab12cd34ef56] thr-31 msg-…ABCD  hub sent → plugin got it → pushed to Claude ✓ 0.4s
+11:05:02  guard          [-] guard denied: send.unknown_key (summary) ✗
+11:20:44  nats           [s-ab12cd34ef56] NATS disconnect
+```
+
+(The output of the formatter, `apps/hub/src/modules/observe/timeline.ts`, for a mesh window's
+agent. Guard lines carry no session, so this agent's timeline has two and every line names one.)
+
+- **The header** names the agent, the versions from its latest `connected` event in the window
+  (`unknown` without one), the window and the time range. With several agents each gets a
+  versions line, and every line names its agent. With several sessions every line carries its
+  `[s-…]` (`[-]` for none).
+- **Lines** are in the order the hub received the events. Each shows the event's own time, in the
+  hub's time zone (the header gives the UTC offset), with the date when it changes.
+- `(clock +Nm)` marks a reported event (plugin, guard or hook) whose own time is 2 minutes or more
+  from when the hub received it: the laptop's clock is off, or the event waited in the plugin's
+  buffer.
+- `(truncated: showing the newest N of more; …)` follows the header when more matched;
+  `no events in this window` when nothing did.
+- **A delivery folds into one line**, every stage of that message for that agent: `hub sent →
+  plugin got it → pushed to Claude`. It ends:
+  - `✓ <s>`: pushed; the seconds from receipt to push.
+  - `✗ (hub failed)`: the hub's send failed (the session was unreachable, or its ack left the
+    message out). The hub sends it again.
+  - `✗ (no session)`: no session could take it, so it waits in the hub.
+  - `✗ (push failed)`: the plugin couldn't push it into Claude Code and didn't ack it, so the hub
+    sends it again.
+  - `✗ (held)`: a status item the plugin keeps for the next tool result or push.
+  - `✗ (duplicate)`: the plugin already had it, so it didn't push it again.
+  - `✗ (not pushed)`: received, but no push recorded.
+  - `✗ (not received)`: the hub sent it and no plugin receipt has arrived. That can also mean the
+    plugin's report hasn't arrived yet, because the laptop is offline or in an outage; the line
+    fills in when the buffered events ship.
+- **Status items** get `held`, then `pushed` when they ride out in a footer. Their
+  `sinceReceivedMs` is about 0, so read the delay from the `at` times (`--json`).
 
 ## The Claude Code channel
 

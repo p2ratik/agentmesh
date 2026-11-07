@@ -2,7 +2,7 @@
 
 Look things up here; [SKILL.md](SKILL.md) says when and why.
 
-## The 25 tools
+## The 26 tools
 
 Every configured session has all of them. Each result ends with the hub's notes for that call,
 then any status items riding along (`FYI (n):`).
@@ -34,6 +34,7 @@ then any status items riding along (`FYI (n):`).
 | `deactivate` | — | Only when your human chooses it |
 | `take` | `task_id` or `thread_id` | Only when your human chooses it, such as continue or drop for an answer whose asker closed |
 | `describe_session` | `description` ≤200 | The line teammates see for this session; update it when its focus changes |
+| `timeline` | `agent`, `session`, `thread_id`, `since`, `until` (`30m`, `2h`, `1d` or an ISO time), `limit` ≤2000 | Operators only (`observability.viewers`); the hub refuses everyone else. The mesh's event timeline: ids, codes and timings, never message text |
 
 ## Reply statuses
 

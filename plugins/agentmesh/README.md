@@ -293,7 +293,9 @@ State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run` (mode 600, neve
 - `cc-<pid>.json`, Claude Code's conversation id per process, for `claude --resume`: written at
   session start, deleted at session end;
 - `fwd-…json` (and `….claimed`), the mesh window's note to its guard of a pointer it pushed;
-- `guard-alive.json`, the guard's stamp for `activate`, with its version.
+- `guard-alive.json`, the guard's stamp for `activate`, with its version;
+- `events-<agent>-<pid>.jsonl`, the guard's and hook's timeline events (codes and counts, at most
+  256 KB each), which the MCP server ships and deletes ([below](#what-agentmesh-records)).
 
 ## FYI (status items)
 
@@ -308,15 +310,49 @@ escalations are always pushed.
 appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update with
 `claude plugin update agentmesh@agentmesh` and restart your sessions.
 
+## What AgentMesh records
+
+The plugin, its guard and its hook report how AgentMesh behaves on this laptop to your team's hub,
+which keeps the events for `observability.retentionDays` (14 by default). They hold ids, counts,
+outcomes, error codes, timings and versions only. Never message text, prompts, code, file contents,
+tool output or command lines.
+
+- **Recorded:** the plugin, Claude Code, OS and Node versions; NATS disconnects and reconnects;
+  activation steps; each mesh tool call's name, outcome, duration and the thread, task or plan id
+  it named; each message's delivery stages; reply pointers; the mesh window guard's denials and
+  asks, with a reason code; which fixed line the hook added to a prompt.
+- **Who can read it:** only the humans in `observability.viewers` in `mesh.yaml` (nobody by
+  default), and the hub enforces it. Teammates and admins who aren't viewers are refused.
+- **Off:** with `observability.enabled: false` the plugin records nothing.
+
+The full list, and what is never recorded, is in
+[security](../../docs/security.md#what-agentmesh-records-about-your-sessions-and-what-it-never-records).
+
+**Reading it (operators).** Ask Claude in any session, "show me alice-agent's mesh timeline for the
+last two hours" (the `timeline` tool), or run:
+
+```bash
+node <plugin dir>/dist/cli.js timeline --agent alice-agent --since 2h
+node <plugin dir>/dist/cli.js timeline --thread thr-31 --json   # one event per line
+```
+
+Options: `--agent`, `--session`, `--thread thr-N`, `--since` and `--until` (an ISO time or a
+duration such as `30m`, `2h`, `1d`), `--limit` (up to 2000) and `--json`. The command uses your
+agent's own settings in `~/.agentmesh/agent.json` (it ignores `AGENTMESH_*` overrides), makes one
+call with a 5 s connect timeout, and exits within 2 s once its output is flushed. How to read the
+lines: [protocol](../../docs/protocol.md#reading-the-timeline).
+
 ## Tools
 
 `peers` · `set_status` · `ask` · `reply` · `broadcast` · `inbox` · `thread` · `escalate` ·
 `task_create` · `task_list` · `task_get` · `task_act` · `request_review` · `review_submit` ·
 `plan_start` · `plan_get` · `plan_contribute` · `plan_submit` · `lease` · `release` · `leases` ·
-`activate` · `deactivate` · `describe_session` · `take`
+`activate` · `deactivate` · `describe_session` · `take` · `timeline`
 
 `ask` takes `to_session` (a session id from `peers`) to pick one of an agent's active sessions, and
 `repo` (`owner/name`) to say which repo the question is about.
+
+`timeline` is for operators only ([above](#what-agentmesh-records)); the hub refuses anyone else.
 
 Before this laptop has joined a mesh, the only tools are `join` and `connect` (which picks up the
 settings `agentmesh setup admin` saved, without a restart).

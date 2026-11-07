@@ -87,7 +87,7 @@ file is gitignored and is never committed.
 │ Claude Code                │  nkey    │ NATS JetStream (:4222)       │        │ #council  │
 │  └ agentmesh plugin (MCP   │◄────────►│  {p}.session.{agent}.{id}    │        │ #tasks    │
 │    stdio + claude/channel) │          │  {P}_EVENTS    feed-{svc}    │        │ #reviews  │
-│    25 tools, session push, │          │  {P}_INGEST    hub-ingest    │        │ #planning │
+│    26 tools, session push, │          │  {P}_INGEST    hub-ingest    │        │ #planning │
 │    presence heartbeat      │          │  {p}.rpc.{caller}.{method}   │        │ #escalate │
 └───────────────────────────┘          │                              │        │ #events   │
                                         │ Hub (Node, modular monolith) │        │ #alerts   │
@@ -95,7 +95,7 @@ file is gitignored and is never committed.
    (bearer / HMAC)                      │  outbox, scheduler ticks     │              │
                                         │  modules: control, presence, │   webhooks   │
                                         │  messaging, leases, tasks,   │   + bot      │
-                                        │  planning, ingest            │              │
+                                        │  planning, ingest, observe   │              │
                                         │ Discord bridge ──────────────┼──────────────┘
                                         └──────────────────────────────┘
 ```
@@ -121,6 +121,9 @@ file is gitignored and is never committed.
     commands that aren't on its list.
   - The window also forwards reply pointers to the human's private sessions (ADR 0009 part 3; see
     Status).
+  - It records behaviour events (ids, counts, codes and timings, never content) and ships them to
+    the hub with `telemetry.report`; the guard and hook leave theirs in `events-<agent>-<pid>.jsonl`
+    files it collects (ADR 0011).
   - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI),
     `dist/hook.js` (prompt, session-start and session-end hook) and `dist/guard.js`, all committed
     so marketplace installs need no build.
@@ -136,7 +139,8 @@ file is gitignored and is never committed.
 - **CLI** (`apps/cli`, run as `pnpm mesh …`, or `node <plugin dir>/dist/cli.js …` from the
   plugin): `init`, `validate`, `keys add|list`, `nats-config [--tls|--dev]`, `agent-setup`, and
   for setup `setup render|discord|host|deploy|admin|status|invites`, `doctor` and `upgrade`, plus
-  `autoupdate [--off]` (turns on Claude Code's plugin auto-update for the user's own account).
+  `autoupdate [--off]` (turns on Claude Code's plugin auto-update for the user's own account) and
+  `timeline` (the event timeline, for `observability.viewers` only).
   The setup steps work on a workspace folder (`--dir`), the source of truth after the first
   render; servers pull the hub and bridge images that CI publishes to GHCR.
 
@@ -150,7 +154,7 @@ packages/common     errors, ids, clock, logger, retry, paths
 apps/hub            hub service (src/modules/<module>/{repo,service,handlers,index}.ts, db, rpc, runtime)
 apps/discord-bridge render/ (pure), feed/, discord/, commands/, inbound/
 apps/cli            commands/ (incl. setup/), render/, lib/, setup/ (answers, renderers, checks, deploy)
-plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull}/,
+plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull,telemetry}/,
                     skills/ (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js
                     (MCP server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
@@ -201,8 +205,8 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
     `src/hook.ts`, `src/guard.ts`, `src/guard/**`, `src/hook/**`,
     `src/relay/{pointer,address,local-session,forward-record}.ts`, `src/resume/claude-session.ts`,
     `src/agent-id.ts`, `src/window/{rules,heartbeat,session-start,guard-stamp,start-state}.ts`,
-    `src/pull/state.ts` (all under `plugins/agentmesh`), and
-    `packages/common/src/{window,version}.ts`.
+    `src/pull/state.ts`, `src/telemetry/events-file.ts` (all under `plugins/agentmesh`),
+    `packages/common/src/{window,version}.ts` and `packages/protocol/src/observe-codes.ts`.
   - Cross-session messaging (the relay) needs Claude Code 2.1.234+ on native Windows. That is
     older than the plugin's own 2.1.295 minimum, so every supported install has it.
 
@@ -224,13 +228,13 @@ node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plu
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-11-05)
+## Status (as of 2026-11-07)
 
 **Built (v1, release 0.6.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
-- **Plugin:** 25 tools, plus `/agentmesh:join|activate|deactivate|take|setup|autoupdate|window`, and an unenrolled
+- **Plugin:** 26 tools, plus `/agentmesh:join|activate|deactivate|take|setup|autoupdate|window`, and an unenrolled
   mode with `join` and `connect`.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
   commands, buttons, echo guard, `/mesh invite|uninvite|remove`.
@@ -240,7 +244,7 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0010, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0011, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
 - **Automatic deploys (ADR 0010):** after publishing, the release workflow runs `deploy.yml`. It
@@ -302,16 +306,36 @@ Run `pnpm check` before calling anything done.
     alias named `claude-mesh`.
   - The `mesh-collaboration` skill, rewritten around the three session kinds and tested against
     15 scenarios with fresh agents.
+- **Observability, phase 1 (plan 4, for 0.7.0)** (ADR 0011): built and tested; staging QA and the
+  release are next.
+  - A timeline of how AgentMesh behaves: ids, counts, outcomes, error codes, timings and versions,
+    never content (`docs/security.md#observability`). Every "why" is a reason code from
+    `packages/protocol/src/observe-codes.ts`.
+  - Hub module `observe` (migration 009, an `events` table keyed `(agent, id)`, pruned after
+    `observability.retentionDays`). Other modules record through `ctx.events`: sessions,
+    deliveries, relays, closed-asker decisions, failed RPCs and refused connects.
+  - The plugin buffers its events (`observability.client.maxBufferedEvents`, with a `dropped`
+    gap marker) and ships them every heartbeat with `telemetry.report`, an acked RPC on the free
+    list with its own per-agent cap (`maxEventsPerMinute`). The guard and hook append to
+    `events-<agent>-<pid>.jsonl` (built-ins only, 256 KB a file, 500 files) for it to collect.
+  - Operators read it with the `timeline` tool or `agentmesh timeline` (`observe.timeline`): only
+    humans in `observability.viewers`, enforced by the hub, and the one RPC besides hello and bye
+    that needs no session.
+  - Phase 2 (Prometheus metrics, Grafana dashboards, Alertmanager and a dead man's switch) is
+    planned, not built.
 
 **Tested and passing:**
-- **Unit tests (about 1,330):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 1,530):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
   autocomplete gating, every setup step with fakes for ssh, Docker and Discord, and a secret-leak
   test over the whole setup flow. Plan 3: the relay rule and marks, the pointer text, the guard's
   `SendMessage` check (with a parallel-claim race), the local records, the prompt labels,
-  closed-asker routing and its timer, resume, the decides mark and escalation pings.
+  closed-asker routing and its timer, resume, the decides mark and escalation pings. Plan 4: every
+  event schema, the recorder and its gap marker, the events files and their caps, the shipper, a
+  reason code per guard check, the timeline formatter, the viewers check, retention and the
+  sessionless router set.
 - **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
   - nkey auth rendered by the CLI.
   - Impersonation is refused.
@@ -327,6 +351,10 @@ Run `pnpm check` before calling anything done.
     session reads the thread; a closed private asker's answer reaches the window marked
     `asker="closed"`, with the hub's notice and an `orphan_decisions` row; an owner's reply is
     marked `decides="yes"`. The built hook and guard bundles have smoke tests.
+  - Plan 4: a plugin's events reach the hub and a viewer reads them with the tool and with
+    `agentmesh timeline` (text and `--json`); a member and an admin who aren't viewers are refused;
+    the CLI exits 1 on a refused key (no credentials shown) and in bounded time when the hub is
+    unreachable; an offline plugin ships its buffer when it reconnects.
 - **Live deployment:**
   - Hub image built on the VM; NATS requires TLS.
   - Laptop → TLS → hub RPC works (~100–300 ms).
@@ -368,6 +396,11 @@ Run `pnpm check` before calling anything done.
     of the Claude Code process) and in Claude Desktop;
   - a settings `env` entry reaching the plugin's MCP server (`AGENTMESH_RELAY=off`);
   - the Linux address pattern, which needs `scripts/probe-messaging.mjs` run on Linux.
+- Plan 4 live (staging QA):
+  - the plugin's events from real Claude Code sessions, and the timeline they make;
+  - pull mode's `pull_shown` in a real session;
+  - `CLAUDE_PLUGIN_OPTION_*` reaching hooks (the guard and hook name their events files by agent
+    through it, or through `agent.json`).
 
 **Known limits:** Claude Code keeps only the first 4096 characters of MCP instructions, so a long
 team policy is cut off (agents see "policy truncated"). The mesh window's `activate` result now

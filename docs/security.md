@@ -270,8 +270,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
 - **Session ids are client-asserted.** The envelope's `session` is checked against the open
   sessions of the authenticated caller before any handler sees it, so an agent cannot act as
   another agent's session. Agent calls without one are refused, except `session.hello`,
-  `session.bye` and `observe.timeline` (read-only and for viewers only; `agentmesh timeline` makes
-  it as a one-shot call). A heartbeat's session must be a hub-issued id (`SessionId`; anything else, such
+  `session.bye` and `observe.timeline` (viewers only; `agentmesh timeline` makes it as a one-shot
+  call, and without a session it touches neither presence nor sessions; see
+  [Observability](#observability)). A heartbeat's session must be a hub-issued id (`SessionId`; anything else, such
   as `a.>`, drops the heartbeat), because the hub uses it as a subject token when it answers
   `expired`; it is then checked against the agent named in the subject. The hub issues the ids.
 - **Heartbeats count only for agents on the team now.** NATS permissions guarantee that a
@@ -796,7 +797,9 @@ passes that session a pointer through Claude Code's cross-session messaging
 - Per-thread and per-sender rate limits, and duplicate suppression.
 - **Every call that changes state is rate-limited** per agent or human: `limits.rpcBurst` (60) at
   once, refilled at `limits.rpcPerMinute` (20). Reads (`peers`, `inbox`, `task_get`, lists…),
-  `messages.seen` and `session.bye` are free; any other method, a new one included, costs a token.
+  `messages.seen`, `session.bye`, `observe.timeline` and `telemetry.report` (which has its own
+  per-agent cap, see [Observability](#observability)) are free; any other method, a new one
+  included, costs a token.
   Each human the bridge acts for has their own bucket. Services acting as themselves (the bridge's
   `refs.*`) are not metered: an admin configures them, and a bridge can already act as any human.
   The buckets live in hub memory, so a restart refills them. A refusal is `rate_limited` with
@@ -951,6 +954,166 @@ itself.
 - **Residual risk:** if the response is lost in transit, the secret is gone and the caller has to
   start over: `/mesh uninvite` cancels the invite, then `/mesh invite` issues a new one. This is
   accepted on purpose: losing an invite is better than storing it.
+
+## Observability
+
+Phase 1 of observability ([ADR 0011](adr/0011-observability.md)): each plugin, its guard and its
+hook record what AgentMesh does on the laptop, and the hub records what it does itself. The hub
+keeps both in one event store, and an operator reads them as a timeline (the `timeline` tool or
+`agentmesh timeline`, see [protocol](protocol.md#observability)). Metrics, dashboards and alerts
+are phase 2, planned and not built.
+
+### What AgentMesh records about your sessions, and what it never records
+
+**The privacy line:** ids, counts, outcomes, error codes, timings and versions only. Never message
+text, prompts, code, file contents, tool output or command lines. No event schema has a free-text
+field. Every "why" is a reason code from a fixed list ([below](#reason-codes)).
+
+A teammate's plugin reports:
+- **versions**, each time its hello lands: the plugin, Claude Code, the OS, the CPU architecture
+  and Node, and whether the session is the mesh window or pull-only;
+- **NATS** disconnects, reconnects and errors;
+- **activation steps** (check sent, activated, refused, failed, renewed, renewal fallback,
+  deactivated), the mode, and a reason code when it says no;
+- **mesh tool calls:** the tool's name, `ok` or an error code, how long it took, and the
+  `thread_id`, `task_id` or `plan_id` it named. No other argument is read;
+- **each delivery's stages**, by message and thread id: received, pushed into Claude Code, push
+  failed, duplicate, or held (a status item waiting for the next tool result);
+- **reply pointers** in the mesh window: pushed, claimed by the guard, or expired unclaimed;
+- **the guard**, in the mesh window only: the tool's name, deny or ask, and a reason code, plus
+  the key's name for `send.unknown_key`;
+- **the hook:** which fixed line it added to a prompt, with an unread count;
+- **gaps:** how many events the plugin had to drop.
+
+The hub records session phases (opened, hello, away, live, closed, evicted, taken over), each
+delivery's stages (sent, acked, failed with a code, no session), relay pointers (sent, forwarded,
+not forwarded), closed-asker decisions (recorded, escalated, settled), failed RPCs (method, caller,
+error code) and refused connects (a reason code).
+
+**Never recorded:** message bodies and subjects, prompts, what Claude did with a message, tool
+arguments other than those three ids, file paths, commands, the refusal sentences Claude sees,
+messaging addresses, client IP addresses, keys, JWTs and invite codes.
+
+- **Who reads it:** only the humans in `observability.viewers`. It is empty by default, so nobody
+  does. Admins who aren't viewers are refused like everyone else. Events still show when and how
+  each teammate used the mesh, which is why the timeline is for operators only.
+- **Teammates are told.** This page and the plugin README say what is collected and what never is,
+  and the operator tells the team. There is no in-product notice. Teammates can't read the
+  timeline, but they know it exists.
+- **Turning it off:** `observability.enabled: false` stops the hub storing and the plugins
+  recording (they learn it from `session.hello`). Stored events stay readable until
+  `observability.retentionDays` (14) prunes them.
+
+### Threats and mitigations
+
+- **New ingress: `telemetry.report`.** It is untrusted data.
+  - **Agents only, attributed by the caller.** The hub stores every event under the agent the NATS
+    subject proves; an event has no agent field. So a plugin can report only its own agent's
+    events. An event naming a session that isn't one of the caller's is stored with session null,
+    so nobody can pin events on someone else's session. The caller's own closed sessions count, so
+    events buffered through an outage keep theirs.
+  - **Strict schemas, no free text.** Each event is a strict zod object: ids match their patterns,
+    tool names and codes are tokens of up to 64 characters (`[A-Za-z0-9_.+-]`), reasons come from
+    the fixed list, and a key name must match `^[A-Za-z_]{1,40}$`. One bad event refuses the whole
+    batch (`invalid_request`). The plugin validates each event first and counts a bad one as
+    dropped.
+  - **Capped.** At most 100 events per call. The hub stores at most
+    `observability.maxEventsPerMinute` (300) events per agent per minute; it counts the rest as
+    `dropped` and stores none of them. An event is stored once per `(agent, id)`, but a resent one
+    still costs budget, so replays are not free. The budget lives in hub memory.
+  - **Never in the way.** `telemetry.report` is on the rate limiter's free list, so it never takes
+    a token from real work, and its failures are not recorded as `rpc` events.
+  - **Shown as data.** The timeline prints ids, codes and counts in fixed words, and nothing in it
+    reaches an agent as instructions. Every event keeps its `source` (`plugin`, `guard`, `hook` or
+    `hub`): the text names the hub's and the plugin's stages of a delivery or relay, and `--json`
+    shows each event's source.
+  - **Residual risk:** a teammate can still forge events about their own agent, such as a delivery
+    that never happened or a guard denial. What the laptop reports is its word, not proof.
+- **Guard and hook events go through files.** The guard and the hook are short processes, so they
+  append JSON lines to `events-<agent>-<pid>.jsonl` in the plugin data folder. The MCP server
+  collects its own agent's files on its next ship.
+  - The writer uses Node built-ins only. Appending never throws and never changes a guard decision.
+  - A file holds at most 256 KB. No new file is started once 500 of the writer's own files are
+    waiting, since nobody is collecting them.
+  - The lines are self-asserted by local processes. The shipper validates each line with zod and
+    drops one that fails, counting it in the gap. Any process that can write the folder can add
+    events for that agent, but such a process can already call the mesh as the agent.
+  - The writer names its agent through `src/agent-id.ts`, so it depends on `CLAUDE_PLUGIN_OPTION_*`
+    or `~/.agentmesh/agent.json` reaching the hook. In `$CLAUDE_PLUGIN_DATA`, a writer that can't
+    resolve its agent writes `events-<pid>.jsonl`, which only that folder's plugin collects. In the
+    shared `~/.agentmesh/run` fallback it writes nothing.
+  - A key name is kept only if it matches `^[A-Za-z_]{1,40}$`. A tool name is cut to 64 characters
+    and kept only as a token, else it reads `unknown`.
+  - Guard events carry session null, because the guard doesn't know its hub session. So a
+    session-scoped timeline (`--session`) doesn't show the window's guard lines; an agent-scoped one
+    does.
+- **New read: `observe.timeline`.** Viewers only, and the hub enforces it. It looks up the calling
+  agent's owner and refuses with `forbidden`, "the timeline is for this mesh's operators only",
+  unless that human is in `observability.viewers`. Only agents may call it, so nobody reads it
+  through the Discord bridge. There is no HTTP read path, so the check has nothing to bypass.
+  - Viewers must be humans listed in `mesh.yaml` (validation refuses any other id). A member who
+    joined by invite can't be a viewer yet.
+  - **It needs no session.** The router's `SESSIONLESS` set holds exactly `session.hello`,
+    `session.bye` and `observe.timeline`, and a test pins it, so the one-shot `agentmesh timeline`
+    can call it. Called without a session, it touches neither presence nor sessions. It is free,
+    like reads.
+- **Hub auth events.** A refused connect is recorded with its reason code, never the presented key,
+  JWT or invite code, and never the client's address. `budget_hit` (an address spent its connect
+  budget) is recorded once per address per hour. Both are stored under the hub's own id
+  (`hub.serviceId`, default `hub`).
+- **Residual risk: storage.** At its cap one agent can store about 430,000 events a day, kept for
+  `retentionDays`. The hub's own events have no cap: every failed call (a `thread` on a missing
+  thread, a non-viewer's `timeline`) and every refused connect within an address's budget adds a
+  row. Lower `maxEventsPerMinute` or `retentionDays` if disk is tight.
+
+### Reason codes
+
+The fixed list is `REASON_CODES` in `packages/protocol/src/observe-codes.ts` (plain constants, so
+the guard and hook bundles stay built-ins only).
+
+| Code | Meaning |
+| --- | --- |
+| `send.unknown_key` | A `SendMessage` in the window carried a key outside its list; the key's name is kept when it is a plain identifier. |
+| `send.bad_address` | `to` doesn't match the strict messaging address pattern. |
+| `send.alias_mismatch` | `recipient` isn't `to`, `type` isn't `message`, or `message` isn't text. |
+| `send.content_mismatch` | `content` is neither `message` nor Claude Code's preview of it. |
+| `send.bad_summary` | `summary` isn't text of at most 200 characters. |
+| `send.no_record` | No fresh forward record holds exactly this pointer for that address. |
+| `send.claim_failed` | The record was already claimed: a replay or a parallel send. |
+| `list_agents` | `ListAgents` in the window. |
+| `path.no_file` | An edit names no file. |
+| `path.not_absolute` | The path is relative, untrimmed, or has a `.` or `..` segment. |
+| `path.device` | A UNC, `\\?\`, `\\.\`, stream or device path, or a Windows name ending in a dot or space. |
+| `path.unresolved` | Something is there that won't resolve: a dangling link, a loop, a file used as a folder. |
+| `path.outside_worktree` | Not inside a `.claude/worktrees/mesh-*` worktree, or the worktree's root itself. |
+| `path.not_registered_worktree` | The `mesh-*` folder isn't a registered git worktree. |
+| `path.git_dir` | A `.git` path inside the worktree. |
+| `path.agentmesh_dir` | Inside the real `~/.agentmesh`. |
+| `path.link` | The last segment is a link, or the file has other hard links. |
+| `command.not_listed` | A Bash command that isn't one of the guard's forms (asks). |
+| `command.needs_approval` | A test on a branch the window didn't write or outside a worktree, and every PowerShell and Monitor command (asks). |
+| `tool.unknown` | A tool the guard doesn't know. |
+| `tool.enter_worktree` | `EnterWorktree`. |
+| `tool.agent_isolated` | An `Agent` call with an `isolation` key. |
+| `tool.workflow` | A `Workflow` call (asks). |
+| `marker.unverified` | The window marker doesn't match a valid policy: every command asks, `activate` refuses, and a renewal leaves the check to the human. |
+| `guard.unreadable` | The guard couldn't read the tool call. |
+| `guard.error` | The guard itself failed (deny), or a command check threw (asks). |
+| `activation.wrong_code` | The hub refused the activation code. |
+| `activation.guard_down` | The mesh window's guard didn't stamp this `activate` call. |
+| `activation.not_window` | Defined, but nothing records it in this release. |
+| `activation.another_window_live` | A renewed window left the check to its human: another mesh window of the agent is live. |
+| `activation.no_proof` | A renewed window couldn't prove its guard runs (no recorded version, no fresh stamp). |
+| `activation.hub_error` | A hub call during activation failed for another reason. |
+| `activation.no_description` | `activate` came without a description. |
+| `activation.pull_in_window` | `pull: true` in the mesh window. |
+| `auth.no_signature` | A connect without an nkey signature. |
+| `auth.bad_signature` | The nonce signature doesn't verify. |
+| `auth.unknown_key` | An unknown key with no invite. |
+| `auth.too_many_from_address` | Too many failed invite redemptions from this address. |
+| `auth.malformed_invite` | The invite code doesn't decode. |
+| `auth.too_many_redemptions` | Too many failed redemptions of this invite. |
+| `auth.invite_refused` | The hub refused to redeem the invite. |
 
 ## Invite codes
 

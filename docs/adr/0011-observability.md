@@ -1,0 +1,149 @@
+# ADR 0011 — Observability: a behaviour timeline, phase 1
+
+**Status:** accepted · 2026-11-07. Phase 1 (release 0.7.0) is built; phase 2 is planned. The
+design is `docs/specs/2026-11-06-observability-design.md`.
+
+## Context
+
+Staging QA of 0.6.0 found five bugs. The two worst happened entirely on a laptop: the mesh
+window's guard refused the `SendMessage` shape Claude Code really sends, so every reply pointer
+failed. The hub logged "relay forwarded", which looked like success. Monitoring that watches only
+the server would have shown green.
+
+The operator, who develops AgentMesh and runs the hub, wants to see how AgentMesh behaves on every
+teammate's machine, including behaviour nobody can name in advance. So the system has to keep a
+detailed event history that they can hand to Claude, and Claude has to be able to work out quickly
+what happened.
+
+Constraints:
+- **Privacy.** Teammates' messages, prompts and code are not the operator's to read.
+- **Access.** Teammates and other admins must not read the history until the operator adds them.
+- **Never in the way.** Telemetry must never slow down or break a tool call, a push or a
+  heartbeat.
+- Principle 1: the hub, not the client, decides who is who; external input is untrusted data.
+
+## Decision
+
+**Decided by the maintainer:**
+- Clients report to the hub, continuously.
+- **The privacy line:** ids, counts, outcomes, error codes, timings and versions only. Never
+  message text, prompts, code, file contents, tool output or command lines. No event schema has a
+  free-text field, and every "why" is a reason code from a fixed list.
+- What the timeline must show: activations and their result, every mesh tool call and its
+  outcome, each message's delivery journey, relay outcomes, guard decisions, disconnects and
+  reconnects, and versions.
+- **Operators only**, with a config list for future developers (`observability.viewers`, empty by
+  default). The hub enforces it; admins who aren't viewers are refused.
+- **Disclosure:** no in-product notice. The operator tells the team, and `docs/security.md` and
+  the plugin README say what is collected and what never is.
+- Prometheus and Grafana for trends and alerts (phase 2).
+
+**Design calls:**
+- **A separate, acked RPC, `telemetry.report`,** not the heartbeat. The heartbeat is a
+  fire-and-forget NATS publish with no acknowledgement, and events must not be lost silently. The
+  RPC goes through the hub's router like every other call: the NATS subject proves the caller, so
+  a plugin can report only its own agent's events, and the call is schema-checked, size-capped and
+  acknowledged. Events leave the plugin's buffer only once the hub has them; a failed call keeps
+  them for the next beat.
+- **The hub's SQLite is the store.** An `events` table (migration 009) with the primary key
+  `(agent, id)`, so a batch resent after a lost ack is stored once and one agent's ids can't
+  collide with another's. It is indexed by received time per agent, session and thread. The hub
+  writes its own events and the reported ones through one repository. Retention is
+  `observability.retentionDays` (14), pruned on the scheduler tick. A 5–15 person team needs no
+  log platform.
+- **The hub clock is the reference.** A reported event keeps the sender's `at`, and the hub adds
+  `receivedAt`. Queries and ordering use `receivedAt`, and a gap of 2 minutes or more is marked
+  on the line.
+- **Free-listed, with its own cap.** `telemetry.report` and `observe.timeline` take no token from
+  `limits.rpcBurst`, so telemetry never competes with real work. Instead the hub stores at most
+  `observability.maxEventsPerMinute` (300) events per agent per minute, and counts the rest as
+  dropped. Duplicates cost budget too, so a replay is not free.
+- **The plugin learns from `session.hello`.** The hello result carries `observability: { enabled,
+  maxBufferedEvents }`. Without it (an older hub) the plugin records nothing, and a team that turns
+  it off sends nothing.
+- **A capped buffer with a visible gap.** The plugin keeps up to `client.maxBufferedEvents` (500)
+  events. Past that the oldest go, and one `dropped` event counts them. It ships every heartbeat,
+  early (at most every 2 s) after an error-kind event, and once more on shutdown: one report
+  bounded at 100 ms, then the bye in the remaining 150 ms of the 250 ms budget. The events just
+  before a close are the ones an operator debugs.
+- **Guard and hook events go through files.** They run as separate short processes and stay
+  built-ins only, so they append JSON lines to `events-<agent>-<pid>.jsonl` in the plugin data
+  folder, and the MCP server collects them on its next ship. Each file holds at most 256 KB. A
+  writer starts no new file once 500 of its own are waiting. Files are named by agent, so two
+  Claude accounts that share the `~/.agentmesh/run` fallback never ship each other's events, and
+  there a writer that can't resolve its agent writes nothing. The collector validates every line
+  with zod and counts a bad one in the gap.
+- **Guard events carry session null.** The guard doesn't know its hub session. So a
+  session-scoped timeline leaves out the window's guard lines; an agent-scoped one shows them.
+- **`pull_shown` records the hook's own session,** the one the line was shown in, not the pull
+  session the line is about. Any session in the project can show that line, so only the hook's own
+  session is evidence of where Claude Code ran the hook, which ADR 0008 still needs checked live.
+- **One formatter, in the hub.** `observe.timeline` returns the events and the text from one pure
+  function (`apps/hub/src/modules/observe/timeline.ts`), so the `timeline` tool and
+  `agentmesh timeline` print the same thing. A delivery's events fold into one journey line, with
+  an ending that says where it stopped.
+- **`observe.timeline` needs no session.** The CLI is a one-shot process: it connects as the
+  operator's agent, makes one call and exits. The router's `SESSIONLESS` set holds exactly
+  `session.hello`, `session.bye` and `observe.timeline`, and a test pins it. A hello from the CLI
+  was rejected: it would create a session row, record a session event in the very timeline being
+  read, touch presence, and could reclaim threads. Called without a session, the timeline touches
+  neither presence nor sessions.
+- **The CLI exits after a grace.** nats.js can leave a socket open after a connect that timed out,
+  so once stdout and stderr have flushed, the process exits within 2 s even with a handle open.
+- **Auth events carry codes.** A refused connect is recorded with a reason code from the callout's
+  decision, never the key, JWT or invite code. A spent connect budget is recorded once per address
+  per hour.
+- `enabled: true` by default, because the team is told.
+
+### Phase 1 and phase 2
+
+- **Phase 1 (0.7.0), built:** the event schemas and reason codes, the hub's store and its own
+  events, the plugin's recorder and shipper, the guard's and hook's events, `observe.timeline`,
+  the `timeline` tool and `agentmesh timeline`, and the `observability.*` config.
+- **Phase 2, planned:** hub metrics on `/metrics`, a `monitoring` compose profile (Prometheus,
+  Alertmanager, Grafana, node and NATS exporters) reached over SSH, dashboards, alert rules to a
+  private webhook, and a dead man's switch. Until then the operator reads the timeline directly.
+
+### Where the code differs from the design
+
+- The events file is `events-<agent>-<pid>.jsonl`, capped (no new lines past 256 KB, no new file
+  past 500 waiting), not `events-<pid>.jsonl` rotated.
+- More reason codes than §4 lists: `send.bad_summary`, one `path.*` code per refusal in
+  `guard/paths.ts`, `command.needs_approval`, the `tool.*`, `marker.unverified` and `guard.*`
+  codes, the `activation.*` codes and the `auth.*` codes. `activation.not_window` is defined but
+  nothing records it yet.
+- A hook note `pull_shown`, and a hub delivery stage `no_session`, recorded once per waiting
+  message.
+- `observability.maxEventsPerMinute` is new config.
+- The plugin's relay stage `denied` is in the schema but not recorded: a refused `SendMessage` is a
+  `guard` event.
+- The text doesn't label every line "reported by the plugin". Each event keeps its `source`; the
+  text names the hub's and the plugin's stages of a delivery or relay, and `--json` shows the
+  source of every event.
+- The indexes use the hub's received time, which every query filters and orders by, rather than
+  the sender's `at`.
+- The design's join note is not built; this ADR, `docs/security.md` and the plugin README carry
+  the disclosure.
+
+## Alternatives considered
+
+- **Events on the heartbeat.** No new RPC and no extra traffic. Rejected: a heartbeat has no
+  acknowledgement, so a lost one loses its events without a trace.
+- **A log platform (Loki, ELK).** Rejected: the hub's own store is enough for a team of 5–15, and
+  it adds no service to run.
+- **An HTTP read path for the timeline.** Rejected: every other read goes through the router,
+  which proves the caller. With no HTTP path, the viewers check has nothing to bypass.
+- **A free-text `detail` field for debugging.** Rejected by the privacy line. Reason codes are
+  enough to tell which check failed, and they can't carry content.
+
+## Consequences
+
+- The operator can ask Claude for a teammate's timeline and see what the hub and the laptop each
+  saw. The 0.6.0 guard bug would have shown as `guard denied: send.unknown_key (summary)`.
+- A 0.6.x plugin sends nothing, so its timeline shows the hub's events only. A 0.7.0 plugin
+  talking to an older hub gets `not_found` once and stops recording for that process.
+- What a laptop reports is its own word: a teammate can forge events about their own agent, never
+  another's.
+- The store grows with activity: at the cap, one agent can store about 430,000 events a day, and
+  the hub's own events have no cap (see [security.md](../security.md#observability)).
+- Viewers must be humans listed in `mesh.yaml`; a member who joined by invite can't be one yet.
