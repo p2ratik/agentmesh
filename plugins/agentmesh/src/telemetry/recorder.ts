@@ -1,0 +1,117 @@
+import { randomUUID } from 'node:crypto';
+import { VERSION } from '@agentmesh/common';
+import type { ReportedEvent } from '@agentmesh/protocol';
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import type { Session } from '../session';
+
+type WithoutStamp<E> = E extends unknown
+  ? Omit<E, 'id' | 'at'> & { id?: string; at?: string }
+  : never;
+/** An event as recorded: the recorder stamps `id` and `at` unless it has them (a file's do). */
+export type Recordable = WithoutStamp<ReportedEvent>;
+type Dropped = Extract<ReportedEvent, { kind: 'dropped' }>;
+
+/** Error-kind events, after which the shipper sends early. */
+function isError(e: Recordable): boolean {
+  switch (e.kind) {
+    case 'nats':
+      return e.event === 'error';
+    case 'activation':
+      return e.phase === 'failed' || e.phase === 'refused';
+    case 'delivery':
+      return e.stage === 'push_failed';
+    case 'guard':
+      return e.decision === 'deny';
+    default:
+      return false;
+  }
+}
+
+/**
+ * The plugin's capped buffer of timeline events (ids, counts and codes only). Over the cap the
+ * oldest go, and one pending `dropped` event counts them, so a gap is visible, never silent.
+ */
+export class Recorder {
+  /** Set by the shipper: called after an error-kind event. */
+  onError: (() => void) | null = null;
+  readonly #max: () => number;
+  readonly #enabled: () => boolean;
+  readonly #now: () => Date;
+  #events: ReportedEvent[] = [];
+  #gap: Dropped | null = null;
+
+  constructor(opts: { max: () => number; enabled: () => boolean; now?: () => Date }) {
+    this.#max = opts.max;
+    this.#enabled = opts.enabled;
+    this.#now = opts.now ?? (() => new Date());
+  }
+
+  /** Synchronous and never throws; records nothing while the hub says observability is off. */
+  record(e: Recordable): void {
+    try {
+      if (!this.#enabled()) return;
+      const stamp = { id: e.id ?? randomUUID(), at: e.at ?? this.#now().toISOString() };
+      this.#events.push({ ...e, ...stamp } as ReportedEvent);
+      this.#trim();
+      if (isError(e)) this.onError?.();
+    } catch {
+      // Recording never gets in the way of the work it records.
+    }
+  }
+
+  /** Removes up to `n` events, the pending gap first. Turned off, it drops what it holds. */
+  take(n: number): ReportedEvent[] {
+    if (!this.#enabled()) {
+      this.#events = [];
+      this.#gap = null;
+      return [];
+    }
+    const taken: ReportedEvent[] = this.#gap ? [this.#gap] : [];
+    this.#gap = null;
+    return taken.concat(this.#events.splice(0, n - taken.length));
+  }
+
+  /** Returns events the hub did not take to the front; what no longer fits counts as dropped. */
+  putBack(events: ReportedEvent[]): void {
+    for (const e of events) {
+      if (e.kind === 'dropped') this.#gap = { ...e, count: e.count + (this.#gap?.count ?? 0) };
+    }
+    this.#events.unshift(...events.filter((e) => e.kind !== 'dropped'));
+    this.#trim();
+  }
+
+  #trim(): void {
+    const over = this.#events.length - this.#max();
+    if (over <= 0) return;
+    const lost = this.#events.splice(0, over);
+    this.#gap = this.#gap
+      ? { ...this.#gap, count: this.#gap.count + over }
+      : {
+          kind: 'dropped',
+          source: 'plugin',
+          session: lost.at(-1)?.session ?? null,
+          id: randomUUID(),
+          at: this.#now().toISOString(),
+          count: over,
+        };
+  }
+}
+
+/** What each hello that lands records: versions and the session's mode, nothing else. */
+export function connectedEvent(
+  session: Pick<Session, 'hub' | 'window' | 'activation'>,
+  server: Pick<Server, 'getClientVersion'>,
+): Recordable {
+  return {
+    kind: 'connected',
+    source: 'plugin',
+    session: session.hub.sessionId,
+    pluginVersion: VERSION,
+    claudeCodeVersion: server.getClientVersion()?.version ?? 'unknown',
+    os: process.platform,
+    arch: process.arch,
+    node: process.versions.node,
+    meshWindow: session.window.state === 'verified',
+    pull: session.activation.pull,
+  };
+}

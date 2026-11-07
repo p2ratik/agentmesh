@@ -1,5 +1,11 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import { type CallOptions, connectBus, type NatsConnection, RpcClient } from '@agentmesh/bus';
+import {
+  type BusStatus,
+  type CallOptions,
+  connectBus,
+  type NatsConnection,
+  RpcClient,
+} from '@agentmesh/bus';
 import { type Logger, MeshError } from '@agentmesh/common';
 import {
   inboxPrefix,
@@ -32,6 +38,8 @@ export class HubClient {
   onSessionLost: (() => void) | null = null;
   /** Says hello, or joins the hello in flight (`Session.sayHello`); sessionless calls wait for it. */
   sayHello: (() => Promise<unknown>) | null = null;
+  /** Told of each NATS disconnect, reconnect and error (the session records them). */
+  onStatus: ((type: BusStatus) => void) | null = null;
   readonly #logger: Logger;
   #nc: NatsConnection | null = null;
   #rpc: RpcClient | null = null;
@@ -53,6 +61,7 @@ export class HubClient {
       inboxPrefix: inboxPrefix(this.config.agentId),
       ...(this.config.nkeySeed ? { credentials: { nkeySeed: this.config.nkeySeed } } : {}),
       logger: this.#logger,
+      onStatus: (type) => this.onStatus?.(type),
     })
       .then((nc) => {
         this.#nc = nc;

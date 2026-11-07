@@ -1,5 +1,5 @@
 import { createServer, type Socket } from 'node:net';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { connectBus, generateUserKey, requiresTls, resolveSeed } from './connect';
 
 /**
@@ -58,6 +58,22 @@ describe('connect options', () => {
         return false;
       })();
       expect(await Promise.race([reconnected, nc.closed().then(() => false)])).toBe(true);
+    } finally {
+      await nc.close();
+      fake.close();
+    }
+  }, 20_000);
+
+  it('tells onStatus about a disconnect and the reconnect', async () => {
+    const fake = await fakeNats(0);
+    const seen: string[] = [];
+    const nc = await connectBus({
+      servers: [fake.url],
+      name: 'status',
+      onStatus: (type) => seen.push(type),
+    });
+    try {
+      await vi.waitFor(() => expect(seen).toEqual(['disconnect', 'reconnect']), 10_000);
     } finally {
       await nc.close();
       fake.close();

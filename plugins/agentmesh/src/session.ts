@@ -13,6 +13,8 @@ import { forwardRelay } from './relay/window-relay';
 import { readClaudeSession } from './resume/claude-session';
 import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
+import { connectedEvent, Recorder } from './telemetry/recorder';
+import { startShipper } from './telemetry/shipper';
 import {
   type ActivationState,
   answerCheck,
@@ -52,6 +54,8 @@ export interface Session {
   claudeSessionId: string | null;
   /** Lines that end the next tool result: threads the hub gave back to this session. */
   notices: string[];
+  /** Timeline events (ids, counts and codes); records nothing until a hello turns it on. */
+  recorder: Recorder;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
@@ -95,6 +99,10 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     startedAt,
     claudeSessionId: readClaudeSession(window.dataDir, process.ppid, startedAt),
     notices: [],
+    recorder: new Recorder({
+      enabled: () => session.hello?.observability.enabled ?? false,
+      max: () => session.hello?.observability.maxBufferedEvents ?? 500,
+    }),
     sayHello: () => {
       inFlight ??= register(session, logger)
         .then((landed) => afterHello(session, landed))
@@ -106,6 +114,8 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
   };
   // A call without a session says hello first (or waits for this one): the hub refuses it otherwise.
   hub.sayHello = session.sayHello;
+  hub.onStatus = (event) =>
+    session.recorder.record({ kind: 'nats', source: 'plugin', session: hub.sessionId, event });
   // The handshake must not wait on the network; a late hello still sets `hub.sessionId`.
   session.hello = await Promise.race([
     session.sayHello(),
@@ -128,26 +138,29 @@ export function startSession(
   logger: Logger,
   pushDelayMs: number,
 ): () => Promise<void> {
-  const { hub, presence } = session;
+  const { hub, presence, recorder } = session;
+  const beatMs = hub.config.heartbeatSeconds * 1000;
   const abort = new AbortController();
   let inbox: ReturnType<typeof runSessionInbox> | null = null;
   const rehello = () => void session.sayHello();
   hub.onSessionLost = rehello;
+  const connected = () => recorder.record(connectedEvent(session, server));
   session.onHello = (renewed) => {
+    connected();
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);
   };
+  if (session.hello) connected(); // the startup hello, now that Claude Code's version is known
+  const dataDir = session.window.dataDir;
+  const stopShipping = startShipper({ hub, recorder, dataDir, intervalMs: beatMs, logger });
   presence.start();
   session.pull.start();
   const stopFollowing = followEvery(session, () =>
-    readClaudeSession(session.window.dataDir, process.ppid, session.startedAt),
+    readClaudeSession(dataDir, process.ppid, session.startedAt),
   );
   // Without a session the hub delivers nothing, so keep asking until it answers; a refused
   // subscription (NATS permissions, say) is retried on the same beat.
-  const retry = setInterval(
-    () => (hub.sessionId ? inbox?.retryFailed() : rehello()),
-    hub.config.heartbeatSeconds * 1000,
-  );
+  const retry = setInterval(() => (hub.sessionId ? inbox?.retryFailed() : rehello()), beatMs);
   retry.unref();
   const startPushes = () => {
     inbox = runSessionInbox({
@@ -193,6 +206,7 @@ export function startSession(
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
     stopFollowing();
+    stopShipping();
     session.pull.stop();
     abort.abort();
     clearInterval(retry);
