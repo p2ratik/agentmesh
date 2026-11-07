@@ -11,14 +11,15 @@ const EARLY_MS = 2000;
 /** The longest the last report on shutdown waits; the bye gets the rest of the budget. */
 export const FLUSH_MS = 100;
 
-/** Why this hub will never take the process's events (an older hub, or observability off), or null. */
-function neverTaken(err: unknown): string | null {
-  if (!(err instanceof MeshError)) return null;
-  if (err.code === 'not_found' && /^Unknown method|is not available on this hub/.test(err.message))
-    return 'this hub does not take telemetry.report';
-  if (err.code === 'forbidden' && err.message === OBSERVABILITY_OFF) return OBSERVABILITY_OFF;
-  return null;
-}
+/** How the hub's router answers a method it does not have: an older hub, which never gains it. */
+const unknownMethod = (err: unknown): boolean =>
+  err instanceof MeshError &&
+  err.code === 'not_found' &&
+  /^Unknown method|is not available on this hub/.test(err.message);
+
+/** The hub has observability off: nothing is taken until a hello says it is on again. */
+const turnedOff = (err: unknown): boolean =>
+  err instanceof MeshError && err.code === 'forbidden' && err.message === OBSERVABILITY_OFF;
 
 /** How many events a batch stands for: a gap event stands for its count. */
 const lost = (events: ReportedEvent[]): number =>
@@ -46,7 +47,8 @@ export interface ShipperDeps {
  * Every `intervalMs`, collects the guard's and hook's files into the recorder and sends up to
  * MAX_REPORT_EVENTS events with `telemetry.report`. Events leave the buffer only once the hub
  * acknowledged them; a failed call puts them back for the next beat, with a debug log only. A
- * hub without the method, or with observability off, stops it and the recorder for this process.
+ * hub without the method stops it and the recorder for this process; a hub with observability off
+ * pauses the recorder until the next hello (the session calls `recorder.on()`).
  * Events that fail validation, that the hub drops over its cap, or that are in a batch it calls
  * invalid count as dropped, so none vanish without a gap marker. The returned stop sends one last
  * report, waiting at most FLUSH_MS.
@@ -68,11 +70,16 @@ export function startShipper(deps: ShipperDeps): () => Promise<void> {
       recorder.countDropped(lost(events.slice(accepted, accepted + dropped)));
       recorder.putBack(events.slice(accepted + dropped));
     } catch (err) {
-      const reason = neverTaken(err);
-      if (reason) {
+      if (unknownMethod(err)) {
         halt();
         recorder.off();
-        logger.info(`${reason}; not reporting events`);
+        logger.info('this hub does not take telemetry.report; not reporting events');
+        return;
+      }
+      if (turnedOff(err)) {
+        // The beat keeps running but sends nothing: the recorder holds nothing until a hello.
+        recorder.pause();
+        logger.info('observability is turned off on this hub; not reporting until a hello says on');
         return;
       }
       // A batch the hub calls invalid never gets better, so it counts in the gap; anything else

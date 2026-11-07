@@ -27,19 +27,27 @@ type Callback = (err: Error | null, msg: unknown) => void;
  * hello's params, and the subscriptions, publishes and other requests (with
  * their session) in the order sent. Like the real hub, `session.check` sends a
  * check with code K7Q2ZP to the calling session's subject. `hello` adds fields
- * to later hellos' answers (`observability`, say); methods in `hang` never answer.
+ * to later hellos' answers (`observability`, say); methods in `hang` never answer, and those in
+ * `errors` answer with that error.
  */
 export function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
   /** What later hellos answer in `policy` (older hubs send no closedAskerEscalationMinutes). */
   const policy: { closedAskerEscalationMinutes?: number } = {};
   const hello: Record<string, unknown> = {};
   const hang = new Set<string>();
+  const errors: Record<string, { code: string; message: string }> = {};
   const hellos: Array<Record<string, unknown>> = [];
   const wire: string[] = [];
   /** The other requests' params: [subject, params]. */
   const sent: Array<[string, unknown]> = [];
   const listeners = new Map<string, Callback>();
   const answer = (result: unknown) => ({ json: () => ({ ok: true, result }) });
+  /** A method in `hang` or `errors` answers this way; any other, undefined. */
+  const scripted = (subject: string) => {
+    if ([...hang].some((method) => subject.endsWith(method))) return new Promise(() => {});
+    const error = errors[subject.split('.').slice(-2).join('.')];
+    return error ? { json: () => ({ ok: false, error }) } : undefined;
+  };
   const nc = {
     getServer: () => 'nats://hub.test:4222',
     publish: (subject: string, data: string) =>
@@ -55,7 +63,8 @@ export function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = 
       if (!subject.endsWith('session.hello')) {
         wire.push(`req ${subject} ${session}`);
         sent.push([subject, params]);
-        if ([...hang].some((method) => subject.endsWith(method))) return new Promise(() => {});
+        const reply = scripted(subject);
+        if (reply) return reply;
         if (subject.endsWith('telemetry.report')) {
           return answer({ accepted: params.events.length, dropped: 0 });
         }
@@ -94,7 +103,7 @@ export function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = 
     },
   } as unknown as NatsConnection;
   vi.mocked(connectBus).mockResolvedValue(nc);
-  return { hellos, wire, sent, listeners, policy, hello, hang };
+  return { hellos, wire, sent, listeners, policy, hello, hang, errors };
 }
 
 /** The MCP server as startSession uses it: pushes, and the client info from the handshake. */

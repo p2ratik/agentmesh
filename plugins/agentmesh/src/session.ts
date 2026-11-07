@@ -142,6 +142,7 @@ export function startSession(
   hub.onSessionLost = rehello;
   const connected = () => recorder.record(connectedEvent(session, server));
   session.onHello = (renewed) => {
+    recorder.on(); // ends a pause from a hub that said observability is off; this hello decides
     connected();
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);

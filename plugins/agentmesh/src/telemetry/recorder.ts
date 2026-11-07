@@ -40,6 +40,7 @@ export class Recorder {
   #events: ReportedEvent[] = [];
   #gap: Dropped | null = null;
   #off = false;
+  #paused = false;
 
   constructor(opts: { max: () => number; enabled: () => boolean; now?: () => Date }) {
     this.#max = opts.max;
@@ -47,18 +48,26 @@ export class Recorder {
     this.#now = opts.now ?? (() => new Date());
   }
 
-  /**
-   * Off for this process (a hub without `telemetry.report`, or with observability off): drops what
-   * it holds and records nothing more, whatever a later hello says.
-   */
+  /** Off for this process (a hub without `telemetry.report`): drops what it holds, for good. */
   off(): void {
     this.#off = true;
+    this.pause();
+  }
+
+  /** The hub said observability is off: drops what it holds and records nothing until `on()`. */
+  pause(): void {
+    this.#paused = true;
     this.#events = [];
     this.#gap = null;
   }
 
+  /** A hello landed: a pause ends, and the hello's `observability.enabled` decides again. */
+  on(): void {
+    this.#paused = false;
+  }
+
   #on(): boolean {
-    return !this.#off && this.#enabled();
+    return !this.#off && !this.#paused && this.#enabled();
   }
 
   /** Synchronous and never throws; records nothing while the hub says observability is off. */
@@ -129,7 +138,7 @@ export function connectedEvent(
     source: 'plugin',
     session: session.hub.sessionId,
     pluginVersion: VERSION,
-    claudeCodeVersion: server.getClientVersion()?.version ?? 'unknown',
+    claudeCodeVersion: server.getClientVersion()?.version ?? null, // the timeline says unknown
     os: process.platform,
     arch: process.arch,
     node: process.versions.node,

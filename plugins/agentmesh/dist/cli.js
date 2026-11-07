@@ -46177,6 +46177,7 @@ var MessageRef = external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/)
 var TaskRef = external_exports.string().regex(/^task-\d{1,12}$/);
 var PlanRef = external_exports.string().regex(/^plan-\d{1,12}$/);
 var Token = external_exports.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
+var Version = external_exports.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
 var Ms = external_exports.number().int().nonnegative();
 var Count = external_exports.number().int().nonnegative();
 var Reason = external_exports.enum(REASON_CODES);
@@ -46189,11 +46190,12 @@ var ReportedEvent = external_exports.discriminatedUnion("kind", [
   strict({
     ...reported,
     kind: external_exports.literal("connected"),
-    pluginVersion: Token,
-    claudeCodeVersion: Token.nullable(),
+    pluginVersion: Version,
+    /** Null when Claude Code didn't say. */
+    claudeCodeVersion: Version.nullable(),
     os: external_exports.enum(NODE_PLATFORMS),
     arch: external_exports.enum(NODE_ARCHES),
-    node: Token,
+    node: Version,
     meshWindow: external_exports.boolean(),
     pull: external_exports.boolean()
   }),

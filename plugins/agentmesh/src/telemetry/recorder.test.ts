@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { ReportedEvent } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
-import { Recorder } from './recorder';
+import { connectedEvent, Recorder } from './recorder';
 
 const at = '2026-11-06T10:00:00.000Z';
 const hook = (unread: number) =>
@@ -30,6 +32,29 @@ describe('Recorder', () => {
     const [gap, ...kept] = recorder.take(10);
     expect(gap).toMatchObject({ kind: 'dropped', count: 3, id: batch[0]?.id });
     expect(kept.map((e) => (e.kind === 'hook' ? e.unread : -1))).toEqual([3, 4, 5]);
+  });
+
+  it('a pause holds until on(); off is for the whole process', () => {
+    const recorder = new Recorder({ max: () => 500, enabled: () => true });
+    recorder.record(hook(1));
+    recorder.pause(); // the hub said observability is off: what it holds is dropped
+    recorder.record(hook(2));
+    expect(recorder.take(10)).toEqual([]);
+    recorder.on(); // a hello that says it is on
+    recorder.record(hook(3));
+    expect(recorder.take(10)).toMatchObject([{ unread: 3 }]);
+    recorder.off(); // a hub without telemetry.report: no hello brings it back
+    recorder.on();
+    recorder.record(hook(4));
+    expect(recorder.take(10)).toEqual([]);
+  });
+
+  it('connected names an unknown Claude Code version null, and validates', () => {
+    const session = { hub: { sessionId: 's-aaaaaaaaaaaa' }, window: { state: 'none' } };
+    const server = { getClientVersion: () => undefined };
+    const e = connectedEvent({ ...session, activation: { pull: false } } as never, server);
+    expect(e).toMatchObject({ claudeCodeVersion: null, node: process.versions.node });
+    expect(ReportedEvent.safeParse({ ...e, id: randomUUID(), at }).success).toBe(true);
   });
 
   it('records nothing when disabled', () => {

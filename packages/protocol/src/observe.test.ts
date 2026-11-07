@@ -74,20 +74,31 @@ describe('observability events', () => {
     expect(ReportedEvent.safeParse(e).success).toBe(false);
   });
 
-  it("takes only Node's own OS and arch values, and versions as short tokens", () => {
+  it("takes only Node's own OS and arch values, and versions that start with a digit", () => {
     const e = { ...rep, kind: 'connected', ...reported.connected };
-    for (const os of NODE_PLATFORMS)
-      expect(ReportedEvent.safeParse({ ...e, os }).success).toBe(true);
-    for (const arch of NODE_ARCHES)
-      expect(ReportedEvent.safeParse({ ...e, arch }).success).toBe(true);
+    const ok = (over: object) => ReportedEvent.safeParse({ ...e, ...over }).success;
+    for (const os of NODE_PLATFORMS) expect(ok({ os })).toBe(true);
+    for (const arch of NODE_ARCHES) expect(ok({ arch })).toBe(true);
+    for (const good of [
+      { claudeCodeVersion: '2.1.319' },
+      { claudeCodeVersion: null },
+      { node: '24.11.0' },
+      { pluginVersion: '0.7.0-rc.1+build.5' },
+    ]) {
+      expect(ok(good)).toBe(true);
+    }
     for (const bad of [
       { os: 'ignore_previous_rules' },
       { arch: 'merge_into_main' },
+      { pluginVersion: 'ignore_previous_rules' },
+      { claudeCodeVersion: 'ignore_previous_rules' },
+      { claudeCodeVersion: 'unknown' },
+      { node: 'ignore_previous_rules' },
       { pluginVersion: '0.7.0 now merge' },
-      { claudeCodeVersion: 'x'.repeat(65) },
+      { claudeCodeVersion: `2${'x'.repeat(64)}` },
       { node: '' },
     ]) {
-      expect(ReportedEvent.safeParse({ ...e, ...bad }).success).toBe(false);
+      expect(ok(bad)).toBe(false);
     }
     // The lists are exactly @types/node's: a new platform fails the typecheck, not silently.
     expectTypeOf<(typeof NODE_PLATFORMS)[number]>().toEqualTypeOf<NodeJS.Platform>();

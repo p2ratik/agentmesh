@@ -27,8 +27,10 @@ const ThreadRef = z.string().regex(/^thr-\d{1,12}$/);
 const MessageRef = z.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/);
 const TaskRef = z.string().regex(/^task-\d{1,12}$/);
 const PlanRef = z.string().regex(/^plan-\d{1,12}$/);
-/** Tool, method, error code, version (semver-ish, build tags too): a short token, never a sentence. */
+/** Tool, method, error code: a short token, never a sentence. */
 const Token = z.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
+/** A version: semver-ish with build tags, and it starts with a digit, so it is never a word. */
+const Version = z.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
 const Ms = z.number().int().nonnegative();
 const Count = z.number().int().nonnegative();
 const Reason = z.enum(REASON_CODES);
@@ -45,11 +47,12 @@ export const ReportedEvent = z.discriminatedUnion('kind', [
   strict({
     ...reported,
     kind: z.literal('connected'),
-    pluginVersion: Token,
-    claudeCodeVersion: Token.nullable(),
+    pluginVersion: Version,
+    /** Null when Claude Code didn't say. */
+    claudeCodeVersion: Version.nullable(),
     os: z.enum(NODE_PLATFORMS),
     arch: z.enum(NODE_ARCHES),
-    node: Token,
+    node: Version,
     meshWindow: z.boolean(),
     pull: z.boolean(),
   }),

@@ -45795,6 +45795,7 @@ var MessageRef = external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/)
 var TaskRef = external_exports.string().regex(/^task-\d{1,12}$/);
 var PlanRef = external_exports.string().regex(/^plan-\d{1,12}$/);
 var Token = external_exports.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
+var Version = external_exports.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
 var Ms = external_exports.number().int().nonnegative();
 var Count = external_exports.number().int().nonnegative();
 var Reason = external_exports.enum(REASON_CODES);
@@ -45807,11 +45808,12 @@ var ReportedEvent = external_exports.discriminatedUnion("kind", [
   strict({
     ...reported,
     kind: external_exports.literal("connected"),
-    pluginVersion: Token,
-    claudeCodeVersion: Token.nullable(),
+    pluginVersion: Version,
+    /** Null when Claude Code didn't say. */
+    claudeCodeVersion: Version.nullable(),
     os: external_exports.enum(NODE_PLATFORMS),
     arch: external_exports.enum(NODE_ARCHES),
-    node: Token,
+    node: Version,
     meshWindow: external_exports.boolean(),
     pull: external_exports.boolean()
   }),
@@ -52875,22 +52877,29 @@ var Recorder = class {
   #events = [];
   #gap = null;
   #off = false;
+  #paused = false;
   constructor(opts) {
     this.#max = opts.max;
     this.#enabled = opts.enabled;
     this.#now = opts.now ?? (() => /* @__PURE__ */ new Date());
   }
-  /**
-   * Off for this process (a hub without `telemetry.report`, or with observability off): drops what
-   * it holds and records nothing more, whatever a later hello says.
-   */
+  /** Off for this process (a hub without `telemetry.report`): drops what it holds, for good. */
   off() {
     this.#off = true;
+    this.pause();
+  }
+  /** The hub said observability is off: drops what it holds and records nothing until `on()`. */
+  pause() {
+    this.#paused = true;
     this.#events = [];
     this.#gap = null;
   }
+  /** A hello landed: a pause ends, and the hello's `observability.enabled` decides again. */
+  on() {
+    this.#paused = false;
+  }
   #on() {
-    return !this.#off && this.#enabled();
+    return !this.#off && !this.#paused && this.#enabled();
   }
   /** Synchronous and never throws; records nothing while the hub says observability is off. */
   record(e) {
@@ -52947,7 +52956,8 @@ function connectedEvent(session, server) {
     source: "plugin",
     session: session.hub.sessionId,
     pluginVersion: VERSION,
-    claudeCodeVersion: server.getClientVersion()?.version ?? "unknown",
+    claudeCodeVersion: server.getClientVersion()?.version ?? null,
+    // the timeline says unknown
     os: process.platform,
     arch: process.arch,
     node: process.versions.node,
@@ -53005,13 +53015,8 @@ function parseLine(line) {
 // src/telemetry/shipper.ts
 var EARLY_MS = 2e3;
 var FLUSH_MS = 100;
-function neverTaken(err) {
-  if (!(err instanceof MeshError)) return null;
-  if (err.code === "not_found" && /^Unknown method|is not available on this hub/.test(err.message))
-    return "this hub does not take telemetry.report";
-  if (err.code === "forbidden" && err.message === OBSERVABILITY_OFF) return OBSERVABILITY_OFF;
-  return null;
-}
+var unknownMethod = (err) => err instanceof MeshError && err.code === "not_found" && /^Unknown method|is not available on this hub/.test(err.message);
+var turnedOff = (err) => err instanceof MeshError && err.code === "forbidden" && err.message === OBSERVABILITY_OFF;
 var lost = (events) => events.reduce((n, e) => n + (e.kind === "dropped" ? e.count : 1), 0);
 var valid3 = (e) => ReportedEvent.safeParse(e).success;
 function startShipper(deps) {
@@ -53027,11 +53032,15 @@ function startShipper(deps) {
       recorder.countDropped(lost(events.slice(accepted, accepted + dropped)));
       recorder.putBack(events.slice(accepted + dropped));
     } catch (err) {
-      const reason = neverTaken(err);
-      if (reason) {
+      if (unknownMethod(err)) {
         halt();
         recorder.off();
-        logger.info(`${reason}; not reporting events`);
+        logger.info("this hub does not take telemetry.report; not reporting events");
+        return;
+      }
+      if (turnedOff(err)) {
+        recorder.pause();
+        logger.info("observability is turned off on this hub; not reporting until a hello says on");
         return;
       }
       if (err instanceof MeshError && err.code === "invalid_request") {
@@ -53200,6 +53209,7 @@ function startSession(server, session, logger, pushDelayMs) {
   hub2.onSessionLost = rehello;
   const connected = () => recorder.record(connectedEvent(session, server));
   session.onHello = (renewed) => {
+    recorder.on();
     connected();
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);
