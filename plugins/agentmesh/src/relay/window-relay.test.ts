@@ -10,7 +10,7 @@ import { newActivationState } from '../tools/activation';
 import { fakeHub } from '../tools/fake-hub';
 import { callTool } from '../tools/registry';
 import { GUARD_STAMP } from '../window/guard-stamp';
-import { readForwards } from './forward-record';
+import { readForwards, sweepExpired } from './forward-record';
 import type { LocalSession } from './local-session';
 import { pointerText } from './pointer';
 import { forwardRelay, type WindowRelayDeps } from './window-relay';
@@ -92,6 +92,13 @@ describe('the mesh window forwarding a relay', () => {
         stage: 'pushed',
       },
     ]);
+  });
+
+  it('a pointer that expired unsent is forwarded again when the hub resends it', async () => {
+    await forwardRelay(RELAY, deps());
+    expect(sweepExpired(dataDir, Date.now())).toEqual([FIELDS]);
+    await forwardRelay(RELAY, deps());
+    expect(pushed).toHaveLength(2);
   });
 
   it('a refused relay records nothing here', async () => {

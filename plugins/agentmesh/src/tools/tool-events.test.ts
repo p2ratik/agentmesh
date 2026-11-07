@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import { MeshError } from '@agentmesh/common';
 import { VERSION } from '@agentmesh/common/version';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { status } from '../inbox/session-inbox.fixture';
 import { writeGuardStamp } from '../window/guard-stamp';
-import { answerCheck } from './activation';
+import { answerCheck, reactivatePull } from './activation';
 import { fakeHub } from './fake-hub';
 import { callTool } from './registry';
 
@@ -38,6 +39,26 @@ describe('recording tool calls', () => {
     await callTool('task_get', { task_id: 'task-3' }, deps);
     const [event] = recorded(deps);
     expect(event).toMatchObject({ tool: 'task_get', outcome: 'internal', task: 'task-3' });
+  });
+});
+
+describe('more tool and status recording', () => {
+  it('a successful call records ok', async () => {
+    const { deps } = fakeHub({ 'session.deactivate': {} });
+    await callTool('deactivate', {}, deps);
+    expect(recorded(deps)).toMatchObject([
+      { kind: 'activation', phase: 'deactivated' },
+      { kind: 'tool', tool: 'deactivate', outcome: 'ok' },
+    ]);
+  });
+
+  it('a status item that rides out in a tool result records delivery pushed', async () => {
+    const { deps } = fakeHub({ 'session.deactivate': {} });
+    const id = 'msg-00000000000000000000000001';
+    deps.fyi.add([status(id, 'thr-4')]);
+    await callTool('deactivate', {}, deps);
+    const delivery = recorded(deps).filter((e) => e.kind === 'delivery');
+    expect(delivery).toMatchObject([{ message: id, thread: 'thr-4', stage: 'pushed' }]);
   });
 });
 
@@ -106,6 +127,66 @@ describe('recording activation', () => {
       phase: 'refused',
       reason: 'activation.wrong_code',
     });
+  });
+
+  it('check errors are failed with hub_error, wrong_code only for a refused code', async () => {
+    const bad = new MeshError('invalid_request', 'nope');
+    const { deps } = fakeHub({ 'session.check': bad });
+    await callTool('activate', {}, deps);
+    expect(activations(deps)).toMatchObject([{ phase: 'failed', reason: 'activation.hub_error' }]);
+  });
+
+  it('a deactivated pull session records mode pull', async () => {
+    const { deps } = fakeHub({ 'session.deactivate': {} });
+    deps.activation.pull = true;
+    await callTool('deactivate', {}, deps);
+    expect(activations(deps)).toMatchObject([{ phase: 'deactivated', mode: 'pull' }]);
+  });
+
+  it('a pull renewal records renewed, or failed with hub_error', async () => {
+    const view = { id: SESSION, active: true, description: 'x' };
+    const { deps } = fakeHub({ 'session.activate': view });
+    deps.activation.lastDescription = 'x';
+    const base = {
+      hub: deps.hub as never,
+      activation: deps.activation,
+      logger: { info: vi.fn(), warn: vi.fn() } as never,
+      refresh: async () => undefined,
+      recorder: deps.recorder,
+    };
+    await reactivatePull(base);
+    const boom = fakeHub({ 'session.activate': new Error('down') });
+    await reactivatePull({ ...base, hub: boom.deps.hub as never, recorder: deps.recorder });
+    expect(activations(deps).map((e) => [e.phase, e.mode, e.reason])).toEqual([
+      ['renewed', 'pull', undefined],
+      ['failed', 'pull', 'activation.hub_error'],
+    ]);
+  });
+
+  it('a renewal that falls back records each reason', async () => {
+    const live = { id: 's-other', meshWindow: true, liveness: 'live' } as never;
+    const cases: Array<[Record<string, unknown>, object, never[], string]> = [
+      [{}, { state: 'marked' }, [], 'marker.unverified'],
+      [{}, window(dataDir), [live], 'activation.another_window_live'],
+      [{ 'session.activate': new Error('down') }, {}, [], 'activation.hub_error'],
+    ];
+    for (const [answers, win, others, reason] of cases) {
+      const { deps } = fakeHub(answers);
+      deps.activation.renewedFrom = 'x';
+      deps.activation.lastDescription = 'x';
+      deps.activation.guardVersion = '0.6.0';
+      await answerCheck('K7Q2ZP', {
+        hub: deps.hub as never,
+        activation: deps.activation,
+        window: { ...deps.window, ...win } as never,
+        logger: { info: vi.fn(), warn: vi.fn() } as never,
+        push: async () => undefined,
+        refresh: async () => undefined,
+        agentSessions: () => others,
+        recorder: deps.recorder,
+      });
+      expect(activations(deps)).toMatchObject([{ phase: 'renewal_fallback', reason }]);
+    }
   });
 
   it('a renewal records renewed; one that falls back records renewal_fallback with its reason', async () => {

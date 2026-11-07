@@ -1,5 +1,6 @@
 import { isMeshError } from '@agentmesh/common';
 import type { ReasonCode } from '@agentmesh/protocol';
+import { seenIds, type TakenFyi } from '../inbox/fyi';
 import { sweepExpired } from '../relay/forward-record';
 import type { Recorder } from './recorder';
 
@@ -24,14 +25,18 @@ export function recordActivation(
   recorder.record({ kind: 'activation', source: 'plugin', session, phase, mode, reason });
 }
 
-/** An activate that threw: the hub refusing the code is `refused`, anything else `failed`. */
+/**
+ * An activate that threw: the hub refusing the code (`codeActivate`, an `invalid_request`) is
+ * `refused`, anything else `failed`.
+ */
 export function recordActivationError(
   recorder: Recorder,
   session: string | null,
   pull: boolean,
   err: unknown,
+  codeActivate = false,
 ): void {
-  const wrong = isMeshError(err) && err.code === 'invalid_request';
+  const wrong = codeActivate && isMeshError(err) && err.code === 'invalid_request';
   const reason = wrong ? 'activation.wrong_code' : 'activation.hub_error';
   recordActivation(recorder, session, wrong ? 'refused' : 'failed', pull, reason);
 }
@@ -51,11 +56,11 @@ export function activationRecorder(
     record('refused', reason);
     return err;
   };
-  const step = async <T>(call: Promise<T>): Promise<T> => {
+  const step = async <T>(call: Promise<T>, codeActivate = false): Promise<T> => {
     try {
       return await call;
     } catch (err) {
-      recordActivationError(recorder, hub.sessionId, pull, err);
+      recordActivationError(recorder, hub.sessionId, pull, err, codeActivate);
       throw err;
     }
   };
@@ -81,6 +86,14 @@ export function recordDelivery(
     stage,
     sinceReceivedMs,
   });
+}
+
+/** Status items that rode out with a push or a tool result: their last stage, `pushed`. */
+export function recordShown(recorder: Recorder, session: string | null, fyi: TakenFyi): void {
+  const shown = new Set(seenIds(fyi));
+  for (const m of fyi.items) {
+    if (shown.has(m.id)) recordDelivery(recorder, session, m, 'pushed', Date.now());
+  }
 }
 
 /** Records a relay pointer the window pushed. */

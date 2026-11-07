@@ -168,6 +168,8 @@ export function sweepExpired(dir: string, now: number): PointerFields[] {
         now > v.expiresAt &&
         claimForward(dir, name)
       ) {
+        // The pointer never went out: drop the marker too, so a hub resend is forwarded normally.
+        removeForward(dir, `${name}${CLAIMED}`);
         swept.push(fields);
       }
     } catch {

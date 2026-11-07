@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
 import { formatFyi, seenIds } from '../inbox/fyi';
-import { recordTool } from '../telemetry/plugin-events';
+import { recordShown, recordTool } from '../telemetry/plugin-events';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
 import { planningTools } from './planning';
@@ -71,6 +71,7 @@ export async function callTool(
   if (fyi.items.length > 0) {
     result.content.push({ type: 'text', text: formatFyi(fyi) });
     deps.hub.reportSeen(seenIds(fyi));
+    recordShown(deps.recorder, deps.hub.sessionId, fyi);
   }
   return result;
 }
@@ -107,10 +108,10 @@ const outcomeOf = (err: unknown): string =>
 async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolResult> {
   const started = Date.now();
   const done = (outcome: string) => recordTool(deps, tool.name, args, outcome, started);
+  let result: ToolResult;
   try {
     const text = await tool.run(args, deps, tool.mutating ? randomUUID() : undefined);
-    done('ok');
-    return { content: [{ type: 'text', text }] };
+    result = { content: [{ type: 'text', text }] };
   } catch (err) {
     done(outcomeOf(err));
     if (err instanceof ToolRefusal) return error(err.message);
@@ -122,6 +123,8 @@ async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolRe
     }
     return error(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  done('ok');
+  return result;
 }
 
 /** The mesh tools against the hub, or each one reporting the setup problem. */

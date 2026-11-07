@@ -8,7 +8,7 @@ import {
   type SessionRelay,
 } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
-import { recordDelivery } from '../telemetry/plugin-events';
+import { recordDelivery, recordShown } from '../telemetry/plugin-events';
 import type { Recorder } from '../telemetry/recorder';
 import { threadNotice } from './closed-asker';
 import { anyExternal, type FyiBuffer, formatFyi, seenIds, type TakenFyi } from './fyi';
@@ -127,7 +127,10 @@ export function runSessionInbox(options: SessionInboxOptions): SessionSubscripti
     const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
     const pushed = await pushThread(fresh, fyi, delivered);
     for (const m of fresh) stage(m, pushed ? 'pushed' : 'push_failed', since);
-    if (pushed) return seenIds(fyi);
+    if (pushed) {
+      recordShown(options.recorder, hub.sessionId, fyi);
+      return seenIds(fyi);
+    }
     options.fyi.putBack(fyi);
     return [];
   };

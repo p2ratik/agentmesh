@@ -24,6 +24,13 @@ describe('recording deliveries', () => {
     ]);
   });
 
+  it('a status item shown with an action push records pushed too', async () => {
+    const h = harness();
+    h.fyi.add([status(MSG(2), 'thr-9')]);
+    await h.send({ type: 'deliver', messages: [message(MSG(1), 'thr-4')] }).acked;
+    expect(stages(h)).toContainEqual([MSG(2), 'pushed']);
+  });
+
   it('a redelivery records deduped, and a status item records held', async () => {
     const h = harness();
     const send = { type: 'deliver', messages: [message(MSG(1), 'thr-4'), status(MSG(2), 'thr-4')] };
@@ -33,6 +40,7 @@ describe('recording deliveries', () => {
       [MSG(2), 'received'],
       [MSG(2), 'held'],
       [MSG(1), 'pushed'],
+      [MSG(2), 'pushed'],
     ]);
     await h.send(send).acked;
     expect(stages(h)).toEqual([

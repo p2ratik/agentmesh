@@ -107,7 +107,7 @@ export const sessionTools = [
       }
       if (!args.description) throw refuse('activation.no_description', needDescription());
       const params = { code: args.code, description: args.description };
-      const took = await step(activateSession(hub, activation, params, stamp));
+      const took = await step(activateSession(hub, activation, params, stamp), true);
       if (took === null) {
         return 'This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.';
       }

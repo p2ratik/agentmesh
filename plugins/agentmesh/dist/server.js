@@ -49225,6 +49225,7 @@ function sweepExpired(dir, now) {
       const hex3 = name.slice(4, 36);
       const valid4 = forwardFile(hex3, fields.messageId) === name && pointerText(fields) !== null;
       if (valid4 && typeof v.expiresAt === "number" && now > v.expiresAt && claimForward(dir, name)) {
+        removeForward(dir, `${name}${CLAIMED}`);
         swept.push(fields);
       }
     } catch {
@@ -49238,8 +49239,8 @@ function recordActivation(recorder, session, phase, pull, reason) {
   const mode = pull ? "pull" : "push";
   recorder.record({ kind: "activation", source: "plugin", session, phase, mode, reason });
 }
-function recordActivationError(recorder, session, pull, err) {
-  const wrong = isMeshError(err) && err.code === "invalid_request";
+function recordActivationError(recorder, session, pull, err, codeActivate = false) {
+  const wrong = codeActivate && isMeshError(err) && err.code === "invalid_request";
   const reason = wrong ? "activation.wrong_code" : "activation.hub_error";
   recordActivation(recorder, session, wrong ? "refused" : "failed", pull, reason);
 }
@@ -49249,11 +49250,11 @@ function activationRecorder(recorder, hub2, pull) {
     record2("refused", reason);
     return err;
   };
-  const step = async (call) => {
+  const step = async (call, codeActivate = false) => {
     try {
       return await call;
     } catch (err) {
-      recordActivationError(recorder, hub2.sessionId, pull, err);
+      recordActivationError(recorder, hub2.sessionId, pull, err, codeActivate);
       throw err;
     }
   };
@@ -49271,6 +49272,12 @@ function recordDelivery(recorder, session, m, stage, since) {
     stage,
     sinceReceivedMs
   });
+}
+function recordShown(recorder, session, fyi) {
+  const shown2 = new Set(seenIds(fyi));
+  for (const m of fyi.items) {
+    if (shown2.has(m.id)) recordDelivery(recorder, session, m, "pushed", Date.now());
+  }
 }
 function recordRelayPushed(recorder, session, relay) {
   const { messageId: message, threadId: thread } = relay;
@@ -50057,7 +50064,7 @@ var sessionTools = [
       }
       if (!args.description) throw refuse("activation.no_description", needDescription());
       const params = { code: args.code, description: args.description };
-      const took = await step(activateSession(hub2, activation, params, stamp));
+      const took = await step(activateSession(hub2, activation, params, stamp), true);
       if (took === null) {
         return "This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.";
       }
@@ -50468,6 +50475,7 @@ async function callTool(name, rawArgs, deps, signal) {
   if (fyi.items.length > 0) {
     result.content.push({ type: "text", text: formatFyi(fyi) });
     deps.hub.reportSeen(seenIds(fyi));
+    recordShown(deps.recorder, deps.hub.sessionId, fyi);
   }
   return result;
 }
@@ -50494,10 +50502,10 @@ var outcomeOf = (err) => err instanceof ToolRefusal ? "refused" : isMeshError(er
 async function run(tool, args, deps) {
   const started = Date.now();
   const done = (outcome) => recordTool(deps, tool.name, args, outcome, started);
+  let result;
   try {
     const text3 = await tool.run(args, deps, tool.mutating ? randomUUID() : void 0);
-    done("ok");
-    return { content: [{ type: "text", text: text3 }] };
+    result = { content: [{ type: "text", text: text3 }] };
   } catch (err) {
     done(outcomeOf(err));
     if (err instanceof ToolRefusal) return error62(err.message);
@@ -50508,6 +50516,8 @@ ${JSON.stringify(err.details.issues)}` : "";
     }
     return error62(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  done("ok");
+  return result;
 }
 function meshToolHandler(deps) {
   return {
@@ -52609,7 +52619,10 @@ function runSessionInbox(options) {
     const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
     const pushed = await pushThread(fresh, fyi, delivered);
     for (const m of fresh) stage(m, pushed ? "pushed" : "push_failed", since);
-    if (pushed) return seenIds(fyi);
+    if (pushed) {
+      recordShown(options.recorder, hub2.sessionId, fyi);
+      return seenIds(fyi);
+    }
     options.fyi.putBack(fyi);
     return [];
   };
