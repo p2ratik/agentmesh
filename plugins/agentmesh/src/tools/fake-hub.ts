@@ -36,7 +36,7 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
     window: NO_WINDOW,
     teamPolicy: () => null,
     closedAskerMinutes: () => CLOSED_ASKER_DEFAULT_MINUTES,
-    recorder: new Recorder({ max: () => 500, enabled: () => true }),
+    recorder: new Recorder({ max: () => 500, on: true }),
   };
   return { deps, calls };
 }

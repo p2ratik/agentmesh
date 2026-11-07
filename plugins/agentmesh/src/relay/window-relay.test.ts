@@ -72,7 +72,7 @@ const forwards = () => readdirSync(dataDir).filter((f) => f.startsWith('fwd-'));
 beforeEach(() => {
   dataDir = mkdtempSync(join(tmpdir(), 'am-relay-'));
   pushed = [];
-  recorder = new Recorder({ max: () => 100, enabled: () => true });
+  recorder = new Recorder({ max: () => 100, on: true });
   logger = createLogger('test', { level: 'silent', destination: 'stderr' });
   writeRecord();
 });

@@ -70,7 +70,7 @@ export function harness(
   const checks: string[] = [];
   const onExpired = vi.fn();
   const onListening = vi.fn();
-  const recorder = new Recorder({ max: () => 500, enabled: () => true });
+  const recorder = new Recorder({ max: () => 500, on: true });
   const inbox = runSessionInbox({
     recorder,
     hub,

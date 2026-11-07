@@ -58,7 +58,7 @@ function harness(fyi: FyiBuffer) {
   const pushed: ChannelEvent[] = [];
   runSessionInbox({
     hub,
-    recorder: new Recorder({ max: () => 100, enabled: () => true }),
+    recorder: new Recorder({ max: () => 100, on: true }),
     fyi,
     logger: createLogger('test', { level: 'silent', destination: 'stderr' }),
     signal: new AbortController().signal,

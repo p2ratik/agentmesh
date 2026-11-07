@@ -47,9 +47,9 @@ export interface ShipperDeps {
  * Every `intervalMs`, collects the guard's and hook's files into the recorder and sends up to
  * MAX_REPORT_EVENTS events with `telemetry.report`. Events leave the buffer only once the hub
  * acknowledged them; a failed call puts them back for the next beat, with a debug log only. A
- * hub without the method stops it and the recorder for this process. A hub with observability off
- * pauses the recorder: each beat then sends an empty report (free on the hub's rate limiter), and
- * the first one the hub takes, or the next hello (the session calls `recorder.on()`), ends it.
+ * hub without the method stops it and the recorder for this process. While the recorder is off
+ * (a hello said so, or a report was refused as off), each beat sends an empty report instead (free
+ * on the hub's rate limiter); the first one the hub takes turns it on, as a hello that says on does.
  * Events that fail validation, that the hub drops over its cap, or that are in a batch it calls
  * invalid count as dropped, so none vanish without a gap marker. The returned stop sends one last
  * report, waiting at most FLUSH_MS.

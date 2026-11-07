@@ -95,10 +95,8 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     startedAt,
     claudeSessionId: readClaudeSession(window.dataDir, process.ppid, startedAt),
     notices: [],
-    recorder: new Recorder({
-      enabled: () => session.hello?.observability.enabled ?? false,
-      max: () => session.hello?.observability.maxBufferedEvents ?? 500,
-    }),
+    // Off until startSession applies a hello: see `landed` there.
+    recorder: new Recorder({ max: () => session.hello?.observability.maxBufferedEvents ?? 500 }),
     sayHello: () => {
       inFlight ??= register(session, logger)
         .then((landed) => afterHello(session, landed))
@@ -140,14 +138,18 @@ export function startSession(
   let inbox: ReturnType<typeof runSessionInbox> | null = null;
   const rehello = () => void session.sayHello();
   hub.onSessionLost = rehello;
-  const connected = () => recorder.record(connectedEvent(session, server));
+  /** Each hello sets the recorder's one on/off state (the shipper checks back while off). */
+  const landed = () => {
+    if (session.hello?.observability.enabled) recorder.on();
+    else recorder.pause();
+    recorder.record(connectedEvent(session, server));
+  };
   session.onHello = (renewed) => {
-    recorder.on(); // ends a pause from a hub that said observability is off; this hello decides
-    connected();
+    landed();
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);
   };
-  if (session.hello) connected(); // the startup hello, now that Claude Code's version is known
+  if (session.hello) landed(); // the startup hello, now that Claude Code's version is known
   const dataDir = session.window.dataDir;
   const stopShipping = startShipper({
     hub,

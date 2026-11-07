@@ -9,7 +9,7 @@ const hook = (unread: number) =>
 
 describe('Recorder', () => {
   it('keeps the newest 500 and records the gap', () => {
-    const recorder = new Recorder({ max: () => 500, enabled: () => true, now: () => new Date(at) });
+    const recorder = new Recorder({ max: () => 500, on: true, now: () => new Date(at) });
     for (let i = 0; i < 600; i++) recorder.record(hook(i));
     const [gap, ...kept] = recorder.take(1000);
     expect(gap).toMatchObject({ kind: 'dropped', source: 'plugin', count: 100, at });
@@ -24,7 +24,7 @@ describe('Recorder', () => {
   });
 
   it('puts a batch back in front, and counts what no longer fits as dropped', () => {
-    const recorder = new Recorder({ max: () => 3, enabled: () => true });
+    const recorder = new Recorder({ max: () => 3, on: true });
     for (let i = 0; i < 5; i++) recorder.record(hook(i)); // 0 and 1 dropped
     const batch = recorder.take(2); // the gap of 2, then event 2
     recorder.record(hook(5));
@@ -35,7 +35,7 @@ describe('Recorder', () => {
   });
 
   it('a pause holds until on(); off is for the whole process', () => {
-    const recorder = new Recorder({ max: () => 500, enabled: () => true });
+    const recorder = new Recorder({ max: () => 500, on: true });
     recorder.record(hook(1));
     recorder.pause(); // the hub said observability is off: what it holds is dropped
     recorder.record(hook(2));
@@ -63,17 +63,16 @@ describe('Recorder', () => {
     expect(ReportedEvent.safeParse({ ...e, id: randomUUID(), at }).success).toBe(true);
   });
 
-  it('records nothing when disabled', () => {
-    let enabled = false;
-    const recorder = new Recorder({ max: () => 500, enabled: () => enabled });
+  it('starts off, checking back, until something says observability is on', () => {
+    const recorder = new Recorder({ max: () => 500 });
+    expect(recorder.paused).toBe(true); // no hello yet
     recorder.record(hook(1));
-    enabled = true;
+    recorder.on();
     expect(recorder.take(10)).toEqual([]);
     // Turned off later: what it holds is dropped, not kept for a later hello.
     recorder.record(hook(2));
-    enabled = false;
-    expect(recorder.take(10)).toEqual([]);
-    enabled = true;
+    recorder.pause();
+    recorder.on();
     expect(recorder.take(10)).toEqual([]);
   });
 });

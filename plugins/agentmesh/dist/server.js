@@ -52872,15 +52872,19 @@ var Recorder = class {
   /** Set by the shipper: called after an error-kind event. */
   onError = null;
   #max;
-  #enabled;
   #now;
   #events = [];
   #gap = null;
   #off = false;
-  #paused = false;
+  /**
+   * The one on/off state. It starts off: nothing has said observability is on yet. Each hello
+   * sets it (`on()` or `pause()`), a report refused as off pauses it, and a report the hub takes
+   * (an empty check, while paused) turns it on.
+   */
+  #paused;
   constructor(opts) {
     this.#max = opts.max;
-    this.#enabled = opts.enabled;
+    this.#paused = !opts.on;
     this.#now = opts.now ?? (() => /* @__PURE__ */ new Date());
   }
   /** Off for this process (a hub without `telemetry.report`): drops what it holds, for good. */
@@ -52888,22 +52892,22 @@ var Recorder = class {
     this.#off = true;
     this.pause();
   }
-  /** The hub said observability is off: drops what it holds and records nothing until `on()`. */
+  /** Observability is off: drops what it holds and records nothing until `on()`. */
   pause() {
     this.#paused = true;
     this.#events = [];
     this.#gap = null;
   }
-  /** A hello landed, or the hub took a check: a pause ends, and `observability.enabled` decides. */
+  /** Observability is on: records again, unless `off()` stopped it for good. */
   on() {
     this.#paused = false;
   }
-  /** Paused by a hub that said observability is off: the shipper checks back each beat. */
+  /** Off but not for good: the shipper checks back each beat. */
   get paused() {
     return this.#paused && !this.#off;
   }
   #on() {
-    return !this.#off && !this.#paused && this.#enabled();
+    return !this.#off && !this.#paused;
   }
   /** Synchronous and never throws; records nothing while the hub says observability is off. */
   record(e) {
@@ -53189,10 +53193,8 @@ async function openSession(config2, logger) {
     startedAt,
     claudeSessionId: readClaudeSession(window.dataDir, process.ppid, startedAt),
     notices: [],
-    recorder: new Recorder({
-      enabled: () => session.hello?.observability.enabled ?? false,
-      max: () => session.hello?.observability.maxBufferedEvents ?? 500
-    }),
+    // Off until startSession applies a hello: see `landed` there.
+    recorder: new Recorder({ max: () => session.hello?.observability.maxBufferedEvents ?? 500 }),
     sayHello: () => {
       inFlight ??= register(session, logger).then((landed) => afterHello(session, landed)).finally(() => {
         inFlight = null;
@@ -53215,14 +53217,17 @@ function startSession(server, session, logger, pushDelayMs) {
   let inbox = null;
   const rehello = () => void session.sayHello();
   hub2.onSessionLost = rehello;
-  const connected = () => recorder.record(connectedEvent(session, server));
+  const landed = () => {
+    if (session.hello?.observability.enabled) recorder.on();
+    else recorder.pause();
+    recorder.record(connectedEvent(session, server));
+  };
   session.onHello = (renewed) => {
-    recorder.on();
-    connected();
+    landed();
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);
   };
-  if (session.hello) connected();
+  if (session.hello) landed();
   const dataDir = session.window.dataDir;
   const stopShipping = startShipper({
     hub: hub2,

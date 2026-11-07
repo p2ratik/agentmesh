@@ -56,7 +56,7 @@ describe('the shipper', () => {
     relayExpiry = false,
     pluginDataFolder = true,
   ) {
-    const recorder = new Recorder({ max: () => max, enabled: () => true });
+    const recorder = new Recorder({ max: () => max, on: true });
     for (let i = 0; i < events; i++) recorder.record(tool(i));
     const { deps, calls } = fakeHub(answers);
     const hub = Object.assign(deps.hub, { sessionId: 's-aaaaaaaaaaaa' as string | null });

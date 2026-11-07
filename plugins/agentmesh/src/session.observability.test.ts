@@ -26,10 +26,13 @@ describe('observability turned off and on again', () => {
     rmSync(data, { recursive: true, force: true });
   });
 
-  /** A started session whose hub refuses telemetry.report with `error`; its reports' events. */
-  async function started(error: { code: string; message: string }) {
+  /**
+   * A started session whose hub refuses telemetry.report with `error` and whose hello says
+   * `enabled`, after its first beat (a report of connected, or an empty check); its reports' events.
+   */
+  async function started(error: { code: string; message: string }, enabled = true) {
     const hub = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
-    hub.hello.observability = { enabled: true, maxBufferedEvents: 500 };
+    hub.hello.observability = { enabled, maxBufferedEvents: 500 };
     hub.errors['telemetry.report'] = error;
     const reports = () =>
       hub.sent
@@ -39,9 +42,25 @@ describe('observability turned off and on again', () => {
     vi.useFakeTimers({ toFake: ['setInterval'] });
     const stop = startSession(fakeServer().server, session, logger, 0); // records connected
     await vi.advanceTimersByTimeAsync(BEAT);
-    expect(reports()).toMatchObject([[{ kind: 'connected' }]]);
+    expect(reports()).toMatchObject(enabled ? [[{ kind: 'connected' }]] : [[]]);
     return { ...hub, session, stop, reports };
   }
+
+  // Started while the hub was off: a hub restart turns it on, and gives this session no hello.
+  it('a session whose hello said off checks back each beat, and records once the hub takes one', async () => {
+    const { session, stop, reports, errors, hellos } = await started(OFF, false);
+    session.hub.onStatus?.('disconnect'); // off: not recorded
+    await vi.advanceTimersByTimeAsync(BEAT);
+    expect(reports()).toEqual([[], []]);
+
+    delete errors['telemetry.report'];
+    await vi.advanceTimersByTimeAsync(BEAT); // the check is taken
+    session.hub.onStatus?.('reconnect');
+    await vi.advanceTimersByTimeAsync(BEAT);
+    expect(reports().slice(2)).toMatchObject([[], [{ kind: 'nats', event: 'reconnect' }]]);
+    expect(hellos).toHaveLength(1);
+    await stop();
+  });
 
   // The hub restarts to change its config, and sessions outlive that: no hello need follow.
   it('while off, each beat checks back with an empty report; once the hub takes one, events ship', async () => {
