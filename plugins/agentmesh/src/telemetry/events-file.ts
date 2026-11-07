@@ -22,18 +22,26 @@ import { PARTICIPANT_ID, pullStateDirs } from '../pull/state';
 
 /** Past this a process's file takes no more events. */
 export const MAX_EVENTS_FILE_BYTES = 256 * 1024;
-/** Past this many waiting files no process starts another: nobody is collecting them. It matches
- * `client.maxBufferedEvents`, all the recorder could keep anyway. */
+/** Past this many of a writer's own waiting files it starts no other: nobody is collecting them.
+ * It matches `client.maxBufferedEvents`, all the recorder could keep anyway. */
 export const MAX_EVENT_FILES = 500;
 
-const EVENTS_FILE = /^events-(?:[a-z0-9][a-z0-9-]{0,62}-)?\d+\.jsonl$/;
 const UNNAMED = /^events-\d+\.jsonl$/;
 const PID_FILE = /^\d+\.jsonl$/;
 
-/** How many events files wait in `dir`, of any agent: one listing, before a process's first line. */
-function waiting(dir: string): number {
+/** `agent`'s events file (`events-<agent>-<pid>.jsonl`), or an unnamed one for null. The prefix
+ * is matched exactly, so `bob` never takes `bob-agent`'s files. */
+function isFileOf(name: string, agent: string | null): boolean {
+  if (agent === null) return UNNAMED.test(name);
+  const prefix = `events-${agent}-`;
+  return name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length));
+}
+
+/** How many of the writer's own files wait in `dir`, so another agent's uncollected files never
+ * stop it. One listing, taken before a process's first line. */
+function waiting(dir: string, agent: string | null): number {
   try {
-    return readdirSync(dir).filter((name) => EVENTS_FILE.test(name)).length;
+    return readdirSync(dir).filter((name) => isFileOf(name, agent)).length;
   } catch {
     return 0;
   }
@@ -49,9 +57,11 @@ export function appendEvent(dataDir: string, event: object, agent: string | null
     const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
     const file = join(dataDir, `events-${name}.jsonl`);
     const size = statSync(file, { throwIfNoEntry: false })?.size;
-    if (size === undefined ? waiting(dataDir) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES) {
-      return;
-    }
+    const full =
+      size === undefined
+        ? waiting(dataDir, agent) >= MAX_EVENT_FILES
+        : size >= MAX_EVENTS_FILE_BYTES;
+    if (full) return;
     mkdirSync(dataDir, { recursive: true });
     appendFileSync(file, `${JSON.stringify(event)}\n`);
   } catch {
@@ -94,10 +104,7 @@ export function leaveEvent(
  * Windows) waits for the next call.
  */
 export function collectEventFiles(dataDir: string, agentId: string, unnamed: boolean): unknown[] {
-  const prefix = `events-${agentId}-`;
-  const mine = (name: string) =>
-    (name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length))) ||
-    (unnamed && UNNAMED.test(name));
+  const mine = (name: string) => isFileOf(name, agentId) || (unnamed && isFileOf(name, null));
   let names: string[];
   try {
     names = readdirSync(dataDir).filter(mine);

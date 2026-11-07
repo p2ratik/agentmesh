@@ -703,10 +703,16 @@ function hookAgentId(env, home) {
 // src/telemetry/events-file.ts
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
 var MAX_EVENT_FILES = 500;
-var EVENTS_FILE = /^events-(?:[a-z0-9][a-z0-9-]{0,62}-)?\d+\.jsonl$/;
-function waiting(dir) {
+var UNNAMED = /^events-\d+\.jsonl$/;
+var PID_FILE = /^\d+\.jsonl$/;
+function isFileOf(name, agent) {
+  if (agent === null) return UNNAMED.test(name);
+  const prefix = `events-${agent}-`;
+  return name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length));
+}
+function waiting(dir, agent) {
   try {
-    return readdirSync3(dir).filter((name) => EVENTS_FILE.test(name)).length;
+    return readdirSync3(dir).filter((name) => isFileOf(name, agent)).length;
   } catch {
     return 0;
   }
@@ -717,9 +723,8 @@ function appendEvent(dataDir, event, agent = null) {
     const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
     const file = join4(dataDir, `events-${name}.jsonl`);
     const size = statSync2(file, { throwIfNoEntry: false })?.size;
-    if (size === void 0 ? waiting(dataDir) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES) {
-      return;
-    }
+    const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
+    if (full) return;
     mkdirSync2(dataDir, { recursive: true });
     appendFileSync(file, `${JSON.stringify(event)}
 `);

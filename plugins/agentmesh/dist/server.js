@@ -52909,9 +52909,13 @@ import { join as join13 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
 var UNNAMED = /^events-\d+\.jsonl$/;
 var PID_FILE = /^\d+\.jsonl$/;
+function isFileOf(name, agent) {
+  if (agent === null) return UNNAMED.test(name);
+  const prefix = `events-${agent}-`;
+  return name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length));
+}
 function collectEventFiles(dataDir, agentId, unnamed) {
-  const prefix = `events-${agentId}-`;
-  const mine = (name) => name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length)) || unnamed && UNNAMED.test(name);
+  const mine = (name) => isFileOf(name, agentId) || unnamed && isFileOf(name, null);
   let names;
   try {
     names = readdirSync5(dataDir).filter(mine);

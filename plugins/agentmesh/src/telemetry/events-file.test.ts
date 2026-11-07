@@ -50,23 +50,42 @@ describe('the events file', () => {
     expect(collectEventFiles(join(dir, 'missing'), 'bob-agent', true)).toEqual([]);
   });
 
-  it('leaves no new file when 500 are waiting, and keeps filling one it started', () => {
+  /** A waiting file of `agent` (unnamed for null), numbered past any real pid. */
+  const waiting = (agent: string | null, i: number) =>
+    join(dir, `events-${agent === null ? '' : `${agent}-`}${9e9 + i}.jsonl`);
+  const fill = (agent: string | null) => {
+    for (let i = 0; i < MAX_EVENT_FILES; i++) writeFileSync(waiting(agent, i), '');
+  };
+
+  it('leaves no new file when 500 of its own are waiting, and keeps filling one it started', () => {
     expect(MAX_EVENT_FILES).toBe(500);
-    const waiting = (i: number) => join(dir, `events-zz-${i}.jsonl`);
-    for (let i = 0; i < MAX_EVENT_FILES; i++) writeFileSync(waiting(i), '');
+    fill('alice-agent');
+    appendEvent(dir, event, 'alice-agent');
+    expect(existsSync(join(dir, NAMED))).toBe(false);
+    // 499 waiting: other names don't count
+    unlinkSync(waiting('alice-agent', 0));
+    writeFileSync(join(dir, 'events-alice-agent-x.jsonl'), '');
+    writeFileSync(join(dir, 'pull-a.json'), '');
+    appendEvent(dir, event, 'alice-agent');
+    expect(existsSync(join(dir, NAMED))).toBe(true);
+    // the count is taken only before this process's first line
+    writeFileSync(waiting('alice-agent', 0), '');
+    writeFileSync(waiting('alice-agent', MAX_EVENT_FILES), '');
+    appendEvent(dir, event, 'alice-agent');
+    expect(readFileSync(join(dir, NAMED), 'utf8').split('\n').filter(Boolean)).toHaveLength(2);
+  });
+
+  // Re-review N2: another agent's uncollected files can't stop this writer.
+  it("counts only the writer's own files: its agent's, or the unnamed ones when it has none", () => {
+    fill('bob-agent');
+    fill(null);
+    appendEvent(dir, event, 'alice-agent');
+    expect(existsSync(join(dir, NAMED))).toBe(true);
     appendEvent(dir, event);
     expect(existsSync(join(dir, OWN))).toBe(false);
-    // 499 waiting: other names don't count
-    unlinkSync(waiting(0));
-    writeFileSync(join(dir, 'events-zz-x.jsonl'), '');
-    writeFileSync(join(dir, 'pull-a.json'), '');
+    for (let i = 0; i < MAX_EVENT_FILES; i++) unlinkSync(waiting(null, i));
     appendEvent(dir, event);
     expect(existsSync(join(dir, OWN))).toBe(true);
-    // the count is taken only before this process's first line
-    writeFileSync(waiting(0), '');
-    writeFileSync(waiting(MAX_EVENT_FILES), '');
-    appendEvent(dir, event);
-    expect(readFileSync(join(dir, OWN), 'utf8').split('\n').filter(Boolean)).toHaveLength(2);
   });
 
   it("names the file by its agent, and refuses an agent that isn't an id", () => {

@@ -11,12 +11,7 @@ import {
   readJsonFiles,
   selectStates,
 } from './pull/state';
-import {
-  HUB_SESSION,
-  type LocalSession,
-  ownLocalSession,
-  readLocalSessions,
-} from './relay/local-session';
+import { type LocalSession, ownLocalSession, readLocalSessions } from './relay/local-session';
 import {
   deleteClaudeSession,
   pruneClaudeSessions,
@@ -152,15 +147,15 @@ type Input = {
 
 /**
  * The pull-only session's line (ADR 0008), recorded as pull_shown with the unread threads it
- * names, and their session when the line is about one.
+ * names. Any session in the project shows it, so the event names the session the hook ran in (by
+ * the reply note's rule), never the pull session the line is about.
  */
-function pullLine(states: readonly PullState[]): string | null {
+function pullLine(states: readonly PullState[], dirs: readonly string[]): string | null {
   const line = announce(states);
   if (!line) return null;
-  const shown = states.filter((s) => s.threads > 0);
-  const unread = shown.reduce((n, s) => n + s.threads, 0);
-  const one = shown.length === 1 ? (shown[0]?.sessionId ?? '') : '';
-  const session = HUB_SESSION.test(one) ? one : null;
+  const unread = states.reduce((n, s) => n + s.threads, 0);
+  const own = process.env.AGENTMESH_MESH_WINDOW ? null : ownSession(dirs, Date.now());
+  const session = own?.hubSessionId ?? null;
   leaveEvent('hook', session, () => ({ kind: 'hook', note: 'pull_shown', unread }));
   return line;
 }
@@ -197,7 +192,7 @@ async function main(): Promise<void> {
     Date.now(),
     process.platform === 'win32',
   );
-  const pull = pullLine(states);
+  const pull = pullLine(states, dirs);
   if (event !== 'SessionStart') {
     prompted(event, pull, unread ?? promptLine(input?.prompt, dirs));
     return;
