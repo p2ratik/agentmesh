@@ -25495,7 +25495,7 @@ function expandHome(path2, home = homedir2()) {
 }
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.6.0";
+var VERSION = "0.7.0";
 var RELAY_MIN_VERSION = "0.6.0";
 var DOTTED = /^\d+(\.\d+)*$/;
 function isAtLeast(version2, min) {
