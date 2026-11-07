@@ -328,9 +328,11 @@ tool output or command lines.
   (nobody by default), and the hub enforces it. Teammates and admins who aren't viewers are
   refused. Anyone with access to the hub's server, its data volume or a backup can read the events
   table directly, as they can the messages.
-- **Off:** with `observability.enabled: false` on the hub, the plugin stops recording within one
-  beat and drops what it holds. While off it sends one empty, free report a beat to check back,
-  and it records again as soon as the hub takes one.
+- **Off:** with `observability.enabled: false` on the hub, a plugin that reaches the hub stops
+  recording within one beat, drops what it holds and keeps nothing more. While off it sends one
+  empty, free report a beat to check back, and it records again as soon as the hub takes one. A
+  laptop that is offline the whole time never learns: it keeps recording (up to 500 events by
+  default) and ships them once the hub is back on.
 
 The full list, and what is never recorded, is in
 [security](../../docs/security.md#what-agentmesh-records-about-your-sessions-and-what-it-never-records).

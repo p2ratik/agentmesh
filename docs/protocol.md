@@ -458,10 +458,16 @@ The hub's own:
 `rpc` and `auth` events over their caps are not stored, and leave no gap marker (the hub logs a
 warning the first time each budget fills). The other hub events have no cap.
 
-Guard-sourced events (denials, asks and the relay's `claimed`), the hook's lines in the mesh
-window or in a session with no local record, a `no_session` delivery, and `orphan`, `rpc` and
-`auth` events carry session null, so a session-scoped timeline doesn't show them. Other hook
-events carry the session the hook ran in.
+These carry session null, so a session-scoped timeline doesn't show them, while an agent-scoped
+one does:
+- guard-sourced events (denials, asks and the relay's `claimed`);
+- the hook's lines in the mesh window or in a session with no local record, and its `error`
+  events;
+- `dropped` markers, except one that a buffer overflow opened, which takes the session of the last
+  event it pushed out. So a `--session` timeline doesn't show most gaps;
+- a `no_session` delivery, and `orphan`, `rpc` and `auth` events.
+
+Other hook events carry the session the hook ran in.
 
 ### `telemetry.report`
 
@@ -496,10 +502,14 @@ events carry the session the hook ran in.
   either, so it can't block later ones. Events that fail the plugin's own validation, and guard or
   hook lines that do, count there too.
 - **Turned off:** a report refused with `OBSERVABILITY_OFF` turns the recorder off, as a hello that
-  says off does. It logs one info line if the recorder was on.
+  says off does. It logs one info line if the recorder was on. From then on it keeps nothing.
 - **Checking back:** while off, every beat sends one empty report (`events: []`). The first one the
   hub takes turns the recorder on, with no hello needed, and events recorded from then on ship on
-  the next beat. A hello that says on does the same. Nothing recorded while off is kept.
+  the next beat. A hello that says on does the same.
+- **A plugin that doesn't reach the hub while it is off** (offline throughout, or its next report
+  comes only after the hub is back on) is never refused, so it never turns off. Its failed calls
+  put the events back, it keeps recording up to `maxBufferedEvents`, and it ships them once the hub
+  is back on.
 - **Older hub:** `not_found` for `telemetry.report` stops recording and shipping for the whole
   process, logged once. Its hello reads as off, so the first call it gets is one empty check per
   process start, then nothing.
