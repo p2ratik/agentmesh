@@ -3,6 +3,7 @@ import { type Logger, MeshError } from '@agentmesh/common';
 import { MAX_REPORT_EVENTS, ReportedEvent } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
 import { collectEventFiles } from './events-file';
+import { recordExpired } from './plugin-events';
 import type { Recorder } from './recorder';
 
 /** An error-kind event sends early, but never sooner than this after the last send. */
@@ -26,6 +27,8 @@ export interface ShipperDeps {
   dataDir: string;
   intervalMs: number;
   logger: Logger;
+  /** The mesh window: it reports the forward records that expired unclaimed. */
+  relayExpiry: boolean;
 }
 
 /**
@@ -36,7 +39,7 @@ export interface ShipperDeps {
  * validation count as dropped. The returned stop sends one last report, waiting at most FLUSH_MS.
  */
 export function startShipper(deps: ShipperDeps): () => Promise<void> {
-  const { hub, recorder, dataDir, intervalMs, logger } = deps;
+  const { hub, recorder, dataDir, intervalMs, logger, relayExpiry } = deps;
   let halted = false;
   let sending = false;
   /** An early send came due while another send was out: it goes once that one ends. */
@@ -81,6 +84,7 @@ export function startShipper(deps: ShipperDeps): () => Promise<void> {
         else bad += 1;
       }
       recorder.countDropped(bad);
+      if (relayExpiry) recordExpired(recorder, hub.sessionId, dataDir);
       const events = batch();
       if (events.length > 0) await send(events, { timeoutMs: intervalMs });
     } finally {

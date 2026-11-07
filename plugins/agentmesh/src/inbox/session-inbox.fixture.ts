@@ -6,6 +6,7 @@ import {
 } from '@agentmesh/protocol';
 import { vi } from 'vitest';
 import type { HubClient } from '../hub';
+import { Recorder } from '../telemetry/recorder';
 import { FyiBuffer } from './fyi';
 import type { ChannelEvent } from './render';
 import { runSessionInbox, type SessionInboxOptions } from './session-inbox';
@@ -69,7 +70,9 @@ export function harness(
   const checks: string[] = [];
   const onExpired = vi.fn();
   const onListening = vi.fn();
+  const recorder = new Recorder({ max: () => 500, enabled: () => true });
   const inbox = runSessionInbox({
+    recorder,
     hub,
     logger,
     signal: new AbortController().signal,
@@ -113,5 +116,6 @@ export function harness(
     send,
     fyi,
     reported,
+    recorder,
   };
 }

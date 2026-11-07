@@ -2,6 +2,8 @@ import type { Logger } from '@agentmesh/common';
 import { isAtLeast, RELAY_MIN_VERSION } from '@agentmesh/common/version';
 import type { RelayAnswer, SessionRelay } from '@agentmesh/protocol';
 import type { ChannelEvent } from '../inbox/render';
+import { recordRelayPushed } from '../telemetry/plugin-events';
+import type { Recorder } from '../telemetry/recorder';
 import type { MeshWindowContext } from '../window/context';
 import { relayPlatform, udsHex } from './address';
 import {
@@ -29,6 +31,7 @@ export interface WindowRelayDeps {
   push(event: ChannelEvent): Promise<void>;
   /** Gets ids only, never an address. */
   logger: Logger;
+  recorder: Recorder;
 }
 
 const no = (reason: string): RelayAnswer => ({ forwarded: false, reason });
@@ -79,5 +82,6 @@ export async function forwardRelay(
     deps.logger.warn({ err, ...ids }, 'could not push a relay pointer');
     return no('the push failed');
   }
+  recordRelayPushed(deps.recorder, deps.ownSession, relay);
   return { forwarded: true, reason: 'forwarded' };
 }

@@ -45691,6 +45691,8 @@ var REASON_CODES = [
   "activation.another_window_live",
   "activation.no_proof",
   "activation.hub_error",
+  "activation.no_description",
+  "activation.pull_in_window",
   "auth.no_signature",
   "auth.bad_signature",
   "auth.unknown_key",
@@ -49105,6 +49107,206 @@ function fyiLine(m) {
   return `\xB7 ${m.threadId} ${tag}\xAB${oneLine(m.subject).slice(0, 60)}\xBB ${firstLine(m.body, 100)}`;
 }
 
+// src/relay/forward-record.ts
+import {
+  closeSync,
+  existsSync as existsSync4,
+  mkdirSync as mkdirSync2,
+  openSync,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync7,
+  renameSync as renameSync2,
+  rmSync as rmSync3,
+  statSync,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { join as join8 } from "node:path";
+
+// src/relay/pointer.ts
+var THREAD_ID = /^thr-[1-9]\d{0,11}$/;
+var MESSAGE_ID = /^msg-[0-9A-HJKMNP-TV-Z]{26}$/;
+var valid2 = (re, v) => typeof v === "string" && re.test(v);
+function pointerText({ from, threadId, messageId }) {
+  if (!valid2(PARTICIPANT_ID, from) || !valid2(THREAD_ID, threadId) || !valid2(MESSAGE_ID, messageId)) {
+    return null;
+  }
+  return `AgentMesh: ${from} answered in ${threadId} (msg ${messageId}). Read it with thread ${threadId} and reply there. Do not reply to this message.`;
+}
+
+// src/relay/forward-record.ts
+var FORWARD_TTL_MS = 6e5;
+var HEX = /^[0-9a-f]{32}$/;
+function forwardFile(hex3, messageId) {
+  return HEX.test(hex3) && MESSAGE_ID.test(messageId) ? `fwd-${hex3}-${messageId}.json` : null;
+}
+function writeForward(dir, hex3, fields, expiresAt) {
+  const name = forwardFile(hex3, fields.messageId);
+  if (!name || !pointerText(fields)) throw new Error("refusing to write an invalid forward record");
+  mkdirSync2(dir, { recursive: true, mode: 448 });
+  pruneClaimed(dir, Date.now());
+  const file2 = join8(dir, name);
+  const { from, threadId, messageId } = fields;
+  const staged = `${file2}.${process.pid}.tmp`;
+  writeFileSync2(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
+  renameSync2(staged, file2);
+}
+function candidate(dir, name, hex3, now) {
+  try {
+    const v = JSON.parse(readFileSync7(join8(dir, name), "utf8"));
+    const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
+    const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
+    v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex3, fields.messageId) === name;
+    return ok ? [{ name, fields }] : [];
+  } catch {
+    return [];
+  }
+}
+function readForwards(dir, hex3, now) {
+  if (!HEX.test(hex3)) return [];
+  let names;
+  try {
+    names = readdirSync2(dir);
+  } catch {
+    return [];
+  }
+  return names.filter((n) => n.startsWith(`fwd-${hex3}-`) && n.endsWith(".json")).flatMap((n) => candidate(dir, n, hex3, now));
+}
+var CLAIMED = ".claimed";
+function claimForward(dir, name) {
+  try {
+    closeSync(openSync(join8(dir, `${name}${CLAIMED}`), "wx", 384));
+  } catch {
+    return false;
+  }
+  if (!existsSync4(join8(dir, name))) return false;
+  removeForward(dir, name);
+  return true;
+}
+function forwardedBefore(dir, hex3, name, now) {
+  if (existsSync4(join8(dir, `${name}${CLAIMED}`))) return true;
+  return readForwards(dir, hex3, now).some((c) => c.name === name);
+}
+function pruneClaimed(dir, now) {
+  let names;
+  try {
+    names = readdirSync2(dir);
+  } catch {
+    return;
+  }
+  for (const n of names.filter((f) => f.startsWith("fwd-") && f.endsWith(CLAIMED))) {
+    try {
+      if (now - statSync(join8(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
+    } catch {
+    }
+  }
+}
+function removeForward(dir, name) {
+  try {
+    rmSync3(join8(dir, name), { force: true });
+  } catch {
+  }
+}
+function sweepExpired(dir, now) {
+  let names;
+  try {
+    names = readdirSync2(dir);
+  } catch {
+    return [];
+  }
+  const swept = [];
+  for (const name of names.filter((n) => n.startsWith("fwd-") && n.endsWith(".json"))) {
+    try {
+      const v = JSON.parse(readFileSync7(join8(dir, name), "utf8"));
+      const fields = {
+        from: v.from,
+        threadId: v.threadId,
+        messageId: v.messageId
+      };
+      const hex3 = name.slice(4, 36);
+      const valid4 = forwardFile(hex3, fields.messageId) === name && pointerText(fields) !== null;
+      if (valid4 && typeof v.expiresAt === "number" && now > v.expiresAt && claimForward(dir, name)) {
+        swept.push(fields);
+      }
+    } catch {
+    }
+  }
+  return swept;
+}
+
+// src/telemetry/plugin-events.ts
+function recordActivation(recorder, session, phase, pull, reason) {
+  const mode = pull ? "pull" : "push";
+  recorder.record({ kind: "activation", source: "plugin", session, phase, mode, reason });
+}
+function recordActivationError(recorder, session, pull, err) {
+  const wrong = isMeshError(err) && err.code === "invalid_request";
+  const reason = wrong ? "activation.wrong_code" : "activation.hub_error";
+  recordActivation(recorder, session, wrong ? "refused" : "failed", pull, reason);
+}
+function activationRecorder(recorder, hub2, pull) {
+  const record2 = (phase, reason) => recordActivation(recorder, hub2.sessionId, phase, pull, reason);
+  const refuse = (reason, err) => {
+    record2("refused", reason);
+    return err;
+  };
+  const step = async (call) => {
+    try {
+      return await call;
+    } catch (err) {
+      recordActivationError(recorder, hub2.sessionId, pull, err);
+      throw err;
+    }
+  };
+  return { record: record2, refuse, step };
+}
+function recordDelivery(recorder, session, m, stage, since) {
+  const sinceReceivedMs = Math.max(0, Date.now() - since);
+  const { id: message, threadId: thread } = m;
+  recorder.record({
+    kind: "delivery",
+    source: "plugin",
+    session,
+    message,
+    thread,
+    stage,
+    sinceReceivedMs
+  });
+}
+function recordRelayPushed(recorder, session, relay) {
+  const { messageId: message, threadId: thread } = relay;
+  recorder.record({ kind: "relay", source: "plugin", session, message, thread, stage: "pushed" });
+}
+function recordExpired(recorder, session, dir) {
+  for (const { messageId: message, threadId: thread } of sweepExpired(dir, Date.now())) {
+    recorder.record({
+      kind: "relay",
+      source: "plugin",
+      session,
+      message,
+      thread,
+      stage: "expired"
+    });
+  }
+}
+var IDS = { thread: /^thr-\d{1,12}$/, task: /^task-\d{1,12}$/, plan: /^plan-\d{1,12}$/ };
+function recordTool(deps, tool, args, outcome, started) {
+  const a = args ?? {};
+  const ids = {};
+  for (const key of ["thread", "task", "plan"]) {
+    const v = a[`${key}_id`];
+    if (typeof v === "string" && IDS[key].test(v)) ids[key] = v;
+  }
+  deps.recorder.record({
+    kind: "tool",
+    source: "plugin",
+    session: deps.hub.sessionId,
+    tool,
+    outcome,
+    ms: Date.now() - started,
+    ...ids
+  });
+}
+
 // src/tools/format.ts
 var ref = (v) => GitRef.safeParse(v).success ? v : "(invalid)";
 function formatPeers(peers) {
@@ -49594,7 +49796,7 @@ var planningTools = [
 ];
 
 // ../../packages/common/src/window.ts
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 import { posix, win32 } from "node:path";
 var MESH_WINDOW_ENV = "AGENTMESH_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@agentmesh";
@@ -49646,7 +49848,7 @@ function parseWindowPolicy(text3) {
 }
 function readWindowPolicy(home, platform2) {
   try {
-    return parseWindowPolicy(readFileSync7(windowFiles(home, platform2).policy, "utf8"));
+    return parseWindowPolicy(readFileSync8(windowFiles(home, platform2).policy, "utf8"));
   } catch {
     return null;
   }
@@ -49661,13 +49863,13 @@ function markerState(env, policy, agentId) {
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync8, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join8 } from "node:path";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync9, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { join as join9 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 var GUARD_STAMP_MAX_AGE_MS = 12e4;
 function readStamp(dir) {
   try {
-    const value = JSON.parse(readFileSync8(join8(dir, GUARD_STAMP), "utf8"));
+    const value = JSON.parse(readFileSync9(join9(dir, GUARD_STAMP), "utf8"));
     return typeof value === "object" && value !== null ? value : {};
   } catch {
     return {};
@@ -49720,16 +49922,19 @@ function tookOverLines(threads) {
   ).join("\n");
 }
 function renewalRefused(window, activation, stamp, others) {
-  if (window.state === "marked") return "the mesh window marker does not verify";
+  if (window.state === "marked")
+    return ["marker.unverified", "the mesh window marker does not verify"];
   if (window.state !== "verified") return null;
-  if (activation.guardVersion === null && !stamp) return "no proof that the worktree guard runs";
+  if (activation.guardVersion === null && !stamp) {
+    return ["activation.no_proof", "no proof that the worktree guard runs"];
+  }
   if (others.some((s) => s.meshWindow && s.liveness === "live")) {
-    return "another mesh window of this agent is live";
+    return ["activation.another_window_live", "another mesh window of this agent is live"];
   }
   return null;
 }
 async function answerCheck(code, deps) {
-  const { hub: hub2, activation, logger } = deps;
+  const { hub: hub2, activation, logger, recorder } = deps;
   const previous = activation.renewedFrom;
   if (previous === null) return deps.push(checkEvent(code));
   const session = hub2.sessionId;
@@ -49738,7 +49943,8 @@ async function answerCheck(code, deps) {
   const others = deps.agentSessions().filter((s) => s.id !== session);
   const refused = renewalRefused(window, activation, stamp, others);
   if (refused) {
-    logger.warn({ session, reason: refused }, "could not re-activate the new hub session");
+    logger.warn({ session, reason: refused[1] }, "could not re-activate the new hub session");
+    recordActivation(recorder, session, "renewal_fallback", false, refused[0]);
     return deps.push(checkEvent(code, previous));
   }
   const epoch = activation.epoch;
@@ -49747,6 +49953,7 @@ async function answerCheck(code, deps) {
     took = await activateSession(hub2, activation, { code, description: previous }, stamp);
   } catch (err) {
     logger.warn({ session, err }, "could not re-activate the new hub session");
+    recordActivation(recorder, session, "renewal_fallback", false, "activation.hub_error");
     if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
     return;
   }
@@ -49755,6 +49962,7 @@ async function answerCheck(code, deps) {
     return;
   }
   logger.info({ session }, "new hub session; re-activated it in the same process");
+  recordActivation(recorder, session, "renewed", false);
   void deps.refresh();
   const extra = took.length > 0 ? `
 ${tookOverLines(took)}` : "";
@@ -49764,7 +49972,7 @@ ${tookOverLines(took)}` : "";
   });
 }
 async function reactivatePull(deps) {
-  const { hub: hub2, activation, logger } = deps;
+  const { hub: hub2, activation, logger, recorder } = deps;
   const description = activation.lastDescription;
   if (description === null) return;
   const session = hub2.sessionId;
@@ -49776,8 +49984,10 @@ async function reactivatePull(deps) {
     }
   } catch (err) {
     logger.warn({ err }, "could not re-activate the pull session");
+    recordActivationError(recorder, session, true, err);
     return;
   }
+  recordActivation(recorder, session, "renewed", true);
   await deps.refresh();
 }
 
@@ -49797,12 +50007,12 @@ var needDescription = () => new MeshError(
   "invalid_request",
   "Pass description too: one line on what this session is working on."
 );
-function windowStamp(window, activation) {
+function windowStamp(window, activation, refuse) {
   if (window.state !== "verified") return null;
   const stamp = freshGuardStamp(window.dataDir, Date.now());
   if (stamp) return stamp;
   activation.guardVersion = null;
-  throw new ToolRefusal(GUARD_DOWN);
+  throw refuse("activation.guard_down", new ToolRefusal(GUARD_DOWN));
 }
 var sessionTools = [
   defineTool({
@@ -49814,38 +50024,44 @@ var sessionTools = [
       pull: external_exports.boolean().optional()
     }),
     mutating: false,
-    run: async (args, { hub: hub2, activation, listening, window, agentId, teamPolicy }) => {
+    run: async (args, { hub: hub2, activation, listening, window, agentId, teamPolicy, recorder }) => {
+      const { record: record2, refuse, step } = activationRecorder(recorder, hub2, args.pull === true);
       if (window.state === "marked") {
-        throw new ToolRefusal(
-          `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`
+        throw refuse(
+          "marker.unverified",
+          new ToolRefusal(
+            `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`
+          )
         );
       }
       const isWindow = window.state === "verified";
-      const stamp = windowStamp(window, activation);
+      const stamp = windowStamp(window, activation, refuse);
       if (args.pull) {
-        if (isWindow) throw new ToolRefusal(PULL_REFUSED);
-        if (!args.description) throw needDescription();
-        const view = await hub2.call("session.activate", {
-          mode: "pull",
-          description: args.description
-        });
+        if (isWindow) throw refuse("activation.pull_in_window", new ToolRefusal(PULL_REFUSED));
+        if (!args.description) throw refuse("activation.no_description", needDescription());
+        const view = await step(
+          hub2.call("session.activate", { mode: "pull", description: args.description })
+        );
         activation.lastDescription = view.description ?? args.description;
         activation.renewedFrom = null;
         activation.pull = true;
+        record2("activated");
         return `This session is active on the mesh as \u201C${activation.lastDescription}\u201D, pull-only. ${PULL_ACTIVE} ${notWindow(window)}`;
       }
       if (args.code === void 0) {
         endRenewal(activation);
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
-        await hub2.call("session.check", {});
+        await step(hub2.call("session.check", {}));
+        record2("check_sent");
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
-      if (!args.description) throw needDescription();
+      if (!args.description) throw refuse("activation.no_description", needDescription());
       const params = { code: args.code, description: args.description };
-      const took = await activateSession(hub2, activation, params, stamp);
+      const took = await step(activateSession(hub2, activation, params, stamp));
       if (took === null) {
         return "This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.";
       }
+      record2("activated");
       const active = `This session is active on the mesh as \u201C${activation.lastDescription}\u201D.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
       const tookOver = took.length > 0 ? `
@@ -49866,13 +50082,15 @@ ${windowRules(window.policy)}${full}`;
     description: "Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing, and the work it owns is released.",
     input: external_exports.object({}),
     mutating: false,
-    run: async (_args, { hub: hub2, activation }) => {
+    run: async (_args, { hub: hub2, activation, recorder }) => {
+      const pull = activation.pull;
       activation.epoch += 1;
       activation.lastDescription = null;
       activation.renewedFrom = null;
       activation.pull = false;
       activation.guardVersion = null;
       await hub2.call("session.deactivate", {});
+      recordActivation(recorder, hub2.sessionId, "deactivated", pull);
       return "This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.";
     }
   }),
@@ -49905,8 +50123,8 @@ ${windowRules(window.policy)}${full}`;
 ];
 
 // src/window/checkouts.ts
-import { lstatSync, readdirSync as readdirSync2, readFileSync as readFileSync9 } from "node:fs";
-import path, { join as join9, sep } from "node:path";
+import { lstatSync, readdirSync as readdirSync3, readFileSync as readFileSync10 } from "node:fs";
+import path, { join as join10, sep } from "node:path";
 
 // src/git.ts
 import { execFile } from "node:child_process";
@@ -49993,11 +50211,11 @@ function worktreeCommonDir(dir, target, platform2) {
   return p.basename(worktrees) === "worktrees" && p.basename(common2) === ".git" ? common2 : null;
 }
 function gitDir(dir, followWorktree) {
-  const dotGit = join9(dir, ".git");
+  const dotGit = join10(dir, ".git");
   const stat = lstatSync(dotGit);
   if (stat.isDirectory()) return dotGit;
   if (!followWorktree || !stat.isFile() || stat.size > MAX_GIT_FILE) return null;
-  const line = readFileSync9(dotGit, "utf8").replace(/[\r\n]+$/, "");
+  const line = readFileSync10(dotGit, "utf8").replace(/[\r\n]+$/, "");
   const target = /^gitdir: (.+)$/.exec(line)?.[1];
   const common2 = target ? worktreeCommonDir(dir, target, process.platform) : null;
   return common2 && lstatSync(common2).isDirectory() ? common2 : null;
@@ -50006,10 +50224,10 @@ function originRepo(dir, followWorktree = false) {
   try {
     const dotGit = gitDir(dir, followWorktree);
     if (!dotGit) return null;
-    const config2 = join9(dotGit, "config");
+    const config2 = join10(dotGit, "config");
     const stat = lstatSync(config2);
     if (!stat.isFile() || stat.size > MAX_CONFIG) return null;
-    const url2 = originUrl(readFileSync9(config2, "utf8"));
+    const url2 = originUrl(readFileSync10(config2, "utf8"));
     return url2 && parseRemote(url2) || null;
   } catch {
     return null;
@@ -50021,7 +50239,7 @@ function findCheckout(repo, folder) {
   let dirs = [folder];
   try {
     dirs = dirs.concat(
-      readdirSync2(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join9(folder, e.name))
+      readdirSync3(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join10(folder, e.name))
     );
   } catch {
   }
@@ -50262,6 +50480,9 @@ ${issues.join("\n")}`);
   }
   const notes = [];
   const hub2 = {
+    get sessionId() {
+      return deps.hub.sessionId;
+    },
     call: (method, params, options) => deps.hub.call(method, params, options, notes),
     reportSeen: (ids) => deps.hub.reportSeen(ids)
   };
@@ -50269,11 +50490,16 @@ ${issues.join("\n")}`);
   if (notes.length > 0) result.content.push({ type: "text", text: notes.join("\n") });
   return result;
 }
+var outcomeOf = (err) => err instanceof ToolRefusal ? "refused" : isMeshError(err) ? err.code : "internal";
 async function run(tool, args, deps) {
+  const started = Date.now();
+  const done = (outcome) => recordTool(deps, tool.name, args, outcome, started);
   try {
     const text3 = await tool.run(args, deps, tool.mutating ? randomUUID() : void 0);
+    done("ok");
     return { content: [{ type: "text", text: text3 }] };
   } catch (err) {
+    done(outcomeOf(err));
     if (err instanceof ToolRefusal) return error62(err.message);
     if (isMeshError(err)) {
       const issues = Array.isArray(err.details?.issues) ? `
@@ -50331,9 +50557,9 @@ function text(value, isError2 = false) {
 
 // src/join/tool.ts
 import { homedir as homedir6 } from "node:os";
-import { join as join10 } from "node:path";
+import { join as join11 } from "node:path";
 var JOIN_TOOL = "join";
-var CLI = join10(import.meta.dirname, "cli.js").replaceAll("\\", "/");
+var CLI = join11(import.meta.dirname, "cli.js").replaceAll("\\", "/");
 var AUTOUPDATE_OFFER = `Then ask your human whether to turn on automatic updates for the AgentMesh plugin. Only if they say yes, run \`node "${CLI}" autoupdate\` and show what it printed.`;
 var JoinInput = external_exports.object({
   invite_file: external_exports.string().optional().describe(
@@ -52334,6 +52560,7 @@ function followSessionSubject(options, handle) {
 function runSessionInbox(options) {
   const { hub: hub2, logger } = options;
   const seen = new RecentIds();
+  const stage = (m, s, since) => recordDelivery(options.recorder, hub2.sessionId, m, s, since);
   const handle = async (msg) => {
     let inbound;
     try {
@@ -52350,27 +52577,41 @@ function runSessionInbox(options) {
     }
     if (inbound.type === "check") await options.pushCheck(inbound.code);
     const delivered = [];
-    const shown2 = inbound.type === "deliver" ? await deliver(inbound.messages, delivered) : [];
+    const shown2 = inbound.type === "deliver" ? await deliver(inbound.messages, delivered, Date.now()) : [];
     const ack = { delivered };
     msg.respond(JSON.stringify(ack));
     hub2.reportSeen(shown2);
   };
-  const deliver = async (messages, delivered) => {
+  const holdStatus = (messages, delivered, since) => {
     const status = messages.filter((m) => m.class === "status");
-    options.fyi.add(status.filter((m) => seen.remember(m.id)));
+    const fresh = status.filter((m) => seen.remember(m.id));
+    for (const m of status) stage(m, fresh.includes(m) ? "held" : "deduped", since);
+    options.fyi.add(fresh);
     delivered.push(...status.map((m) => m.id));
+  };
+  const deliver = async (messages, delivered, since) => {
+    for (const m of messages) stage(m, "received", since);
+    holdStatus(messages, delivered, since);
     const shown2 = [];
     const actions = messages.filter((m) => m.class !== "status");
     for (const thread of Map.groupBy(actions, (m) => m.threadId).values()) {
-      const fresh = thread.filter((m) => !seen.has(m.id));
-      delivered.push(...thread.filter((m) => seen.has(m.id)).map((m) => m.id));
-      if (fresh.length === 0) continue;
-      const owner = fresh.every((m) => decides(m, hub2.config.agentId));
-      const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
-      if (await pushThread(fresh, fyi, delivered)) shown2.push(...seenIds(fyi));
-      else options.fyi.putBack(fyi);
+      shown2.push(...await deliverThread(thread, delivered, since));
     }
     return shown2;
+  };
+  const deliverThread = async (thread, delivered, since) => {
+    const fresh = thread.filter((m) => !seen.has(m.id));
+    const repeats = thread.filter((m) => seen.has(m.id));
+    for (const m of repeats) stage(m, "deduped", since);
+    delivered.push(...repeats.map((m) => m.id));
+    if (fresh.length === 0) return [];
+    const owner = fresh.every((m) => decides(m, hub2.config.agentId));
+    const fyi = owner ? { items: [], dropped: [] } : options.fyi.take();
+    const pushed = await pushThread(fresh, fyi, delivered);
+    for (const m of fresh) stage(m, pushed ? "pushed" : "push_failed", since);
+    if (pushed) return seenIds(fyi);
+    options.fyi.putBack(fyi);
+    return [];
   };
   const pushThread = async (fresh, fyi, delivered) => {
     try {
@@ -52449,96 +52690,6 @@ function ownAddress(socket) {
   return address.length <= 300 && !/[\r\n]/.test(address) ? address : null;
 }
 
-// src/relay/forward-record.ts
-import {
-  closeSync,
-  existsSync as existsSync4,
-  mkdirSync as mkdirSync3,
-  openSync,
-  readdirSync as readdirSync3,
-  readFileSync as readFileSync10,
-  renameSync as renameSync3,
-  rmSync as rmSync3,
-  statSync,
-  writeFileSync as writeFileSync3
-} from "node:fs";
-import { join as join11 } from "node:path";
-
-// src/relay/pointer.ts
-var THREAD_ID = /^thr-[1-9]\d{0,11}$/;
-var MESSAGE_ID = /^msg-[0-9A-HJKMNP-TV-Z]{26}$/;
-var valid2 = (re, v) => typeof v === "string" && re.test(v);
-function pointerText({ from, threadId, messageId }) {
-  if (!valid2(PARTICIPANT_ID, from) || !valid2(THREAD_ID, threadId) || !valid2(MESSAGE_ID, messageId)) {
-    return null;
-  }
-  return `AgentMesh: ${from} answered in ${threadId} (msg ${messageId}). Read it with thread ${threadId} and reply there. Do not reply to this message.`;
-}
-
-// src/relay/forward-record.ts
-var FORWARD_TTL_MS = 6e5;
-var HEX = /^[0-9a-f]{32}$/;
-function forwardFile(hex3, messageId) {
-  return HEX.test(hex3) && MESSAGE_ID.test(messageId) ? `fwd-${hex3}-${messageId}.json` : null;
-}
-function writeForward(dir, hex3, fields, expiresAt) {
-  const name = forwardFile(hex3, fields.messageId);
-  if (!name || !pointerText(fields)) throw new Error("refusing to write an invalid forward record");
-  mkdirSync3(dir, { recursive: true, mode: 448 });
-  pruneClaimed(dir, Date.now());
-  const file2 = join11(dir, name);
-  const { from, threadId, messageId } = fields;
-  const staged = `${file2}.${process.pid}.tmp`;
-  writeFileSync3(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
-  renameSync3(staged, file2);
-}
-function candidate(dir, name, hex3, now) {
-  try {
-    const v = JSON.parse(readFileSync10(join11(dir, name), "utf8"));
-    const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
-    const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
-    v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex3, fields.messageId) === name;
-    return ok ? [{ name, fields }] : [];
-  } catch {
-    return [];
-  }
-}
-function readForwards(dir, hex3, now) {
-  if (!HEX.test(hex3)) return [];
-  let names;
-  try {
-    names = readdirSync3(dir);
-  } catch {
-    return [];
-  }
-  return names.filter((n) => n.startsWith(`fwd-${hex3}-`) && n.endsWith(".json")).flatMap((n) => candidate(dir, n, hex3, now));
-}
-var CLAIMED = ".claimed";
-function forwardedBefore(dir, hex3, name, now) {
-  if (existsSync4(join11(dir, `${name}${CLAIMED}`))) return true;
-  return readForwards(dir, hex3, now).some((c) => c.name === name);
-}
-function pruneClaimed(dir, now) {
-  let names;
-  try {
-    names = readdirSync3(dir);
-  } catch {
-    return;
-  }
-  for (const n of names.filter((f) => f.startsWith("fwd-") && f.endsWith(CLAIMED))) {
-    try {
-      if (now - statSync(join11(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
-    } catch {
-    }
-  }
-}
-function removeForward(dir, name) {
-  try {
-    rmSync3(join11(dir, name), { force: true });
-  } catch {
-  }
-}
-
 // src/relay/window-relay.ts
 var no = (reason) => ({ forwarded: false, reason });
 async function forwardRelay(relay, deps) {
@@ -52577,6 +52728,7 @@ async function forwardRelay(relay, deps) {
     deps.logger.warn({ err, ...ids }, "could not push a relay pointer");
     return no("the push failed");
   }
+  recordRelayPushed(deps.recorder, deps.ownSession, relay);
   return { forwarded: true, reason: "forwarded" };
 }
 
@@ -52764,7 +52916,7 @@ var FLUSH_MS = 100;
 var unknownMethod = (err) => err instanceof MeshError && err.code === "not_found" && /^Unknown method|is not available on this hub/.test(err.message);
 var valid3 = (e) => ReportedEvent.safeParse(e).success;
 function startShipper(deps) {
-  const { hub: hub2, recorder, dataDir, intervalMs, logger } = deps;
+  const { hub: hub2, recorder, dataDir, intervalMs, logger, relayExpiry } = deps;
   let halted = false;
   let sending = false;
   let missedEarly = false;
@@ -52803,6 +52955,7 @@ function startShipper(deps) {
         else bad += 1;
       }
       recorder.countDropped(bad);
+      if (relayExpiry) recordExpired(recorder, hub2.sessionId, dataDir);
       const events = batch();
       if (events.length > 0) await send(events, { timeoutMs: intervalMs });
     } finally {
@@ -52844,6 +52997,26 @@ function startShipper(deps) {
       new Promise((resolve) => setTimeout(resolve, FLUSH_MS))
     ]);
   };
+}
+
+// src/tools/recheck.ts
+function recheck(session, logger) {
+  const { activation, hub: hub2, recorder } = session;
+  if (activation.lastDescription === null) return;
+  if (activation.pull) {
+    void reactivatePull({
+      hub: hub2,
+      activation,
+      logger,
+      recorder,
+      refresh: () => session.pull.refresh()
+    });
+    return;
+  }
+  activation.renewedFrom = activation.lastDescription;
+  void session.pull.refresh();
+  logger.info({ session: hub2.sessionId }, "new hub session; re-running the activation check");
+  void hub2.call("session.check", {}).catch((err) => logger.warn({ err }, "could not start the activation check"));
 }
 
 // src/window/context.ts
@@ -52930,7 +53103,14 @@ function startSession(server, session, logger, pushDelayMs) {
   };
   if (session.hello) connected();
   const dataDir = session.window.dataDir;
-  const stopShipping = startShipper({ hub: hub2, recorder, dataDir, intervalMs: beatMs, logger });
+  const stopShipping = startShipper({
+    hub: hub2,
+    recorder,
+    dataDir,
+    intervalMs: beatMs,
+    logger,
+    relayExpiry: session.window.state === "verified"
+  });
   presence.start();
   session.pull.start();
   const stopFollowing = followEvery(
@@ -52942,6 +53122,7 @@ function startSession(server, session, logger, pushDelayMs) {
   const startPushes = () => {
     inbox = runSessionInbox({
       hub: hub2,
+      recorder,
       logger,
       signal: abort.signal,
       fyi: session.fyi,
@@ -52951,6 +53132,7 @@ function startSession(server, session, logger, pushDelayMs) {
         activation: session.activation,
         window: session.window,
         logger,
+        recorder,
         push: (event2) => pushEvent(server, event2),
         refresh: () => session.pull.refresh(),
         agentSessions: () => session.hello?.self.sessions ?? []
@@ -52970,7 +53152,8 @@ function startSession(server, session, logger, pushDelayMs) {
         platform: process.platform,
         now: Date.now(),
         push: (event2) => pushEvent(server, event2),
-        logger
+        logger,
+        recorder
       }),
       closedAskerMinutes: () => session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES
     });
@@ -52989,18 +53172,6 @@ function startSession(server, session, logger, pushDelayMs) {
     await byeQuietly(hub2, hub2.sessionId, SHUTDOWN_MS - FLUSH_MS);
     await hub2.close(SHUTDOWN_MS);
   };
-}
-function recheck(session, logger) {
-  const { activation, hub: hub2 } = session;
-  if (activation.lastDescription === null) return;
-  if (activation.pull) {
-    void reactivatePull({ hub: hub2, activation, logger, refresh: () => session.pull.refresh() });
-    return;
-  }
-  activation.renewedFrom = activation.lastDescription;
-  void session.pull.refresh();
-  logger.info({ session: hub2.sessionId }, "new hub session; re-running the activation check");
-  void hub2.call("session.check", {}).catch((err) => logger.warn({ err }, "could not start the activation check"));
 }
 async function register(session, logger) {
   const { hub: hub2, presence } = session;
@@ -53144,7 +53315,8 @@ function toolDeps(session, agentId) {
     listening: session.listening.promise,
     window: session.window,
     teamPolicy: () => session.hello?.policy.instructions ?? null,
-    closedAskerMinutes: () => session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES
+    closedAskerMinutes: () => session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
+    recorder: session.recorder
   };
 }
 function watchLifecycle(logger) {

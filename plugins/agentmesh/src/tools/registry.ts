@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
 import { formatFyi, seenIds } from '../inbox/fyi';
+import { recordTool } from '../telemetry/plugin-events';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
 import { planningTools } from './planning';
@@ -88,6 +89,9 @@ async function callConfigured(
   // Only this call's hub notes end its result, never those of parallel calls or background hellos.
   const notes: string[] = [];
   const hub: ToolDeps['hub'] = {
+    get sessionId() {
+      return deps.hub.sessionId;
+    },
     call: (method, params, options) => deps.hub.call(method, params, options, notes),
     reportSeen: (ids) => deps.hub.reportSeen(ids),
   };
@@ -96,11 +100,19 @@ async function callConfigured(
   return result;
 }
 
+/** A tool call's recorded outcome for a failure: its refusal, its hub error code, or a crash. */
+const outcomeOf = (err: unknown): string =>
+  err instanceof ToolRefusal ? 'refused' : isMeshError(err) ? err.code : 'internal';
+
 async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolResult> {
+  const started = Date.now();
+  const done = (outcome: string) => recordTool(deps, tool.name, args, outcome, started);
   try {
     const text = await tool.run(args, deps, tool.mutating ? randomUUID() : undefined);
+    done('ok');
     return { content: [{ type: 'text', text }] };
   } catch (err) {
+    done(outcomeOf(err));
     if (err instanceof ToolRefusal) return error(err.message);
     if (isMeshError(err)) {
       const issues = Array.isArray(err.details?.issues)

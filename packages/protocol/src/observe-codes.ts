@@ -26,6 +26,8 @@ export const REASON_CODES = [
   'activation.another_window_live',
   'activation.no_proof',
   'activation.hub_error',
+  'activation.no_description',
+  'activation.pull_in_window',
   'auth.no_signature',
   'auth.bad_signature',
   'auth.unknown_key',

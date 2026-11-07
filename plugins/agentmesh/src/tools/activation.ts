@@ -1,7 +1,9 @@
 import type { Logger } from '@agentmesh/common';
-import type { SessionSummary } from '@agentmesh/protocol';
+import type { ReasonCode, SessionSummary } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
 import type { ChannelEvent } from '../inbox/render';
+import { recordActivation, recordActivationError } from '../telemetry/plugin-events';
+import type { Recorder } from '../telemetry/recorder';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 
@@ -112,12 +114,15 @@ function renewalRefused(
   activation: ActivationState,
   stamp: { version: string | null } | null,
   others: readonly SessionSummary[],
-): string | null {
-  if (window.state === 'marked') return 'the mesh window marker does not verify';
+): [ReasonCode, string] | null {
+  if (window.state === 'marked')
+    return ['marker.unverified', 'the mesh window marker does not verify'];
   if (window.state !== 'verified') return null;
-  if (activation.guardVersion === null && !stamp) return 'no proof that the worktree guard runs';
+  if (activation.guardVersion === null && !stamp) {
+    return ['activation.no_proof', 'no proof that the worktree guard runs'];
+  }
   if (others.some((s) => s.meshWindow && s.liveness === 'live')) {
-    return 'another mesh window of this agent is live';
+    return ['activation.another_window_live', 'another mesh window of this agent is live'];
   }
   return null;
 }
@@ -133,6 +138,7 @@ export interface CheckDeps {
   refresh(): Promise<void>;
   /** The agent's active sessions, as the latest hello listed them (`hello.self.sessions`). */
   agentSessions(): readonly SessionSummary[];
+  recorder: Recorder;
 }
 
 /**
@@ -143,7 +149,7 @@ export interface CheckDeps {
  * gets the check after all, unless the human deactivated meanwhile: their off stands.
  */
 export async function answerCheck(code: string, deps: CheckDeps): Promise<void> {
-  const { hub, activation, logger } = deps;
+  const { hub, activation, logger, recorder } = deps;
   const previous = activation.renewedFrom;
   if (previous === null) return deps.push(checkEvent(code));
   const session = hub.sessionId;
@@ -153,7 +159,8 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
   const others = deps.agentSessions().filter((s) => s.id !== session);
   const refused = renewalRefused(window, activation, stamp, others);
   if (refused) {
-    logger.warn({ session, reason: refused }, 'could not re-activate the new hub session');
+    logger.warn({ session, reason: refused[1] }, 'could not re-activate the new hub session');
+    recordActivation(recorder, session, 'renewal_fallback', false, refused[0]);
     return deps.push(checkEvent(code, previous));
   }
   const epoch = activation.epoch;
@@ -162,6 +169,7 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
     took = await activateSession(hub, activation, { code, description: previous }, stamp);
   } catch (err) {
     logger.warn({ session, err }, 'could not re-activate the new hub session');
+    recordActivation(recorder, session, 'renewal_fallback', false, 'activation.hub_error');
     if (activation.epoch === epoch) await deps.push(checkEvent(code, previous));
     return;
   }
@@ -170,6 +178,7 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
     return;
   }
   logger.info({ session }, 'new hub session; re-activated it in the same process');
+  recordActivation(recorder, session, 'renewed', false);
   void deps.refresh();
   const extra = took.length > 0 ? `\n${tookOverLines(took)}` : '';
   await deps.push({
@@ -183,9 +192,9 @@ export async function answerCheck(code: string, deps: CheckDeps): Promise<void> 
  * deactivate meanwhile wins, as in `activateSession`.
  */
 export async function reactivatePull(
-  deps: Pick<CheckDeps, 'hub' | 'activation' | 'logger' | 'refresh'>,
+  deps: Pick<CheckDeps, 'hub' | 'activation' | 'logger' | 'refresh' | 'recorder'>,
 ): Promise<void> {
-  const { hub, activation, logger } = deps;
+  const { hub, activation, logger, recorder } = deps;
   const description = activation.lastDescription;
   if (description === null) return;
   const session = hub.sessionId;
@@ -197,7 +206,9 @@ export async function reactivatePull(
     }
   } catch (err) {
     logger.warn({ err }, 'could not re-activate the pull session');
+    recordActivationError(recorder, session, true, err);
     return;
   }
+  recordActivation(recorder, session, 'renewed', true);
   await deps.refresh();
 }

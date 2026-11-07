@@ -6,6 +6,7 @@ import {
 } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { HubClient } from '../hub';
+import { Recorder } from '../telemetry/recorder';
 import { fakeHub } from '../tools/fake-hub';
 import { callTool } from '../tools/registry';
 import type { FyiBuffer } from './fyi';
@@ -57,6 +58,7 @@ function harness(fyi: FyiBuffer) {
   const pushed: ChannelEvent[] = [];
   runSessionInbox({
     hub,
+    recorder: new Recorder({ max: () => 100, enabled: () => true }),
     fyi,
     logger: createLogger('test', { level: 'silent', destination: 'stderr' }),
     signal: new AbortController().signal,

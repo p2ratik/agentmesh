@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Logger, MeshError } from '@agentmesh/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { writeForward } from '../relay/forward-record';
 import { fakeHub } from '../tools/fake-hub';
 import { Recorder } from './recorder';
 import { startShipper } from './shipper';
@@ -48,12 +49,19 @@ describe('the shipper', () => {
   });
 
   /** A shipper whose hub answers from `answers` and has a session (the hub answered a hello). */
-  function start(answers: Record<string, unknown>, events = 0, max = 500) {
+  function start(answers: Record<string, unknown>, events = 0, max = 500, relayExpiry = false) {
     const recorder = new Recorder({ max: () => max, enabled: () => true });
     for (let i = 0; i < events; i++) recorder.record(tool(i));
     const { deps, calls } = fakeHub(answers);
     const hub = Object.assign(deps.hub, { sessionId: 's-aaaaaaaaaaaa' as string | null });
-    const stop = startShipper({ hub, recorder, dataDir: dir, intervalMs: BEAT, logger });
+    const stop = startShipper({
+      hub,
+      recorder,
+      dataDir: dir,
+      intervalMs: BEAT,
+      logger,
+      relayExpiry,
+    });
     return { recorder, calls, stop, hub };
   }
 
@@ -112,6 +120,24 @@ describe('the shipper', () => {
     const [first, retried] = sentEvents(calls);
     expect(first).toMatchObject([{ kind: 'dropped', count: 2 }, { ms: 2 }, { ms: 3 }, { ms: 4 }]);
     expect(retried).toEqual(first);
+    await stop();
+  });
+
+  it('an expired unclaimed pointer records relay expired once', async () => {
+    const answers = { 'telemetry.report': { accepted: 1, dropped: 0 } };
+    const fields = {
+      from: 'alice-agent',
+      threadId: 'thr-12',
+      messageId: 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9M',
+    };
+    writeForward(dir, 'a'.repeat(32), fields, Date.now() - 1000);
+    const { calls, stop } = start(answers, 0, 500, true);
+    await vi.advanceTimersByTimeAsync(BEAT);
+    await vi.advanceTimersByTimeAsync(BEAT);
+    expect(sentEvents(calls)).toHaveLength(1);
+    expect(sentEvents(calls)[0]).toMatchObject([
+      { kind: 'relay', stage: 'expired', message: fields.messageId, thread: 'thr-12' },
+    ]);
     await stop();
   });
 

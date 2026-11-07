@@ -15,12 +15,8 @@ import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conve
 import { pushEvent, VERSION } from './server';
 import { connectedEvent, Recorder } from './telemetry/recorder';
 import { FLUSH_MS, startShipper } from './telemetry/shipper';
-import {
-  type ActivationState,
-  answerCheck,
-  newActivationState,
-  reactivatePull,
-} from './tools/activation';
+import { type ActivationState, answerCheck, newActivationState } from './tools/activation';
+import { recheck } from './tools/recheck';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
 
 const HELLO_WAIT_MS = 4000;
@@ -152,7 +148,14 @@ export function startSession(
   };
   if (session.hello) connected(); // the startup hello, now that Claude Code's version is known
   const dataDir = session.window.dataDir;
-  const stopShipping = startShipper({ hub, recorder, dataDir, intervalMs: beatMs, logger });
+  const stopShipping = startShipper({
+    hub,
+    recorder,
+    dataDir,
+    intervalMs: beatMs,
+    logger,
+    relayExpiry: session.window.state === 'verified',
+  });
   presence.start();
   session.pull.start();
   const stopFollowing = followEvery(session, () =>
@@ -165,6 +168,7 @@ export function startSession(
   const startPushes = () => {
     inbox = runSessionInbox({
       hub,
+      recorder,
       logger,
       signal: abort.signal,
       fyi: session.fyi,
@@ -175,6 +179,7 @@ export function startSession(
           activation: session.activation,
           window: session.window,
           logger,
+          recorder,
           push: (event) => pushEvent(server, event),
           refresh: () => session.pull.refresh(),
           agentSessions: () => session.hello?.self.sessions ?? [],
@@ -196,6 +201,7 @@ export function startSession(
           now: Date.now(),
           push: (event) => pushEvent(server, event),
           logger,
+          recorder,
         }),
       closedAskerMinutes: () =>
         session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
@@ -216,27 +222,6 @@ export function startSession(
     await byeQuietly(hub, hub.sessionId, SHUTDOWN_MS - FLUSH_MS);
     await hub.close(SHUTDOWN_MS);
   };
-}
-
-/**
- * The hub closed this window's active session (a long sleep, say) and gave it a
- * new, inactive one. The human opted this window in, so the hub sends a fresh
- * check, which this process answers itself with the previous line (`answerCheck`).
- * A pull session gets no check to answer, so it re-activates in pull mode at once.
- */
-function recheck(session: Session, logger: Logger): void {
-  const { activation, hub } = session;
-  if (activation.lastDescription === null) return;
-  if (activation.pull) {
-    void reactivatePull({ hub, activation, logger, refresh: () => session.pull.refresh() });
-    return;
-  }
-  activation.renewedFrom = activation.lastDescription;
-  void session.pull.refresh();
-  logger.info({ session: hub.sessionId }, 'new hub session; re-running the activation check');
-  void hub
-    .call('session.check', {})
-    .catch((err) => logger.warn({ err }, 'could not start the activation check'));
 }
 
 /**
