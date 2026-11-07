@@ -284,7 +284,9 @@ Files in `~/.agentmesh/`:
 | `empty-git-hooks/` | `window init` | An empty folder; the window's git uses it as `core.hooksPath` |
 | `bin/claude-mesh` (plus `claude-mesh.cmd` on Windows) | `window init` | `claude-mesh`, only when it can't go next to `claude` (mode 755); add `bin/` to your PATH |
 
-State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run` (mode 600, never message text):
+State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`. They never hold message text.
+On macOS and Linux they are mode 600 (a folder the plugin creates for them is 700); Windows ignores
+modes, so there your user profile's permissions protect them.
 - `pull-…json` for a pull session ([Run](#run));
 - a `push-…json` heartbeat from each active push session (the session-start line checks it; the
   mesh window's also holds its messaging address);
@@ -317,13 +319,18 @@ which keeps the events for `observability.retentionDays` (14 by default). They h
 outcomes, error codes, timings and versions only. Never message text, prompts, code, file contents,
 tool output or command lines.
 
-- **Recorded:** the plugin, Claude Code, OS and Node versions; NATS disconnects and reconnects;
-  activation steps; each mesh tool call's name, outcome, duration and the thread, task or plan id
-  it named; each message's delivery stages; reply pointers; the mesh window guard's denials and
-  asks, with a reason code; which fixed line the hook added to a prompt.
-- **Who can read it:** only the humans in `observability.viewers` in `mesh.yaml` (nobody by
-  default), and the hub enforces it. Teammates and admins who aren't viewers are refused.
-- **Off:** with `observability.enabled: false` the plugin records nothing.
+- **Recorded:** the plugin, Claude Code and Node versions, the OS and CPU architecture; NATS
+  disconnects and reconnects; activation steps; each mesh tool call's name, outcome, duration and
+  the thread, task or plan id it named; each message's delivery stages; reply pointers; the mesh
+  window guard's denials and asks, with the tool's name and a reason code; which fixed line the
+  hook added to a prompt; and how many events were lost on the way.
+- **Who can read it:** through the mesh, only the humans in `observability.viewers` in `mesh.yaml`
+  (nobody by default), and the hub enforces it. Teammates and admins who aren't viewers are
+  refused. Anyone with access to the hub's server, its data volume or a backup can read the events
+  table directly, as they can the messages.
+- **Off:** with `observability.enabled: false` on the hub, the plugin stops recording within one
+  beat and drops what it holds. While off it sends one empty, free report a beat to check back,
+  and it records again as soon as the hub takes one.
 
 The full list, and what is never recorded, is in
 [security](../../docs/security.md#what-agentmesh-records-about-your-sessions-and-what-it-never-records).
@@ -339,8 +346,11 @@ node <plugin dir>/dist/cli.js timeline --thread thr-31 --json   # one event per 
 Options: `--agent`, `--session`, `--thread thr-N`, `--since` and `--until` (an ISO time or a
 duration such as `30m`, `2h`, `1d`), `--limit` (up to 2000) and `--json`. The command uses your
 agent's own settings in `~/.agentmesh/agent.json` (it ignores `AGENTMESH_*` overrides), makes one
-call with a 5 s connect timeout, and exits within 2 s once its output is flushed. How to read the
-lines: [protocol](../../docs/protocol.md#reading-the-timeline).
+call with a 5 s connect timeout, and exits within 2 s once its output is flushed. It exits 1 with
+`error: …` when it is refused. On Windows, a key NATS refuses can show as an `ECONNRESET` error
+rather than an authorization error. The tool's result starts with a line labelling it as data,
+never instructions; the command prints no label. How to read the lines:
+[protocol](../../docs/protocol.md#reading-the-timeline).
 
 ## Tools
 

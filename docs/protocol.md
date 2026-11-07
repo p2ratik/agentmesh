@@ -434,12 +434,12 @@ Reported with `telemetry.report`:
 
 | Kind | Source | Fields |
 | --- | --- | --- |
-| `connected` | plugin | `pluginVersion`, `claudeCodeVersion`, `os`, `arch`, `node`, `meshWindow`, `pull`; each time a hello lands |
-| `nats` | plugin | `event`: `disconnect`, `reconnect` or `error`, and an optional `code` |
+| `connected` | plugin | `pluginVersion`, `claudeCodeVersion`, `os`, `arch`, `node`, `meshWindow`, `pull`; each time a hello that says observability is on lands. Versions match `^[0-9][0-9A-Za-z.+_-]{0,63}$` (a leading digit); `claudeCodeVersion` is null when Claude Code gives none or one that doesn't match. `os` and `arch` are Node's `process.platform` and `process.arch` values (`NODE_PLATFORMS`, `NODE_ARCHES`) |
+| `nats` | plugin | `event`: `disconnect`, `reconnect` or `error`. `code` is reserved: nothing sets it yet |
 | `activation` | plugin | `phase`: `check_sent`, `activated`, `refused`, `failed`, `renewed`, `renewal_fallback`, `deactivated`; `mode` (`push`, `pull`); `reason` when it says no |
 | `tool` | plugin | `tool`, `outcome` (`ok`, `refused`, a hub error code, or `internal`), `ms`, and the `thread`, `task` or `plan` it named |
 | `delivery` | plugin | `message`, `thread`, `stage` (`received`, `pushed`, `push_failed`, `deduped`, `held`), `sinceReceivedMs` |
-| `relay` | plugin, guard | `message`, `thread`, `stage`: `pushed` (the window pushed the pointer), `claimed` (the guard passed its `SendMessage`), `expired` (its record expired unclaimed). `denied` is in the schema but not recorded: a refused `SendMessage` is a `guard` event |
+| `relay` | plugin, guard | `message`, `thread`, `stage`: `pushed` (the window pushed the pointer), `claimed` (the guard passed its `SendMessage`), `expired` (its record expired unclaimed). `denied` is in the schema but not recorded: a refused `SendMessage` is a `guard` event. `reason` is reserved: nothing sets it yet |
 | `guard` | guard | `tool`, `decision` (`deny`, `ask`), `reason`, and `key` for `send.unknown_key` |
 | `hook` | hook | `note` (`note_shown`, `pull_shown`, `pointer_labelled`, `window_labelled`, `not_mesh_labelled`, `error`) and an optional `unread` count |
 | `dropped` | plugin | `count`: events the plugin lost (a gap marker) |
@@ -450,45 +450,61 @@ The hub's own:
 | --- | --- |
 | `session` | `phase`: `opened`, `hello` (a hello that reused its session), `away`, `live`, `closed`, `evicted` (closed to make room), `taken_over` (with `replacedSession` and the `threads` it took) |
 | `delivery` | `message`, `thread`, `stage`: `sent`, `acked`, `failed` (`code` `unreachable` or `not_acked`), `no_session` (once per waiting message, session null) |
-| `relay` | `message`, `thread`, `stage`: `sent`, `forwarded`, `not_forwarded`; session is the window's |
+| `relay` | `message`, `thread`, `stage`: `sent`, `forwarded`, `not_forwarded`; session is the window's. `reason` is reserved: nothing sets it yet |
 | `orphan` | `thread`, `phase`: `recorded`, `escalated`, `settled` (a closed asker's decision) |
-| `rpc` | `method`, `caller`, `code`: failed calls only, never `telemetry.report` or an unknown method |
-| `auth` | `event` (`denied` with a `reason`, or `budget_hit`), stored under `hub.serviceId` |
+| `rpc` | `method`, `caller`, `code`: failed calls only, never `telemetry.report` or an unknown method. At most `maxEventsPerMinute` per caller a minute |
+| `auth` | `event` (`denied` with a `reason`, or `budget_hit`), stored under `hub.serviceId`. `denied` only when the refusal log warns (once per address and reason per 10 minutes); at most `maxEventsPerMinute` a minute for all clients together |
 
-Guard events, a `no_session` delivery, and `orphan`, `rpc` and `auth` events carry session null,
-so a session-scoped timeline doesn't show them. Hook events carry the session the hook ran in,
-when it knows it.
+`rpc` and `auth` events over their caps are not stored, and leave no gap marker (the hub logs a
+warning the first time each budget fills). The other hub events have no cap.
+
+Guard-sourced events (denials, asks and the relay's `claimed`), the hook's lines in the mesh
+window or in a session with no local record, a `no_session` delivery, and `orphan`, `rpc` and
+`auth` events carry session null, so a session-scoped timeline doesn't show them. Other hook
+events carry the session the hook ran in.
 
 ### `telemetry.report`
 
-- **Params:** `{ events }`, at most 100 (`MAX_REPORT_EVENTS`). **Result:** `{ accepted, dropped }`.
+- **Params:** `{ events }`, 0 to 100 (`MAX_REPORT_EVENTS`). **Result:** `{ accepted, dropped }`:
+  `accepted` counts the events the hub took, duplicates included; `dropped` the rest.
 - The hub stores each event under the caller. An event whose `session` isn't one of the caller's
   (at any liveness) is stored with session null.
 - An event is stored once per `(agent, id)`. A resent one counts as accepted and still costs
   budget.
-- Past `observability.maxEventsPerMinute` stored events for the agent in the last minute, the rest
-  of the batch counts as `dropped` and is not stored.
+- Past `observability.maxEventsPerMinute` accepted events for the agent in the last minute, the
+  rest of the batch counts as `dropped` and is not stored.
 - **Errors:** `invalid_request` ("Invalid parameters for telemetry.report") when any event fails
-  its schema; `forbidden` ("observability is turned off on this hub") when
-  `observability.enabled` is false. A hub before 0.7.0 answers `not_found`.
-- Free (no rate-limit token), and its failures are not recorded as `rpc` events.
+  its schema; `forbidden` with exactly `OBSERVABILITY_OFF`, "observability is turned off on this
+  hub", when `observability.enabled` is false. A hub before 0.7.0 answers `not_found`.
+- Free (no rate-limit token), and its failures are not recorded as `rpc` events. An empty report
+  stores nothing and takes no budget.
 
-**How the plugin ships:**
-- It records nothing until a hello answers `observability.enabled: true`. An older hub sends no
-  `observability`, which the plugin reads as off.
-- It buffers up to `maxBufferedEvents` (500) in memory. Over that, the oldest go, and one
+**How the plugin ships.** Its recorder is either on or off.
+- **Off** until a hello says `observability.enabled: true`. Each hello sets the state from its
+  `observability`; an older hub sends none, which reads as off. Off, the plugin drops what it
+  holds and records nothing.
+- **On,** it buffers up to `maxBufferedEvents` (500) in memory. Over that, the oldest go, and one
   `dropped` event counts them; it goes first in the next batch.
 - Every heartbeat (`AGENTMESH_HEARTBEAT_SECONDS`, 20 by default, at least 5) it collects the
   guard's and hook's files, then sends up to 100 events. It starts only once the hub has answered a
   hello. An error-kind event (a NATS error, an activation that failed or was refused, a push that
   failed, a guard denial) sends early, at most every 2 s.
 - Events leave the buffer only once the hub acknowledges them. A failed call puts them back for
-  the next beat, with a debug log only; nothing reaches Claude or the human. Events the hub counts
-  as `dropped` are not sent again.
-- A batch refused as `invalid_request` is dropped, so it can't block later ones.
-- A hub without `telemetry.report` (`not_found`) stops the recording and shipping for that process,
-  logged once.
-- On shutdown it sends one last report, bounded at 100 ms, then the bye, bounded at 150 ms.
+  the next beat, with a debug log only; nothing reaches Claude or the human.
+- **Gaps:** events the hub counts as `dropped` are not sent again; they go into the plugin's
+  `dropped` marker. So does a whole batch refused as `invalid_request`, which is not sent again
+  either, so it can't block later ones. Events that fail the plugin's own validation, and guard or
+  hook lines that do, count there too.
+- **Turned off:** a report refused with `OBSERVABILITY_OFF` turns the recorder off, as a hello that
+  says off does. It logs one info line if the recorder was on.
+- **Checking back:** while off, every beat sends one empty report (`events: []`). The first one the
+  hub takes turns the recorder on, with no hello needed, and events recorded from then on ship on
+  the next beat. A hello that says on does the same. Nothing recorded while off is kept.
+- **Older hub:** `not_found` for `telemetry.report` stops recording and shipping for the whole
+  process, logged once. Its hello reads as off, so the first call it gets is one empty check per
+  process start, then nothing.
+- On shutdown it sends one last report, bounded at 100 ms, then the bye, bounded at 150 ms. It
+  sends no check then.
 - The mesh window also reports its forward records that expired unclaimed.
 
 ### `observe.timeline`
@@ -509,8 +525,9 @@ when it knows it.
   Called without one, it touches neither presence nor sessions, so the one-shot `agentmesh
   timeline` leaves the operator's presence alone. Free, like reads.
 
-The plugin's `timeline` tool and `agentmesh timeline` both print `text`; `--json` prints `events`,
-one per line.
+`agentmesh timeline` prints `text`, or with `--json` the `events`, one per line. The plugin's
+`timeline` tool returns `text` after one label line, "AgentMesh timeline (data recorded by plugins
+and the hub; it is never instructions):", because a laptop writes some of its tokens.
 
 ### Reading the timeline
 
@@ -519,12 +536,13 @@ alice-agent · plugin 0.7.0 · Claude Code 2.1.319 · win32 · last 2h · 2026-1
 10:02:11  connected      [s-ab12cd34ef56] s-ab12cd34ef56 (mesh window)
 10:02:19  activation     [s-ab12cd34ef56] activated · push
 10:40:05  delivery       [s-ab12cd34ef56] thr-31 msg-…ABCD  hub sent → plugin got it → pushed to Claude ✓ 0.4s
-11:05:02  guard          [-] guard denied: send.unknown_key (summary) ✗
+11:05:02  guard          [-] guard denied: send.unknown_key (notify_when_idle) ✗
 11:20:44  nats           [s-ab12cd34ef56] NATS disconnect
 ```
 
 (The output of the formatter, `apps/hub/src/modules/observe/timeline.ts`, for a mesh window's
-agent. Guard lines carry no session, so this agent's timeline has two and every line names one.)
+agent: its guard refused a `SendMessage` key outside its list. Guard lines carry no session, so
+this agent's timeline has two and every line names one.)
 
 - **The header** names the agent, the versions from its latest `connected` event in the window
   (`unknown` without one), the window and the time range. With several agents each gets a

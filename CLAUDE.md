@@ -228,7 +228,7 @@ node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plu
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-11-07)
+## Status (as of 2026-11-08)
 
 **Built (v1, release 0.6.0):**
 - **Packages:** protocol, config, bus, common.
@@ -320,12 +320,20 @@ Run `pnpm check` before calling anything done.
     `events-<agent>-<pid>.jsonl` (built-ins only, 256 KB a file, 500 files) for it to collect.
   - Operators read it with the `timeline` tool or `agentmesh timeline` (`observe.timeline`): only
     humans in `observability.viewers`, enforced by the hub, and the one RPC besides hello and bye
-    that needs no session.
+    that needs no session. The tool labels its result as data. Whoever has the hub's server or a
+    backup can read the events table directly.
+  - Hardened after the docs review (Task 10b):
+    - versions need a leading digit, and `os`/`arch` are Node's values;
+    - events the hub drops, or refuses as invalid, land in the `dropped` gap;
+    - the hub's `rpc` events are capped per caller, and `auth` events in total;
+    - the events files are 600, in a 700 folder;
+    - the recorder has one on/off state, set by each hello or a refused report. While off it
+      checks back with an empty report each beat, so re-enabling needs no hello.
   - Phase 2 (Prometheus metrics, Grafana dashboards, Alertmanager and a dead man's switch) is
     planned, not built.
 
 **Tested and passing:**
-- **Unit tests (about 1,530):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 1,540):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,

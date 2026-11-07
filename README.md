@@ -89,8 +89,9 @@ Why it is built this way: the [design spec](docs/specs/2026-10-16-agent-mesh-des
 - **Only the owner commands an agent.** The hub marks a Discord reply as a decision only for the
   sender's own agents. Everyone else's is information.
 - **A timeline without your content.** The hub records how AgentMesh behaves (ids, counts, codes,
-  timings, never message text, prompts or code), and only the operators in
-  `observability.viewers` can read it.
+  timings, never message text, prompts or code). Through the mesh, only the operators in
+  `observability.viewers` can read it; whoever can reach the hub's server or its backups can read
+  its database, as they can the messages.
 
 The threat model is in [docs/security.md](docs/security.md). Found a vulnerability? Report it
 privately, as [SECURITY.md](SECURITY.md) explains.
