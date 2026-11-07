@@ -246,4 +246,31 @@ describe("the session's timeline events", () => {
     ]);
     await stop();
   });
+
+  // The events just before a session closes are the ones an operator debugs.
+  it('shutdown sends a last report before the bye, within the shutdown budget', async () => {
+    const { hello, hang, wire } = fakeHub(['s-aaaaaaaaaaaa']);
+    hello.observability = { enabled: true, maxBufferedEvents: 500 };
+    const session = await openSession(config, logger);
+    const stop = startSession(fakeServer().server, session, logger, 0); // records connected
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      hang.add('telemetry.report').add('session.bye');
+      let closed = false;
+      void stop().then(() => {
+        closed = true;
+      });
+      // Both hang: the report waits 100 ms and the bye the rest of the 250 ms.
+      await vi.advanceTimersByTimeAsync(240);
+      expect(closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(closed).toBe(true);
+      const report = wire.indexOf('req mesh.rpc.alice-agent.telemetry.report s-aaaaaaaaaaaa');
+      const bye = wire.indexOf('req mesh.rpc.alice-agent.session.bye s-aaaaaaaaaaaa');
+      expect(report).toBeGreaterThan(-1);
+      expect(bye).toBeGreaterThan(report);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

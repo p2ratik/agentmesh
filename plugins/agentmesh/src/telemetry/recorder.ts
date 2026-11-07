@@ -39,6 +39,7 @@ export class Recorder {
   readonly #now: () => Date;
   #events: ReportedEvent[] = [];
   #gap: Dropped | null = null;
+  #off = false;
 
   constructor(opts: { max: () => number; enabled: () => boolean; now?: () => Date }) {
     this.#max = opts.max;
@@ -46,10 +47,21 @@ export class Recorder {
     this.#now = opts.now ?? (() => new Date());
   }
 
+  /** Off for good (a hub without `telemetry.report`): drops what it holds, records nothing more. */
+  off(): void {
+    this.#off = true;
+    this.#events = [];
+    this.#gap = null;
+  }
+
+  #on(): boolean {
+    return !this.#off && this.#enabled();
+  }
+
   /** Synchronous and never throws; records nothing while the hub says observability is off. */
   record(e: Recordable): void {
     try {
-      if (!this.#enabled()) return;
+      if (!this.#on()) return;
       const stamp = { id: e.id ?? randomUUID(), at: e.at ?? this.#now().toISOString() };
       this.#events.push({ ...e, ...stamp } as ReportedEvent);
       this.#trim();
@@ -61,7 +73,7 @@ export class Recorder {
 
   /** Removes up to `n` events, the pending gap first. Turned off, it drops what it holds. */
   take(n: number): ReportedEvent[] {
-    if (!this.#enabled()) {
+    if (!this.#on()) {
       this.#events = [];
       this.#gap = null;
       return [];
@@ -80,19 +92,26 @@ export class Recorder {
     this.#trim();
   }
 
+  /** Counts events lost before they reached the buffer (one that failed validation) in the gap. */
+  countDropped(count: number): void {
+    if (count > 0 && this.#on()) this.#addGap(count, null);
+  }
+
   #trim(): void {
     const over = this.#events.length - this.#max();
-    if (over <= 0) return;
-    const lost = this.#events.splice(0, over);
+    if (over > 0) this.#addGap(over, this.#events.splice(0, over).at(-1)?.session ?? null);
+  }
+
+  #addGap(count: number, session: string | null): void {
     this.#gap = this.#gap
-      ? { ...this.#gap, count: this.#gap.count + over }
+      ? { ...this.#gap, count: this.#gap.count + count }
       : {
           kind: 'dropped',
           source: 'plugin',
-          session: lost.at(-1)?.session ?? null,
+          session,
           id: randomUUID(),
           at: this.#now().toISOString(),
-          count: over,
+          count,
         };
   }
 }

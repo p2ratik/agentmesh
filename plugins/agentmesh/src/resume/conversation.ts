@@ -7,18 +7,19 @@ export const SHUTDOWN_MS = 250;
 
 /**
  * `session.bye` for `sessionId` (this process's by default), naming it, so it never says hello
- * first and closes a session it just opened; nothing without one. Waits at most SHUTDOWN_MS: a
- * closing session never hangs on the hub.
+ * first and closes a session it just opened; nothing without one. Waits at most `timeoutMs`
+ * (SHUTDOWN_MS by default): a closing session never hangs on the hub.
  */
 export async function byeQuietly(
   hub: Pick<HubClient, 'call' | 'sessionId'>,
   sessionId: string | null = hub.sessionId,
+  timeoutMs = SHUTDOWN_MS,
 ): Promise<void> {
   if (!sessionId) return;
-  const options = { timeoutMs: SHUTDOWN_MS, session: sessionId };
+  const options = { timeoutMs, session: sessionId };
   await Promise.race([
     hub.call('session.bye', {}, options).catch(() => undefined),
-    new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS)),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
   ]);
 }
 

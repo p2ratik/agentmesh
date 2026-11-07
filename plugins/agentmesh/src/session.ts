@@ -14,7 +14,7 @@ import { readClaudeSession } from './resume/claude-session';
 import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
 import { connectedEvent, Recorder } from './telemetry/recorder';
-import { startShipper } from './telemetry/shipper';
+import { FLUSH_MS, startShipper } from './telemetry/shipper';
 import {
   type ActivationState,
   answerCheck,
@@ -206,14 +206,14 @@ export function startSession(
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
     stopFollowing();
-    stopShipping();
     session.pull.stop();
     abort.abort();
     clearInterval(retry);
     hub.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    await byeQuietly(hub);
+    await stopShipping(); // its last report needs the live session, so before the bye
+    await byeQuietly(hub, hub.sessionId, SHUTDOWN_MS - FLUSH_MS);
     await hub.close(SHUTDOWN_MS);
   };
 }

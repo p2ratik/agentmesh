@@ -48430,12 +48430,12 @@ var PullWatcher = class {
 
 // src/resume/conversation.ts
 var SHUTDOWN_MS = 250;
-async function byeQuietly(hub2, sessionId = hub2.sessionId) {
+async function byeQuietly(hub2, sessionId = hub2.sessionId, timeoutMs = SHUTDOWN_MS) {
   if (!sessionId) return;
-  const options = { timeoutMs: SHUTDOWN_MS, session: sessionId };
+  const options = { timeoutMs, session: sessionId };
   await Promise.race([
     hub2.call("session.bye", {}, options).catch(() => void 0),
-    new Promise((resolve) => setTimeout(resolve, SHUTDOWN_MS))
+    new Promise((resolve) => setTimeout(resolve, timeoutMs))
   ]);
 }
 async function followConversation(session, next) {
@@ -52640,15 +52640,25 @@ var Recorder = class {
   #now;
   #events = [];
   #gap = null;
+  #off = false;
   constructor(opts) {
     this.#max = opts.max;
     this.#enabled = opts.enabled;
     this.#now = opts.now ?? (() => /* @__PURE__ */ new Date());
   }
+  /** Off for good (a hub without `telemetry.report`): drops what it holds, records nothing more. */
+  off() {
+    this.#off = true;
+    this.#events = [];
+    this.#gap = null;
+  }
+  #on() {
+    return !this.#off && this.#enabled();
+  }
   /** Synchronous and never throws; records nothing while the hub says observability is off. */
   record(e) {
     try {
-      if (!this.#enabled()) return;
+      if (!this.#on()) return;
       const stamp = { id: e.id ?? randomUUID2(), at: e.at ?? this.#now().toISOString() };
       this.#events.push({ ...e, ...stamp });
       this.#trim();
@@ -52658,7 +52668,7 @@ var Recorder = class {
   }
   /** Removes up to `n` events, the pending gap first. Turned off, it drops what it holds. */
   take(n) {
-    if (!this.#enabled()) {
+    if (!this.#on()) {
       this.#events = [];
       this.#gap = null;
       return [];
@@ -52675,17 +52685,22 @@ var Recorder = class {
     this.#events.unshift(...events.filter((e) => e.kind !== "dropped"));
     this.#trim();
   }
+  /** Counts events lost before they reached the buffer (one that failed validation) in the gap. */
+  countDropped(count) {
+    if (count > 0 && this.#on()) this.#addGap(count, null);
+  }
   #trim() {
     const over = this.#events.length - this.#max();
-    if (over <= 0) return;
-    const lost = this.#events.splice(0, over);
-    this.#gap = this.#gap ? { ...this.#gap, count: this.#gap.count + over } : {
+    if (over > 0) this.#addGap(over, this.#events.splice(0, over).at(-1)?.session ?? null);
+  }
+  #addGap(count, session) {
+    this.#gap = this.#gap ? { ...this.#gap, count: this.#gap.count + count } : {
       kind: "dropped",
       source: "plugin",
-      session: lost.at(-1)?.session ?? null,
+      session,
       id: randomUUID2(),
       at: this.#now().toISOString(),
-      count: over
+      count
     };
   }
 };
@@ -52745,20 +52760,24 @@ function parseLine(line) {
 
 // src/telemetry/shipper.ts
 var EARLY_MS = 2e3;
+var FLUSH_MS = 100;
 var unknownMethod = (err) => err instanceof MeshError && err.code === "not_found" && /^Unknown method|is not available on this hub/.test(err.message);
 var valid3 = (e) => ReportedEvent.safeParse(e).success;
 function startShipper(deps) {
-  const { hub: hub2, recorder, dataDir, logger } = deps;
+  const { hub: hub2, recorder, dataDir, intervalMs, logger } = deps;
+  let halted = false;
   let sending = false;
+  let missedEarly = false;
   let lastSend = 0;
   let early = null;
-  const send = async (events) => {
+  const send = async (events, options) => {
     try {
-      const { accepted, dropped } = await hub2.call("telemetry.report", { events });
+      const { accepted, dropped } = await hub2.call("telemetry.report", { events }, options);
       recorder.putBack(events.slice(accepted + dropped));
     } catch (err) {
       if (unknownMethod(err)) {
-        stop();
+        halt();
+        recorder.off();
         logger.info("this hub does not take telemetry.report; not reporting events");
         return;
       }
@@ -52766,41 +52785,65 @@ function startShipper(deps) {
       logger.debug({ err }, "could not ship events; retrying next beat");
     }
   };
+  const batch = () => {
+    const taken = recorder.take(MAX_REPORT_EVENTS);
+    const events = taken.filter(valid3);
+    recorder.countDropped(taken.length - events.length);
+    return events;
+  };
   const ship = async () => {
-    if (sending) return;
+    if (halted || sending || !hub2.sessionId) return;
     sending = true;
     lastSend = Date.now();
     try {
+      let bad = 0;
       for (const value of collectEventFiles(dataDir)) {
         const parsed = ReportedEvent.safeParse(value);
         if (parsed.success) recorder.record(parsed.data);
+        else bad += 1;
       }
-      const events = recorder.take(MAX_REPORT_EVENTS).filter(valid3);
-      if (events.length > 0) await send(events);
+      recorder.countDropped(bad);
+      const events = batch();
+      if (events.length > 0) await send(events, { timeoutMs: intervalMs });
     } finally {
       sending = false;
+      if (missedEarly) {
+        missedEarly = false;
+        armEarly();
+      }
     }
   };
-  const timer = setInterval(() => void ship(), deps.intervalMs);
-  timer.unref();
-  recorder.onError = () => {
-    if (early) return;
-    early = setTimeout(
-      () => {
-        early = null;
-        void ship();
-      },
-      Math.max(0, lastSend + EARLY_MS - Date.now())
-    );
+  function armEarly() {
+    if (early || halted) return;
+    const due = () => {
+      early = null;
+      if (sending) missedEarly = true;
+      else void ship();
+    };
+    early = setTimeout(due, Math.max(0, lastSend + EARLY_MS - Date.now()));
     early.unref();
-  };
-  function stop() {
+  }
+  function halt() {
+    halted = true;
     clearInterval(timer);
     if (early) clearTimeout(early);
     early = null;
     recorder.onError = null;
   }
-  return stop;
+  const timer = setInterval(() => void ship(), intervalMs);
+  timer.unref();
+  recorder.onError = armEarly;
+  return async () => {
+    halt();
+    const session = hub2.sessionId;
+    if (!session) return;
+    const events = batch();
+    if (events.length === 0) return;
+    await Promise.race([
+      send(events, { session, timeoutMs: FLUSH_MS }),
+      new Promise((resolve) => setTimeout(resolve, FLUSH_MS))
+    ]);
+  };
 }
 
 // src/window/context.ts
@@ -52936,14 +52979,14 @@ function startSession(server, session, logger, pushDelayMs) {
   setTimeout(startPushes, pushDelayMs).unref();
   return async () => {
     stopFollowing();
-    stopShipping();
     session.pull.stop();
     abort.abort();
     clearInterval(retry);
     hub2.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    await byeQuietly(hub2);
+    await stopShipping();
+    await byeQuietly(hub2, hub2.sessionId, SHUTDOWN_MS - FLUSH_MS);
     await hub2.close(SHUTDOWN_MS);
   };
 }
