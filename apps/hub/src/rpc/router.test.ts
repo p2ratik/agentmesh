@@ -1,11 +1,11 @@
 import { MeshError } from '@agentmesh/common';
-import { RPC_METHODS } from '@agentmesh/protocol';
+import { RPC_METHODS, type RpcMethodName } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext, RpcHandlerMap, SessionRecord } from '../contracts';
 import { testTeamConfig } from '../testing/fixtures';
 import { createServiceHarness } from '../testing/services';
 import { IdempotencyStore } from './idempotency';
-import { createRpcRouter } from './router';
+import { createRpcRouter, takesNoSession } from './router';
 
 const SECRET = 'invite-plaintext-s3cret';
 
@@ -169,7 +169,7 @@ describe('RPC router sessions', () => {
     return { call, seen, rows, dispatch, params };
   }
 
-  it('refuses agent calls without a session, except hello and bye', async () => {
+  it('refuses message.send without a session, and takes hello and bye without one', async () => {
     const { dispatch, params } = sessionSetup();
     await expect(
       dispatch({ caller: 'alice-agent', method: 'message.send' }, params),
@@ -188,6 +188,16 @@ describe('RPC router sessions', () => {
     });
     const asBob = { caller: 'discord-bridge', method: 'message.send', actAs: 'bob' };
     await expect(dispatch(asBob, params)).resolves.toMatchObject({ threadId: 'thr-1' });
+  });
+
+  // Every other agent method needs a session: widening this set is a security decision.
+  it('lets exactly session.hello, session.bye and observe.timeline come without a session', () => {
+    const methods = Object.keys(RPC_METHODS) as RpcMethodName[];
+    expect(methods.filter(takesNoSession).sort()).toEqual([
+      'observe.timeline',
+      'session.bye',
+      'session.hello',
+    ]);
   });
 
   // `agentmesh timeline` is one connection and one call: it has no session to send.

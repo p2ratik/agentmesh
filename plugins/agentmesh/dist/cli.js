@@ -51306,9 +51306,14 @@ ${usage()}`);
   }
 }
 var EXIT_GRACE_MS = 2e3;
-async function runMain(argv, ctx = processContext(), exit = (code) => process.exit(code)) {
+async function runMain(argv, ctx = processContext(), io = {}) {
+  const {
+    exit = (code2) => process.exit(code2),
+    streams = [process.stdout, process.stderr]
+  } = io;
   const code = await runCli(argv, ctx);
   process.exitCode = code;
+  await Promise.all(streams.map((s) => new Promise((done) => s.write("", () => done()))));
   setTimeout(() => exit(code), EXIT_GRACE_MS).unref();
   return code;
 }

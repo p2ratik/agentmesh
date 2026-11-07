@@ -90,14 +90,23 @@ const NO_SESSION =
   `This session isn't registered with the hub. If your AgentMesh plugin is older than ${MIN_CLIENT_VERSION}, ` +
   'update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.';
 
-/** Agent calls that may come without a session: the bye, and `agentmesh timeline` (one call). */
-const SESSIONLESS: ReadonlySet<RpcMethodName> = new Set(['session.bye', 'observe.timeline']);
+/**
+ * Agent calls that may come without a session: the hello that opens one, the bye, and
+ * `agentmesh timeline` (one call). Widening it is a security decision (a test pins it).
+ */
+const SESSIONLESS: ReadonlySet<RpcMethodName> = new Set([
+  'session.hello',
+  'session.bye',
+  'observe.timeline',
+]);
+
+export const takesNoSession = (method: RpcMethodName): boolean => SESSIONLESS.has(method);
 
 /**
  * The envelope's session is client-asserted: handlers only ever see one verified against
- * the calling agent. Agents need one for every call but `session.hello`, which opens
- * sessions and so takes none (a stale one would otherwise block the reconnect), and the
- * SESSIONLESS methods. Other callers never carry one.
+ * the calling agent. Agents need one for every call but the SESSIONLESS methods; a sent one
+ * is verified, except on `session.hello`, which opens sessions and so ignores it (a stale one
+ * would otherwise block the reconnect). Other callers never carry one.
  */
 function verifiedSession(
   deps: RouterDeps,
@@ -107,7 +116,7 @@ function verifiedSession(
 ): string | null {
   if (!deps.sessions || caller.kind !== 'agent' || method === 'session.hello') return null;
   if (!raw) {
-    if (SESSIONLESS.has(method)) return null;
+    if (takesNoSession(method)) return null;
     throw new MeshError('invalid_request', NO_SESSION);
   }
   deps.sessions.verify(caller.id, raw);

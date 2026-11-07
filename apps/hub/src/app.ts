@@ -145,11 +145,12 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     sessions: built.services.sessions,
     transaction: (fn) => db.transaction(fn),
     now: () => clock.now().getTime(),
+    // A call made as a session proves it is there, like a heartbeat: live again, deliveries go.
+    // One without (`agentmesh timeline`) is no session; hello touches presence itself.
     onCall: (caller, session) => {
-      if (caller.kind !== 'agent') return;
+      if (caller.kind !== 'agent' || !session) return;
       built.services.presence.touch(caller.id);
-      // A call made as a session proves it is there, like a heartbeat: live again, deliveries go.
-      if (session) built.services.sessions.touch(caller.id, session);
+      built.services.sessions.touch(caller.id, session);
     },
   });
 

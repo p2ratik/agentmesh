@@ -8,6 +8,13 @@ import type { CliContext } from '../context';
 import { runCli } from '../main';
 import { callTimeline } from './timeline';
 
+const SETTINGS = {
+  agentId: 'pratik-agent',
+  natsUrl: 'nats://x:4222',
+  nkeySeed: '/seed.nk',
+  prefix: 'mesh',
+};
+
 vi.mock('@agentmesh/bus', async (original) => ({
   ...(await original<typeof import('@agentmesh/bus')>()),
   connectOnce: vi.fn(),
@@ -94,13 +101,7 @@ describe('agentmesh timeline', () => {
       throw new Error('no hub');
     });
     vi.mocked(connectOnce).mockResolvedValue({ close, request } as never);
-    const settings = {
-      agentId: 'pratik-agent',
-      natsUrl: 'nats://x:4222',
-      nkeySeed: '/seed.nk',
-      prefix: 'mesh',
-    };
-    await expect(callTimeline(settings, {})).rejects.toThrow();
+    await expect(callTimeline(SETTINGS, {})).rejects.toThrow();
     expect(connectOnce).toHaveBeenCalledWith({
       servers: ['nats://x:4222'],
       name: 'timeline-pratik-agent',
@@ -109,6 +110,19 @@ describe('agentmesh timeline', () => {
     });
     expect(request.mock.calls[0]?.[0]).toBe('mesh.rpc.pratik-agent.observe.timeline');
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  // The exit grace would hide a connection left open on success: the close must still happen.
+  it('returns the hub result and closes the connection after it', async () => {
+    const result = { events: [], text: 'no events in this window', truncated: false };
+    const close = vi.fn(async () => undefined);
+    const request = vi.fn(async () => ({ json: () => ({ ok: true, result }) }));
+    vi.mocked(connectOnce).mockResolvedValue({ close, request } as never);
+    expect(await callTimeline(SETTINGS, {})).toEqual(result);
+    expect(close).toHaveBeenCalledOnce();
+    expect(close.mock.invocationCallOrder[0]).toBeGreaterThan(
+      request.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
   });
 
   it('asks to join first when agent.json is missing', async () => {

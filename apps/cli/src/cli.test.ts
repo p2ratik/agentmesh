@@ -180,15 +180,37 @@ describe('runMain', () => {
     process.exitCode = undefined;
   });
 
+  /** A stream that has flushed everything: its write callback runs at once. */
+  const flushed = { write: (_chunk: string, done: () => void) => done() };
+
   // nats.js keeps the socket of a connect that timed out; that must not keep the command alive.
   it('sets the exit code, and exits anyway if Node has not after the grace period', async () => {
     vi.useFakeTimers();
     const exit = vi.fn();
-    expect(await runMain(['nope'], harness().ctx, exit)).toBe(2);
+    expect(await runMain(['nope'], harness().ctx, { exit, streams: [flushed] })).toBe(2);
     expect(process.exitCode).toBe(2);
     vi.advanceTimersByTime(EXIT_GRACE_MS - 1);
     expect(exit).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
+    expect(exit).toHaveBeenCalledWith(2);
+  });
+
+  // A pipe to a slow reader (asynchronous on macOS and Linux) would lose the output's tail.
+  it('starts the grace only once stdout and stderr have flushed', async () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    let flush: () => void = () => undefined;
+    const slow = {
+      write: (_chunk: string, done: () => void) => {
+        flush = done;
+      },
+    };
+    const ran = runMain(['nope'], harness().ctx, { exit, streams: [flushed, slow] });
+    await vi.advanceTimersByTimeAsync(EXIT_GRACE_MS * 3);
+    expect(exit).not.toHaveBeenCalled();
+    flush();
+    expect(await ran).toBe(2);
+    vi.advanceTimersByTime(EXIT_GRACE_MS);
     expect(exit).toHaveBeenCalledWith(2);
   });
 });
