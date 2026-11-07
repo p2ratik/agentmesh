@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Logger, MeshError } from '@agentmesh/common';
@@ -49,7 +49,13 @@ describe('the shipper', () => {
   });
 
   /** A shipper whose hub answers from `answers` and has a session (the hub answered a hello). */
-  function start(answers: Record<string, unknown>, events = 0, max = 500, relayExpiry = false) {
+  function start(
+    answers: Record<string, unknown>,
+    events = 0,
+    max = 500,
+    relayExpiry = false,
+    pluginDataFolder = true,
+  ) {
     const recorder = new Recorder({ max: () => max, enabled: () => true });
     for (let i = 0; i < events; i++) recorder.record(tool(i));
     const { deps, calls } = fakeHub(answers);
@@ -58,6 +64,8 @@ describe('the shipper', () => {
       hub,
       recorder,
       dataDir: dir,
+      agentId: 'bob-agent',
+      pluginDataFolder,
       intervalMs: BEAT,
       logger,
       relayExpiry,
@@ -178,6 +186,27 @@ describe('the shipper', () => {
     await vi.advanceTimersByTimeAsync(BEAT);
     expect(sentEvents(calls)).toMatchObject([[{ kind: 'dropped', count: 2 }, deny]]);
     expect(existsSync(join(dir, 'events-4242.jsonl'))).toBe(false);
+    await stop();
+  });
+
+  it("takes only its agent's files from the shared folder", async () => {
+    for (const name of [
+      'events-bob-agent-1.jsonl',
+      'events-alice-agent-2.jsonl',
+      'events-3.jsonl',
+    ]) {
+      writeFileSync(join(dir, name), `${JSON.stringify(deny)}\n`);
+    }
+    const { calls, stop } = start(
+      { 'telemetry.report': { accepted: 1, dropped: 0 } },
+      0,
+      500,
+      false,
+      false,
+    );
+    await vi.advanceTimersByTimeAsync(BEAT);
+    expect(sentEvents(calls)).toEqual([[deny]]);
+    expect(readdirSync(dir).sort()).toEqual(['events-3.jsonl', 'events-alice-agent-2.jsonl']);
     await stop();
   });
 

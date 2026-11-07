@@ -96,6 +96,9 @@ describe('the built hook and guard bundles', () => {
       ['ListAgents', 'list_agents'],
       ['SendMessage', reason],
     ]);
+    // with its agent known, the file names it
+    run('guard', tool('ListAgents', {}), { ...env, CLAUDE_PLUGIN_OPTION_AGENT_ID: 'alice-agent' });
+    expect(readdirSync(data()).filter((n) => n.startsWith('events-alice-agent-'))).toHaveLength(1);
   });
 
   it.runIf(process.platform === 'win32')('the guard passes a pushed pointer once', () => {

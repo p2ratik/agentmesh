@@ -63,7 +63,7 @@ function edit(args: Record<string, unknown>, o: PathOptions): GuardDecision {
     const target = editTarget(path as string, o);
     if ('refused' in target) {
       const reason = `mesh window: work only inside a task worktree (${target.refused})`;
-      return deny(reason, 'path.outside_worktree');
+      return deny(reason, target.code);
     }
   }
   return PASS;

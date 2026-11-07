@@ -142,6 +142,28 @@ describe('dist/hook.js (from source)', () => {
     expect(events).toHaveLength(2);
   }, 30_000);
 
+  it('records pull_shown with the unread count whenever the pull line is shown', async () => {
+    const data = join(base, 'data');
+    mkdirSync(data, { recursive: true });
+    const state = {
+      ...{ agentId: 'alice-agent', sessionId: 's-bbbbbbbbbbbb', threads: 4, actions: 1 },
+      ...{ from: ['bob-agent'], external: false, updatedAt: new Date().toISOString() },
+    };
+    writeFileSync(join(data, 'pull-mesh-alice-agent-s-bbbbbbbbbbbb.json'), JSON.stringify(state));
+    const prompt = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: 'go on' });
+    const start = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' });
+    for (const input of [prompt, start]) {
+      const r = await hook(input, {});
+      expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('4 unread');
+    }
+    const events = readdirSync(data)
+      .filter((n) => /^events-\d+\.jsonl$/.test(n))
+      .flatMap((n) => readFileSync(join(data, n), 'utf8').split('\n').filter(Boolean))
+      .map((l) => ReportedEvent.parse(JSON.parse(l)));
+    const shown = { source: 'hook', note: 'pull_shown', unread: 4, session: 's-bbbbbbbbbbbb' };
+    expect(events).toEqual([expect.objectContaining(shown), expect.objectContaining(shown)]);
+  }, 30_000);
+
   it('keeps the conversation id by CLAUDE_PID from session start to session end', async () => {
     const data = join(base, 'data');
     mkdirSync(data, { recursive: true });

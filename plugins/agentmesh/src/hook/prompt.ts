@@ -6,7 +6,7 @@ import { parsePointer } from '../relay/pointer';
 /** A line the hook adds, and what the timeline keeps of it: its note and a count, never text. */
 export interface PromptLine {
   text: string;
-  note: Exclude<(typeof HOOK_NOTES)[number], 'error'>;
+  note: Exclude<(typeof HOOK_NOTES)[number], 'error' | 'pull_shown'>;
   /** For the reply note: how many unread replies it names. */
   unread?: number;
 }

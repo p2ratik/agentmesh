@@ -3,8 +3,20 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hookAgentId } from './agent-id';
 import { type PromptLine, promptContext, unreadInput } from './hook/prompt';
-import { announce, isStateFile, pullStateDirs, readJsonFiles, selectStates } from './pull/state';
-import { type LocalSession, ownLocalSession, readLocalSessions } from './relay/local-session';
+import {
+  announce,
+  isStateFile,
+  type PullState,
+  pullStateDirs,
+  readJsonFiles,
+  selectStates,
+} from './pull/state';
+import {
+  HUB_SESSION,
+  type LocalSession,
+  ownLocalSession,
+  readLocalSessions,
+} from './relay/local-session';
 import {
   deleteClaudeSession,
   pruneClaudeSessions,
@@ -138,6 +150,21 @@ type Input = {
   session_id?: unknown;
 };
 
+/**
+ * The pull-only session's line (ADR 0008), recorded as pull_shown with the unread threads it
+ * names, and their session when the line is about one.
+ */
+function pullLine(states: readonly PullState[]): string | null {
+  const line = announce(states);
+  if (!line) return null;
+  const shown = states.filter((s) => s.threads > 0);
+  const unread = shown.reduce((n, s) => n + s.threads, 0);
+  const one = shown.length === 1 ? (shown[0]?.sessionId ?? '') : '';
+  const session = HUB_SESSION.test(one) ? one : null;
+  leaveEvent('hook', session, () => ({ kind: 'hook', note: 'pull_shown', unread }));
+  return line;
+}
+
 /** UserPromptSubmit's output, then the line's timeline event (its note and count only). */
 function prompted(event: string, pull: string | null, line: Added | null): void {
   const context = [pull, line?.line.text].filter(Boolean).join('\n');
@@ -170,7 +197,7 @@ async function main(): Promise<void> {
     Date.now(),
     process.platform === 'win32',
   );
-  const pull = announce(states);
+  const pull = pullLine(states);
   if (event !== 'SessionStart') {
     prompted(event, pull, unread ?? promptLine(input?.prompt, dirs));
     return;

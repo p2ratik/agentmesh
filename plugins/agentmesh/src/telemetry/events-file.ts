@@ -9,24 +9,49 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { pullStateDirs } from '../pull/state';
+import { hookAgentId } from '../agent-id';
+import { PARTICIPANT_ID, pullStateDirs } from '../pull/state';
 
 /**
  * The guard and hook run as short processes, so they leave their timeline events in
- * `events-<pid>.jsonl` in the plugin data folder; the MCP server collects them (and validates
- * them with zod) on its next ship. Node built-ins only: both bundles start on every call.
+ * `events-<agent>-<pid>.jsonl` in the plugin data folder, or `events-<pid>.jsonl` when the writer
+ * doesn't know its agent (only in CLAUDE_PLUGIN_DATA, which is this plugin's alone). The MCP
+ * server collects its own agent's files (and validates them with zod) on its next ship. Node
+ * built-ins only: both bundles start on every call.
  */
 
 /** Past this a process's file takes no more events. */
 export const MAX_EVENTS_FILE_BYTES = 256 * 1024;
+/** Past this many waiting files no process starts another: nobody is collecting them. It matches
+ * `client.maxBufferedEvents`, all the recorder could keep anyway. */
+export const MAX_EVENT_FILES = 500;
 
-const EVENTS_FILE = /^events-\d+\.jsonl$/;
+const EVENTS_FILE = /^events-(?:[a-z0-9][a-z0-9-]{0,62}-)?\d+\.jsonl$/;
+const UNNAMED = /^events-\d+\.jsonl$/;
+const PID_FILE = /^\d+\.jsonl$/;
 
-/** Appends one JSON line; never throws, so a guard's decision never depends on it. */
-export function appendEvent(dataDir: string, event: object): void {
+/** How many events files wait in `dir`, of any agent: one listing, before a process's first line. */
+function waiting(dir: string): number {
   try {
-    const file = join(dataDir, `events-${process.pid}.jsonl`);
-    if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) >= MAX_EVENTS_FILE_BYTES) return;
+    return readdirSync(dir).filter((name) => EVENTS_FILE.test(name)).length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Appends one JSON line to this process's file, named by `agent` when it is a participant id.
+ * Never throws, so a guard's decision never depends on it.
+ */
+export function appendEvent(dataDir: string, event: object, agent: string | null = null): void {
+  try {
+    if (agent !== null && !PARTICIPANT_ID.test(agent)) return;
+    const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
+    const file = join(dataDir, `events-${name}.jsonl`);
+    const size = statSync(file, { throwIfNoEntry: false })?.size;
+    if (size === undefined ? waiting(dataDir) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES) {
+      return;
+    }
     mkdirSync(dataDir, { recursive: true });
     appendFileSync(file, `${JSON.stringify(event)}\n`);
   } catch {
@@ -36,9 +61,10 @@ export function appendEvent(dataDir: string, event: object): void {
 
 /**
  * The guard's or hook's event, stamped with an id, the time and its source, left in the plugin
- * data folder both already use (MeshWindowContext.dataDir). Nothing without fields or a folder.
- * `fields` is built inside the try too: this never throws, so a guard's decision and a hook's
- * output never depend on it.
+ * data folder both already use (MeshWindowContext.dataDir) and named by the agent the hook
+ * resolves (agent-id.ts). An unnamed file is left only in CLAUDE_PLUGIN_DATA: in the shared
+ * fallback no shipper would take it. `fields` is built inside the try too: this never throws, so a
+ * guard's decision and a hook's output never depend on it.
  */
 export function leaveEvent(
   source: 'guard' | 'hook',
@@ -46,23 +72,35 @@ export function leaveEvent(
   fields: () => object | null,
 ): void {
   try {
-    const dir = pullStateDirs(process.env, homedir())[0];
-    const event = dir ? fields() : null;
-    if (!dir || !event) return;
-    appendEvent(dir, { id: randomUUID(), at: new Date().toISOString(), session, source, ...event });
+    const event = fields();
+    if (!event) return;
+    const env = process.env;
+    const home = homedir();
+    const dir = pullStateDirs(env, home)[0];
+    const id = hookAgentId(env, home);
+    const agent = id !== null && PARTICIPANT_ID.test(id) ? id : null;
+    if (!dir || (agent === null && !env.CLAUDE_PLUGIN_DATA)) return;
+    const stamped = { id: randomUUID(), at: new Date().toISOString(), session, source, ...event };
+    appendEvent(dir, stamped, agent);
   } catch {
     // As above: the event is lost, nothing else.
   }
 }
 
 /**
- * Reads every events file and deletes it, returning its lines parsed (null for a bad line).
- * A file that can't be read or deleted (still being written, on Windows) waits for the next call.
+ * Reads `agentId`'s events files and deletes them, returning their lines parsed (null for a bad
+ * line); with `unnamed` (the folder is CLAUDE_PLUGIN_DATA), the files that name no agent too.
+ * Another agent's files stay. A file that can't be read or deleted (still being written, on
+ * Windows) waits for the next call.
  */
-export function collectEventFiles(dataDir: string): unknown[] {
+export function collectEventFiles(dataDir: string, agentId: string, unnamed: boolean): unknown[] {
+  const prefix = `events-${agentId}-`;
+  const mine = (name: string) =>
+    (name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length))) ||
+    (unnamed && UNNAMED.test(name));
   let names: string[];
   try {
-    names = readdirSync(dataDir).filter((name) => EVENTS_FILE.test(name));
+    names = readdirSync(dataDir).filter(mine);
   } catch {
     return [];
   }

@@ -45677,6 +45677,13 @@ var REASON_CODES = [
   "list_agents",
   "path.outside_worktree",
   "path.no_file",
+  "path.not_absolute",
+  "path.device",
+  "path.unresolved",
+  "path.link",
+  "path.not_registered_worktree",
+  "path.git_dir",
+  "path.agentmesh_dir",
   "command.not_listed",
   "command.needs_approval",
   "tool.unknown",
@@ -45737,6 +45744,7 @@ var PLUGIN_RELAY_STAGES = ["pushed", "claimed", "expired", "denied"];
 var GUARD_DECISIONS = ["deny", "ask"];
 var HOOK_NOTES = [
   "note_shown",
+  "pull_shown",
   "pointer_labelled",
   "window_labelled",
   "not_mesh_labelled",
@@ -50161,8 +50169,11 @@ async function readGitInfo(cwd) {
 }
 
 // src/guard/paths.ts
-var NOT_ABSOLUTE = { refused: "the path is not absolute" };
-var DEVICE = { refused: "device, UNC and stream paths are refused" };
+var NOT_ABSOLUTE = { refused: "the path is not absolute", code: "path.not_absolute" };
+var DEVICE = {
+  refused: "device, UNC and stream paths are refused",
+  code: "path.device"
+};
 var DOS_DEVICE = /^(con|prn|aux|nul|com[0-9\xb9\xb2\xb3]|lpt[0-9\xb9\xb2\xb3]|conin\$|conout\$) *(\.|$)/i;
 function badInput(file2, o) {
   if (typeof file2 !== "string" || file2.includes("\0") || file2 !== file2.trim()) return NOT_ABSOLUTE;
@@ -52896,11 +52907,14 @@ import {
 } from "node:fs";
 import { join as join13 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
-var EVENTS_FILE = /^events-\d+\.jsonl$/;
-function collectEventFiles(dataDir) {
+var UNNAMED = /^events-\d+\.jsonl$/;
+var PID_FILE = /^\d+\.jsonl$/;
+function collectEventFiles(dataDir, agentId, unnamed) {
+  const prefix = `events-${agentId}-`;
+  const mine = (name) => name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length)) || unnamed && UNNAMED.test(name);
   let names;
   try {
-    names = readdirSync5(dataDir).filter((name) => EVENTS_FILE.test(name));
+    names = readdirSync5(dataDir).filter(mine);
   } catch {
     return [];
   }
@@ -52930,7 +52944,7 @@ var FLUSH_MS = 100;
 var unknownMethod = (err) => err instanceof MeshError && err.code === "not_found" && /^Unknown method|is not available on this hub/.test(err.message);
 var valid3 = (e) => ReportedEvent.safeParse(e).success;
 function startShipper(deps) {
-  const { hub: hub2, recorder, dataDir, intervalMs, logger, relayExpiry } = deps;
+  const { hub: hub2, recorder, dataDir, agentId, pluginDataFolder, intervalMs, logger, relayExpiry } = deps;
   let halted = false;
   let sending = false;
   let missedEarly = false;
@@ -52963,7 +52977,7 @@ function startShipper(deps) {
     lastSend = Date.now();
     try {
       let bad = 0;
-      for (const value of collectEventFiles(dataDir)) {
+      for (const value of collectEventFiles(dataDir, agentId, pluginDataFolder)) {
         const parsed = ReportedEvent.safeParse(value);
         if (parsed.success) recorder.record(parsed.data);
         else bad += 1;
@@ -53121,6 +53135,8 @@ function startSession(server, session, logger, pushDelayMs) {
     hub: hub2,
     recorder,
     dataDir,
+    agentId: session.config.agentId,
+    pluginDataFolder: dataDir === process.env.CLAUDE_PLUGIN_DATA,
     intervalMs: beatMs,
     logger,
     relayExpiry: session.window.state === "verified"

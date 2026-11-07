@@ -25,7 +25,8 @@ export interface LocalSession {
 }
 
 const PREFIX = /^[a-z][a-z0-9_-]{0,30}$/;
-const HUB_SESSION = /^s-[a-z0-9]{12}$/;
+/** A hub session id (SESSION_ID_PATTERN in @agentmesh/protocol, copied for the hook bundle). */
+export const HUB_SESSION = /^s-[a-z0-9]{12}$/;
 
 const valid = (re: RegExp, v: unknown): v is string => typeof v === 'string' && re.test(v);
 

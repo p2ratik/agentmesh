@@ -114,8 +114,31 @@ describe('decide', () => {
     expect(decide(call('Write', { file_path: 'src/a.ts' }), ctx)).toMatchObject({
       kind: 'deny',
       reason: expect.stringMatching(/^mesh window: work only inside a task worktree \(/),
-      code: 'path.outside_worktree',
+      code: 'path.not_absolute',
     });
+  });
+
+  it("records each path refusal's own code, with the same text Claude sees", () => {
+    const wt = mesh(repo, 'mesh-a', 'agent/pratik/task-1-a');
+    const refused = (file_path: string, why: string, code: string) =>
+      expect(decide(call('Edit', { file_path }), ctx)).toEqual(
+        deny(`mesh window: work only inside a task worktree (${why})`, code),
+      );
+    const outside = 'not inside .claude/worktrees/mesh-*';
+    refused(join(wt, '.git', 'config'), '.git is off limits', 'path.git_dir');
+    refused(
+      join(base, 'home', '.agentmesh', 'a'),
+      '~/.agentmesh is off limits',
+      'path.agentmesh_dir',
+    );
+    refused('src/a.ts', 'the path is not absolute', 'path.not_absolute');
+    refused(wt, outside, 'path.outside_worktree');
+    const fake = mesh(repo, 'mesh-b', 'agent/pratik/task-2-b');
+    rmSync(join(fake, '.git'));
+    refused(join(fake, 'a.ts'), 'not a registered git worktree', 'path.not_registered_worktree');
+    if (process.platform === 'win32') {
+      refused('\\\\host\\share\\a.ts', 'device, UNC and stream paths are refused', 'path.device');
+    }
   });
 
   it('lets an edit inside a registered mesh worktree through', () => {

@@ -25,6 +25,10 @@ export interface ShipperDeps {
   recorder: Recorder;
   /** The plugin data folder, where the guard and hook leave their events files. */
   dataDir: string;
+  /** This plugin's agent: only its files are collected (two accounts can share a folder). */
+  agentId: string;
+  /** `dataDir` is CLAUDE_PLUGIN_DATA, this plugin's alone: files that name no agent are its own. */
+  pluginDataFolder: boolean;
   intervalMs: number;
   logger: Logger;
   /** The mesh window: it reports the forward records that expired unclaimed. */
@@ -39,7 +43,8 @@ export interface ShipperDeps {
  * validation count as dropped. The returned stop sends one last report, waiting at most FLUSH_MS.
  */
 export function startShipper(deps: ShipperDeps): () => Promise<void> {
-  const { hub, recorder, dataDir, intervalMs, logger, relayExpiry } = deps;
+  const { hub, recorder, dataDir, agentId, pluginDataFolder, intervalMs, logger, relayExpiry } =
+    deps;
   let halted = false;
   let sending = false;
   /** An early send came due while another send was out: it goes once that one ends. */
@@ -78,7 +83,7 @@ export function startShipper(deps: ShipperDeps): () => Promise<void> {
     lastSend = Date.now();
     try {
       let bad = 0;
-      for (const value of collectEventFiles(dataDir)) {
+      for (const value of collectEventFiles(dataDir, agentId, pluginDataFolder)) {
         const parsed = ReportedEvent.safeParse(value);
         if (parsed.success) recorder.record(parsed.data);
         else bad += 1;

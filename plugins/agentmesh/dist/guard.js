@@ -14,15 +14,15 @@ var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@age
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
-  const { join: join5 } = platform === "win32" ? win32 : posix;
-  const dir = join5(home, ".agentmesh");
+  const { join: join6 } = platform === "win32" ? win32 : posix;
+  const dir = join6(home, ".agentmesh");
   return {
     dir,
-    policy: join5(dir, "mesh-window.json"),
-    settings: join5(dir, "mesh-window.settings.json"),
-    launcher: join5(dir, launcherName(platform)),
-    emptyHooks: join5(dir, "empty-git-hooks"),
-    bin: join5(dir, "bin")
+    policy: join6(dir, "mesh-window.json"),
+    settings: join6(dir, "mesh-window.settings.json"),
+    launcher: join6(dir, launcherName(platform)),
+    emptyHooks: join6(dir, "empty-git-hooks"),
+    bin: join6(dir, "bin")
   };
 }
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
@@ -83,12 +83,21 @@ import path2 from "node:path";
 // src/guard/paths.ts
 import { lstatSync, readFileSync as readFileSync2, realpathSync } from "node:fs";
 import path from "node:path";
-var NOT_ABSOLUTE = { refused: "the path is not absolute" };
-var DEVICE = { refused: "device, UNC and stream paths are refused" };
-var OUTSIDE = { refused: "not inside .claude/worktrees/mesh-*" };
-var UNREGISTERED = { refused: "not a registered git worktree" };
-var DOT_GIT = { refused: ".git is off limits" };
-var AGENTMESH = { refused: "~/.agentmesh is off limits" };
+var OUTSIDE_TEXT = "not inside .claude/worktrees/mesh-*";
+var NOT_ABSOLUTE = { refused: "the path is not absolute", code: "path.not_absolute" };
+var DEVICE = {
+  refused: "device, UNC and stream paths are refused",
+  code: "path.device"
+};
+var OUTSIDE = { refused: OUTSIDE_TEXT, code: "path.outside_worktree" };
+var UNRESOLVED = { refused: OUTSIDE_TEXT, code: "path.unresolved" };
+var LINK = { refused: OUTSIDE_TEXT, code: "path.link" };
+var UNREGISTERED = {
+  refused: "not a registered git worktree",
+  code: "path.not_registered_worktree"
+};
+var DOT_GIT = { refused: ".git is off limits", code: "path.git_dir" };
+var AGENTMESH = { refused: "~/.agentmesh is off limits", code: "path.agentmesh_dir" };
 var lib = (o) => o.platform === "win32" ? path.win32 : path.posix;
 function attempt(fn) {
   try {
@@ -190,7 +199,7 @@ function registered(resolved, o) {
 function located(file, o) {
   const bad = badInput(file, o);
   if (bad) return bad;
-  return resolve(file, o) ?? OUTSIDE;
+  return resolve(file, o) ?? UNRESOLVED;
 }
 function meshWorktreeOf(file, o) {
   const resolved = located(file, o);
@@ -209,7 +218,7 @@ function editTarget(file, o) {
   if ("refused" in found) return found;
   if (found.below.length === 0) return OUTSIDE;
   if (found.below.some((k) => refusalKey(k) === ".GIT")) return DOT_GIT;
-  return escapes(file, resolved, o) ? OUTSIDE : { ok: true };
+  return escapes(file, resolved, o) ? LINK : { ok: true };
 }
 
 // src/guard/checkout.ts
@@ -542,7 +551,7 @@ function edit(args, o) {
     const target = editTarget(path3, o);
     if ("refused" in target) {
       const reason = `mesh window: work only inside a task worktree (${target.refused})`;
-      return deny(reason, "path.outside_worktree");
+      return deny(reason, target.code);
     }
   }
   return PASS;
@@ -637,17 +646,80 @@ import {
   appendFileSync,
   mkdirSync as mkdirSync2,
   readdirSync as readdirSync3,
-  readFileSync as readFileSync5,
+  readFileSync as readFileSync6,
   statSync as statSync2,
   unlinkSync
 } from "node:fs";
 import { homedir } from "node:os";
+import { join as join4 } from "node:path";
+
+// src/agent-id.ts
+import { readFileSync as readFileSync5 } from "node:fs";
 import { join as join3 } from "node:path";
-var MAX_EVENTS_FILE_BYTES = 256 * 1024;
-function appendEvent(dataDir, event) {
+function usable(value) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("${")) return void 0;
+  return trimmed;
+}
+function fileApplies(options, saved) {
+  const agrees = (option, value) => {
+    const a = usable(option);
+    const b = usable(value);
+    return a === void 0 || b === void 0 || a === b;
+  };
+  return agrees(options.agentId, saved.agentId) && agrees(options.natsUrl, saved.natsUrl);
+}
+function resolveAgentId(options, saved) {
+  const file = saved && fileApplies(options, saved) ? saved : {};
+  return usable(options.agentId) ?? usable(file.agentId) ?? null;
+}
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
+function parseSavedAgent(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value;
+  const saved = {};
+  for (const key2 of FIELDS) {
+    const v = record[key2];
+    if (v === void 0) continue;
+    if (typeof v !== "string") return null;
+    saved[key2] = v;
+  }
+  return saved;
+}
+function hookAgentId(env, home) {
+  let saved = null;
   try {
-    const file = join3(dataDir, `events-${process.pid}.jsonl`);
-    if ((statSync2(file, { throwIfNoEntry: false })?.size ?? 0) >= MAX_EVENTS_FILE_BYTES) return;
+    saved = parseSavedAgent(
+      JSON.parse(readFileSync5(join3(home, ".agentmesh", "agent.json"), "utf8"))
+    );
+  } catch {
+  }
+  return resolveAgentId(
+    { agentId: env.CLAUDE_PLUGIN_OPTION_AGENT_ID, natsUrl: env.CLAUDE_PLUGIN_OPTION_NATS_URL },
+    saved ?? {}
+  );
+}
+
+// src/telemetry/events-file.ts
+var MAX_EVENTS_FILE_BYTES = 256 * 1024;
+var MAX_EVENT_FILES = 500;
+var EVENTS_FILE = /^events-(?:[a-z0-9][a-z0-9-]{0,62}-)?\d+\.jsonl$/;
+function waiting(dir) {
+  try {
+    return readdirSync3(dir).filter((name) => EVENTS_FILE.test(name)).length;
+  } catch {
+    return 0;
+  }
+}
+function appendEvent(dataDir, event, agent = null) {
+  try {
+    if (agent !== null && !PARTICIPANT_ID.test(agent)) return;
+    const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
+    const file = join4(dataDir, `events-${name}.jsonl`);
+    const size = statSync2(file, { throwIfNoEntry: false })?.size;
+    if (size === void 0 ? waiting(dataDir) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES) {
+      return;
+    }
     mkdirSync2(dataDir, { recursive: true });
     appendFileSync(file, `${JSON.stringify(event)}
 `);
@@ -656,21 +728,27 @@ function appendEvent(dataDir, event) {
 }
 function leaveEvent(source, session, fields) {
   try {
-    const dir = pullStateDirs(process.env, homedir())[0];
-    const event = dir ? fields() : null;
-    if (!dir || !event) return;
-    appendEvent(dir, { id: randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), session, source, ...event });
+    const event = fields();
+    if (!event) return;
+    const env = process.env;
+    const home = homedir();
+    const dir = pullStateDirs(env, home)[0];
+    const id = hookAgentId(env, home);
+    const agent = id !== null && PARTICIPANT_ID.test(id) ? id : null;
+    if (!dir || agent === null && !env.CLAUDE_PLUGIN_DATA) return;
+    const stamped = { id: randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), session, source, ...event };
+    appendEvent(dir, stamped, agent);
   } catch {
   }
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync6, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join4 } from "node:path";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync7, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join5 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 function writeGuardStamp(dir, now, version) {
   mkdirSync3(dir, { recursive: true, mode: 448 });
-  const file = join4(dir, GUARD_STAMP);
+  const file = join5(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
   writeFileSync2(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
   renameSync2(staged, file);

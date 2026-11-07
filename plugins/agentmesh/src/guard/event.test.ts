@@ -92,6 +92,7 @@ describe('guardEvent', () => {
         { tool_name: 'ListAgents', tool_input: {} },
         { tool_name: 'Bash', tool_input: { command: 'git status' } },
         { tool_name: 'Glob', tool_input: {} },
+        { tool_name: 'Edit', tool_input: { file_path: 'a.ts' } },
         null,
       ];
       const events = calls.map((c) => guardEvent(c, decide(c, ctx)));
@@ -103,6 +104,7 @@ describe('guardEvent', () => {
         'list_agents',
         'marker.unverified',
         'tool.unknown',
+        'path.not_absolute',
         'guard.unreadable',
       ]);
       for (const e of events) expect(ReportedEvent.parse(stamped(e ?? {}))).toBeTruthy();

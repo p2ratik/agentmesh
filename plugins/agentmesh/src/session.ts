@@ -152,6 +152,8 @@ export function startSession(
     hub,
     recorder,
     dataDir,
+    agentId: session.config.agentId,
+    pluginDataFolder: dataDir === process.env.CLAUDE_PLUGIN_DATA,
     intervalMs: beatMs,
     logger,
     relayExpiry: session.window.state === 'verified',

@@ -305,10 +305,24 @@ import {
 import { homedir } from "node:os";
 import { join as join4 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
-function appendEvent(dataDir, event) {
+var MAX_EVENT_FILES = 500;
+var EVENTS_FILE = /^events-(?:[a-z0-9][a-z0-9-]{0,62}-)?\d+\.jsonl$/;
+function waiting(dir) {
   try {
-    const file = join4(dataDir, `events-${process.pid}.jsonl`);
-    if ((statSync2(file, { throwIfNoEntry: false })?.size ?? 0) >= MAX_EVENTS_FILE_BYTES) return;
+    return readdirSync3(dir).filter((name) => EVENTS_FILE.test(name)).length;
+  } catch {
+    return 0;
+  }
+}
+function appendEvent(dataDir, event, agent = null) {
+  try {
+    if (agent !== null && !PARTICIPANT_ID.test(agent)) return;
+    const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
+    const file = join4(dataDir, `events-${name}.jsonl`);
+    const size = statSync2(file, { throwIfNoEntry: false })?.size;
+    if (size === void 0 ? waiting(dataDir) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES) {
+      return;
+    }
     mkdirSync2(dataDir, { recursive: true });
     appendFileSync(file, `${JSON.stringify(event)}
 `);
@@ -317,10 +331,16 @@ function appendEvent(dataDir, event) {
 }
 function leaveEvent(source, session, fields) {
   try {
-    const dir = pullStateDirs(process.env, homedir())[0];
-    const event = dir ? fields() : null;
-    if (!dir || !event) return;
-    appendEvent(dir, { id: randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), session, source, ...event });
+    const event = fields();
+    if (!event) return;
+    const env = process.env;
+    const home = homedir();
+    const dir = pullStateDirs(env, home)[0];
+    const id = hookAgentId(env, home);
+    const agent = id !== null && PARTICIPANT_ID.test(id) ? id : null;
+    if (!dir || agent === null && !env.CLAUDE_PLUGIN_DATA) return;
+    const stamped = { id: randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), session, source, ...event };
+    appendEvent(dir, stamped, agent);
   } catch {
   }
 }
@@ -555,6 +575,16 @@ function recordConversation(event, dir, input) {
   } catch {
   }
 }
+function pullLine(states) {
+  const line = announce(states);
+  if (!line) return null;
+  const shown = states.filter((s) => s.threads > 0);
+  const unread = shown.reduce((n, s) => n + s.threads, 0);
+  const one = shown.length === 1 ? shown[0]?.sessionId ?? "" : "";
+  const session = HUB_SESSION.test(one) ? one : null;
+  leaveEvent("hook", session, () => ({ kind: "hook", note: "pull_shown", unread }));
+  return line;
+}
 function prompted(event, pull, line) {
   const context = [pull, line?.line.text].filter(Boolean).join("\n");
   if (context) {
@@ -585,7 +615,7 @@ async function main() {
     Date.now(),
     process.platform === "win32"
   );
-  const pull = announce(states);
+  const pull = pullLine(states);
   if (event !== "SessionStart") {
     prompted(event, pull, unread ?? promptLine(input?.prompt, dirs));
     return;

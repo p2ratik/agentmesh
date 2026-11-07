@@ -12,6 +12,13 @@ export const REASON_CODES = [
   'list_agents',
   'path.outside_worktree',
   'path.no_file',
+  'path.not_absolute',
+  'path.device',
+  'path.unresolved',
+  'path.link',
+  'path.not_registered_worktree',
+  'path.git_dir',
+  'path.agentmesh_dir',
   'command.not_listed',
   'command.needs_approval',
   'tool.unknown',
@@ -75,6 +82,7 @@ export const PLUGIN_RELAY_STAGES = ['pushed', 'claimed', 'expired', 'denied'] as
 export const GUARD_DECISIONS = ['deny', 'ask'] as const;
 export const HOOK_NOTES = [
   'note_shown',
+  'pull_shown',
   'pointer_labelled',
   'window_labelled',
   'not_mesh_labelled',

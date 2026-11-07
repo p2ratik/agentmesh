@@ -44,6 +44,8 @@ const ARGS = ['--import', 'tsx', 'plugins/agentmesh/src/guard.ts'];
 function environment(env: Record<string, string>): NodeJS.ProcessEnv {
   const clean = { ...process.env };
   for (const k of ['AGENTMESH_MESH_WINDOW', 'CLAUDE_PLUGIN_DATA']) delete clean[k];
+  // Options inherited from a Claude Code session running these tests are stubbed empty.
+  for (const k of Object.keys(clean)) if (k.startsWith('CLAUDE_PLUGIN_OPTION_')) clean[k] = '';
   const home = join(base, 'home');
   return { ...clean, HOME: home, USERPROFILE: home, ...env };
 }
@@ -134,18 +136,22 @@ describe('dist/guard.js (from source)', () => {
     }
   });
 
-  it('never fails outside the mesh window', () => {
-    const r = unreadable((fd) => guard(null, {}, fd));
+  it('never fails outside the mesh window, and records nothing there', () => {
+    const data = join(base, 'data');
+    const env = { CLAUDE_PLUGIN_DATA: data, CLAUDE_PLUGIN_OPTION_AGENT_ID: 'alice-agent' };
+    const r = unreadable((fd) => guard(null, env, fd));
     expect(r.status).toBe(0);
     expect(r.stdout).toBe('');
     expect(r.stderr).toBe('');
+    expect(lines(data)).toEqual([]);
+    expect(existsSync(join(base, 'home'))).toBe(false);
   });
 });
 
 /** The event lines the guard left in `dir`, each checked with the shipper's schema. */
 function lines(dir: string): ReportedEvent[] {
   const names = existsSync(dir)
-    ? readdirSync(dir).filter((n) => /^events-\d+\.jsonl$/.test(n))
+    ? readdirSync(dir).filter((n) => /^events-(?:[a-z0-9-]+-)?\d+\.jsonl$/.test(n))
     : [];
   return names.flatMap((n) =>
     readFileSync(join(dir, n), 'utf8')
@@ -259,5 +265,15 @@ describe('the guard leaves events for the timeline', () => {
     expect(guard(sendCall({ cc: 1 }), { CLAUDE_PLUGIN_DATA: data }).status).toBe(0);
     expect(lines(data)).toEqual([]);
     expect(existsSync(join(base, 'home'))).toBe(false);
+  });
+
+  it('names its file by agent, and leaves no unnamed file in the shared folder', () => {
+    const run = join(base, 'home', '.agentmesh', 'run');
+    const deny = sendCall({ cc: 1 });
+    guard(deny, { AGENTMESH_MESH_WINDOW: MARK });
+    expect(lines(run)).toEqual([]);
+    guard(deny, { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_OPTION_AGENT_ID: 'alice-agent' });
+    expect(readdirSync(run)).toEqual([expect.stringMatching(/^events-alice-agent-\d+\.jsonl$/)]);
+    expect(lines(run)).toMatchObject([{ kind: 'guard', reason: 'send.unknown_key', key: 'cc' }]);
   });
 });
