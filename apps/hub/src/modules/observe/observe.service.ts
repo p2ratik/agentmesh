@@ -9,7 +9,7 @@ import {
 import type { HubContext } from '../../context';
 import type { EventSink } from '../../contracts';
 import { EventsRepo } from './events.repo';
-import { formatTimeline } from './timeline';
+import { fitTimeline } from './timeline';
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -118,7 +118,10 @@ export class ObserveService {
     return this.#repo.query(filter);
   }
 
-  /** Operators only: the caller agent's owner must be in `observability.viewers`. */
+  /**
+   * Operators only: the caller agent's owner must be in `observability.viewers`. The newest
+   * `limit` matches, fewer when the reply would pass MAX_REPLY_BYTES (`truncated` says so).
+   */
   timeline(
     callerAgent: string,
     p: TimelineParams,
@@ -131,14 +134,9 @@ export class ObserveService {
     const since = parseWhen(p.since, 'since', now);
     const until = p.until === undefined ? undefined : parseWhen(p.until, 'until', now);
     const found = this.#repo.query({ ...p, since, until, limit: p.limit + 1 });
-    const events = found.slice(0, p.limit).reverse();
-    const truncated = found.length > p.limit;
     const title = /^\d{1,4}[mhd]$/.test(p.since) ? `last ${p.since}` : `since ${since}`;
-    return {
-      events,
-      text: formatTimeline(events, { title, truncated, limit: p.limit }),
-      truncated,
-    };
+    const events = found.slice(0, p.limit).reverse();
+    return fitTimeline(events, { title, truncated: found.length > p.limit });
   }
 
   prune(now: Date): number {

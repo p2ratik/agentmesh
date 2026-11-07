@@ -104,10 +104,15 @@ export class Recorder {
     return taken.concat(this.#events.splice(0, n - taken.length));
   }
 
-  /** Returns events the hub did not take to the front; what no longer fits counts as dropped. */
+  /**
+   * Returns events the hub did not take to the front; what no longer fits counts as dropped. A
+   * marker put back alone keeps its id, so a resend the hub already stored is ignored.
+   */
   putBack(events: ReportedEvent[]): void {
     for (const e of events) {
-      if (e.kind === 'dropped') this.#gap = { ...e, count: e.count + (this.#gap?.count ?? 0) };
+      if (e.kind !== 'dropped') continue;
+      if (this.#gap) this.#addGap(e.count, null);
+      else this.#gap = e;
     }
     this.#events.unshift(...events.filter((e) => e.kind !== 'dropped'));
     this.#trim();
@@ -118,14 +123,23 @@ export class Recorder {
     if (count > 0 && this.#on()) this.#addGap(count, null);
   }
 
-  #trim(): void {
-    const over = this.#events.length - this.#max();
+  /** Shutdown: what one report of `n` can't carry counts in the gap, so `take(n)` leaves nothing. */
+  fit(n: number): void {
+    if (this.#events.length + (this.#gap ? 1 : 0) > n) this.#trim(n - 1);
+  }
+
+  #trim(max = this.#max()): void {
+    const over = this.#events.length - max;
     if (over > 0) this.#addGap(over, this.#events.splice(0, over).at(-1)?.session ?? null);
   }
 
+  /**
+   * A marker whose count grows gets a new id: the hub stores an id once, so the old one may already
+   * be stored with the smaller count (its ack lost). Counting a gap twice beats losing it.
+   */
   #addGap(count: number, session: string | null): void {
     this.#gap = this.#gap
-      ? { ...this.#gap, count: this.#gap.count + count }
+      ? { ...this.#gap, id: randomUUID(), count: this.#gap.count + count }
       : {
           kind: 'dropped',
           source: 'plugin',

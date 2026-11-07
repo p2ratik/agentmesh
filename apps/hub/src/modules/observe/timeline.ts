@@ -171,9 +171,33 @@ function headerLines(sorted: ObservedEvent[], agents: string[], title: string): 
 export interface TimelineOptions {
   /** What the window was, e.g. `last 2h`. */
   title: string;
-  /** More events matched than `limit`: the oldest are not shown. */
+  /** More events matched than are shown: the oldest are not. */
   truncated?: boolean;
-  limit?: number;
+}
+
+/** About 700 KB: a timeline reply stays well under NATS's 1 MB `max_payload`. */
+export const MAX_REPLY_BYTES = 700_000;
+
+/**
+ * The `observe.timeline` reply for `events` (oldest first): the newest of them whose events and
+ * text fit in `maxBytes` together, and `truncated` when any were left out.
+ */
+export function fitTimeline(
+  events: ObservedEvent[],
+  opts: TimelineOptions,
+  maxBytes = MAX_REPLY_BYTES,
+): { events: ObservedEvent[]; text: string; truncated: boolean } {
+  let shown = events;
+  let truncated = opts.truncated === true;
+  for (;;) {
+    const reply = { events: shown, text: formatTimeline(shown, { ...opts, truncated }), truncated };
+    const size = Buffer.byteLength(JSON.stringify(reply));
+    if (size <= maxBytes || shown.length === 0) return reply;
+    // The newest share that should fit, and at least one fewer each round.
+    const keep = Math.min(shown.length - 1, Math.floor((shown.length * maxBytes) / size));
+    shown = shown.slice(shown.length - keep);
+    truncated = true;
+  }
 }
 
 /** Events grouped per line: a delivery message's events fold together, others stand alone. */
@@ -202,7 +226,7 @@ export function formatTimeline(events: ObservedEvent[], opts: TimelineOptions): 
   const lines = headerLines(sorted, agents, opts.title);
   if (opts.truncated) {
     lines.push(
-      `(truncated: showing the newest ${opts.limit ?? sorted.length} of more; narrow the window or raise limit)`,
+      `(truncated: showing the newest ${sorted.length} of more; narrow the window or raise limit)`,
     );
   }
   let day = local(sorted[0]?.at ?? '').date;

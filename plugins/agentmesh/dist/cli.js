@@ -46620,7 +46620,7 @@ var messagingMethods = {
 
 // ../../packages/protocol/src/rpc/observe.ts
 var MAX_REPORT_EVENTS = 100;
-var MAX_TIMELINE_EVENTS = 2e3;
+var MAX_TIMELINE_EVENTS = 1e3;
 var When = external_exports.string().max(40);
 var observeMethods = {
   "telemetry.report": defineMethod({

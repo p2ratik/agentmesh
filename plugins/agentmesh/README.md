@@ -346,7 +346,8 @@ node <plugin dir>/dist/cli.js timeline --thread thr-31 --json   # one event per 
 ```
 
 Options: `--agent`, `--session`, `--thread thr-N`, `--since` and `--until` (an ISO time or a
-duration such as `30m`, `2h`, `1d`), `--limit` (up to 2000) and `--json`. The command uses your
+duration such as `30m`, `2h`, `1d`), `--limit` (up to 1000; the hub also keeps a reply under
+about 700 KB and says when it cut one short) and `--json`. The command uses your
 agent's own settings in `~/.agentmesh/agent.json` (it ignores `AGENTMESH_*` overrides), makes one
 call with a 5 s connect timeout, and exits within 2 s once its output is flushed. It exits 1 with
 `error: …` when it is refused. On Windows, a key NATS refuses can show as an `ECONNRESET` error

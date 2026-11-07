@@ -166,6 +166,18 @@ code to match:
   the hub checks each against `ReportedEvent`, storing the valid ones and counting the rest in
   `dropped`. Every 0.7 hub becomes the older hub for later plugins, so one new kind or reason code
   must cost only that event, not the batch.
+- **A stuck message is recorded once an hour.** A message its session never acks, or a relay
+  pointer its window never answers, goes again on every flush. Its `sent` (and each `failed` code)
+  is recorded at most once per message and session an hour, so a buggy or hostile plugin can't add
+  rows per flush.
+- **The timeline reply fits NATS.** `limit` is at most 1000 (was 2000; a 2000-event reply
+  measured 760 KB), and the hub keeps the reply, events and text together, under about 700 KB,
+  leaving out the oldest events and setting `truncated`. NATS refuses a payload over 1 MB, and the
+  caller would see only a timeout.
+- **Gap markers.** A marker whose count grows gets a new id: the hub stores an id once, and a
+  resend with the same id after a lost ack would drop the added count. Counting a gap twice beats
+  losing it. The shutdown report counts what it can't carry into its marker, which goes in the
+  same report (99 events plus the marker).
 
 ### Phase 1 and phase 2
 
@@ -229,7 +241,8 @@ code to match:
 - The store grows with activity, bounded per minute and kept for `retentionDays`: at the cap, one
   agent's reports can reach about 430,000 events a day, plus as many failed-call events, and
   refused connects add up to as many again for the whole mesh. The hub's session, delivery, relay
-  and orphan events are not capped (see [security.md](../security.md#observability)).
+  and orphan events have no per-minute cap; a stuck message's are recorded once an hour (see
+  [security.md](../security.md#observability)).
 - Through the mesh only viewers read the timeline, but anyone with the hub's server or a backup
   can read the events table, as they can the messages.
 - A plugin on a hub with observability off sends one small RPC a beat.

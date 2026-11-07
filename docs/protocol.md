@@ -449,14 +449,15 @@ The hub's own:
 | Kind | Fields |
 | --- | --- |
 | `session` | `phase`: `opened`, `hello` (a hello that reused its session), `away`, `live`, `closed`, `evicted` (closed to make room), `taken_over` (with `replacedSession`, the first 50 `threads` it took, and `threadCount`, how many it took) |
-| `delivery` | `message`, `thread`, `stage`: `sent`, `acked`, `failed` (`code` `unreachable` or `not_acked`), `no_session` (once per waiting message, session null) |
-| `relay` | `message`, `thread`, `stage`: `sent`, `forwarded`, `not_forwarded`; session is the window's. `reason` is reserved: nothing sets it yet |
+| `delivery` | `message`, `thread`, `stage`: `sent`, `acked`, `failed` (`code` `unreachable` or `not_acked`), `no_session` (once per waiting message, session null). A message goes again on every flush until its session acks it, so its `sent` and each `failed` code are recorded at most once per message and session an hour |
+| `relay` | `message`, `thread`, `stage`: `sent`, `forwarded`, `not_forwarded`; session is the window's. A pointer the window never answers goes again on every flush; its `sent` is recorded at most once per message and window an hour. `reason` is reserved: nothing sets it yet |
 | `orphan` | `thread`, `phase`: `recorded`, `escalated`, `settled` (a closed asker's decision) |
 | `rpc` | `method`, `caller`, `code`: failed calls only, never `telemetry.report` or an unknown method. At most `maxEventsPerMinute` per caller a minute |
 | `auth` | `event` (`denied` with a `reason`, or `budget_hit`), stored under `hub.serviceId`. `denied` only when the refusal log warns (once per address and reason per 10 minutes); at most `maxEventsPerMinute` a minute for all clients together |
 
 `rpc` and `auth` events over their caps are not stored, and leave no gap marker (the hub logs a
-warning the first time each budget fills). The other hub events have no cap.
+warning the first time each budget fills). The other hub events have no per-minute cap; a stuck
+message's repeated stages are recorded once an hour (above).
 
 The hub checks each of its own events against its schema (`HubEvent`, and its agent against
 `ParticipantId`) before it stores it. One that fails is logged at debug and not stored, so no
@@ -488,8 +489,8 @@ Other hook events carry the session the hook ran in.
 - Only valid events take budget. Past `observability.maxEventsPerMinute` accepted events for the
   agent in the last minute, the rest of the batch counts as `dropped` and is not stored.
 - **Errors:** `invalid_request` ("Invalid parameters for telemetry.report") when `events` isn't a
-  list of at most 100; `forbidden` with exactly `OBSERVABILITY_OFF`, "observability is turned off on this
-  hub", when `observability.enabled` is false. A hub before 0.7.0 answers `not_found`.
+  list of at most 100; `forbidden` with exactly `OBSERVABILITY_OFF`, "observability is turned off
+  on this hub", when `observability.enabled` is false. A hub before 0.7.0 answers `not_found`.
 - Free (no rate-limit token), and its failures are not recorded as `rpc` events. An empty report
   stores nothing and takes no budget.
 
@@ -509,6 +510,10 @@ Other hook events carry the session the hook ran in.
   `dropped` marker. So does a whole batch refused as `invalid_request`, which is not sent again
   either, so it can't block later ones. Events that fail the plugin's own validation, and guard or
   hook lines that do, count there too.
+- **A marker whose count grows gets a new id.** A marker put back after a failed call keeps its
+  id, so a resend the hub already stored is ignored. Once more events are lost while it waits, it
+  takes a new id: the hub stores an id once and may already hold the smaller count. A gap can then
+  be counted twice, but never lost.
 - **Turned off:** a report refused with `OBSERVABILITY_OFF` turns the recorder off, as a hello that
   says off does. It logs one info line if the recorder was on. From then on it keeps nothing.
 - **Checking back:** while off, every beat sends one empty report (`events: []`). The first one the
@@ -522,13 +527,14 @@ Other hook events carry the session the hook ran in.
   process, logged once. Its hello reads as off, so the first call it gets is one empty check per
   process start, then nothing.
 - On shutdown it sends one last report, bounded at 100 ms, then the bye, bounded at 150 ms. It
-  sends no check then.
+  sends no check then. That report carries at most 100 events: what doesn't fit counts in its
+  `dropped` marker, which goes in the same report (99 events plus the marker, the newest kept).
 - The mesh window also reports its forward records that expired unclaimed.
 
 ### `observe.timeline`
 
 - **Params:** `agent`, `session`, `thread` (`thr-N`), `since` (default `2h`), `until`, `kinds`
-  (up to 20 event kinds) and `limit` (1–2000, default 500), all optional. Without `agent`,
+  (up to 20 event kinds) and `limit` (1–1000, `MAX_TIMELINE_EVENTS`, default 500), all optional. Without `agent`,
   `session` or `thread` it reads every agent.
 - **`since` and `until`** take an ISO time with a date and a time (`2026-11-06T10:00:00Z`), or
   `<n>m`, `<n>h` or `<n>d` (up to 4 digits) before now. They are compared with the hub's receive
@@ -536,7 +542,10 @@ Other hook events carry the session the hook ran in.
   2h, 1d" (or "until must be …").
 - **Result:** `{ events, text, truncated }`. `events` are the newest `limit` matches, oldest
   first, each with `agent` and `receivedAt`. `text` is the timeline below. `truncated` says more
-  matched.
+  matched than are shown.
+- **Reply size:** the reply carries both `events` and `text`, and NATS refuses a payload over its
+  1 MB `max_payload`. So the hub keeps a reply under about 700 KB (`MAX_REPLY_BYTES`): past that it
+  leaves out the oldest events and sets `truncated`.
 - **Errors:** `forbidden`, "the timeline is for this mesh's operators only", unless the calling
   agent's owner is in `observability.viewers`. Admins are refused too.
 - It needs no session (with `session.hello` and `session.bye`, the router's `SESSIONLESS` set).

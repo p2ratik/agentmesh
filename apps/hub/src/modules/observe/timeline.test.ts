@@ -195,13 +195,9 @@ describe('formatTimeline', () => {
   });
 
   it('says when the window was cut short, and when it is empty', () => {
-    const out = lines([dropped('2026-10-16T10:40:05.000Z')], {
-      ...opts,
-      truncated: true,
-      limit: 2,
-    });
+    const out = lines([dropped('2026-10-16T10:40:05.000Z')], { ...opts, truncated: true });
     expect(out[1]).toBe(
-      '(truncated: showing the newest 2 of more; narrow the window or raise limit)',
+      '(truncated: showing the newest 1 of more; narrow the window or raise limit)',
     );
     expect(lines([])).toEqual(['no events in this window']);
   });

@@ -46238,7 +46238,7 @@ var messagingMethods = {
 
 // ../../packages/protocol/src/rpc/observe.ts
 var MAX_REPORT_EVENTS = 100;
-var MAX_TIMELINE_EVENTS = 2e3;
+var MAX_TIMELINE_EVENTS = 1e3;
 var OBSERVABILITY_OFF = "observability is turned off on this hub";
 var When = external_exports.string().max(40);
 var observeMethods = {
@@ -52935,10 +52935,15 @@ var Recorder = class {
     this.#gap = null;
     return taken.concat(this.#events.splice(0, n - taken.length));
   }
-  /** Returns events the hub did not take to the front; what no longer fits counts as dropped. */
+  /**
+   * Returns events the hub did not take to the front; what no longer fits counts as dropped. A
+   * marker put back alone keeps its id, so a resend the hub already stored is ignored.
+   */
   putBack(events) {
     for (const e of events) {
-      if (e.kind === "dropped") this.#gap = { ...e, count: e.count + (this.#gap?.count ?? 0) };
+      if (e.kind !== "dropped") continue;
+      if (this.#gap) this.#addGap(e.count, null);
+      else this.#gap = e;
     }
     this.#events.unshift(...events.filter((e) => e.kind !== "dropped"));
     this.#trim();
@@ -52947,12 +52952,20 @@ var Recorder = class {
   countDropped(count) {
     if (count > 0 && this.#on()) this.#addGap(count, null);
   }
-  #trim() {
-    const over = this.#events.length - this.#max();
+  /** Shutdown: what one report of `n` can't carry counts in the gap, so `take(n)` leaves nothing. */
+  fit(n) {
+    if (this.#events.length + (this.#gap ? 1 : 0) > n) this.#trim(n - 1);
+  }
+  #trim(max = this.#max()) {
+    const over = this.#events.length - max;
     if (over > 0) this.#addGap(over, this.#events.splice(0, over).at(-1)?.session ?? null);
   }
+  /**
+   * A marker whose count grows gets a new id: the hub stores an id once, so the old one may already
+   * be stored with the smaller count (its ack lost). Counting a gap twice beats losing it.
+   */
   #addGap(count, session) {
-    this.#gap = this.#gap ? { ...this.#gap, count: this.#gap.count + count } : {
+    this.#gap = this.#gap ? { ...this.#gap, id: randomUUID2(), count: this.#gap.count + count } : {
       kind: "dropped",
       source: "plugin",
       session,
@@ -53118,12 +53131,17 @@ function startShipper(deps) {
     halt();
     const session = hub2.sessionId;
     if (!session) return;
+    recorder.fit(MAX_REPORT_EVENTS);
     const events = batch();
     if (events.length === 0) return;
+    let timer2;
     await Promise.race([
       send(events, { session, timeoutMs: FLUSH_MS }),
-      new Promise((resolve) => setTimeout(resolve, FLUSH_MS))
+      new Promise((resolve) => {
+        timer2 = setTimeout(resolve, FLUSH_MS);
+      })
     ]);
+    clearTimeout(timer2);
   };
 }
 

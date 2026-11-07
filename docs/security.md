@@ -1055,10 +1055,13 @@ messaging addresses, client IP addresses, keys, JWTs and invite codes.
   - **No silent gaps.** The plugin counts every event it loses in one `dropped` event, which goes
     first in its next report: its buffer overflowing, an event or a guard line that fails
     validation, what the hub dropped (over its cap, or failing the hub's schema), and a whole batch
-    the hub refused as `invalid_request`. What is lost without a marker:
+    the hub refused as `invalid_request`. The last report at shutdown carries at most 100 events,
+    and what doesn't fit counts in its marker. A marker whose count grows while it waits to be
+    resent takes a new id, so the hub never keeps the smaller count; a gap can be counted twice,
+    never lost. What is lost without a marker:
     - everything while the plugin knows observability is off, or the hub is older (both on
       purpose);
-    - a last report that runs out of time at shutdown;
+    - a last report that runs out of time at shutdown, with the marker it carried;
     - the whole buffer of a plugin that exits without its last report (a crash or a kill);
     - lines the guard or hook didn't write because their file caps were reached (below);
     - the hub's own events over their caps ("Storage", below).
@@ -1138,8 +1141,14 @@ messaging addresses, client IP addresses, keys, JWTs and invite codes.
     costs their plugin's reports.
   - **Refused connects** (`auth`): at most `maxEventsPerMinute` rows a minute in total, from every
     unauthenticated client together, whatever the number of addresses.
-  - The hub's session, delivery, relay and orphan events have no cap; they follow the hub's own
-    state.
+  - The hub's session, delivery, relay and orphan events have no per-minute cap, and a plugin can
+    still drive some of them: a session whose acks leave a message out, or a window that never
+    answers a relay pointer, gets it again on every flush. So a message's delivery `sent` and each
+    `failed` code, and a pointer's relay `sent`, are recorded at most once per message and session
+    an hour, not once per flush (about 17,000 rows a day per stuck message at a 10 s tick).
+  - **The timeline read is capped too:** `limit` is at most 1000, and the hub keeps a reply under
+    about 700 KB (NATS refuses payloads over 1 MB), leaving out the oldest events and setting
+    `truncated`.
   - **Residual risk:** `rpc` and `auth` events over their caps are not stored, and the timeline
     shows no gap for them, so a loop can look as if it stopped. The hub logs one warning the
     first time each budget fills (`hub events over the per-minute cap; not recorded`), and debug

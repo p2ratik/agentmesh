@@ -5,7 +5,8 @@ import { ParticipantId, SessionId } from '../primitives';
 import { defineMethod } from './define';
 
 export const MAX_REPORT_EVENTS = 100;
-export const MAX_TIMELINE_EVENTS = 2000;
+/** The most events one `observe.timeline` reply holds (the hub also keeps it under 700 KB). */
+export const MAX_TIMELINE_EVENTS = 1000;
 /** `telemetry.report`'s `forbidden` message on a hub with observability off: plugins stop on it. */
 export const OBSERVABILITY_OFF = 'observability is turned off on this hub';
 

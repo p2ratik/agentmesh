@@ -160,11 +160,16 @@ export function startShipper(deps: ShipperDeps): () => Promise<void> {
     // The report needs the live session: the caller says bye only after this.
     const session = hub.sessionId;
     if (!session) return;
+    recorder.fit(MAX_REPORT_EVENTS); // what this last report can't carry counts in its gap
     const events = batch();
     if (events.length === 0) return;
+    let timer: NodeJS.Timeout | undefined;
     await Promise.race([
       send(events, { session, timeoutMs: FLUSH_MS }),
-      new Promise((resolve) => setTimeout(resolve, FLUSH_MS)),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, FLUSH_MS);
+      }),
     ]);
+    clearTimeout(timer);
   };
 }

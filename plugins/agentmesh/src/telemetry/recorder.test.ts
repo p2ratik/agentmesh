@@ -30,8 +30,51 @@ describe('Recorder', () => {
     recorder.record(hook(5));
     recorder.putBack(batch); // 2, 3, 4, 5: event 2 no longer fits
     const [gap, ...kept] = recorder.take(10);
-    expect(gap).toMatchObject({ kind: 'dropped', count: 3, id: batch[0]?.id });
+    expect(gap).toMatchObject({ kind: 'dropped', count: 3 });
     expect(kept.map((e) => (e.kind === 'hook' ? e.unread : -1))).toEqual([3, 4, 5]);
+  });
+
+  // The hub stores an id once: a resend of a marker it already has is ignored, so a marker whose
+  // count grew must not keep that id, or the added count is lost.
+  it('a put-back gap marker keeps its id, and gets a new one once its count grows', () => {
+    const recorder = new Recorder({ max: () => 2, on: true });
+    for (let i = 0; i < 5; i++) recorder.record(hook(i)); // 3 dropped
+    const sent = recorder.take(10);
+    recorder.putBack(sent); // the ack timed out
+    const again = recorder.take(10);
+    expect(again[0]).toMatchObject({ kind: 'dropped', count: 3, id: sent[0]?.id });
+    recorder.putBack(again);
+    recorder.record(hook(5)); // one more overflows
+    const [grown] = recorder.take(10);
+    expect(grown).toMatchObject({ kind: 'dropped', count: 4 });
+    expect(grown?.id).not.toBe(sent[0]?.id);
+  });
+
+  it('a put-back marker that meets a pending one gets a new id', () => {
+    const recorder = new Recorder({ max: () => 500, on: true });
+    recorder.countDropped(2);
+    const sent = recorder.take(10);
+    recorder.countDropped(5);
+    recorder.putBack(sent);
+    const [merged] = recorder.take(10);
+    expect(merged).toMatchObject({ kind: 'dropped', count: 7 });
+    expect(merged?.id).not.toBe(sent[0]?.id);
+  });
+
+  it('fit leaves what one report carries: the gap marker and the newest events', () => {
+    const recorder = new Recorder({ max: () => 500, on: true });
+    for (let i = 0; i < 150; i++) recorder.record(hook(i));
+    recorder.fit(100);
+    const batch = recorder.take(100);
+    expect(batch).toHaveLength(100);
+    expect(batch[0]).toMatchObject({ kind: 'dropped', count: 51 });
+    expect(batch.slice(1).map((e) => (e.kind === 'hook' ? e.unread : -1))).toEqual(
+      Array.from({ length: 99 }, (_, i) => i + 51),
+    );
+    expect(recorder.take(100)).toEqual([]);
+    for (let i = 0; i < 100; i++) recorder.record(hook(i));
+    recorder.fit(100); // exactly one report's worth: nothing to count
+    expect(recorder.take(100).every((e) => e.kind === 'hook')).toBe(true);
   });
 
   it('a pause holds until on(); off is for the whole process', () => {
