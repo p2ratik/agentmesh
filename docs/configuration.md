@@ -237,6 +237,10 @@ window:
 - `AGENTMESH_MESH_WINDOW_HINT=off`, in the `env` of your Claude Code `settings.json`, hides the
   session-start line that says no mesh window is running.
 
+The window's permission mode is a `window init` flag, not a knob: `--mode auto` (the default)
+starts it in Claude Code's auto mode, `--mode manual` in `default` mode, where commands off its
+list ask you. Secrets are refused in both ([security.md](security.md#auto-mode-in-the-window)).
+
 One knob belongs to private sessions:
 - `AGENTMESH_RELAY=off` stops the mesh window from sending reply pointers to the sessions that
   have it set (in the `env` of `settings.json`, or the shell that starts Claude Code). Their

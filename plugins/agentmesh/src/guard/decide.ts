@@ -1,13 +1,17 @@
 // Built-ins only: the worktree guard bundle (dist/guard.js) imports this. What the guard says about
 // one PreToolUse call. In the mesh window it fails closed: a call it can't read, a tool it doesn't
 // know and an edit with no file are refused, and a command it can't check asks. It never allows:
-// silence hands the call to Claude Code's permission rules. Every deny and ask carries the reason
-// code the timeline records (a constant, never anything the call carried).
+// silence hands the call to Claude Code's permission rules (in auto mode, its classifier). Every
+// deny and ask carries the reason code the timeline records (a constant, never anything the call
+// carried). The live `permission_mode` of the call decides auto mode, not the policy's `mode`, so a
+// human who switches with Shift+Tab gets that mode's rules.
 import type { WindowPolicy } from '@agentmesh/common/window';
 import type { ReasonCode } from '@agentmesh/protocol/observe-codes';
 import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
-import { classifyCommand, UNLISTED } from './commands';
+import { type CommandContext, classifyCommand, inForeignWorktree, UNLISTED } from './commands';
 import { editTarget, meshWorktreeOf, type PathOptions } from './paths';
+import { risky } from './risky';
+import { secretUse } from './secrets';
 import { type ForwardReader, LIST_AGENTS, sendMessage } from './send';
 
 export const ACTIVATE_TOOL = 'mcp__plugin_agentmesh_mesh__activate';
@@ -42,6 +46,11 @@ const ENTER =
 const ISOLATED =
   'mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-…';
 const WORKFLOW = "mesh window: workflows need your human's approval here";
+const SECRET =
+  'mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves';
+const RISKY =
+  'mesh window: this command can push, merge, rewrite or delete work, or reach infrastructure, so your human decides even in auto mode';
+const SHELLS = ['Bash', 'PowerShell', 'Monitor'];
 
 /** Tools the window answers the same way every time (a Map: a tool name can't hit a prototype). */
 const FIXED = new Map<string, GuardDecision>([
@@ -69,22 +78,57 @@ function edit(args: Record<string, unknown>, o: PathOptions): GuardDecision {
   return PASS;
 }
 
-/** The command list, with the production readers on the same path options. A reader that throws
- * makes the command ask: never pass, never crash the hook. */
-function bash(command: unknown, cwd: unknown, ctx: GuardContext, o: PathOptions): GuardDecision {
+/** The command list's context, with the production readers on the same path options. */
+const commandContext = (cwd: unknown, ctx: GuardContext, o: PathOptions): CommandContext => ({
+  policy: ctx.policy,
+  cwd: cwd as string,
+  worktreeOf: (dir) => {
+    const w = meshWorktreeOf(dir, o);
+    return 'refused' in w ? null : w;
+  },
+  checkoutTop: (dir) => checkoutTop(dir, o),
+  remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
+  freeSlot: (top, name) => freeSlot(top, name, o),
+});
+
+/** Auto mode, for a command off the list: the risky floor and a teammate's worktree ask; anything
+ * else goes to auto mode's checks. */
+function toAuto(command: string, c: CommandContext, p: WindowPolicy): GuardDecision {
+  if (risky(command, p)) return ask(RISKY, 'command.risky');
+  const theirs = inForeignWorktree(command, c);
+  return theirs ? ask(theirs.ask, theirs.code) : PASS;
+}
+
+/** Bash, PowerShell and Monitor. Secrets are refused in every mode, before the command list. Then
+ * Bash goes through the list, and PowerShell and Monitor ask; in auto mode (with a policy) what
+ * would ask only for being off the list goes to `toAuto`. Anything that throws asks: never pass,
+ * never crash the hook. */
+function shell(
+  tool: string,
+  args: Record<string, unknown>,
+  cwd: unknown,
+  ctx: GuardContext,
+  o: PathOptions,
+  live: unknown,
+): GuardDecision {
   try {
-    const d = classifyCommand(command as string, {
-      policy: ctx.policy,
-      cwd: cwd as string,
-      worktreeOf: (dir) => {
-        const w = meshWorktreeOf(dir, o);
-        return 'refused' in w ? null : w;
-      },
-      checkoutTop: (dir) => checkoutTop(dir, o),
-      remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
-      freeSlot: (top, name) => freeSlot(top, name, o),
-    });
-    return 'ask' in d ? ask(d.ask, d.code) : PASS;
+    const command = args.command;
+    const secret = typeof command === 'string' ? secretUse(command) : null;
+    if (secret) return deny(SECRET, secret);
+    const p = ctx.policy;
+    const auto = live === 'auto' && p !== null && typeof command === 'string';
+    const c = commandContext(cwd, ctx, o);
+    if (tool === 'Bash') {
+      const d = classifyCommand(command as string, c);
+      if (!('ask' in d)) return PASS;
+      if (!auto || d.code !== 'command.not_listed') return ask(d.ask, d.code);
+    } else if (!auto) {
+      return ask(
+        `mesh window: ${tool} commands need your human's approval here`,
+        'command.needs_approval',
+      );
+    }
+    return toAuto(command as string, c, p as WindowPolicy);
   } catch {
     return ask(UNLISTED, 'guard.error');
   }
@@ -93,15 +137,11 @@ function bash(command: unknown, cwd: unknown, ctx: GuardContext, o: PathOptions)
 export function decide(input: unknown, ctx: GuardContext): GuardDecision {
   if (!ctx.marked) return PASS;
   if (!isObject(input)) return deny(UNREADABLE, 'guard.unreadable');
-  const { tool_name: tool, tool_input: args, cwd } = input;
+  const { tool_name: tool, tool_input: args, cwd, permission_mode: live } = input;
   if (typeof tool !== 'string' || !isObject(args)) return deny(UNREADABLE, 'guard.unreadable');
   const o: PathOptions = { home: ctx.home, platform: ctx.platform };
   if (FILE_TOOLS.includes(tool)) return edit(args, o);
-  if (tool === 'Bash') return bash(args.command, cwd, ctx, o);
-  if (tool === 'PowerShell' || tool === 'Monitor') {
-    const reason = `mesh window: ${tool} commands need your human's approval here`;
-    return ask(reason, 'command.needs_approval');
-  }
+  if (SHELLS.includes(tool)) return shell(tool, args, cwd, ctx, o, live);
   // A plain subagent's own tool calls come back through this guard; an isolated one runs as a cloud
   // agent outside every local hook, or in a worktree Claude Code makes without asking.
   if (tool === 'Agent') return 'isolation' in args ? deny(ISOLATED, 'tool.agent_isolated') : PASS;

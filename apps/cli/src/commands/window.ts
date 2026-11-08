@@ -5,6 +5,8 @@ import {
   ownBranchPrefix,
   parseWindowPolicy,
   START_COMMAND,
+  WINDOW_MODES,
+  type WindowMode,
   type WindowPolicy,
   windowFiles,
 } from '@agentmesh/common/window';
@@ -18,6 +20,17 @@ import { bakeable, launcherScript, shimScripts, windowSettings } from '../render
 import { printStart } from './window-start';
 
 const DEFAULT_TEMPLATE = 'agent/{owner}/{task}-{slug}';
+const MODE_LINES: Record<WindowMode, string> = {
+  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. To have them ask you instead, run window init again with --mode manual.",
+  manual: 'It starts in manual mode: commands not on its list ask you.',
+};
+
+function windowMode(value: string): WindowMode {
+  const mode = WINDOW_MODES.find((m) => m === value);
+  if (!mode) throw usageError('--mode is auto or manual.');
+  return mode;
+}
+
 const IGNORES = new Set(['.claude/worktrees/', '.claude/worktrees', '.claude/', '.claude']);
 
 const read = (path: string): string | null => {
@@ -97,12 +110,13 @@ const present = (p: string): boolean => {
   }
 };
 
-/** What follows the start line: a re-run note, then the warnings. */
+/** What follows the start line: the mode, a re-run note, then the warnings. */
 function printNotes(
   ctx: CliContext,
   platform: NodeJS.Platform,
-  n: { rerun: boolean; prefix: string | null; dir: string; emptyHooks: string },
+  n: { mode: WindowMode; rerun: boolean; prefix: string | null; dir: string; emptyHooks: string },
 ): void {
+  ctx.stdout(MODE_LINES[n.mode]);
   if (n.rerun) {
     ctx.stdout(
       'A mesh window that is already running keeps working; restart it to load the new settings.',
@@ -130,6 +144,7 @@ export const windowInitCommand: Command = {
   summary: 'Write the mesh window launcher, its settings and policy in ~/.agentmesh',
   help: `Usage: agentmesh window init --agent <id> [--owner <id>] [--branch-template <t>]
                             [--integration-branch <b>] [--test <command>]... [--dir <folder>]
+                            [--mode auto|manual]
 
 Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
@@ -144,7 +159,9 @@ that Claude account.
 --branch-template     default ${DEFAULT_TEMPLATE}
 --integration-branch  default agents
 --test                a test command the window may run without asking; repeatable
---dir                 the folder the launcher is started in (default: the current folder)`,
+--dir                 the folder the launcher is started in (default: the current folder)
+--mode                auto (default): commands not on the window's list go to Claude Code's auto
+                      mode checks; manual: they ask you. Secrets are refused in both.`,
   run(argv, ctx: CliContext) {
     const { values } = parseCommandArgs(
       argv,
@@ -155,11 +172,13 @@ that Claude account.
         'integration-branch': { type: 'string', default: 'agents' },
         test: { type: 'string', multiple: true },
         dir: { type: 'string' },
+        mode: { type: 'string', default: 'auto' },
       },
       { min: 0, max: 0, names: '' },
     );
     const agentId = values.agent;
     if (!agentId) throw usageError('Missing --agent <id>');
+    const mode = windowMode(values.mode);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values['branch-template'], values.owner ?? agentId, agentId);
@@ -172,6 +191,7 @@ that Claude account.
       ownBranchPrefix: prefix,
       integrationBranch: values['integration-branch'],
       testCommands: values.test ?? [],
+      mode,
     };
     // One validator for every flag: the policy the window will read back.
     if (!parseWindowPolicy(JSON.stringify(policy))) {
@@ -205,6 +225,7 @@ that Claude account.
       testCommands: policy.testCommands,
       ownBranchPrefix: prefix,
       integrationBranch: policy.integrationBranch,
+      mode,
       userProfile,
       configDir,
     };
@@ -235,7 +256,8 @@ that Claude account.
       reached,
       reachesOurs: reached !== null && isOwnShim(reached),
     });
-    printNotes(ctx, platform, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
+    const notes = { mode, rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks };
+    printNotes(ctx, platform, notes);
     return 0;
   },
 };

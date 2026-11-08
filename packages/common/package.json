@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./secret-paths": "./src/secret-paths.ts",
     "./window": "./src/window.ts",
     "./version": "./src/version.ts"
   },

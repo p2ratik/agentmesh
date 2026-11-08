@@ -4,24 +4,10 @@ import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WindowPolicy } from '@agentmesh/common/window';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { decide } from '../guard/decide';
-import { fixture, mesh, put, slash } from '../guard/paths.fixture';
-import { forwardReader } from '../guard/send';
 import { writeForward } from '../relay/forward-record';
 import { pointerText } from '../relay/pointer';
 import { windowRules } from './rules';
-
-const policy: WindowPolicy = {
-  version: 1,
-  agentId: 'bob-agent',
-  token: 'a'.repeat(32),
-  ownBranchPrefix: 'agent/bob/',
-  integrationBranch: 'agents',
-  testCommands: ['pnpm install --frozen-lockfile', 'pnpm check'],
-};
-
-/** [text the rules must contain, the command (or tool input) it stands for, what the guard must do]. */
-type Row = [string, string | Record<string, unknown>, 'pass' | 'ask' | 'deny', tool?: string];
+import { checkout, checkRows, policy, type Row } from './rules.guard.fixture';
 
 const HEX = 'a'.repeat(32);
 const ADDR = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
@@ -47,36 +33,14 @@ let W: string;
 let R: string;
 
 beforeEach(() => {
-  const f = fixture();
-  base = f.base;
-  for (const ref of ['agents', 'agent/alice/task-2-x']) {
-    put(
-      join(f.repo, '.git', 'refs', 'remotes', 'origin', ...ref.split('/')),
-      `${'a'.repeat(40)}\n`,
-    );
-  }
-  const own = mesh(f.repo, 'mesh-task-1-login', 'agent/bob/task-1-login');
-  const review = mesh(f.repo, 'mesh-review-task-2', 'unused');
-  put(join(f.repo, '.git', 'worktrees', 'mesh-review-task-2', 'HEAD'), `${'b'.repeat(40)}\n`);
-  [C, W, R] = [f.repo, own, review].map((p) => `"${slash(p)}"`) as [string, string, string];
+  ({ base, C, W, R } = checkout());
 });
 
 afterEach(() => rmSync(base, { recursive: true, force: true }));
 
-/** Each row's template is in the rules for `p`, and the guard does what the rules say. Rows run
- * in order, against forward records in one folder. */
-function check(p: WindowPolicy | null, rows: Row[], platform = process.platform) {
-  const text = windowRules(p);
-  const home = join(base, 'home');
-  const forwards = forwardReader(join(base, 'data'));
-  const ctx = { marked: true, policy: p, home, platform, forwards };
-  const got = rows.map(([template, input, , tool = 'Bash']) => {
-    const args = typeof input === 'string' ? { command: input } : input;
-    const d = decide({ tool_name: tool, tool_input: args, cwd: base }, ctx);
-    return [template, input, text.includes(template), d.kind];
-  });
-  expect(got).toEqual(rows.map(([t, c, want]) => [t, c, true, want]));
-}
+/** The rules of a window that has no `mode` (manual), through a guard in Claude Code's default mode. */
+const check = (p: WindowPolicy | null, rows: Row[], platform = process.platform) =>
+  checkRows(base, p, rows, platform);
 
 describe('the window rules, through the guard', () => {
   it('pass and ask exactly as the rules say, with an own-branch prefix', () => {
@@ -150,6 +114,9 @@ describe('the window rules, through the guard', () => {
       ['a relative cd chain', 'cd repo && git fetch origin', 'ask'],
       ['a second cd ask', `cd ${C} && cd src && git status`, 'ask'],
       ['Merging and anything not named here ask', `cd ${W} && gh pr merge 12`, 'ask'],
+      ['.env files, keys, tokens, credentials', `cd ${W} && cat .env`, 'deny'],
+      ['environment variables', 'printenv', 'deny'],
+      ['The guard refuses those reads', 'cat ~/.ssh/id_ed25519', 'deny', 'PowerShell'],
     ]);
   });
 

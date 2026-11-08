@@ -5,12 +5,14 @@ import {
   bakedPath,
   isOurShim,
   launcherScript,
+  secretReadRules,
   sessionName,
   shimScripts,
   windowSettings,
 } from './window';
 
 const token = '0123456789abcdef0123456789abcdef';
+// Manual mode, as every window was before auto mode (window-modes.test.ts covers auto).
 const inputs = (platform: NodeJS.Platform, claude: string, home: string) => ({
   agentId: 'bob-agent',
   claude,
@@ -19,10 +21,11 @@ const inputs = (platform: NodeJS.Platform, claude: string, home: string) => ({
   testCommands: ['pnpm check'],
   ownBranchPrefix: 'agent/bob/' as string | null,
   integrationBranch: 'agents',
+  mode: 'manual' as const,
 });
 
 describe('windowSettings', () => {
-  it('has the guarded shape', () => {
+  it('has the guarded shape in manual mode', () => {
     const i = inputs('linux', '/usr/bin/claude', '/home/bob');
     expect(windowSettings(i)).toEqual({
       env: {
@@ -53,6 +56,7 @@ describe('windowSettings', () => {
           'Bash(git push -u origin agent/bob/*)',
           'Bash(gh pr create --base agents *)',
         ],
+        deny: secretReadRules(null),
       },
     });
   });

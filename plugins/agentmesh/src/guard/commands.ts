@@ -1,6 +1,7 @@
 // Built-ins only: the worktree guard bundle (dist/guard.js) imports this. Which Bash commands the
 // mesh window may hand to Claude Code's permission flow (where the launcher's allow rules approve
-// routine work); everything else asks the human, which outranks every allow rule. Commands are
+// routine work); everything else asks the human, which outranks every allow rule (in auto mode,
+// decide.ts hands it to auto mode instead, past the risky floor in ./risky). Commands are
 // matched whole, against exact forms with no shell metacharacters outside single-quoted messages,
 // so a rule's wildcard can never approve extra flags, refspecs or a second command.
 import { resolve, sep } from 'node:path';
@@ -20,7 +21,8 @@ export interface CommandContext {
   freeSlot: (top: string, name: string) => boolean;
 }
 
-export type CommandDecision = { pass: true } | { ask: string; code: ReasonCode };
+type Ask = { ask: string; code: ReasonCode };
+export type CommandDecision = { pass: true } | Ask;
 
 const NO_POLICY =
   "mesh window: ~/.agentmesh/mesh-window.json is missing or invalid, so every command needs your human's approval";
@@ -30,7 +32,7 @@ export const UNLISTED =
 const foreign = (branch: string | null) =>
   `mesh window: ${branch ?? 'a detached checkout'} isn't your branch, so running its tests needs your human's approval`;
 
-const ask = (reason: string, code: ReasonCode): CommandDecision => ({ ask: reason, code });
+const ask = (reason: string, code: ReasonCode): Ask => ({ ask: reason, code });
 const pass = (): CommandDecision => ({ pass: true });
 const unlisted = (): CommandDecision => ask(UNLISTED, 'command.not_listed');
 
@@ -143,6 +145,9 @@ function delivers(rest: string, branch: string, p: WindowPolicy): boolean {
 
 const isDelivery = (rest: string) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(rest));
 
+const isOwn = (branch: string | null, p: WindowPolicy): branch is string =>
+  branch !== null && p.ownBranchPrefix !== null && branch.startsWith(p.ownBranchPrefix);
+
 /** A test or delivery command: it passes only in a mesh worktree on the window's own branch. Test
  * commands are compared by string equality, never by pattern. */
 function inWorktree(command: string, c: CommandContext, p: WindowPolicy): CommandDecision {
@@ -150,8 +155,7 @@ function inWorktree(command: string, c: CommandContext, p: WindowPolicy): Comman
   if (!test && !isDelivery(command)) return unlisted();
   const wt = c.worktreeOf(c.cwd);
   const branch = wt?.branch ?? null;
-  const prefix = p.ownBranchPrefix;
-  const own = branch !== null && prefix !== null && branch.startsWith(prefix);
+  const own = isOwn(branch, p);
   if (test)
     return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE, 'command.needs_approval');
   return own && delivers(command, branch, p) ? pass() : unlisted();
@@ -175,4 +179,18 @@ export function classifyCommand(command: string, c: CommandContext): CommandDeci
   if (CD.test(command)) return pass();
   const at = placed(command, c.cwd);
   return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
+}
+
+/** In auto mode, for a command off the list: it asks when it would run in a mesh worktree whose
+ * branch isn't the window's own (the hook's cwd, or P in `cd P && …`), since anything run there
+ * can run a teammate's code. Null otherwise. */
+export function inForeignWorktree(command: string, c: CommandContext): Ask | null {
+  const p = c.policy;
+  if (!p) return null;
+  const at = placed(command, c.cwd);
+  for (const dir of at ? [c.cwd, at.dir] : [c.cwd]) {
+    const wt = c.worktreeOf(dir);
+    if (wt && !isOwn(wt.branch, p)) return ask(foreign(wt.branch), 'command.needs_approval');
+  }
+  return null;
 }

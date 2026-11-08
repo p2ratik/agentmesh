@@ -25,6 +25,8 @@ function windowFiles(home, platform) {
     bin: join6(dir, "bin")
   };
 }
+var WINDOW_MODES = ["auto", "manual"];
+var isMode = (v) => WINDOW_MODES.some((m) => m === v);
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
 var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 var MAX_TEST_COMMANDS = 10;
@@ -35,26 +37,35 @@ var endsAsPrefix = (v) => /[/_.]$/.test(v);
 function isTestCommand(v) {
   return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
 }
-function parseWindowPolicy(text) {
-  let v;
+var areTestCommands = (v) => Array.isArray(v) && v.length <= MAX_TEST_COMMANDS && v.every((c) => typeof c === "string" && isTestCommand(c));
+var isPrefixOrNull = (v) => v === null || typeof v === "string" && isBranchName(v) && endsAsPrefix(v);
+var parseJson = (text) => {
   try {
-    v = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     return null;
   }
+};
+function parseWindowPolicy(text) {
+  const v = parseJson(text);
   if (typeof v !== "object" || v === null) return null;
   const p = v;
-  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  const { agentId, token: token2, ownBranchPrefix: prefix, integrationBranch, testCommands, mode } = p;
   if (p.version !== 1) return null;
+  if (mode !== void 0 && !isMode(mode)) return null;
   if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
-  if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
-  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
-  if (prefix !== null && !prefixOk) return null;
+  if (typeof token2 !== "string" || !TOKEN_PATTERN.test(token2)) return null;
+  if (!isPrefixOrNull(prefix)) return null;
   if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
-  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
-    return null;
-  }
-  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+  if (!areTestCommands(testCommands)) return null;
+  const policy = {
+    version: 1,
+    agentId,
+    token: token2,
+    ownBranchPrefix: prefix,
+    integrationBranch
+  };
+  return { ...policy, testCommands, ...isMode(mode) ? { mode } : {} };
 }
 function readWindowPolicy(home, platform) {
   try {
@@ -120,8 +131,8 @@ function split(file, o) {
   return { top, segments: file.slice(top.length).split(p.sep).filter(Boolean) };
 }
 var keys = (file, o) => {
-  const { top, segments } = split(file, o);
-  return [key(top, o), ...segments.map((s) => key(s, o))];
+  const { top, segments: segments2 } = split(file, o);
+  return [key(top, o), ...segments2.map((s) => key(s, o))];
 };
 var refusalKey = (k) => k.normalize("NFC").replace(new RegExp("\\p{Cf}", "gu"), "").toUpperCase();
 function within(inner, outer, o) {
@@ -134,12 +145,12 @@ function badInput(file, o) {
   if (typeof file !== "string" || file.includes("\0") || file !== file.trim()) return NOT_ABSOLUTE;
   const win = o.platform === "win32";
   if (win && /^[\\/]([\\/]|\?\?[\\/])/.test(file)) return DEVICE;
-  const segments = file.split(win ? /[\\/]/ : "/");
-  if (segments.some((s) => s === "." || s === "..")) return NOT_ABSOLUTE;
+  const segments2 = file.split(win ? /[\\/]/ : "/");
+  if (segments2.some((s) => s === "." || s === "..")) return NOT_ABSOLUTE;
   if (!win) return file.startsWith("/") ? null : NOT_ABSOLUTE;
   if (!/^[a-z]:[\\/]/i.test(file)) return NOT_ABSOLUTE;
   if (file.includes(":", 2)) return DEVICE;
-  return segments.slice(1).some((s) => /[. ]$/.test(s) || DOS_DEVICE.test(s)) ? DEVICE : null;
+  return segments2.slice(1).some((s) => /[. ]$/.test(s) || DOS_DEVICE.test(s)) ? DEVICE : null;
 }
 function realOrMissing(file) {
   const real = attempt(() => realpathSync.native(file));
@@ -153,9 +164,9 @@ function realOrMissing(file) {
 }
 function resolve(file, o) {
   const p = lib(o);
-  const { top, segments } = split(p.resolve(file), o);
+  const { top, segments: segments2 } = split(p.resolve(file), o);
   let current = top;
-  for (const segment of segments) {
+  for (const segment of segments2) {
     const next = realOrMissing(p.join(current, segment));
     if (next === null) return null;
     current = next;
@@ -173,12 +184,12 @@ function realFile(file, o) {
 var readLine = (file) => attempt(() => readFileSync2(file, "utf8"))?.replace(/[\r\n]+$/, "");
 function registered(resolved, o) {
   const p = lib(o);
-  const { top, segments } = split(resolved, o);
-  const k = segments.map((s) => key(s, o));
+  const { top, segments: segments2 } = split(resolved, o);
+  const k = segments2.map((s) => key(s, o));
   let i = k.length - 3;
   while (i >= 0 && !(k[i] === key(".claude", o) && k[i + 1] === key("worktrees", o))) i--;
   if (i < 0 || !k[i + 2]?.startsWith(key("mesh-", o))) return OUTSIDE;
-  const root = p.join(top, ...segments.slice(0, i + 3));
+  const root = p.join(top, ...segments2.slice(0, i + 3));
   const dotGit = p.join(root, ".git");
   if (!attempt(() => lstatSync(dotGit))?.isFile()) return UNREGISTERED;
   const pointer = /^gitdir: (.+)$/.exec(readLine(dotGit) ?? "")?.[1];
@@ -254,10 +265,10 @@ function read(file) {
     return null;
   }
 }
-function looseRef(git, segments, o) {
+function looseRef(git2, segments2, o) {
   const p = lib2(o);
-  let at = p.join(git, "refs", "remotes", "origin");
-  for (const s of segments) {
+  let at = p.join(git2, "refs", "remotes", "origin");
+  for (const s of segments2) {
     let names;
     try {
       names = readdirSync(at);
@@ -274,12 +285,12 @@ function looseRef(git, segments, o) {
 }
 function remoteRefExists(top, branch, o) {
   if (typeof branch !== "string" || !isBranchName(branch)) return false;
-  const segments = branch.split("/");
-  if (!segments.every(plain)) return false;
+  const segments2 = branch.split("/");
+  if (!segments2.every(plain)) return false;
   const p = lib2(o);
-  const git = p.join(top, ".git");
-  if (kind(p.join(git, "reftable")) !== "missing") return false;
-  const loose = looseRef(git, segments, o);
+  const git2 = p.join(top, ".git");
+  if (kind(p.join(git2, "reftable")) !== "missing") return false;
+  const loose = looseRef(git2, segments2, o);
   if (loose === "refused") return false;
   if (loose !== "missing") {
     try {
@@ -289,7 +300,7 @@ function remoteRefExists(top, branch, o) {
     }
   }
   const name = `refs/remotes/origin/${branch}`;
-  const lines = read(p.join(git, "packed-refs"))?.split(/\r?\n/) ?? [];
+  const lines = read(p.join(git2, "packed-refs"))?.split(/\r?\n/) ?? [];
   return lines.some((line) => PACKED.exec(line)?.[1] === name);
 }
 
@@ -369,13 +380,13 @@ function delivers(rest, branch, p) {
   return pr !== null && pr[1] === p.integrationBranch && pr[2] === branch;
 }
 var isDelivery = (rest) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(rest));
+var isOwn = (branch, p) => branch !== null && p.ownBranchPrefix !== null && branch.startsWith(p.ownBranchPrefix);
 function inWorktree(command, c, p) {
   const test = p.testCommands.includes(command);
   if (!test && !isDelivery(command)) return unlisted();
   const wt = c.worktreeOf(c.cwd);
   const branch = wt?.branch ?? null;
-  const prefix = p.ownBranchPrefix;
-  const own = branch !== null && prefix !== null && branch.startsWith(prefix);
+  const own = isOwn(branch, p);
   if (test)
     return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE, "command.needs_approval");
   return own && delivers(command, branch, p) ? pass() : unlisted();
@@ -393,6 +404,110 @@ function classifyCommand(command, c) {
   if (CD.test(command)) return pass();
   const at = placed(command, c.cwd);
   return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
+}
+function inForeignWorktree(command, c) {
+  const p = c.policy;
+  if (!p) return null;
+  const at = placed(command, c.cwd);
+  for (const dir of at ? [c.cwd, at.dir] : [c.cwd]) {
+    const wt = c.worktreeOf(dir);
+    if (wt && !isOwn(wt.branch, p)) return ask(foreign(wt.branch), "command.needs_approval");
+  }
+  return null;
+}
+
+// ../../packages/common/src/secret-paths.ts
+var SECRET_NAMES = [
+  ".env",
+  ".env.*",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.nk",
+  "id_rsa*",
+  "id_ed25519*",
+  "id_ecdsa*",
+  "id_dsa*"
+];
+var SECRET_HOME_PATHS = [
+  ".ssh/**",
+  ".aws/**",
+  ".azure/**",
+  ".config/gcloud/**",
+  ".config/gh/**",
+  ".kube/**",
+  ".docker/config.json",
+  ".gnupg/**",
+  ".netrc",
+  ".git-credentials",
+  ".npmrc",
+  ".pypirc",
+  ".agentmesh/**",
+  ".claude/.credentials.json",
+  "AppData/Local/Google/Chrome/**",
+  "AppData/Local/Microsoft/Edge/**",
+  "AppData/Roaming/Mozilla/**",
+  "Library/Application Support/Google/Chrome/**",
+  "Library/Application Support/Firefox/**",
+  ".mozilla/**",
+  ".config/google-chrome/**",
+  ".config/chromium/**"
+];
+var CLAUDE_CREDENTIALS = ".credentials.json";
+
+// src/guard/secrets.ts
+var NAME = String.raw`[\w.-]`;
+var literal = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function token(glob) {
+  const parts = glob.replace(/\/\*\*$/, "").split("*");
+  const spelled = parts.map(
+    (p) => literal(p).replaceAll("/", String.raw`[/\\]`).replaceAll(" ", String.raw`\\? `)
+  );
+  return spelled.join(`${NAME}*`);
+}
+var SECRET_PATH = new RegExp(
+  `(?<!${NAME})(?:${[...SECRET_NAMES, ...SECRET_HOME_PATHS, CLAUDE_CREDENTIALS].map(token).join("|")})(?!${NAME})`,
+  "i"
+);
+var SEPARATORS = /&&|\|\||\$\(|[;&|\n\r()`{}"'<>]/;
+var segments = (command) => command.split(SEPARATORS).map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean);
+var DUMP_ANYWHERE = /(?<![\w-])printenv(?![\w-])|\/proc\/[^/\s]+\/environ/i;
+var DUMP_SEGMENT = /^(?:env(?: -0)?|export(?: -p)?|(?:declare|typeset) -[xp]|set|(?:get-childitem|gci|ls|dir|get-item|gi|get-content|gc|cat|type)(?: .*)? env:.*)$/i;
+function secretUse(command) {
+  if (SECRET_PATH.test(command)) return "secret.path";
+  if (DUMP_ANYWHERE.test(command) || segments(command).some((s) => DUMP_SEGMENT.test(s))) {
+    return "secret.env_dump";
+  }
+  return null;
+}
+
+// src/guard/risky.ts
+var AT = String.raw`(?:^|[\s/\\])`;
+var END = String.raw`(?=\s|$)`;
+var git = (rest) => String.raw`${AT}git(?:\.exe)?\s(?:.*\s)?${rest}${END}`;
+var RISKY = [
+  git("(?:push|merge|restore)"),
+  git(String.raw`branch\s(?:.*\s)?(?:-[a-z]*d[a-z]*|--delete)`),
+  git(String.raw`reset\s(?:.*\s)?--hard`),
+  git(String.raw`checkout\s(?:.*\s)?--`),
+  // any forced git command: clean -f, worktree remove --force, checkout -f, add -f, rm -rf
+  git(String.raw`(?:--force[\w-]*|-[a-z]*f[a-z]*)`),
+  String.raw`${AT}gh(?:\.exe)?\s(?:.*\s)?pr\s(?:.*\s)?merge${END}`,
+  String.raw`${AT}docker(?:\.exe)?\s(?:.*\s)?push${END}`,
+  String.raw`${AT}(?:terraform|pulumi|kubectl|helm|az|aws|gcloud|ssh|scp)(?:\.exe|\.cmd)?${END}`
+].map((r) => new RegExp(r, "i"));
+var REBASE = new RegExp(git("rebase"), "i");
+function ontoIntegration(piece, p) {
+  const b = p.integrationBranch;
+  return [b, `origin/${b}`, `refs/remotes/origin/${b}`].some(
+    (ref) => piece === `git rebase ${ref}`
+  );
+}
+function risky(command, p) {
+  return segments(command).some(
+    (s) => RISKY.some((r) => r.test(s)) || REBASE.test(s) && !ontoIntegration(s, p)
+  );
 }
 
 // src/relay/address.ts
@@ -537,6 +652,9 @@ var NO_FILE = "mesh window: this edit names no file, so it is refused";
 var ENTER = "mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-\u2026";
 var ISOLATED = "mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-\u2026";
 var WORKFLOW = "mesh window: workflows need your human's approval here";
+var SECRET = "mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves";
+var RISKY2 = "mesh window: this command can push, merge, rewrite or delete work, or reach infrastructure, so your human decides even in auto mode";
+var SHELLS = ["Bash", "PowerShell", "Monitor"];
 var FIXED = /* @__PURE__ */ new Map([
   [ACTIVATE_TOOL, { kind: "stamp" }],
   ["EnterWorktree", deny(ENTER, "tool.enter_worktree")],
@@ -556,20 +674,41 @@ function edit(args, o) {
   }
   return PASS;
 }
-function bash(command, cwd, ctx, o) {
+var commandContext = (cwd, ctx, o) => ({
+  policy: ctx.policy,
+  cwd,
+  worktreeOf: (dir) => {
+    const w = meshWorktreeOf(dir, o);
+    return "refused" in w ? null : w;
+  },
+  checkoutTop: (dir) => checkoutTop(dir, o),
+  remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
+  freeSlot: (top, name) => freeSlot(top, name, o)
+});
+function toAuto(command, c, p) {
+  if (risky(command, p)) return ask2(RISKY2, "command.risky");
+  const theirs = inForeignWorktree(command, c);
+  return theirs ? ask2(theirs.ask, theirs.code) : PASS;
+}
+function shell(tool, args, cwd, ctx, o, live) {
   try {
-    const d = classifyCommand(command, {
-      policy: ctx.policy,
-      cwd,
-      worktreeOf: (dir) => {
-        const w = meshWorktreeOf(dir, o);
-        return "refused" in w ? null : w;
-      },
-      checkoutTop: (dir) => checkoutTop(dir, o),
-      remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
-      freeSlot: (top, name) => freeSlot(top, name, o)
-    });
-    return "ask" in d ? ask2(d.ask, d.code) : PASS;
+    const command = args.command;
+    const secret = typeof command === "string" ? secretUse(command) : null;
+    if (secret) return deny(SECRET, secret);
+    const p = ctx.policy;
+    const auto = live === "auto" && p !== null && typeof command === "string";
+    const c = commandContext(cwd, ctx, o);
+    if (tool === "Bash") {
+      const d = classifyCommand(command, c);
+      if (!("ask" in d)) return PASS;
+      if (!auto || d.code !== "command.not_listed") return ask2(d.ask, d.code);
+    } else if (!auto) {
+      return ask2(
+        `mesh window: ${tool} commands need your human's approval here`,
+        "command.needs_approval"
+      );
+    }
+    return toAuto(command, c, p);
   } catch {
     return ask2(UNLISTED, "guard.error");
   }
@@ -577,15 +716,11 @@ function bash(command, cwd, ctx, o) {
 function decide(input2, ctx) {
   if (!ctx.marked) return PASS;
   if (!isObject(input2)) return deny(UNREADABLE, "guard.unreadable");
-  const { tool_name: tool, tool_input: args, cwd } = input2;
+  const { tool_name: tool, tool_input: args, cwd, permission_mode: live } = input2;
   if (typeof tool !== "string" || !isObject(args)) return deny(UNREADABLE, "guard.unreadable");
   const o = { home: ctx.home, platform: ctx.platform };
   if (FILE_TOOLS.includes(tool)) return edit(args, o);
-  if (tool === "Bash") return bash(args.command, cwd, ctx, o);
-  if (tool === "PowerShell" || tool === "Monitor") {
-    const reason = `mesh window: ${tool} commands need your human's approval here`;
-    return ask2(reason, "command.needs_approval");
-  }
+  if (SHELLS.includes(tool)) return shell(tool, args, cwd, ctx, o, live);
   if (tool === "Agent") return "isolation" in args ? deny(ISOLATED, "tool.agent_isolated") : PASS;
   if (tool === "SendMessage") return sendMessage(args, ctx);
   const unknown = `mesh window: the guard does not know ${tool}, so it is refused`;

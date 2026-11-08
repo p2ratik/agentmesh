@@ -434,10 +434,13 @@ to its session, and `session.check` then fails (see the upgrade notes in
 The mesh window ([ADR 0009](adr/0009-mesh-window.md), part 2) is the one session per teammate that
 takes team work. By the maintainer's
 [decision 3](specs/2026-11-01-mesh-window-design.md#12-pratiks-decisions-on-the-open-questions-2026-11-01)
-it runs routine steps without asking. It is an ordinary interactive Claude Code session in
-`default` mode, started by `~/.agentmesh/mesh-window`. Two layers decide what it may do: the allow
-rules in its settings file, and the plugin's worktree guard. Both must agree before anything runs
-without a prompt.
+it runs routine steps without asking. It is an ordinary interactive Claude Code session, started
+by `~/.agentmesh/mesh-window`, in Claude Code's **auto mode** by default, or in `default` (manual)
+mode with `agentmesh window init --mode manual`
+([ADR 0012](adr/0012-window-auto-mode.md)). Two layers decide what it may do: the rules in its
+settings file, and the plugin's worktree guard. In manual mode both must agree before anything runs
+without a prompt; in auto mode, auto mode's classifier judges what the guard hands it
+([Auto mode in the window](#auto-mode-in-the-window)). Secrets are refused in every mode.
 
 ### What runs without asking
 
@@ -460,7 +463,20 @@ Bash(gh pr create --base <integration branch> *)
 - Never the bundled CLI, `ssh`, `scp`, `gh pr merge`, `git push --force`, or a fetch from an
   arbitrary URL.
 - The wildcards are wider than they look. The guard narrows each one to its exact form (below), and
-  asks for anything else.
+  asks for anything else (in auto mode, hands it to auto mode past its risky floor).
+- The same allow rules in both modes. In auto mode Claude Code still applies narrow allow rules at
+  once and drops blanket ones such as `Bash(*)`; none of these is blanket.
+- **Deny rules, in both modes:** `permissions.deny` holds a `Read(...)` rule for every secret path,
+  from one list in `packages/common/src/secret-paths.ts` that the guard shares. Anywhere:
+  `//**/.env`, `//**/.env.*`, `//**/*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.nk`, `id_rsa*`,
+  `id_ed25519*`, `id_ecdsa*` and `id_dsa*`. Under home: `~/.ssh/**`, `~/.aws/**`, `~/.azure/**`,
+  `~/.config/gcloud/**`, `~/.config/gh/**`, `~/.kube/**`, `~/.docker/config.json`, `~/.gnupg/**`,
+  `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, `~/.agentmesh/**`,
+  `~/.claude/.credentials.json`, and the Chrome, Edge and Firefox profiles on Windows, macOS and
+  Linux. With `CLAUDE_CONFIG_DIR` set, also that account's `.credentials.json`, as an absolute
+  `//` POSIX path. A deny rule blocks in every mode; a `Read` rule also covers Grep and Glob (best
+  effort) and stops Edit and Write on the path. `.env.example` and the like are blocked too: the
+  human pastes what the window needs from them.
 - Claude Code runs some read-only commands (`ls`, `cd`, `pwd`, read-only `git`) without an allow
   rule. The guard lets them through only in its read forms.
 - Edits in a mesh worktree are expected to run without a prompt: Claude Code exempts "Claude's own
@@ -494,23 +510,34 @@ its input for at most a second and exits 0, whatever happens. With the marker se
     tool calls come back through the guard.
   - every `SendMessage` except the one reply pointer the plugin pushed, and every `ListAgents`
     ([Reply pointers](#reply-pointers-the-relay));
+  - in every mode, before the command list, a Bash, PowerShell or Monitor command that names a
+    secret path from the shared list (`secret.path`) or dumps the environment (`secret.env_dump`).
+    The reason reads `mesh window: secrets and personal data are never read, printed or sent from
+    here, in any mode; ask your human to do it themselves`
+    ([Auto mode in the window](#auto-mode-in-the-window));
   - a call it can't read, an edit that names no file, a tool it doesn't know, and any failure of
     the guard itself.
 - **It asks** (your human answers a prompt):
-  - for any Bash command that isn't one of the forms below;
-  - for every PowerShell and Monitor command;
+  - for any Bash command that isn't one of the forms below, in manual mode (Claude Code's
+    `permission_mode` other than `auto`); in auto mode only for the risky floor;
+  - for every PowerShell and Monitor command, in manual mode; in auto mode they get the same checks
+    as an unlisted Bash command;
+  - for a test on a branch the window didn't write, in every mode, and in auto mode for any
+    unlisted command run in such a worktree;
   - for every `Workflow` call, whose script can ask for isolation the guard can't see;
   - for every command, while `~/.agentmesh/mesh-window.json` is missing or invalid.
 - **It stamps `activate`.** On that call it writes `guard-alive.json` in the plugin data folder,
   with the guard's version. `activate` in a marked session refuses unless the stamp is under 2
   minutes old, so a window whose hooks don't run can't take team work. A successful `activate`
   records the stamp's version, and the window forwards reply pointers only behind a 0.6.0 guard.
-- **It never allows.** Silence hands the call to Claude Code's permission rules.
+- **It never allows.** Silence hands the call to Claude Code's permission rules, which in auto mode
+  means auto mode's classifier.
 - **It fails closed.** The first matcher group has `onFailure: "block"` (Claude Code 2.1.295+), so
   a guard that crashes, can't start or runs past its 10 s timeout blocks the call. The `activate`
   group has none, but a failed run there writes no stamp, so `activate` refuses.
 
-**The Bash forms it passes.** Everything else asks.
+**The Bash forms it passes.** Everything else asks in manual mode; in auto mode it goes to auto
+mode past the floor ([Auto mode in the window](#auto-mode-in-the-window)).
 - Exactly `pwd`, `git status`, `git fetch origin` and `git worktree list`; `cd <path>`.
 - Reads: `ls`, or `git diff|log|show` with plain arguments.
   - No argument starts with `/`, `~`, a drive letter, `--output` or `--no-index`, or contains `//`
@@ -562,7 +589,59 @@ while no mesh window is running."
   every worktree), `~/.agentmesh/` and the guard itself, and switching the guard off.
 - **Without an own-branch prefix** (a branch template that names neither the owner nor the agent,
   or whose filled prefix doesn't end in `/`, `_` or `.`), every test asks, and so do task
-  worktree adds, commits, pushes and PRs.
+  worktree adds, commits, pushes and PRs. In auto mode the worktree add goes to auto mode, and no
+  worktree counts as the window's own, so every command in one but a read asks.
+
+### Auto mode in the window
+
+Threat note for [ADR 0012](adr/0012-window-auto-mode.md) (the maintainer's decision, 2026-11-08):
+the window starts in Claude Code's auto mode, so routine work doesn't wait on a click for every
+command off the guard's list.
+
+- **Who judges what.** In auto mode, auto mode's classifier is the main judge of the commands the
+  guard doesn't list. The guard keeps a pattern-based floor. It follows the hook input's
+  `permission_mode` on each call, not the policy's `mode`, so a human who switches with Shift+Tab
+  gets that mode's rules.
+  - **Secrets are denied in every mode:** the deny rules above, and the guard's `secret.path` and
+    `secret.env_dump`. Auto mode's classifier allows reading `.env` by default, so the guard can't
+    leave it to auto mode. The window's environment holds its marker token, and may hold
+    teammates' tokens, so environment dumps are refused too.
+  - **Risky commands ask** (`command.risky`): any `git push` but the listed own-branch form (auto
+    mode allows a push to any branch, the default branch included, and blocks only force pushes),
+    `git merge`, `gh pr merge`, `git rebase` other than onto the integration branch,
+    `git branch -d|-D|--delete`, `git reset --hard`, forced git commands (`--force`, `-f`),
+    `git checkout --`, `git restore`, and the command words `terraform`, `pulumi`, `kubectl`,
+    `helm`, `az`, `aws`, `gcloud`, `docker push`, `ssh` and `scp`. They match in any piece of the
+    command (split at `&&`, `||`, `;`, `|`, `&`, `$(`, parentheses, braces, backticks, quotes and
+    redirections), so a compound command can't hide one. Over-matching asks.
+  - **A teammate's worktree asks:** an unlisted command run in a mesh worktree whose branch isn't
+    the window's own (the hook's `cwd`, or P in `cd P && …`) asks (`command.needs_approval`), so a
+    teammate's code still runs only with your approval (decision 5).
+  - **Unchanged:** edits stay in mesh worktrees; `Workflow`, `marker.unverified`, `guard.error`
+    and tests on a branch the window didn't write ask; EnterWorktree, isolated agents, SendMessage
+    and ListAgents are as before.
+  - A hook's `ask` still prompts in auto mode (the classifier doesn't decide it), and a `deny`
+    blocks in every mode.
+- **Settings.** In auto mode the settings file sets `defaultMode: "auto"`, the launcher passes
+  `--permission-mode auto`, and `disableAutoMode` is left out, so Shift+Tab still reaches manual.
+  In manual mode they are `default`, `--permission-mode default` and `disableAutoMode: "disable"`,
+  so a teammate who chose manual stays there. `disableBypassPermissionsMode: "disable"` in both.
+- **Choices made.** Every `git rebase` asks except onto the integration branch: keeping an own branch
+  rebased is routine, and the force push it needs asks. `git checkout --` and `git restore` always
+  ask, even in the window's own worktree. Every forced git command asks, not only `git clean -f`, so
+  `git worktree remove --force` asks as the rules say.
+- **Residual risks:**
+  - An obfuscated command (a variable holding `push`, `eval`, base64, an alias, a script the window
+    wrote) can slip past the guard's patterns and reach the classifier alone.
+  - Bash writes outside worktrees no longer ask in auto mode. Only Claude Code's own edit tools are
+    held to worktrees.
+  - The secret patterns match the command's text: a path built at run time, or read by a program
+    the window runs, isn't seen. The deny rules still stop Claude Code's Read, Grep and Glob.
+  - `.env.example` and similar files are blocked too. The human pastes what the window needs.
+  - Where auto mode isn't available (plan, model or an admin setting), Claude Code starts the window
+    in manual mode with no error, and the guard asks as before.
+  - A window set up before auto mode has no `mode` in its policy and starts in manual mode. Each
+    session start says so, and how to switch.
 
 ### Corrected claims
 
@@ -578,9 +657,9 @@ The design (§3 and §8) first claimed more than holds:
   - Claude Code protects a file passed with `--settings`, and the guard denies edits in
     `~/.agentmesh/`.
   - The settings file sets `disableAllHooks: false`.
-  - Bypass and auto mode are disabled (`disableBypassPermissionsMode` and `disableAutoMode` are
-    `"disable"`), the default mode is `default`, and the launcher passes
-    `--permission-mode default`.
+  - Bypass mode is disabled (`disableBypassPermissionsMode: "disable"`). The default mode is
+    `auto` and the launcher passes `--permission-mode auto`; with `--mode manual` they are
+    `default`, and auto mode is disabled too (`disableAutoMode: "disable"`).
   - The token is 32 random hex characters, in the policy (mode 600), the settings file (600) and
     the launcher (700). Re-running `window init` keeps it.
 - **Git:** the settings file's `env` sets `core.hooksPath` to the empty
@@ -1188,8 +1267,11 @@ the guard and hook bundles stay built-ins only).
 | `path.git_dir` | A `.git` path inside the worktree. |
 | `path.agentmesh_dir` | Inside the real `~/.agentmesh`. |
 | `path.link` | The last segment is a link, or the file has other hard links. |
-| `command.not_listed` | A Bash command that isn't one of the guard's forms (asks). |
-| `command.needs_approval` | A test on a branch the window didn't write or outside a worktree, and every PowerShell and Monitor command (asks). |
+| `command.not_listed` | A Bash command that isn't one of the guard's forms (asks, outside auto mode). |
+| `command.needs_approval` | A test on a branch the window didn't write or outside a worktree; outside auto mode, every PowerShell and Monitor command; in auto mode, any unlisted command run in a worktree that isn't on the window's own branch (asks). |
+| `command.risky` | In auto mode, a command on the floor: a push other than the window's own-branch form, a merge, a rebase other than onto the integration branch, a branch delete, a hard reset, a forced git command, `git checkout --` or `git restore`, or an infra command (asks). |
+| `secret.path` | A Bash, PowerShell or Monitor command names a secret path from the shared list (denies, in every mode). |
+| `secret.env_dump` | A command dumps the environment: `printenv`, `env`, `export -p`, `set`, `Get-ChildItem env:` and the like (denies, in every mode). |
 | `tool.unknown` | A tool the guard doesn't know. |
 | `tool.enter_worktree` | `EnterWorktree`. |
 | `tool.agent_isolated` | An `Agent` call with an `isolation` key. |

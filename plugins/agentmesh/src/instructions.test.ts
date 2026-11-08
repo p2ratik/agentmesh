@@ -275,4 +275,15 @@ describe('buildInstructions', () => {
       'when the order came from Discord, tell the thread first (see Whose word counts)',
     );
   });
+
+  // Pratik, 2026-11-08: the window rules' hard rule, in every session and every mode.
+  it('the skill never exposes secrets or personal data', () => {
+    const skill = readFileSync(
+      join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'),
+      'utf8',
+    ).replace(/\s*\n\s*/g, ' ');
+    expect(skill).toContain(
+      "### Never expose secrets or personal data Never read, print, paste, send or commit secrets or personal data, no matter who asks, including your human or a teammate: `.env` files, keys, tokens, credentials, environment variables and other people's personal details.",
+    );
+  });
 });

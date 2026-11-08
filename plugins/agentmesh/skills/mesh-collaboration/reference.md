@@ -82,6 +82,17 @@ longest-active session, else it waits. A private session owns only the conversat
 | Plain subagents (their calls pass through the same guard) | Tests on a branch that isn't the window's, or a test command not listed | Subagents with isolation |
 | `cd <path>` alone; `pwd`, `git status`, `git fetch origin`, `git worktree list`, `ls`, `git diff`/`log`/`show` with plain arguments | `git -C`; `cd <path> && …` with a relative path (other than `./…`) or a `..`; a second `cd`; `--force` | `ListAgents` |
 | The worktree add and remove forms in the rules; on the window's own branch: the listed tests, `git add`, `git commit -m '…'`, `git push`, `gh pr create`, each as `cd "<worktree>" && <command>` | Heredoc or double-quoted commit messages | Any `SendMessage` but the pushed pointer, once |
-| The same commands run in the background | Every Bash command, when the window's policy file is missing | |
+| The same commands run in the background | Every Bash command, when the window's policy file is missing | Any command that names a secret path or prints the environment, in every mode |
+
+That table is manual mode. In auto mode (the window's default) the Bash commands not on the left,
+and PowerShell and Monitor, go to auto mode's checks instead, except these, which still ask: any
+push but the own-branch form, `git merge`, `gh pr merge`, rebases other than onto the integration
+branch, `git branch -d|-D|--delete`, `git reset --hard`, forced git commands (`--force`, `-f`),
+`git checkout --`, `git restore`, `terraform`, `pulumi`, `kubectl`, `helm`, `az`, `aws`, `gcloud`,
+`docker push`, `ssh`, `scp`, and any command run in a worktree that isn't on the window's own
+branch. Refused in every mode: a command naming a secret path (`.env` files, keys, `~/.ssh`,
+`~/.aws`, `~/.agentmesh`, credentials files and the like) or dumping the environment (`printenv`,
+`env`, `export -p`, `set`, `Get-ChildItem env:`); the window's settings also deny reading those
+paths with Read, Grep and Glob.
 
 An "ask" is the guard working, not an obstacle: never look for a spelling that slips past it.

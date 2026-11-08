@@ -116,9 +116,13 @@ file is gitignored and is never committed.
     de-duplicated, acked only after the push). A session is inactive until `/agentmesh:activate`.
     It exposes tools such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
   - The mesh window (ADR 0009): one marked session per teammate, started by `claude-mesh` (which
-    runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. Its worktree guard (`dist/guard.js`, a
-    `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*` worktrees and asks before
-    commands that aren't on its list.
+    runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. It starts in Claude
+    Code's auto mode by default (`window init --mode manual` opts out; ADR 0012). Its worktree
+    guard (`dist/guard.js`, a `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*`
+    worktrees and refuses commands that read secrets or print the environment, in every mode. In
+    manual mode it asks before commands that aren't on its list; in auto mode it hands them to auto
+    mode, except risky ones (pushes beyond its own branch, merges, rebases, deletes, hard resets,
+    infra, a teammate's worktree), which still ask.
   - The window also forwards reply pointers to the human's private sessions (ADR 0009 part 3; see
     Status).
   - It records behaviour events (ids, counts, codes and timings, never content) and ships them to
@@ -244,7 +248,7 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0011, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0012, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
 - **Automatic deploys (ADR 0010):** after publishing, the release workflow runs `deploy.yml`. It
@@ -331,9 +335,19 @@ Run `pnpm check` before calling anything done.
       checks back with an empty report each beat, so re-enabling needs no hello.
   - Phase 2 (Prometheus metrics, Grafana dashboards, Alertmanager and a dead man's switch) is
     planned, not built.
+- **The mesh window in auto mode (for 0.7.0)** (ADR 0012): built and tested.
+  - `window init --mode auto|manual` (default auto) sets the launcher's `--permission-mode`, the
+    settings' `defaultMode` (`disableAutoMode` only in manual) and the policy's `mode`.
+  - The settings deny `Read(...)` on every secret path in both modes, from one list
+    (`packages/common/src/secret-paths.ts`) the guard shares. The guard denies a command naming one
+    (`secret.path`) or dumping the environment (`secret.env_dump`) in every mode.
+  - The guard follows the call's live `permission_mode`. In auto mode an unlisted command passes to
+    auto mode unless it is on the risky floor (`command.risky`) or runs in a teammate's worktree.
+  - The window's rules follow `policy.mode`; every mode, and the `mesh-collaboration` skill, get the
+    hard rule on secrets; a window set up before auto mode says at session start that it is manual.
 
 **Tested and passing:**
-- **Unit tests (about 1,540):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 1,610):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
@@ -343,7 +357,10 @@ Run `pnpm check` before calling anything done.
   closed-asker routing and its timer, resume, the decides mark and escalation pings. Plan 4: every
   event schema, the recorder and its gap marker, the events files and their caps, the shipper, a
   reason code per guard check, the timeline formatter, the viewers check, retention and the
-  sessionless router set.
+  sessionless router set. Auto mode: the secret deny and environment dumps in every mode (and no
+  false positives on `AgentMesh` or words with `env`), the risky floor inside compound commands,
+  a teammate's worktree, both launcher modes and the deny list, and the rules in both modes run
+  through the guard.
 - **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
   - nkey auth rendered by the CLI.
   - Impersonation is refused.
@@ -382,6 +399,10 @@ Run `pnpm check` before calling anything done.
   planted `node.exe`, the session-start line,
   the hook's `cwd` after a bare `cd`, chained `cd` with no Claude Code prompt, and the guard and
   `activate` agreeing on `CLAUDE_PLUGIN_DATA`.
+- Auto mode in a live window: `--permission-mode auto` starting it in auto mode (and in manual
+  where auto isn't available), the hook input's `permission_mode` after Shift+Tab, a guard "ask"
+  still prompting in auto mode, the secret deny rules blocking Read, Grep and Glob, and the
+  session-start line for a window set up before auto mode.
 - Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).

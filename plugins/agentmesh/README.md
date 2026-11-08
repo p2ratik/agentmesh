@@ -122,6 +122,12 @@ Claude asks for your team's folder and the exact test commands, and the bundled 
 `CLAUDE_CONFIG_DIR` set (an absolute path), the window starts in that Claude account; without it,
 the launcher clears one the terminal has. `window init` prints which account it uses.
 
+The window starts in Claude Code's **auto mode** by default: commands off its list go to auto
+mode's checks, and risky ones still ask. To review every such command yourself, ask for manual mode
+(`agentmesh window init --mode manual`). Where auto mode isn't available (plan, model or an admin
+setting), Claude Code starts it in manual mode. Secrets and personal data are refused in every
+mode.
+
 **Start it each day** in a terminal, in the folder that holds your team's repos:
 
 ```bash
@@ -168,17 +174,22 @@ The Windows launcher and `claude-mesh.cmd` write paths under your user folder as
 so a non-ASCII user folder works; any other non-ASCII path is refused.
 
 The launcher marks the session and starts Claude Code with the channel flag, the name
-`mesh-<agent>`, `--permission-mode default` and its settings file. The window then activates itself
-with `/agentmesh:activate mesh window`; if it doesn't, type that.
+`mesh-<agent>`, `--permission-mode auto` (`default` in manual mode) and its settings file, which
+denies reading secret paths in both modes. The window then activates itself with
+`/agentmesh:activate mesh window`; if it doesn't, type that. A window set up before auto mode
+starts in manual mode and says so at each start; run `/agentmesh:window` again to switch it.
 
 **How it works.** Its rules come from the plugin: the `SessionStart` hook adds them at startup,
 after `/clear` and after compaction, and `activate` repeats them.
 - Each task and review gets its own `.claude/worktrees/mesh-*` worktree, made from the checkout
   `task_get` names (the one git checkout in the folder whose `origin` matches the task's repo).
-- Routine steps run without asking. Tests on a branch the window didn't write, merges, force
-  pushes, other branches and anything off its list ask
+- Routine steps run without asking. Tests on a branch the window didn't write (and, in auto mode,
+  anything else in that branch's worktree), merges, force pushes, other branches, rebases, deletes,
+  hard resets and infra commands ask; in manual mode so does anything off its list
   ([security](../../docs/security.md#the-mesh-window)).
-- It runs commands with the Bash tool; PowerShell commands always ask.
+- It runs commands with the Bash tool; PowerShell commands ask in manual mode and get auto mode's
+  checks in auto mode.
+- It never reads, prints or sends secrets or personal data, whoever asks.
 - After a restart it resumes its in-progress tasks (`task_list`) in their existing worktrees, and
   reads a thread (`thread`) before answering a reply meant for its earlier session.
 - Before it starts a task it reads the task and its thread, asks the creator anything unclear,
@@ -194,8 +205,10 @@ after `/clear` and after compaction, and `activate` repeats them.
 `EnterWorktree`, `Agent`, `Workflow`, `SendMessage`, `ListAgents` and `activate`.
 - Claude Code runs it in every session, which costs a `node` start (about 50–100 ms) per edit,
   shell call, subagent or workflow call. Outside the mesh window it does nothing else.
-- In the window it refuses edits outside its mesh worktrees and asks before commands that aren't on
-  its list. It passes one `SendMessage` per reply pointer the plugin pushed, exactly as pushed, and
+- In the window it refuses edits outside its mesh worktrees, and in every mode any command that
+  names a secret path or prints the environment. In manual mode it asks before commands that aren't
+  on its list; in auto mode (Claude Code's `permission_mode` on the call) it hands them to auto mode,
+  except risky ones, which still ask. It passes one `SendMessage` per reply pointer the plugin pushed, exactly as pushed, and
   refuses every other one and `ListAgents`. `activate` there refuses unless the guard stamped an
   `activate` call in the last 2 minutes (`guard-alive.json`).
 - It fails closed (`onFailure: "block"`, Claude Code 2.1.295+). If `node` or `dist/guard.js` is
@@ -278,8 +291,8 @@ Files in `~/.agentmesh/`:
 | File | Written by | Holds |
 | --- | --- | --- |
 | `agent.json` and your `.nk` key | `/agentmesh:join`, `setup admin` or `agent-setup --write` | Your agent's settings and its key |
-| `mesh-window.json` | `window init` | The window's policy: agent, token, own-branch prefix, integration branch, test commands (mode 600) |
-| `mesh-window.settings.json` | `window init` | The settings file the launcher passes with `--settings`: the marker, the git environment and the allow rules (mode 600) |
+| `mesh-window.json` | `window init` | The window's policy: agent, token, own-branch prefix, integration branch, test commands, `mode` (`auto` or `manual`; missing in a policy written before auto mode, which starts manual) (mode 600) |
+| `mesh-window.settings.json` | `window init` | The settings file the launcher passes with `--settings`: the marker, the git environment, the permission mode, the allow rules and the secret deny rules (mode 600) |
 | `mesh-window` (`mesh-window.cmd` on Windows) | `window init` | The launcher (mode 700) |
 | `empty-git-hooks/` | `window init` | An empty folder; the window's git uses it as `core.hooksPath` |
 | `bin/claude-mesh` (plus `claude-mesh.cmd` on Windows) | `window init` | `claude-mesh`, only when it can't go next to `claude` (mode 755); add `bin/` to your PATH |

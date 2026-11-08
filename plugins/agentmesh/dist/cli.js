@@ -46071,6 +46071,9 @@ var REASON_CODES = [
   "path.agentmesh_dir",
   "command.not_listed",
   "command.needs_approval",
+  "command.risky",
+  "secret.path",
+  "secret.env_dump",
   "tool.unknown",
   "tool.enter_worktree",
   "tool.agent_isolated",
@@ -50774,6 +50777,8 @@ function windowFiles(home, platform) {
     bin: join20(dir, "bin")
   };
 }
+var WINDOW_MODES = ["auto", "manual"];
+var isMode = (v) => WINDOW_MODES.some((m) => m === v);
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
 var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 var MAX_TEST_COMMANDS = 10;
@@ -50784,26 +50789,35 @@ var endsAsPrefix = (v) => /[/_.]$/.test(v);
 function isTestCommand(v) {
   return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
 }
-function parseWindowPolicy(text) {
-  let v;
+var areTestCommands = (v) => Array.isArray(v) && v.length <= MAX_TEST_COMMANDS && v.every((c) => typeof c === "string" && isTestCommand(c));
+var isPrefixOrNull = (v) => v === null || typeof v === "string" && isBranchName(v) && endsAsPrefix(v);
+var parseJson2 = (text) => {
   try {
-    v = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     return null;
   }
+};
+function parseWindowPolicy(text) {
+  const v = parseJson2(text);
   if (typeof v !== "object" || v === null) return null;
   const p = v;
-  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands, mode } = p;
   if (p.version !== 1) return null;
+  if (mode !== void 0 && !isMode(mode)) return null;
   if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
   if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
-  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
-  if (prefix !== null && !prefixOk) return null;
+  if (!isPrefixOrNull(prefix)) return null;
   if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
-  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
-    return null;
-  }
-  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+  if (!areTestCommands(testCommands)) return null;
+  const policy = {
+    version: 1,
+    agentId,
+    token,
+    ownBranchPrefix: prefix,
+    integrationBranch
+  };
+  return { ...policy, testCommands, ...isMode(mode) ? { mode } : {} };
 }
 function ownBranchPrefix(template, owner, agent) {
   const cut = template.search(/{(?!owner}|agent})[^}]*}/);
@@ -50931,6 +50945,46 @@ function shellShadowWarnings(ctx, platform) {
 import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync13, realpathSync } from "node:fs";
 import { dirname as dirname7, join as join17, posix as posix3, win32 as win323 } from "node:path";
 
+// ../../packages/common/src/secret-paths.ts
+var SECRET_NAMES = [
+  ".env",
+  ".env.*",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.nk",
+  "id_rsa*",
+  "id_ed25519*",
+  "id_ecdsa*",
+  "id_dsa*"
+];
+var SECRET_HOME_PATHS = [
+  ".ssh/**",
+  ".aws/**",
+  ".azure/**",
+  ".config/gcloud/**",
+  ".config/gh/**",
+  ".kube/**",
+  ".docker/config.json",
+  ".gnupg/**",
+  ".netrc",
+  ".git-credentials",
+  ".npmrc",
+  ".pypirc",
+  ".agentmesh/**",
+  ".claude/.credentials.json",
+  "AppData/Local/Google/Chrome/**",
+  "AppData/Local/Microsoft/Edge/**",
+  "AppData/Roaming/Mozilla/**",
+  "Library/Application Support/Google/Chrome/**",
+  "Library/Application Support/Firefox/**",
+  ".mozilla/**",
+  ".config/google-chrome/**",
+  ".config/chromium/**"
+];
+var CLAUDE_CREDENTIALS = ".credentials.json";
+
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
 function bakedPath(path, platform, userProfile = null) {
@@ -50943,6 +50997,15 @@ function bakeable(path, platform, userProfile = null) {
   if (/[\r\n]/.test(path)) return false;
   if (platform !== "win32") return !path.includes("'");
   return !/[%^&"!<>|]/.test(path) && /^[\x20-\x7e]*$/.test(bakedPath(path, platform, userProfile));
+}
+var permissionMode = (mode) => mode === "auto" ? "auto" : "default";
+function secretReadRules(configDir = null) {
+  const own2 = configDir ? configDir.replaceAll("\\", "/").replace(/\/+$/, "").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`) : null;
+  return [
+    ...SECRET_NAMES.map((name) => `Read(//**/${name})`),
+    ...SECRET_HOME_PATHS.map((path) => `Read(~/${path})`),
+    ...own2 ? [`Read(/${own2}/${CLAUDE_CREDENTIALS})`] : []
+  ];
 }
 function windowSettings(i) {
   const push = i.ownBranchPrefix ? [
@@ -50962,9 +51025,11 @@ function windowSettings(i) {
     },
     disableAllHooks: false,
     permissions: {
-      defaultMode: "default",
+      defaultMode: permissionMode(i.mode),
       disableBypassPermissionsMode: "disable",
-      disableAutoMode: "disable",
+      // Only in manual mode: a teammate who chose manual stays there. In auto, Shift+Tab still
+      // reaches manual.
+      ...i.mode === "manual" ? { disableAutoMode: "disable" } : {},
       allow: [
         "Edit(**/.claude/worktrees/mesh-*/**)",
         "Bash(git status)",
@@ -50976,7 +51041,8 @@ function windowSettings(i) {
         "Bash(git commit -m *)",
         ...push,
         `Bash(gh pr create --base ${i.integrationBranch} *)`
-      ]
+      ],
+      deny: secretReadRules(i.configDir)
     }
   };
 }
@@ -50989,7 +51055,7 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
     CHANNEL_FLAG,
     "-n",
     q(sessionName(i.agentId)),
-    "--permission-mode default --settings",
+    `--permission-mode ${permissionMode(i.mode)} --settings`,
     q(at(i.files.settings)),
     ...prompt === null ? [] : [q(prompt)]
   ].join(" ");
@@ -51121,6 +51187,15 @@ function printStart(ctx, s) {
 
 // ../../apps/cli/src/commands/window.ts
 var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
+var MODE_LINES = {
+  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. To have them ask you instead, run window init again with --mode manual.",
+  manual: "It starts in manual mode: commands not on its list ask you."
+};
+function windowMode(value) {
+  const mode = WINDOW_MODES.find((m) => m === value);
+  if (!mode) throw usageError("--mode is auto or manual.");
+  return mode;
+}
 var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
 var read = (path) => {
   try {
@@ -51179,6 +51254,7 @@ var present = (p) => {
   }
 };
 function printNotes(ctx, platform, n) {
+  ctx.stdout(MODE_LINES[n.mode]);
   if (n.rerun) {
     ctx.stdout(
       "A mesh window that is already running keeps working; restart it to load the new settings."
@@ -51205,6 +51281,7 @@ var windowInitCommand = {
   summary: "Write the mesh window launcher, its settings and policy in ~/.agentmesh",
   help: `Usage: agentmesh window init --agent <id> [--owner <id>] [--branch-template <t>]
                             [--integration-branch <b>] [--test <command>]... [--dir <folder>]
+                            [--mode auto|manual]
 
 Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
@@ -51219,7 +51296,9 @@ that Claude account.
 --branch-template     default ${DEFAULT_TEMPLATE}
 --integration-branch  default agents
 --test                a test command the window may run without asking; repeatable
---dir                 the folder the launcher is started in (default: the current folder)`,
+--dir                 the folder the launcher is started in (default: the current folder)
+--mode                auto (default): commands not on the window's list go to Claude Code's auto
+                      mode checks; manual: they ask you. Secrets are refused in both.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -51229,12 +51308,14 @@ that Claude account.
         "branch-template": { type: "string", default: DEFAULT_TEMPLATE },
         "integration-branch": { type: "string", default: "agents" },
         test: { type: "string", multiple: true },
-        dir: { type: "string" }
+        dir: { type: "string" },
+        mode: { type: "string", default: "auto" }
       },
       { min: 0, max: 0, names: "" }
     );
     const agentId = values.agent;
     if (!agentId) throw usageError("Missing --agent <id>");
+    const mode = windowMode(values.mode);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values["branch-template"], values.owner ?? agentId, agentId);
@@ -51246,7 +51327,8 @@ that Claude account.
       token: kept?.token ?? randomBytes(16).toString("hex"),
       ownBranchPrefix: prefix,
       integrationBranch: values["integration-branch"],
-      testCommands: values.test ?? []
+      testCommands: values.test ?? [],
+      mode
     };
     if (!parseWindowPolicy(JSON.stringify(policy))) {
       throw usageError(
@@ -51278,6 +51360,7 @@ that Claude account.
       testCommands: policy.testCommands,
       ownBranchPrefix: prefix,
       integrationBranch: policy.integrationBranch,
+      mode,
       userProfile,
       configDir
     };
@@ -51307,7 +51390,8 @@ that Claude account.
       reached,
       reachesOurs: reached !== null && isOwnShim(reached)
     });
-    printNotes(ctx, platform, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
+    const notes = { mode, rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks };
+    printNotes(ctx, platform, notes);
     return 0;
   }
 };

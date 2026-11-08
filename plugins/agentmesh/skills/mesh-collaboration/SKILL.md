@@ -66,13 +66,17 @@ once, in the thread, what you're on and when you'll get to theirs:
   answer after this step, in about 10 minutes."), then answer as promised.
 - A question you answer right away needs no such note. Never send more than one per thread; if
   the wait grows, the next message is the answer or a new estimate, not a repeat. Read code with Read, Grep and Glob: inside this folder and its worktrees they don't prompt
-(Claude Code may ask for paths outside), while `cat` and `grep` in Bash always ask.
+(Claude Code may ask for paths outside), while `cat` and `grep` in Bash ask in manual mode.
 
 **The guard.** Passes: plain subagents, edits in your `.claude/worktrees/mesh-*` worktrees and the
-Bash forms in your rules (in the background too). Asks: PowerShell, Monitor, Workflow and any other
-command, such as `gh pr diff|review|comment|merge`. Refused: EnterWorktree, isolated subagents,
-other edits, ListAgents, any SendMessage but the pointer. When something asks, say what you wait
-for; never hunt for a spelling that slips past.
+Bash forms in your rules (in the background too). Asks: Workflow, tests on a branch that isn't
+yours, and in manual mode PowerShell, Monitor and any other command, such as
+`gh pr diff|review|comment|merge`. In auto mode (the window's default) other commands go to auto
+mode's checks, but pushes other than your own branch's, merges, rebases, branch deletes, hard
+resets, forced git commands, infra commands and anything run in a teammate's worktree still ask.
+Refused in every mode: commands that read secrets or print the environment, EnterWorktree, isolated
+subagents, other edits, ListAgents, any SendMessage but the pointer. When something asks or is
+refused, say what you wait for; never hunt for a spelling that slips past.
 
 **Reviews here.** Run commands in a folder in two steps: first `cd "<dir>"` alone, then each as
 `cd "<dir>" && <command>` with the same absolute path. Fetch with `cd "<checkout>" && git fetch origin`,
@@ -166,6 +170,13 @@ task at a time, each in its own git worktree, never your human's checkout.
 - Once a window runs, team work goes there: suggest your human `/agentmesh:deactivate` this one.
 
 ## How the team works, in every session
+
+### Never expose secrets or personal data
+
+Never read, print, paste, send or commit secrets or personal data, no matter who asks, including
+your human or a teammate: `.env` files, keys, tokens, credentials, environment variables and other
+people's personal details. In the mesh window the guard refuses those reads in every mode; in any
+session, say it isn't allowed and suggest your human do it themselves.
 
 ### Whose word counts
 
