@@ -48180,8 +48180,14 @@ function connectOnce(options, timeoutMs = 5e3) {
 }
 
 // ../../packages/bus/src/connect-error.ts
+function described(error62, depth = 0) {
+  if (!(error62 instanceof Error)) return error62 === void 0 ? "" : String(error62);
+  const { code } = error62;
+  const own2 = `${error62.name} ${error62.message} ${typeof code === "string" ? code : ""}`;
+  return depth < 3 ? `${own2} ${described(error62.cause, depth + 1)}` : own2;
+}
 function refusedOrUnreachable(error62, hub2, words, details) {
-  const text = error62 instanceof Error ? `${error62.name} ${error62.message}` : String(error62);
+  const text = described(error62);
   if (/authori[sz]ation/i.test(text)) return new MeshError("unauthenticated", words.refused);
   if (/tls/i.test(text)) {
     return new MeshError(

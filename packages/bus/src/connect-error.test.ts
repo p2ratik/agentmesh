@@ -25,6 +25,19 @@ describe('refusedOrUnreachable', () => {
     }
   });
 
+  // What nats.js really throws for a port nothing listens on: the code is only in the cause.
+  it('reads a refused port from the error the NATS client throws', () => {
+    const cause = fail('connect ECONNREFUSED 127.0.0.1:4222', 'ECONNREFUSED');
+    const error = Object.assign(new Error('connection refused', { cause }), {
+      name: 'ConnectionError',
+    });
+    const mapped = refusedOrUnreachable(error, HUB, words);
+    expect([mapped.code, mapped.message]).toEqual([
+      'unavailable',
+      `Could not reach the hub at ${HUB}. Check your network and try again.`,
+    ]);
+  });
+
   it('gives the uncertain case the details its caller passes', () => {
     const details = { mayBeEnrolled: true };
     expect(refusedOrUnreachable(fail('read ECONNRESET'), HUB, words, details).details).toEqual(

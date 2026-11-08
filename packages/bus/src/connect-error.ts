@@ -8,6 +8,14 @@ export interface ConnectWords {
   dropped: string;
 }
 
+/** An error's name, message and code, and its causes' (nats.js keeps `ECONNREFUSED` in the cause). */
+function described(error: unknown, depth = 0): string {
+  if (!(error instanceof Error)) return error === undefined ? '' : String(error);
+  const { code } = error as { code?: unknown };
+  const own = `${error.name} ${error.message} ${typeof code === 'string' ? code : ''}`;
+  return depth < 3 ? `${own} ${described(error.cause, depth + 1)}` : own;
+}
+
 /**
  * Maps a failed `connectOnce` without echoing the server's text. A refusal arrives as
  * `Authorization Violation` or as a reset (NATS closes on a refusal, and on Windows the reset can
@@ -20,7 +28,7 @@ export function refusedOrUnreachable(
   words: ConnectWords,
   details?: Record<string, unknown>,
 ): MeshError {
-  const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  const text = described(error);
   if (/authori[sz]ation/i.test(text)) return new MeshError('unauthenticated', words.refused);
   if (/tls/i.test(text)) {
     return new MeshError(

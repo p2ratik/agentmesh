@@ -48783,8 +48783,14 @@ function watchStatus(nc, { logger, onStatus }) {
 }
 
 // ../../packages/bus/src/connect-error.ts
+function described(error63, depth = 0) {
+  if (!(error63 instanceof Error)) return error63 === void 0 ? "" : String(error63);
+  const { code } = error63;
+  const own2 = `${error63.name} ${error63.message} ${typeof code === "string" ? code : ""}`;
+  return depth < 3 ? `${own2} ${described(error63.cause, depth + 1)}` : own2;
+}
 function refusedOrUnreachable(error63, hub2, words, details) {
-  const text3 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
+  const text3 = described(error63);
   if (/authori[sz]ation/i.test(text3)) return new MeshError("unauthenticated", words.refused);
   if (/tls/i.test(text3)) {
     return new MeshError(
