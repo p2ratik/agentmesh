@@ -69,7 +69,7 @@ export class ObserveService {
   /** Each agent's stored reports in the last minute. */
   readonly #budget = new MinuteWindow();
 
-  /** `ownsSession`: whether the agent has this (non-closed) session; the sessions module answers. */
+  /** `ownsSession`: whether the agent has this session, at any liveness; the sessions module answers. */
   constructor(
     private readonly ctx: Pick<HubContext, 'db' | 'clock' | 'loaded' | 'index'>,
     private readonly ownsSession: (agent: string, session: string) => boolean,

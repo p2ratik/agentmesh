@@ -29,7 +29,10 @@ const TaskRef = z.string().regex(/^task-\d{1,12}$/);
 const PlanRef = z.string().regex(/^plan-\d{1,12}$/);
 /** Tool, method, error code: a short token, never a sentence. */
 const Token = z.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
-/** A version: semver-ish with build tags, and it starts with a digit, so it is never a word. */
+/**
+ * A version: semver-ish with build tags. It starts with a digit, so it is never a word from its
+ * first character, but the tail after the digit is free (`1_any_word` passes): a laptop writes it.
+ */
 export const Version = z.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
 const Ms = z.number().int().nonnegative();
 const Count = z.number().int().nonnegative();
@@ -59,12 +62,7 @@ export const ReportedEvent = z.discriminatedUnion('kind', [
     meshWindow: z.boolean(),
     pull: z.boolean(),
   }),
-  strict({
-    ...reported,
-    kind: z.literal('nats'),
-    event: z.enum(NATS_EVENTS),
-    code: Token.optional(),
-  }),
+  strict({ ...reported, kind: z.literal('nats'), event: z.enum(NATS_EVENTS) }),
   strict({
     ...reported,
     kind: z.literal('activation'),

@@ -1,22 +1,27 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { connectOnce, RpcClient } from '@agentmesh/bus';
-import { agentmeshDir, MeshError } from '@agentmesh/common';
+import { connectOnce, RpcClient, refusedOrUnreachable } from '@agentmesh/bus';
+import { existingMesh, MeshError } from '@agentmesh/common';
 import { inboxPrefix } from '@agentmesh/protocol';
-import { parseCommandArgs } from '../args';
+import { parseCommandArgs, usageError } from '../args';
 import type { AgentSettings, CliContext, Command, ObserveCall } from '../context';
+import { keyWords } from '../setup/checks/agent';
 
 /**
  * One connection as the saved agent, one `observe.timeline` call, then close. The hub answers
- * only into the caller's own inbox, so the connection takes the agent's inbox prefix.
+ * only into the caller's own inbox, so the connection takes the agent's inbox prefix. A failed
+ * connect reads as join's does: refused, dropped or unreachable, never the server's own text.
  */
 export const callTimeline: ObserveCall = async (s, params) => {
-  const nc = await connectOnce({
-    servers: [s.natsUrl],
-    name: `timeline-${s.agentId}`,
-    inboxPrefix: inboxPrefix(s.agentId),
-    credentials: { nkeySeed: s.nkeySeed },
-  });
+  let nc: Awaited<ReturnType<typeof connectOnce>>;
+  try {
+    nc = await connectOnce({
+      servers: [s.natsUrl],
+      name: `timeline-${s.agentId}`,
+      inboxPrefix: inboxPrefix(s.agentId),
+      credentials: { nkeySeed: s.nkeySeed },
+    });
+  } catch (error) {
+    throw refusedOrUnreachable(error, s.natsUrl, keyWords(s.agentId, s.natsUrl));
+  }
   try {
     return await new RpcClient(nc, s.prefix, s.agentId).call('observe.timeline', params);
   } finally {
@@ -28,17 +33,30 @@ const NOT_JOINED =
   'No agent settings found: run /agentmesh:join or agentmesh agent-setup --write first.';
 
 function readSettings(ctx: CliContext): AgentSettings {
-  let raw: Record<string, unknown>;
-  try {
-    raw = JSON.parse(readFileSync(join(agentmeshDir(ctx.homeDir), 'agent.json'), 'utf8'));
-  } catch {
-    throw new MeshError('not_found', NOT_JOINED);
+  const { agentId, natsUrl, nkeySeed, prefix = 'mesh' } = existingMesh(ctx.homeDir) ?? {};
+  if (!agentId || !natsUrl || !nkeySeed) throw new MeshError('not_found', NOT_JOINED);
+  return { agentId, natsUrl, nkeySeed, prefix };
+}
+
+/** `--limit`: a positive whole number, or a usage error (exit 2) before anything connects. */
+function parseLimit(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[1-9]\d*$/.test(value)) throw usageError('--limit must be a positive whole number');
+  return Number(value);
+}
+
+/** The text, or with `--json` one event per line and a note on stderr when it was cut short. */
+function print(r: Awaited<ReturnType<ObserveCall>>, json: boolean, ctx: CliContext): void {
+  if (!json) {
+    ctx.stdout(r.text);
+    return;
   }
-  const { agentId, natsUrl, nkeySeed, prefix } = raw;
-  if (typeof agentId !== 'string' || typeof natsUrl !== 'string' || typeof nkeySeed !== 'string') {
-    throw new MeshError('not_found', NOT_JOINED);
+  for (const e of r.events) ctx.stdout(JSON.stringify(e));
+  if (r.truncated) {
+    ctx.stderr(
+      'note: truncated: only the newest events are shown; narrow the window or raise --limit',
+    );
   }
-  return { agentId, natsUrl, nkeySeed, prefix: typeof prefix === 'string' ? prefix : 'mesh' };
 }
 
 export const timelineCommand: Command = {
@@ -49,9 +67,10 @@ export const timelineCommand: Command = {
 
 For this mesh's operators only (humans in observability.viewers); anyone else is refused.
 Reads ~/.agentmesh/agent.json, asks the hub and prints the timeline: ids, counts, outcomes and
-timings, never message contents. --since and --until take an ISO time or a duration (30m, 2h, 1d).
+timings, never message contents. AGENTMESH_* environment overrides are ignored. --since and
+--until take an ISO time or a duration (30m, 2h, 1d). --limit is at most 1000.
 
---json   one event per line`,
+--json   one event per line (a note on stderr says when the hub cut it short)`,
   async run(argv, ctx) {
     const { values: v } = parseCommandArgs(
       argv,
@@ -66,6 +85,7 @@ timings, never message contents. --since and --until take an ISO time or a durat
       },
       { min: 0, max: 0, names: '' },
     );
+    const limit = parseLimit(v.limit);
     const settings = readSettings(ctx);
     const params = {
       ...(v.agent ? { agent: v.agent } : {}),
@@ -73,12 +93,10 @@ timings, never message contents. --since and --until take an ISO time or a durat
       ...(v.thread ? { thread: v.thread } : {}),
       ...(v.since ? { since: v.since } : {}),
       ...(v.until ? { until: v.until } : {}),
-      ...(v.limit ? { limit: Number(v.limit) } : {}),
+      ...(limit ? { limit } : {}),
     };
     try {
-      const r = await (ctx.observeCall ?? callTimeline)(settings, params);
-      if (v.json) for (const e of r.events) ctx.stdout(JSON.stringify(e));
-      else ctx.stdout(r.text);
+      print(await (ctx.observeCall ?? callTimeline)(settings, params), v.json, ctx);
       return 0;
     } catch (error) {
       if (error instanceof MeshError) {

@@ -69,7 +69,7 @@ function sessionDetails(
     case 'connected':
       return `${e.session ?? 'no session'}${e.meshWindow ? ' (mesh window)' : ''}${e.pull ? ' (pull)' : ''}`;
     case 'nats':
-      return `NATS ${e.event}${opt(e.code, ' ')}`;
+      return `NATS ${e.event}`;
     case 'activation':
       return `${e.phase} · ${e.mode}${opt(e.reason)}`;
     case 'tool':

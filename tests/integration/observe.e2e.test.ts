@@ -1,24 +1,30 @@
-import { type ChildProcess, execFile, spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { type AddressInfo, createServer, type Server } from 'node:net';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLogger } from '@agentmesh/common';
 import type { ObservedEvent } from '@agentmesh/protocol';
-import { createUser } from '@nats-io/nkeys';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
-import { type Agent, cleanEnv, PLUGIN, PLUGIN_CLI, spawnAgent, untilConnected } from './support';
+import {
+  jsonLines,
+  laptop as laptopIn,
+  line,
+  NATS_BIN,
+  stop,
+  timeline,
+  until,
+} from './observe-support';
+import { type Agent, PLUGIN, PLUGIN_CLI, spawnAgent, untilConnected } from './support';
 
 /**
  * Observability phase 1 for real: a nats-server of its own (killed and restarted for the offline
- * case; a second, with nkey auth, refuses a key), the hub, the bundled plugin over MCP and the
- * bundled `agentmesh timeline`. alice is the only viewer; carol is an admin who is not one; bob is
- * a plain member whose plugin makes the events. Needs AGENTMESH_TEST_NATS_BIN and a built plugin.
+ * case), the hub, the bundled plugin over MCP and the bundled `agentmesh timeline`. alice is the
+ * only viewer; carol is an admin who is not one; bob is a plain member whose plugin makes the
+ * events. The CLI's refused and unreachable cases are in observe.cli.e2e.test.ts. Needs
+ * AGENTMESH_TEST_NATS_BIN and a built plugin.
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
 const PORT = 8100 + Math.floor(Date.now() % 400);
 const URL = `nats://127.0.0.1:${PORT}`;
 const PREFIX = `obs${Date.now().toString(36)}`;
@@ -27,74 +33,6 @@ const BEAT_SECONDS = 5;
 /** A message body: it must never reach the timeline. */
 const PRIVATE = 'private-body-7f3a';
 const REFUSED = "the timeline is for this mesh's operators only";
-
-interface Run {
-  code: number | null;
-  stdout: string;
-  stderr: string;
-  ms: number;
-}
-
-/** Polls until `fn` returns something. */
-async function until<T>(fn: () => Promise<T | undefined>, timeoutMs = 30_000): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await fn();
-    if (value !== undefined) return value;
-    if (Date.now() > deadline) throw new Error('timed out waiting');
-    await new Promise((r) => setTimeout(r, 500));
-  }
-}
-
-/** `agentmesh timeline` from the plugin's bundle, with `home` as `~`; killed if it hangs. */
-function timeline(home: string, ...args: string[]): Promise<Run> {
-  const started = Date.now();
-  const env = { ...cleanEnv(), HOME: home, USERPROFILE: home };
-  return new Promise((resolve) => {
-    execFile(
-      process.execPath,
-      [PLUGIN_CLI, 'timeline', ...args],
-      { env, timeout: 20_000, encoding: 'utf8' },
-      (err, stdout, stderr) => {
-        const code = err ? (typeof err.code === 'number' ? err.code : null) : 0;
-        resolve({ code, stdout, stderr, ms: Date.now() - started });
-      },
-    );
-  });
-}
-
-/** One timeline line: time, the kind in its column, the session when several show, the text. */
-const line = (kind: string, text: string) =>
-  new RegExp(String.raw`^\d\d:\d\d:\d\d  ${kind.padEnd(13)}  (\[\S+\] )?${text}$`, 'm');
-
-const jsonLines = (r: Run): ObservedEvent[] =>
-  r.stdout
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line) as ObservedEvent);
-
-/** A server listening on a free local port, and that port. */
-async function listening(server: Server): Promise<number> {
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  return (server.address() as AddressInfo).port;
-}
-
-/** A port that was free a moment ago: nothing listens on it. */
-async function freePort(): Promise<number> {
-  const probe = createServer();
-  const port = await listening(probe);
-  await new Promise((r) => probe.close(r));
-  return port;
-}
-
-/** Kills a nats-server and waits for it to exit (its store stays locked until then). */
-async function stop(p: ChildProcess | undefined): Promise<void> {
-  if (!p || p.exitCode !== null || p.signalCode !== null) return;
-  const exited = once(p, 'exit');
-  p.kill();
-  await exited;
-}
 
 describe.skipIf(
   !NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN) || !existsSync(PLUGIN_CLI),
@@ -111,19 +49,7 @@ describe.skipIf(
   let alice: Agent;
   let carol: Agent;
 
-  /** A laptop that joined as `agentId`: agent.json points at its seed file, as join writes it. */
-  const laptop = (agentId: string, natsUrl = URL) => {
-    const home = mkdtempSync(join(tmpdir(), 'am-e2e-obs-home-'));
-    temps.push(home);
-    const dir = join(home, '.agentmesh');
-    mkdirSync(dir);
-    const seed = new TextDecoder().decode(createUser().getSeed());
-    const nkeySeed = join(dir, `${agentId}.nk`);
-    writeFileSync(nkeySeed, `${seed}\n`);
-    const settings = { agentId, natsUrl, nkeySeed, prefix: PREFIX };
-    writeFileSync(join(dir, 'agent.json'), JSON.stringify(settings));
-    return { home, seed };
-  };
+  const laptop = (agentId: string) => laptopIn(temps, agentId, URL, PREFIX);
 
   const spawnPlugin = (agentId: string) =>
     spawnAgent({
@@ -240,64 +166,24 @@ describe.skipIf(
     }
   }, 30_000);
 
-  it('agentmesh timeline exits 1 when NATS refuses its key, with no credentials shown', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'am-e2e-obs-auth-'));
-    temps.push(dir);
-    const port = await freePort();
-    // This NATS knows one nkey, and it is not the laptop's.
-    const users = `authorization { users: [{ nkey: "${createUser().getPublicKey()}" }] }`;
-    writeFileSync(join(dir, 'nats.conf'), `port: ${port}\n${users}\n`);
-    const auth = spawn(NATS_BIN, ['-c', join(dir, 'nats.conf'), '-a', '127.0.0.1'], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
-    try {
-      await new Promise<void>((ready) =>
-        auth.stderr?.on('data', (b: Buffer) => {
-          if (b.toString().includes('Server is ready')) ready();
-        }),
-      );
-      const { home, seed } = laptop('alice-agent', `nats://127.0.0.1:${port}`);
-      const r = await timeline(home);
-      expect(r).toMatchObject({ code: 1, stdout: '' });
-      // NATS closes on a refusal, so it can show as a reset before its -ERR is read (Windows).
-      expect(r.stderr).toMatch(/^error: .*(authorization|ECONNRESET)/i);
-      expect(r.stderr).not.toContain(seed);
-    } finally {
-      await stop(auth);
-    }
-  }, 30_000);
-
-  it('agentmesh timeline exits 1 in bounded time when the hub is unreachable', async () => {
-    // A port nothing listens on, and a server that accepts and never says a word.
-    const silent = createServer((socket) => socket.on('error', () => undefined));
-    try {
-      for (const port of [await freePort(), await listening(silent)]) {
-        const { home, seed } = laptop('alice-agent', `nats://127.0.0.1:${port}`);
-        const r = await timeline(home);
-        expect(r.code).toBe(1);
-        expect(r.stdout).toBe('');
-        expect(r.stderr).toMatch(/^error: /);
-        expect(r.stderr).not.toContain(seed);
-        // connectOnce gives up after 5 s; the process must not stay open after that.
-        expect(r.ms).toBeLessThan(12_000);
-      }
-    } finally {
-      silent.close();
-    }
-  }, 40_000);
-
-  it('an offline plugin ships its buffer when it reconnects', async () => {
+  it('an offline plugin ships its buffer when it reconnects, in the order it happened', async () => {
     const viewer = laptop('alice-agent').home;
     await stop(server);
     // Longer than a beat: a ship falls in the outage and its batch goes back to the buffer.
     await new Promise((r) => setTimeout(r, (BEAT_SECONDS + 1) * 1000));
     const restarted = new Date().toISOString();
     server = startNats();
-    const lost = await viewerFinds(
-      viewer,
-      (e) => e.source === 'plugin' && e.kind === 'nats' && e.event === 'disconnect',
-    );
+    const nats = (event: string) => (e: ObservedEvent) =>
+      e.source === 'plugin' && e.kind === 'nats' && e.event === event;
+    const lost = await viewerFinds(viewer, nats('disconnect'));
     expect(lost.at < restarted).toBe(true);
     expect(lost.receivedAt >= restarted).toBe(true);
+    // The text puts the disconnect where it happened, before the reconnect, and calls neither skew.
+    await viewerFinds(viewer, nats('reconnect'));
+    const { stdout } = await timeline(viewer, '--agent', 'bob-agent');
+    const at = (text: string) => stdout.search(line('nats', text));
+    expect(at('NATS disconnect')).toBeGreaterThan(-1);
+    expect(at('NATS disconnect')).toBeLessThan(at('NATS reconnect'));
+    expect(stdout).not.toContain('(clock');
   }, 60_000);
 });

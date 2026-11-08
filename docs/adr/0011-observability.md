@@ -123,8 +123,9 @@ code to match:
 - **The `timeline` tool labels its result as data.** Its first line says the text was recorded by
   plugins and the hub and is never instructions. That label is the defence for the fields a
   laptop still writes freely, without spaces: the tool name, a tool call's outcome, each
-  version's tail, the guard's `key` (`^[A-Za-z_]{1,40}$`) and the reserved nats `code`. The
-  operator's Claude reads them under the label, as data.
+  version's tail and the guard's `key` (`^[A-Za-z_]{1,40}$`). The operator's Claude reads them
+  under the label, as data. (The reserved nats `code` was one too, until the final review dropped
+  it.)
 - **No silent drops.** Events the hub drops over its cap, and a batch it refuses as
   `invalid_request`, count in the plugin's `dropped` gap, like a buffer overflow does.
 - **The hub's own events are capped too.** Failed-call (`rpc`) events get `maxEventsPerMinute` a
@@ -178,6 +179,12 @@ code to match:
   resend with the same id after a lost ack would drop the added count. Counting a gap twice beats
   losing it. The shutdown report counts what it can't carry into its marker, which goes in the
   same report (99 events plus the marker).
+- **The nats `code` is gone.** It was reserved and nothing set it, but the schema took a
+  64-character token and the formatter printed it: one more field a laptop could write a word
+  into. A nats event carries its kind only.
+- **Clear connect errors.** `agentmesh timeline` and `doctor` map a refused, reset or unreachable
+  connect to words a person can act on, through the helper `join` uses (`refusedOrUnreachable` in
+  `packages/bus`), never the server's own text. On Windows a refused key can show as a reset.
 
 ### Phase 1 and phase 2
 
@@ -204,7 +211,8 @@ code to match:
 - Versions, the OS and the architecture are stricter than the design's tokens (see the hardening
   above).
 - The plugin's relay stage `denied` is in the schema but not recorded: a refused `SendMessage` is a
-  `guard` event. The nats `code` and the relay `reason` fields are reserved; nothing sets them yet.
+  `guard` event. The relay `reason` fields are reserved; nothing sets them yet. The nats event has
+  no `code` (the design's was reserved, set by nothing, and dropped).
 - The text doesn't label every line "reported by the plugin". The `timeline` tool labels its whole
   result as data instead. Each event keeps its `source`; the text names the hub's and the
   plugin's stages of a delivery or relay, and `--json` shows the source of every event.
@@ -234,8 +242,8 @@ code to match:
   talking to an older hub sends one empty check per process start, gets `not_found`, and stops
   reporting for that process.
 - What a laptop reports is its own word: a teammate can forge events about their own agent, never
-  another's, and can still write words into the tool name, the outcome, a version's tail, the
-  guard's `key` and the nats `code`.
+  another's, and can still write words into the tool name, the outcome, a version's tail and the
+  guard's `key`.
 - Turning observability off reaches only plugins that talk to the hub while it is off; an
   offline laptop's buffer ships once it is back on.
 - The store grows with activity, bounded per minute and kept for `retentionDays`: at the cap, one

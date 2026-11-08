@@ -435,7 +435,7 @@ Reported with `telemetry.report`:
 | Kind | Source | Fields |
 | --- | --- | --- |
 | `connected` | plugin | `pluginVersion`, `claudeCodeVersion`, `os`, `arch`, `node`, `meshWindow`, `pull`; each time a hello that says observability is on lands. Versions match `^[0-9][0-9A-Za-z.+_-]{0,63}$` (a leading digit); `claudeCodeVersion` is null when Claude Code gives none or one that doesn't match. `os` and `arch` are Node's `process.platform` and `process.arch` values (`NODE_PLATFORMS`, `NODE_ARCHES`) |
-| `nats` | plugin | `event`: `disconnect`, `reconnect` or `error`. `code` is reserved: nothing sets it yet |
+| `nats` | plugin | `event`: `disconnect`, `reconnect` or `error`, and nothing else (the reserved `code` was dropped: nothing set it, and a laptop could write a word into it) |
 | `activation` | plugin | `phase`: `check_sent`, `activated`, `refused`, `failed`, `renewed`, `renewal_fallback`, `deactivated`; `mode` (`push`, `pull`); `reason` when it says no |
 | `tool` | plugin | `tool`, `outcome` (`ok`, `refused`, a hub error code, or `internal`), `ms`, and the `thread`, `task` or `plan` it named |
 | `delivery` | plugin | `message`, `thread`, `stage` (`received`, `pushed`, `push_failed`, `deduped`, `held`), `sinceReceivedMs` |
@@ -469,8 +469,9 @@ one does:
 - guard-sourced events (denials, asks and the relay's `claimed`);
 - the hook's lines in the mesh window or in a session with no local record, and its `error`
   events;
-- `dropped` markers, except one that a buffer overflow opened, which takes the session of the last
-  event it pushed out. So a `--session` timeline doesn't show most gaps;
+- `dropped` markers, except one that a buffer overflow opened while no marker was pending, which
+  takes the session of the event whose overflow opened it, usually the first one lost (null for a
+  guard or hook line). So a `--session` timeline doesn't show most gaps;
 - a `no_session` delivery, and `orphan`, `rpc` and `auth` events.
 
 Other hook events carry the session the hook ran in.

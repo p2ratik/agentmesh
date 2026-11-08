@@ -131,4 +131,40 @@ describe('agentmesh timeline', () => {
     expect(t.err.join('')).toContain('agentmesh agent-setup --write');
     expect(t.calls).toEqual([]);
   });
+
+  it.each(['0', '-3', '1.5', 'ten', '2e3'])(
+    'refuses --limit %s as a usage error',
+    async (limit) => {
+      const t = setup();
+      expect(await t.run(`--limit=${limit}`)).toBe(2);
+      expect(t.err.join('')).toContain('--limit must be a positive whole number');
+      expect(t.calls).toEqual([]);
+    },
+  );
+
+  it('--json says on stderr when the hub cut the timeline short', async () => {
+    const t = setup({ call: async () => ({ events: [], text: '', truncated: true }) });
+    expect(await t.run('--json')).toBe(0);
+    expect(t.out).toEqual([]);
+    expect(t.err.join('')).toContain('truncated: only the newest events are shown');
+  });
+
+  it('the help says AGENTMESH_* overrides are ignored', async () => {
+    const t = setup();
+    expect(await t.run('--help')).toBe(0);
+    expect(t.out.join('')).toContain('AGENTMESH_* environment overrides are ignored');
+  });
+
+  // On Windows a refused key can show as a reset; neither shows the server's own text.
+  it.each([
+    ['Authorization Violation', "The hub refused pratik-agent's key"],
+    ['read ECONNRESET', "it may have refused pratik-agent's key"],
+    ['connect ECONNREFUSED 10.0.0.1:4222', 'Could not reach the hub at nats://x:4222'],
+  ])('maps a failed connect (%s) to a clear message', async (raw, words) => {
+    vi.mocked(connectOnce).mockRejectedValue(new Error(raw));
+    const error = await callTimeline(SETTINGS, {}).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(MeshError);
+    expect((error as Error).message).toContain(words);
+    expect((error as Error).message).not.toContain(raw);
+  });
 });

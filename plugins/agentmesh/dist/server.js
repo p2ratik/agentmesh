@@ -25420,15 +25420,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 var agentmeshDir = (home = homedir()) => join(home, ".agentmesh");
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
 function existingMesh(home = homedir()) {
   const file2 = join(agentmeshDir(home), "agent.json");
   if (!existsSync(file2)) return null;
   try {
     const value = JSON.parse(readFileSync(file2, "utf8"));
-    const pick2 = (k) => typeof value[k] === "string" ? value[k] : void 0;
-    const agentId = pick2("agentId");
-    const natsUrl = pick2("natsUrl");
-    return agentId || natsUrl ? { ...agentId ? { agentId } : {}, ...natsUrl ? { natsUrl } : {} } : null;
+    const saved = {};
+    for (const k of FIELDS) {
+      const v = value[k];
+      if (typeof v === "string" && v) saved[k] = v;
+    }
+    return saved.agentId || saved.natsUrl ? saved : null;
   } catch {
     return null;
   }
@@ -45818,12 +45821,7 @@ var ReportedEvent = external_exports.discriminatedUnion("kind", [
     meshWindow: external_exports.boolean(),
     pull: external_exports.boolean()
   }),
-  strict({
-    ...reported,
-    kind: external_exports.literal("nats"),
-    event: external_exports.enum(NATS_EVENTS),
-    code: Token.optional()
-  }),
+  strict({ ...reported, kind: external_exports.literal("nats"), event: external_exports.enum(NATS_EVENTS) }),
   strict({
     ...reported,
     kind: external_exports.literal("activation"),
@@ -48784,6 +48782,25 @@ function watchStatus(nc, { logger, onStatus }) {
   });
 }
 
+// ../../packages/bus/src/connect-error.ts
+function refusedOrUnreachable(error63, hub2, words, details) {
+  const text3 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
+  if (/authori[sz]ation/i.test(text3)) return new MeshError("unauthenticated", words.refused);
+  if (/tls/i.test(text3)) {
+    return new MeshError(
+      "unavailable",
+      `${hub2} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
+    );
+  }
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text3)) {
+    return new MeshError(
+      "unavailable",
+      `Could not reach the hub at ${hub2}. Check your network and try again.`
+    );
+  }
+  return new MeshError("unauthenticated", words.dropped, details);
+}
+
 // ../../packages/bus/src/rpc-client.ts
 var RpcClient = class {
   #nc;
@@ -48851,6 +48868,10 @@ var MINUTE_MS2 = 60 * 1e3;
 
 // src/join/enroll.ts
 var REFUSED = "The hub did not accept this invite. It may be used, expired or cancelled, or not meant for this hub. Ask your admin for a new one.";
+var JOIN_WORDS = {
+  refused: REFUSED,
+  dropped: `${REFUSED} (The connection dropped, so this is not certain; the new key was kept in ~/.agentmesh in case the hub did accept it.)`
+};
 async function enroll(summary, code, seed, clientVersion) {
   const { payload } = summary;
   let nc;
@@ -48862,7 +48883,7 @@ async function enroll(summary, code, seed, clientVersion) {
       credentials: { nkeySeed: seed, token: code.trim() }
     });
   } catch (error63) {
-    throw refusedOrUnreachable(error63, summary.hub);
+    throw refusedOrUnreachable(error63, summary.hub, JOIN_WORDS, { mayBeEnrolled: true });
   }
   try {
     const rpc = new RpcClient(nc, payload.prefix, payload.agentId, 1e4);
@@ -48870,27 +48891,6 @@ async function enroll(summary, code, seed, clientVersion) {
   } finally {
     await nc.close().catch(() => void 0);
   }
-}
-function refusedOrUnreachable(error63, hub2) {
-  const text3 = error63 instanceof Error ? `${error63.name} ${error63.message}` : String(error63);
-  if (/authori[sz]ation/i.test(text3)) return new MeshError("unauthenticated", REFUSED);
-  if (/tls/i.test(text3)) {
-    return new MeshError(
-      "unavailable",
-      `${hub2} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
-    );
-  }
-  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text3)) {
-    return new MeshError(
-      "unavailable",
-      `Could not reach the hub at ${hub2}. Check your network and try again.`
-    );
-  }
-  return new MeshError(
-    "unauthenticated",
-    `${REFUSED} (The connection dropped, so this is not certain; the new key was kept in ~/.agentmesh in case the hub did accept it.)`,
-    { mayBeEnrolled: true }
-  );
 }
 
 // src/join/invite.ts

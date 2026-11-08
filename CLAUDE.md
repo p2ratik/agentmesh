@@ -230,7 +230,7 @@ Run `pnpm check` before calling anything done.
 
 ## Status (as of 2026-11-08)
 
-**Built (v1, release 0.6.0):**
+**Built (v1, release 0.7.0):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).

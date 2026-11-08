@@ -28,7 +28,7 @@ const reported: Record<string, object> = {
     meshWindow: true,
     pull: false,
   },
-  nats: { event: 'error', code: 'AUTHORIZATION_VIOLATION' },
+  nats: { event: 'error' },
   activation: { phase: 'refused', mode: 'push', reason: 'activation.wrong_code' },
   tool: { tool: 'ask', outcome: 'ok', ms: 120, thread: 'thr-3', task: 'task-4', plan: 'plan-1' },
   delivery: { message: msg, thread: 'thr-3', stage: 'pushed', sinceReceivedMs: 5 },
@@ -66,6 +66,12 @@ describe('observability events', () => {
 
   it('has no free text: an extra field is refused', () => {
     const e = { ...rep, kind: 'tool', ...reported.tool, text: 'hello' };
+    expect(ReportedEvent.safeParse(e).success).toBe(false);
+  });
+
+  // Nothing set it, and a laptop could write a word into it: the nats event keeps its kind only.
+  it('refuses a nats code', () => {
+    const e = { ...rep, kind: 'nats', event: 'error', code: 'AUTHORIZATION_VIOLATION' };
     expect(ReportedEvent.safeParse(e).success).toBe(false);
   });
 

@@ -17,7 +17,8 @@ const unknownMethod = (err: unknown): boolean =>
   err.code === 'not_found' &&
   /^Unknown method|is not available on this hub/.test(err.message);
 
-/** The hub has observability off: nothing is taken until a hello says it is on again. */
+/** The hub has observability off: the recorder pauses, and each beat checks back with an empty
+ * report until the hub takes one. */
 const turnedOff = (err: unknown): boolean =>
   err instanceof MeshError && err.code === 'forbidden' && err.message === OBSERVABILITY_OFF;
 
