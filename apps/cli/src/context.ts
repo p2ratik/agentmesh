@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
+import type { RpcParamsInput, RpcResult } from '@agentmesh/protocol';
 import type { RunProcess } from './lib/process';
 import type { ConnectNats } from './setup/checks/agent';
 import type { CheckResult } from './setup/checks/result';
@@ -25,6 +26,8 @@ export interface CliContext {
   lookup?: (host: string) => Promise<string[]>;
   /** Opens one NATS connection with a seed file; defaults to `connectOnce`. */
   connectNats?: ConnectNats;
+  /** Calls `observe.timeline` as the saved agent; defaults to `callTimeline`. */
+  observeCall?: ObserveCall;
   /** Checks the certificate NATS presents; defaults to `checkNatsTls`. */
   probeNatsTls?: (host: string, port: number, now: Date) => Promise<CheckResult>;
   /** `process.platform`; left out, ssh and scp run by their plain names (`sshProgram`). */
@@ -32,6 +35,19 @@ export interface CliContext {
   /** How this CLI was started, for the commands hints print (`cliOf`). */
   cli?: string;
 }
+
+/** The saved laptop settings (~/.agentmesh/agent.json); nkeySeed is the seed file path. */
+export interface AgentSettings {
+  agentId: string;
+  natsUrl: string;
+  nkeySeed: string;
+  prefix: string;
+}
+
+export type ObserveCall = (
+  settings: AgentSettings,
+  params: RpcParamsInput<'observe.timeline'>,
+) => Promise<RpcResult<'observe.timeline'>>;
 
 /** One `agentmesh` subcommand. `name` may have two words (`keys add`). */
 export interface Command {

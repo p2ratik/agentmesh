@@ -16,7 +16,7 @@ import type {
   SessionsService,
 } from '../../contracts';
 import { internalId, taskKey, threadKey } from '../../core/ids';
-import { expireSessions, releaseAndClose } from './liveness';
+import { backLive, expireSessions, markAwayRecorded, releaseAndClose } from './liveness';
 import { toRecord, toSummary, toView } from './mappers';
 import { openSession } from './open';
 import { OrphanDecisions } from './orphans';
@@ -64,6 +64,10 @@ export class SessionsServiceImpl implements SessionsService {
     return { session: this.verify(agentId, sessionId), reclaimed };
   }
 
+  owns(agentId: string, sessionId: string): boolean {
+    return this.repo.get(sessionId)?.agent_id === agentId;
+  }
+
   verify(agentId: string, sessionId: string): SessionRecord {
     return toRecord(this.#row(agentId, sessionId));
   }
@@ -88,7 +92,7 @@ export class SessionsServiceImpl implements SessionsService {
         if (row.active === 0) this.repo.setActive(sessionId, true, at);
         this.repo.setDelivery(sessionId, delivery);
         this.repo.setDescription(sessionId, redactSecrets(description));
-        adopted = adoptAwayWindows(this.repo, row, at);
+        adopted = adoptAwayWindows(this.#ctx, this.repo, row, at);
       },
     );
     logAdopted(this.#ctx.logger, agentId, sessionId, adopted);
@@ -115,7 +119,7 @@ export class SessionsServiceImpl implements SessionsService {
   close(agentId: string, sessionId: string): void {
     const released = this.#ctx.db.transaction(() => {
       this.#row(agentId, sessionId);
-      return releaseAndClose(this.repo, sessionId, this.#now());
+      return releaseAndClose(this.#ctx, this.repo, sessionId, this.#now());
     });
     this.#ctx.logger.info(
       { agent: agentId, session: sessionId, released: released.length },
@@ -129,12 +133,12 @@ export class SessionsServiceImpl implements SessionsService {
     if (!row || row.agent_id !== agentId || row.liveness === 'closed') return 'unknown';
     this.repo.touch(sessionId, this.#now(), git);
     // Back from away: what waited for it goes now, not on the next tick.
-    if (this.repo.markLive(sessionId)) this.#ctx.outbox.kick();
+    if (this.repo.markLive(sessionId)) backLive(this.#ctx, agentId, sessionId);
     return 'ok';
   }
 
   unreachable(sessionId: string): void {
-    this.repo.markAway(sessionId, this.#now());
+    markAwayRecorded(this.#ctx, this.repo, sessionId, this.#now());
   }
 
   route(agentId: string, message: MeshMessage): Route {

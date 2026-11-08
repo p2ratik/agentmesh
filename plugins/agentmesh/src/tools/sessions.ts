@@ -1,6 +1,7 @@
 import { MeshError } from '@agentmesh/common';
 import { RESTART, START_COMMAND } from '@agentmesh/common/window';
 import { z } from 'zod';
+import { activationRecorder, recordActivation } from '../telemetry/plugin-events';
 import type { MeshWindowContext } from '../window/context';
 import { freshGuardStamp } from '../window/guard-stamp';
 import { windowRules } from '../window/rules';
@@ -48,12 +49,13 @@ const needDescription = () =>
 function windowStamp(
   window: MeshWindowContext,
   activation: ActivationState,
+  refuse: (reason: 'activation.guard_down', err: Error) => Error,
 ): { version: string | null } | null {
   if (window.state !== 'verified') return null;
   const stamp = freshGuardStamp(window.dataDir, Date.now());
   if (stamp) return stamp;
   activation.guardVersion = null;
-  throw new ToolRefusal(GUARD_DOWN);
+  throw refuse('activation.guard_down', new ToolRefusal(GUARD_DOWN));
 }
 
 /** Opting this session in and out of the mesh, and moving work to it. */
@@ -68,25 +70,29 @@ export const sessionTools = [
       pull: z.boolean().optional(),
     }),
     mutating: false,
-    run: async (args, { hub, activation, listening, window, agentId, teamPolicy }) => {
+    run: async (args, { hub, activation, listening, window, agentId, teamPolicy, recorder }) => {
+      const { record, refuse, step } = activationRecorder(recorder, hub, args.pull === true);
       // Before any hub call: a marker that does not verify must not take team work.
       if (window.state === 'marked') {
-        throw new ToolRefusal(
-          `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`,
+        throw refuse(
+          'marker.unverified',
+          new ToolRefusal(
+            `AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for ${agentId}, so this session can't be your mesh window. Start it with ${LAUNCHER}, or run /agentmesh:window again.`,
+          ),
         );
       }
       const isWindow = window.state === 'verified';
-      const stamp = windowStamp(window, activation);
+      const stamp = windowStamp(window, activation, refuse);
       if (args.pull) {
-        if (isWindow) throw new ToolRefusal(PULL_REFUSED);
-        if (!args.description) throw needDescription();
-        const view = await hub.call('session.activate', {
-          mode: 'pull',
-          description: args.description,
-        });
+        if (isWindow) throw refuse('activation.pull_in_window', new ToolRefusal(PULL_REFUSED));
+        if (!args.description) throw refuse('activation.no_description', needDescription());
+        const view = await step(
+          hub.call('session.activate', { mode: 'pull', description: args.description }),
+        );
         activation.lastDescription = view.description ?? args.description;
         activation.renewedFrom = null;
         activation.pull = true;
+        record('activated');
         return `This session is active on the mesh as “${activation.lastDescription}”, pull-only. ${PULL_ACTIVE} ${notWindow(window)}`;
       }
       if (args.code === undefined) {
@@ -95,15 +101,17 @@ export const sessionTools = [
         // so getting it back proves both legs. In the first seconds nobody listens there yet;
         // if that never changes, the hub's failure says why.
         await Promise.race([listening, new Promise((r) => setTimeout(r, LISTEN_WAIT_MS))]);
-        await hub.call('session.check', {});
+        await step(hub.call('session.check', {}));
+        record('check_sent');
         return isWindow ? WINDOW_CHECK_SENT : CHECK_SENT;
       }
-      if (!args.description) throw needDescription();
+      if (!args.description) throw refuse('activation.no_description', needDescription());
       const params = { code: args.code, description: args.description };
-      const took = await activateSession(hub, activation, params, stamp);
+      const took = await step(activateSession(hub, activation, params, stamp), true);
       if (took === null) {
         return 'This session was turned off while it activated, so it stays off; /agentmesh:activate turns it back on.';
       }
+      record('activated');
       const active = `This session is active on the mesh as “${activation.lastDescription}”.`;
       if (!isWindow) return `${active} ${notWindow(window)}`;
       const tookOver = took.length > 0 ? `\n\n${tookOverLines(took)}` : '';
@@ -119,7 +127,8 @@ export const sessionTools = [
       'Turn this session off for the mesh, when your human asks (/agentmesh:deactivate). It keeps the tools but receives nothing, and the work it owns is released.',
     input: z.object({}),
     mutating: false,
-    run: async (_args, { hub, activation }) => {
+    run: async (_args, { hub, activation, recorder }) => {
+      const pull = activation.pull;
       // Before the hub call: an activation still out (a renewal answering its check) then loses.
       activation.epoch += 1;
       activation.lastDescription = null;
@@ -127,6 +136,7 @@ export const sessionTools = [
       activation.pull = false;
       activation.guardVersion = null;
       await hub.call('session.deactivate', {});
+      recordActivation(recorder, hub.sessionId, 'deactivated', pull);
       return 'This session no longer receives mesh messages, and the work it owned is released: its next messages go to another active session, or wait. The tools still work; /agentmesh:activate turns it back on.';
     },
   }),

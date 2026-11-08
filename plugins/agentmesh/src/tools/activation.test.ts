@@ -60,6 +60,7 @@ describe('answerCheck', () => {
       push: async (event: ChannelEvent) => void pushed.push(event),
       refresh,
       agentSessions: () => [],
+      recorder: deps.recorder,
     };
     return { deps, answer, calls, pushed, logger, refresh };
   }

@@ -23,7 +23,7 @@ export function learnClaudeSession(
   if (!claudeSessionId || !repo.setClaudeSession(sessionId, claudeSessionId)) return [];
   const match = repo.resumable(agentId, claudeSessionId, sessionId);
   if (!match) return [];
-  if (match.liveness === 'away') releaseAndClose(repo, match.id, at);
+  if (match.liveness === 'away') releaseAndClose(ctx, repo, match.id, at);
   // Closing changed its `released`: read it again.
   const closed = repo.get(match.id);
   const reclaimed = closed ? reclaimReleased(repo, closed, sessionId, at) : [];

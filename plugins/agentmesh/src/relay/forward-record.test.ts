@@ -20,6 +20,7 @@ import {
   forwardFile,
   readForwards,
   removeForward,
+  sweepExpired,
   writeForward,
 } from './forward-record';
 
@@ -147,6 +148,20 @@ describe('forward records', () => {
     for (const f of [stale, 'cc-1.json', 'other.claimed']) utimesSync(join(dir, f), old, old);
     writeForward(dir, 'c'.repeat(32), FIELDS, now + 60_000);
     expect(readdirSync(dir).sort()).toEqual([`fwd-${'c'.repeat(32)}-${ID}.json`, ...kept].sort());
+  });
+
+  it('sweeps an expired, unclaimed record once, and leaves live and claimed ones', () => {
+    const other = 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9N';
+    const third = 'msg-01JC9Z8Q4W6Y7X5V3T2R1P0N9P';
+    writeForward(dir, HEX, FIELDS, now - 1000);
+    writeForward(dir, HEX, { ...FIELDS, messageId: other }, now + 60_000);
+    writeForward(dir, HEX, { ...FIELDS, messageId: third }, now - 1000);
+    expect(claimForward(dir, forwardFile(HEX, third) as string)).toBe(true); // the guard took it
+    expect(sweepExpired(dir, now)).toEqual([FIELDS]);
+    expect(sweepExpired(dir, now)).toEqual([]);
+    expect(readdirSync(dir).filter((f) => f.endsWith('.json'))).toEqual([
+      `fwd-${HEX}-${other}.json`,
+    ]);
   });
 
   it('removes a record', () => {

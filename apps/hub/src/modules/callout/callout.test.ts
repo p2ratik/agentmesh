@@ -123,9 +123,9 @@ describe('callout decisions', () => {
     const dana = createUser();
     const { deps: d, redeemed } = deps({ known: { [dana.getPublicKey()]: 'dana-agent' } });
     const forged = request(dana, { token: invite(), signer: createUser() });
-    expect(await decide(forged, d)).toEqual({ refused: 'bad nkey signature' });
+    expect(await decide(forged, d)).toMatchObject({ refused: 'bad nkey signature' });
     const unsigned = { ...forged, connect_opts: { nkey: dana.getPublicKey() } };
-    expect(await decide(unsigned, d)).toEqual({ refused: 'no nkey signature' });
+    expect(await decide(unsigned, d)).toMatchObject({ refused: 'no nkey signature' });
     expect(redeemed).toEqual([]);
   });
 
@@ -140,7 +140,7 @@ describe('callout decisions', () => {
 
   it('refuses an unknown key without an invite, and redeems one with it', async () => {
     const dana = createUser();
-    expect(await decide(request(dana), deps().deps)).toEqual({ refused: 'unknown key' });
+    expect(await decide(request(dana), deps().deps)).toMatchObject({ refused: 'unknown key' });
     const { deps: d, redeemed } = deps({ redeemOk: true });
     expect(await decide(request(dana, { token: invite() }), d)).toEqual({ agentId: 'dana-agent' });
     expect(redeemed).toEqual([{ inviteId: 'inv-1', secret: SECRET, nkey: dana.getPublicKey() }]);
@@ -150,25 +150,48 @@ describe('callout decisions', () => {
     const { deps: d, redeemed, clock } = deps({ limit: 2 });
     for (let i = 0; i < 2; i++) await decide(request(createUser(), { token: invite() }), d);
     const blocked = await decide(request(createUser(), { token: invite('inv-2') }), d);
-    expect(blocked).toEqual({ refused: 'too many failed redemptions from this address' });
+    expect(blocked).toMatchObject({ refused: 'too many failed redemptions from this address' });
     expect(redeemed).toHaveLength(2);
 
     const elsewhere = request(createUser(), { token: invite() });
     elsewhere.client_info = { ...elsewhere.client_info, host: '198.51.100.9' };
-    expect(await decide(elsewhere, d)).toEqual({ refused: 'too many failed redemptions' });
+    expect(await decide(elsewhere, d)).toMatchObject({
+      refused: 'too many failed redemptions',
+      code: 'auth.too_many_redemptions',
+    });
 
     clock.advance(MINUTE_MS);
     await decide(request(createUser(), { token: invite() }), d);
     expect(redeemed).toHaveLength(3);
+    expect(await decide(request(createUser(), { token: invite('inv-9') }), d)).toMatchObject({
+      code: 'auth.invite_refused',
+    });
   });
 
   it('counts malformed invite codes against the address', async () => {
     const { deps: d } = deps({ limit: 1 });
-    expect(await decide(request(createUser(), { token: 'garbage' }), d)).toEqual({
+    expect(await decide(request(createUser(), { token: 'garbage' }), d)).toMatchObject({
       refused: 'malformed invite',
     });
     expect(await decide(request(createUser(), { token: invite() }), d)).toMatchObject({
       refused: expect.stringMatching(/address/),
+    });
+  });
+
+  it('every refusal carries its reason code', async () => {
+    const d = deps().deps;
+    const user = createUser();
+    const forged = request(user, { signer: createUser() });
+    expect(await decide(forged, d)).toMatchObject({ code: 'auth.bad_signature' });
+    const unsigned = { ...forged, connect_opts: { nkey: user.getPublicKey() } };
+    expect(await decide(unsigned, d)).toMatchObject({ code: 'auth.no_signature' });
+    expect(await decide(request(createUser()), d)).toMatchObject({ code: 'auth.unknown_key' });
+    const g = deps({ limit: 1 }).deps;
+    expect(await decide(request(createUser(), { token: 'garbage' }), g)).toMatchObject({
+      code: 'auth.malformed_invite',
+    });
+    expect(await decide(request(createUser(), { token: invite() }), g)).toMatchObject({
+      code: 'auth.too_many_from_address',
     });
   });
 });

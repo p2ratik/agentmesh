@@ -139,3 +139,42 @@ export function removeForward(dir: string, name: string): void {
     // A leftover `.claimed` marker is never read as a record; a leftover record expires.
   }
 }
+
+/**
+ * Takes each record that expired unclaimed (the guard never passed its send), so the caller
+ * reports it once: taking is `claimForward`, which only one caller wins, and it removes the record.
+ */
+export function sweepExpired(dir: string, now: number): PointerFields[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const swept: PointerFields[] = [];
+  for (const name of names.filter((n) => n.startsWith('fwd-') && n.endsWith('.json'))) {
+    try {
+      const v = JSON.parse(readFileSync(join(dir, name), 'utf8')) as Record<string, unknown>;
+      const fields = {
+        from: v.from,
+        threadId: v.threadId,
+        messageId: v.messageId,
+      } as PointerFields;
+      const hex = name.slice(4, 36);
+      const valid = forwardFile(hex, fields.messageId) === name && pointerText(fields) !== null;
+      if (
+        valid &&
+        typeof v.expiresAt === 'number' &&
+        now > v.expiresAt &&
+        claimForward(dir, name)
+      ) {
+        // The pointer never went out: drop the marker too, so a hub resend is forwarded normally.
+        removeForward(dir, `${name}${CLAIMED}`);
+        swept.push(fields);
+      }
+    } catch {
+      // Unreadable or half-written: left for a later sweep.
+    }
+  }
+  return swept;
+}

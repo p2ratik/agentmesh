@@ -44,6 +44,14 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
   config.rules.forEach((rule, i) => {
     checkRule(rule, `rules[${i}]`, expectKind, workflowIds, add);
   });
+  config.observability.viewers.forEach((id, i) => {
+    if (!humans.has(id)) {
+      add(
+        `observability.viewers[${i}]`,
+        `observability.viewers: "${id}" is not a human in this mesh`,
+      );
+    }
+  });
   checkDiscord(config, add);
   checkIngest(config, add);
   return issues;

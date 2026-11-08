@@ -1,11 +1,11 @@
 import { MeshError } from '@agentmesh/common';
-import { RPC_METHODS } from '@agentmesh/protocol';
+import { RPC_METHODS, type RpcMethodName } from '@agentmesh/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext, RpcHandlerMap, SessionRecord } from '../contracts';
 import { testTeamConfig } from '../testing/fixtures';
 import { createServiceHarness } from '../testing/services';
 import { IdempotencyStore } from './idempotency';
-import { createRpcRouter } from './router';
+import { createRpcRouter, takesNoSession } from './router';
 
 const SECRET = 'invite-plaintext-s3cret';
 
@@ -140,6 +140,10 @@ describe('RPC router sessions', () => {
       'message.send': send,
       'session.hello': () => ({ sessionId: 's-good' }),
       'session.bye': () => ({ ok: true }),
+      'observe.timeline': (_params: unknown, call: CallContext) => {
+        seen.push(`timeline ${call.session}`);
+        return { events: [], text: '', truncated: false };
+      },
     };
     const dispatch = createRpcRouter({
       index: () => h.ctx.index,
@@ -165,7 +169,7 @@ describe('RPC router sessions', () => {
     return { call, seen, rows, dispatch, params };
   }
 
-  it('refuses agent calls without a session, except hello and bye', async () => {
+  it('refuses message.send without a session, and takes hello and bye without one', async () => {
     const { dispatch, params } = sessionSetup();
     await expect(
       dispatch({ caller: 'alice-agent', method: 'message.send' }, params),
@@ -184,6 +188,35 @@ describe('RPC router sessions', () => {
     });
     const asBob = { caller: 'discord-bridge', method: 'message.send', actAs: 'bob' };
     await expect(dispatch(asBob, params)).resolves.toMatchObject({ threadId: 'thr-1' });
+  });
+
+  // Every other agent method needs a session: widening this set is a security decision.
+  it('lets exactly session.hello, session.bye and observe.timeline come without a session', () => {
+    const methods = Object.keys(RPC_METHODS) as RpcMethodName[];
+    expect(methods.filter(takesNoSession).sort()).toEqual([
+      'observe.timeline',
+      'session.bye',
+      'session.hello',
+    ]);
+  });
+
+  // `agentmesh timeline` is one connection and one call: it has no session to send.
+  it('takes observe.timeline without a session, and still verifies one that is sent', async () => {
+    const { dispatch, seen } = sessionSetup();
+    const timeline = (session?: string) =>
+      dispatch(
+        { caller: 'alice-agent', method: 'observe.timeline', ...(session ? { session } : {}) },
+        {},
+      );
+    await expect(timeline()).resolves.toMatchObject({ truncated: false });
+    await expect(timeline('s-good')).resolves.toMatchObject({ truncated: false });
+    await expect(timeline('s-bad')).rejects.toMatchObject({ code: 'not_found' });
+    expect(seen).toEqual([
+      'timeline null',
+      'verify alice-agent s-good',
+      'timeline s-good',
+      'verify alice-agent s-bad',
+    ]);
   });
 
   it('router verifies the session and records claims after success', async () => {

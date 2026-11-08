@@ -28,6 +28,8 @@ export interface RouterDeps {
   sessions?: Pick<SessionsService, 'verify' | 'recordClaims'>;
   /** `db.transaction`: a claiming handler and its claims commit together. */
   transaction<T>(fn: () => T): T;
+  /** Told of every failed call: who, which method, which error code. Never the params. */
+  onError?: (caller: string, method: string, code: string) => void;
   /** Milliseconds, for the rate limiter; defaults to `Date.now`. */
   now?: () => number;
 }
@@ -40,7 +42,7 @@ export interface RouterDeps {
 export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
   const limiter = new RpcRateLimiter();
   const now = deps.now ?? Date.now;
-  return async (ctx: RpcCallContext, rawParams: unknown) => {
+  const dispatch = async (ctx: RpcCallContext, rawParams: unknown) => {
     if (!isRpcMethodName(ctx.method)) {
       throw new MeshError('not_found', `Unknown method "${ctx.method}"`);
     }
@@ -66,6 +68,21 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
     if (!key) return run();
     return runOnce(deps.idempotency, caller.id, key, method, def.cacheResponse === false, run);
   };
+  return async (ctx, rawParams) => {
+    try {
+      return await dispatch(ctx, rawParams);
+    } catch (error) {
+      // Only known methods; `telemetry.report` is how events arrive, so its failures stay out.
+      if (isRpcMethodName(ctx.method) && ctx.method !== 'telemetry.report') {
+        deps.onError?.(
+          ctx.caller,
+          ctx.method,
+          error instanceof MeshError ? error.code : 'internal',
+        );
+      }
+      throw error;
+    }
+  };
 }
 
 /** Plugins older than the minimum swallow the hello refusal; their other calls must say this instead. */
@@ -74,10 +91,22 @@ const NO_SESSION =
   'update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.';
 
 /**
+ * Agent calls that may come without a session: the hello that opens one, the bye, and
+ * `agentmesh timeline` (one call). Widening it is a security decision (a test pins it).
+ */
+const SESSIONLESS: ReadonlySet<RpcMethodName> = new Set([
+  'session.hello',
+  'session.bye',
+  'observe.timeline',
+]);
+
+export const takesNoSession = (method: RpcMethodName): boolean => SESSIONLESS.has(method);
+
+/**
  * The envelope's session is client-asserted: handlers only ever see one verified against
- * the calling agent. Agents need one for every call but `session.hello`, which opens
- * sessions and so takes none (a stale one would otherwise block the reconnect), and
- * `session.bye`. Other callers never carry one.
+ * the calling agent. Agents need one for every call but the SESSIONLESS methods; a sent one
+ * is verified, except on `session.hello`, which opens sessions and so ignores it (a stale one
+ * would otherwise block the reconnect). Other callers never carry one.
  */
 function verifiedSession(
   deps: RouterDeps,
@@ -87,7 +116,7 @@ function verifiedSession(
 ): string | null {
   if (!deps.sessions || caller.kind !== 'agent' || method === 'session.hello') return null;
   if (!raw) {
-    if (method === 'session.bye') return null;
+    if (takesNoSession(method)) return null;
     throw new MeshError('invalid_request', NO_SESSION);
   }
   deps.sessions.verify(caller.id, raw);

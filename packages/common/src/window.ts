@@ -52,7 +52,14 @@ export interface WindowPolicy {
   ownBranchPrefix: string | null;
   integrationBranch: string;
   testCommands: string[];
+  /** Missing in a policy an older `window init` wrote: that window starts in manual mode. */
+  mode?: WindowMode;
 }
+
+/** The permission mode the window starts in: Claude Code's `auto`, or `default` (manual). */
+export const WINDOW_MODES = ['auto', 'manual'] as const;
+export type WindowMode = (typeof WINDOW_MODES)[number];
+const isMode = (v: unknown): v is WindowMode => WINDOW_MODES.some((m) => m === v);
 
 export const TOKEN_PATTERN = /^[0-9a-f]{32}$/;
 // Copied from ids.ts (PARTICIPANT_ID_PATTERN) so this module imports nothing but node:*.
@@ -71,30 +78,42 @@ export function isTestCommand(v: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes('  ') && !v.endsWith(' ');
 }
 
-export function parseWindowPolicy(text: string): WindowPolicy | null {
-  let v: unknown;
+const areTestCommands = (v: unknown): v is string[] =>
+  Array.isArray(v) &&
+  v.length <= MAX_TEST_COMMANDS &&
+  v.every((c) => typeof c === 'string' && isTestCommand(c));
+
+const isPrefixOrNull = (v: unknown): v is string | null =>
+  v === null || (typeof v === 'string' && isBranchName(v) && endsAsPrefix(v));
+
+const parseJson = (text: string): unknown => {
   try {
-    v = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     return null;
   }
+};
+
+export function parseWindowPolicy(text: string): WindowPolicy | null {
+  const v = parseJson(text);
   if (typeof v !== 'object' || v === null) return null;
   const p = v as Record<string, unknown>;
-  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands, mode } = p;
   if (p.version !== 1) return null;
+  if (mode !== undefined && !isMode(mode)) return null;
   if (typeof agentId !== 'string' || !PARTICIPANT_PATTERN.test(agentId)) return null;
   if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) return null;
-  const prefixOk = typeof prefix === 'string' && isBranchName(prefix) && endsAsPrefix(prefix);
-  if (prefix !== null && !prefixOk) return null;
+  if (!isPrefixOrNull(prefix)) return null;
   if (typeof integrationBranch !== 'string' || !isBranchName(integrationBranch)) return null;
-  if (
-    !Array.isArray(testCommands) ||
-    testCommands.length > MAX_TEST_COMMANDS ||
-    !testCommands.every((c) => typeof c === 'string' && isTestCommand(c))
-  ) {
-    return null;
-  }
-  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+  if (!areTestCommands(testCommands)) return null;
+  const policy = {
+    version: 1,
+    agentId,
+    token,
+    ownBranchPrefix: prefix,
+    integrationBranch,
+  } as const;
+  return { ...policy, testCommands, ...(isMode(mode) ? { mode } : {}) };
 }
 
 /**

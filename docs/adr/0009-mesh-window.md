@@ -5,7 +5,10 @@ plugin 0.4.4, part 2 (the mesh window) in 0.5.0, and part 3 (answers for private
 commands and context) ships in 0.6.0. It amends [ADR 0006](0006-per-session-delivery.md) ("reads
 claim nothing") and [ADR 0008](0008-pull-mode.md) ("a pull session cannot hide work"). The designs
 are [the mesh window](../specs/2026-11-01-mesh-window-design.md) and
-[the mesh relay](../specs/2026-11-04-mesh-relay-design.md).
+[the mesh relay](../specs/2026-11-04-mesh-relay-design.md). Amended by
+[ADR 0012](0012-window-auto-mode.md) (0.7.0): the window starts in auto mode by default, and
+secrets are refused in every mode; the `default` mode and disabled auto mode below are now
+`--mode manual`.
 
 ## Context
 

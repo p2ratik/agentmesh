@@ -2,14 +2,22 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hookAgentId } from './agent-id';
-import { promptContext, unreadInput } from './hook/prompt';
-import { announce, isStateFile, pullStateDirs, readJsonFiles, selectStates } from './pull/state';
+import { type PromptLine, promptContext, unreadInput } from './hook/prompt';
+import {
+  announce,
+  isStateFile,
+  type PullState,
+  pullStateDirs,
+  readJsonFiles,
+  selectStates,
+} from './pull/state';
 import { type LocalSession, ownLocalSession, readLocalSessions } from './relay/local-session';
 import {
   deleteClaudeSession,
   pruneClaudeSessions,
   writeClaudeSession,
 } from './resume/claude-session';
+import { leaveEvent } from './telemetry/events-file';
 import { anyFresh, isHeartbeatFile, windowAddresses } from './window/heartbeat';
 import { sessionStartOutput } from './window/session-start';
 import { windowStartState } from './window/start-state';
@@ -21,7 +29,8 @@ import { windowStartState } from './window/start-state';
  * on a cross-session turn a label saying whether it is a verified pointer from its
  * mesh window. Session start records the conversation id for the MCP server and session
  * end deletes it. It prints nothing otherwise, never fails the prompt and always exits
- * 0. Node built-ins only: it runs on every prompt.
+ * 0. Each note or label it adds leaves a timeline event (the note and a count, never the
+ * prompt). Node built-ins only: it runs on every prompt.
  */
 
 const EVENTS = new Set(['UserPromptSubmit', 'SessionStart', 'SessionEnd']);
@@ -83,23 +92,30 @@ function ownSession(dirs: readonly string[], now: number): LocalSession | null {
   return ownLocalSession(sessions, Number(process.env.CLAUDE_PID), now);
 }
 
+/** A line for this prompt, and the hub session of the private session it is for, if known. */
+type Added = { line: PromptLine; session: string | null };
+
+const added = (line: PromptLine | null, own: LocalSession | null): Added | null =>
+  line && { line, session: own?.hubSessionId ?? null };
+
 /**
  * An input cut at MAX_STDIN or the wait, or not JSON: a sender controls a cross-session turn's
  * length, so the mesh window, and a private session that used the mesh, still get their label.
  */
-function unreadLine(text: string, dirs: readonly string[]): string | null {
+function unreadLine(text: string, dirs: readonly string[]): Added | null {
   const marked = !!process.env.AGENTMESH_MESH_WINDOW;
-  return unreadInput(text, marked, !marked && ownSession(dirs, Date.now()) !== null);
+  const own = marked ? null : ownSession(dirs, Date.now());
+  return added(unreadInput(text, marked, own !== null), own);
 }
 
 /** UserPromptSubmit: a private session's reply note, or the label of a cross-session turn. */
-function promptLine(prompt: unknown, dirs: readonly string[]): string | null {
+function promptLine(prompt: unknown, dirs: readonly string[]): Added | null {
   const marked = !!process.env.AGENTMESH_MESH_WINDOW;
   const now = Date.now();
   const own = marked ? null : ownSession(dirs, now);
   const beats = own ? dirs.flatMap((d) => readJsonFiles(d, isHeartbeatFile)) : [];
   const addresses = own ? windowAddresses(beats, own.prefix, own.agentId, now) : [];
-  return promptContext({ prompt, marked, own, windowAddresses: addresses });
+  return added(promptContext({ prompt, marked, own, windowAddresses: addresses }), own);
 }
 
 /** The conversation id by `CLAUDE_PID`, for this process's MCP server (resume); best effort. */
@@ -129,6 +145,36 @@ type Input = {
   session_id?: unknown;
 };
 
+/**
+ * The pull-only session's line (ADR 0008), recorded as pull_shown with the unread threads it
+ * names. Any session in the project shows it, so the event names the session the hook ran in (by
+ * the reply note's rule), never the pull session the line is about.
+ */
+function pullLine(states: readonly PullState[], dirs: readonly string[]): string | null {
+  const line = announce(states);
+  if (!line) return null;
+  const unread = states.reduce((n, s) => n + s.threads, 0);
+  const own = process.env.AGENTMESH_MESH_WINDOW ? null : ownSession(dirs, Date.now());
+  const session = own?.hubSessionId ?? null;
+  leaveEvent('hook', session, () => ({ kind: 'hook', note: 'pull_shown', unread }));
+  return line;
+}
+
+/** UserPromptSubmit's output, then the line's timeline event (its note and count only). */
+function prompted(event: string, pull: string | null, line: Added | null): void {
+  const context = [pull, line?.line.text].filter(Boolean).join('\n');
+  if (context) {
+    process.stdout.write(
+      JSON.stringify({
+        hookSpecificOutput: { hookEventName: event, additionalContext: context },
+      }),
+    );
+  }
+  if (!line) return;
+  const { note, unread } = line.line;
+  leaveEvent('hook', line.session, () => ({ kind: 'hook', note, unread }));
+}
+
 async function main(): Promise<void> {
   const text = await readStdin();
   const input = parse(text) as Input | null;
@@ -146,16 +192,9 @@ async function main(): Promise<void> {
     Date.now(),
     process.platform === 'win32',
   );
-  const pull = announce(states);
+  const pull = pullLine(states, dirs);
   if (event !== 'SessionStart') {
-    const context = [pull, unread ?? promptLine(input?.prompt, dirs)].filter(Boolean).join('\n');
-    if (context) {
-      process.stdout.write(
-        JSON.stringify({
-          hookSpecificOutput: { hookEventName: event, additionalContext: context },
-        }),
-      );
-    }
+    prompted(event, pull, unread ?? promptLine(input?.prompt, dirs));
     return;
   }
   const start = sessionStart(input?.source);
@@ -173,7 +212,7 @@ async function main(): Promise<void> {
 }
 
 main()
-  .catch(() => undefined)
+  .catch(() => leaveEvent('hook', null, () => ({ kind: 'hook', note: 'error' })))
   .finally(() => {
     process.exitCode = 0;
   });

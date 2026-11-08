@@ -12,6 +12,12 @@ const utf8 = (text: string) => new TextEncoder().encode(text);
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64url');
 const NONCE = 'nonce-1';
 
+/** The stored events' rows, once the hub's queued events are written. */
+function eventRows<T>(s: { ctx: ReturnType<typeof createTestHarness>['ctx'] }, sql: string): T[] {
+  s.ctx.events.flush();
+  return s.ctx.db.all<T>(sql);
+}
+
 /** A callout fed sealed, server-signed requests the way nats-server sends them. */
 function setup(overrides: Record<string, unknown> = {}) {
   const h = createTestHarness(testTeamConfig(overrides));
@@ -143,5 +149,54 @@ describe('callout refusal logs', () => {
       cid: 1,
     });
     expect(s.logs[1]?.fields).toMatchObject({ reason: 'unknown key', nkey: user.getPublicKey() });
+  });
+});
+
+describe('callout observability', () => {
+  it('a callout denial records auth denied', async () => {
+    const s = setup();
+    await s.connect('203.0.113.7');
+    const rows = eventRows<{ kind: string; body: string }>(s, 'SELECT kind, body FROM events');
+    const [row] = rows.map((r) => JSON.parse(r.body));
+    expect(rows).toHaveLength(1);
+    expect([row.kind, row.event, row.reason]).toEqual(['auth', 'denied', 'auth.no_signature']);
+    expect(rows[0]?.body).not.toContain('203.0.113');
+  });
+
+  it('a flag reset that falls due cannot let the same address record budget_hit twice', async () => {
+    const s = setup({ enrollment: { connectAttemptsPerMinute: 1 } });
+    await s.connect('203.0.113.7');
+    s.clock.advance(59 * MINUTE_MS + 59_000);
+    await s.connect('203.0.113.7');
+    s.clock.advance(2000);
+    await s.connect('203.0.113.7');
+    await s.connect('203.0.113.7');
+    const rows = eventRows<{ body: string }>(s, 'SELECT body FROM events');
+    expect(rows.map((r) => JSON.parse(r.body).event)).toEqual(['denied', 'denied', 'budget_hit']);
+  });
+
+  it('records budget_hit once per address however many connects are blocked', async () => {
+    const s = setup({ enrollment: { connectAttemptsPerMinute: 1 } });
+    for (let i = 0; i < 4; i++) await s.connect('203.0.113.7');
+    const rows = eventRows<{ body: string }>(s, 'SELECT body FROM events');
+    expect(rows.map((r) => JSON.parse(r.body).event)).toEqual(['denied', 'budget_hit']);
+  });
+
+  const recorded = (s: ReturnType<typeof setup>) =>
+    eventRows<{ body: string }>(s, 'SELECT body FROM events').map((r) => JSON.parse(r.body).event);
+
+  it('records denied only when the refusal log warns: once per address and reason per 10 min', async () => {
+    const s = setup();
+    for (let i = 0; i < 3; i++) await s.connect('203.0.113.7');
+    await s.connect('198.51.100.9');
+    s.clock.advance(10 * MINUTE_MS);
+    await s.connect('203.0.113.7');
+    expect(recorded(s)).toEqual(['denied', 'denied', 'denied']);
+  });
+
+  it('caps denials from any address under one shared budget a minute', async () => {
+    const s = setup({ observability: { maxEventsPerMinute: 2 } });
+    for (const host of ['203.0.113.7', '198.51.100.9', '192.0.2.1']) await s.connect(host);
+    expect(recorded(s)).toEqual(['denied', 'denied']);
   });
 });

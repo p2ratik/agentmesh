@@ -9,6 +9,7 @@ import { Db } from './db/database';
 import { migrate } from './db/migrate';
 import { CalloutService, type LoadedCalloutKeys } from './modules/callout';
 import { createNatsIngestTransport } from './modules/ingest';
+import { hubRecorder, recordHub } from './modules/observe/hub-event';
 import { type Subscription, startPresenceListener } from './modules/presence';
 import { SessionDispatcher } from './modules/sessions/dispatcher';
 import { NatsSessionTransport } from './modules/sessions/nats-transport';
@@ -126,6 +127,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       messaging,
       transport: sessionTransport,
       logger,
+      record: hubRecorder(context),
     });
   }
   if (sys && options.callout) {
@@ -138,14 +140,17 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     handlers: built.handlers,
     idempotency,
     logger,
+    onError: (caller, method, code) =>
+      recordHub(context, caller, null, { kind: 'rpc', method, caller, code }),
     sessions: built.services.sessions,
     transaction: (fn) => db.transaction(fn),
     now: () => clock.now().getTime(),
+    // A call made as a session proves it is there, like a heartbeat: live again, deliveries go.
+    // One without (`agentmesh timeline`) is no session; hello touches presence itself.
     onCall: (caller, session) => {
-      if (caller.kind !== 'agent') return;
+      if (caller.kind !== 'agent' || !session) return;
       built.services.presence.touch(caller.id);
-      // A call made as a session proves it is there, like a heartbeat: live again, deliveries go.
-      if (session) built.services.sessions.touch(caller.id, session);
+      built.services.sessions.touch(caller.id, session);
     },
   });
 
@@ -196,6 +201,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
       await outbox.flush().catch((err) => logger.warn({ err }, 'final outbox flush failed'));
       if (sys) await sys.drain().catch(() => undefined);
       if (nats) await nats.nc.drain().catch(() => undefined);
+      context.events.flush();
       db.close();
     },
   };

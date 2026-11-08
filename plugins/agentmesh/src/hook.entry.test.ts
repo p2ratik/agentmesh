@@ -13,8 +13,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { windowFiles } from '@agentmesh/common/window';
+import { ReportedEvent } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { NOT_MESH, WINDOW_LABEL } from './hook/prompt';
+import { replyNote } from './relay/local-session';
 import { HINT_SETUP, HINT_START } from './window/session-start';
 
 // The prompt hook as Claude Code runs it: a process with the event on stdin. tsx stands in for the
@@ -99,6 +101,82 @@ describe('dist/hook.js (from source)', () => {
       hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: NOT_MESH },
     });
     expect(await hook(big, { CLAUDE_PID: '4243' })).toEqual({ status: 0, stdout: '' });
+  }, 30_000);
+
+  it('records note_shown with the unread count for the reply note, and never the prompt', async () => {
+    const data = join(base, 'data');
+    mkdirSync(data, { recursive: true });
+    const record = {
+      ...{ agentId: 'bob-agent', prefix: 'mesh', hubSessionId: 's-aaaaaaaaaaaa', uds: null },
+      ...{ claudePid: 4242, claudeSessionId: null, projectDir: base, relay: true, threads: 3 },
+      ...{ from: ['alice-agent'], updatedAt: new Date().toISOString() },
+    };
+    writeFileSync(join(data, 'sess-mesh-bob-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(record));
+    const prompt = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: 'secret plan' });
+    const r = await hook(prompt, { CLAUDE_PID: '4242' });
+    expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toBe(replyNote(record));
+    // the window labels a cross-session turn; a prompt with no line records nothing
+    await hook(turn('hi'), { AGENTMESH_MESH_WINDOW: 'x' });
+    await hook(prompt, { CLAUDE_PID: '4243' });
+    const files = readdirSync(data).filter((n) => /^events-\d+\.jsonl$/.test(n));
+    const text = files.map((n) => readFileSync(join(data, n), 'utf8')).join('');
+    expect(text).not.toContain('secret');
+    const events = text
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => ReportedEvent.parse(JSON.parse(l)));
+    expect(events).toEqual(
+      expect.arrayContaining([
+        {
+          id: expect.any(String),
+          at: expect.any(String),
+          session: 's-aaaaaaaaaaaa',
+          source: 'hook',
+          kind: 'hook',
+          note: 'note_shown',
+          unread: 3,
+        },
+        expect.objectContaining({ session: null, note: 'window_labelled' }),
+      ]),
+    );
+    expect(events).toHaveLength(2);
+  }, 30_000);
+
+  // The line names the pull session; the event names the session the hook ran in (re-review N1).
+  it('records pull_shown with the unread count, under its own session, whenever the pull line is shown', async () => {
+    const data = join(base, 'data');
+    mkdirSync(data, { recursive: true });
+    const state = {
+      ...{ agentId: 'alice-agent', sessionId: 's-bbbbbbbbbbbb', threads: 4, actions: 1 },
+      ...{ from: ['bob-agent'], external: false, updatedAt: new Date().toISOString() },
+    };
+    writeFileSync(join(data, 'pull-mesh-alice-agent-s-bbbbbbbbbbbb.json'), JSON.stringify(state));
+    // this private session's own record (CLAUDE_PID 4242), with no unread replies of its own
+    const record = {
+      ...{ agentId: 'alice-agent', prefix: 'mesh', hubSessionId: 's-aaaaaaaaaaaa', uds: null },
+      ...{ claudePid: 4242, claudeSessionId: null, projectDir: base, relay: true, threads: 0 },
+      ...{ from: [], updatedAt: new Date().toISOString() },
+    };
+    writeFileSync(join(data, 'sess-mesh-alice-agent-s-aaaaaaaaaaaa.json'), JSON.stringify(record));
+    const prompt = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: 'go on' });
+    const start = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' });
+    const runs: [string, Record<string, string>][] = [
+      [prompt, { CLAUDE_PID: '4242' }],
+      [start, { CLAUDE_PID: '4242' }],
+      [prompt, {}],
+    ];
+    for (const [input, env] of runs) {
+      const r = await hook(input, env);
+      expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('4 unread');
+    }
+    const events = readdirSync(data)
+      .filter((n) => /^events-\d+\.jsonl$/.test(n))
+      .flatMap((n) => readFileSync(join(data, n), 'utf8').split('\n').filter(Boolean))
+      .map((l) => ReportedEvent.parse(JSON.parse(l)));
+    const shown = { source: 'hook', note: 'pull_shown', unread: 4 };
+    // (sort() orders null as the string "null")
+    expect(events.map((e) => e.session).sort()).toEqual([null, 's-aaaaaaaaaaaa', 's-aaaaaaaaaaaa']);
+    expect(events).toEqual(Array(3).fill(expect.objectContaining(shown)));
   }, 30_000);
 
   it('keeps the conversation id by CLAUDE_PID from session start to session end', async () => {

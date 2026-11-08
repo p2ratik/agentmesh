@@ -1,10 +1,10 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/guard.ts
-import { homedir } from "node:os";
+import { homedir as homedir2 } from "node:os";
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.6.0";
+var VERSION = "0.7.0";
 
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
@@ -14,17 +14,19 @@ var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:agentmesh@age
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
-  const { join: join4 } = platform === "win32" ? win32 : posix;
-  const dir = join4(home, ".agentmesh");
+  const { join: join6 } = platform === "win32" ? win32 : posix;
+  const dir = join6(home, ".agentmesh");
   return {
     dir,
-    policy: join4(dir, "mesh-window.json"),
-    settings: join4(dir, "mesh-window.settings.json"),
-    launcher: join4(dir, launcherName(platform)),
-    emptyHooks: join4(dir, "empty-git-hooks"),
-    bin: join4(dir, "bin")
+    policy: join6(dir, "mesh-window.json"),
+    settings: join6(dir, "mesh-window.settings.json"),
+    launcher: join6(dir, launcherName(platform)),
+    emptyHooks: join6(dir, "empty-git-hooks"),
+    bin: join6(dir, "bin")
   };
 }
+var WINDOW_MODES = ["auto", "manual"];
+var isMode = (v) => WINDOW_MODES.some((m) => m === v);
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
 var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 var MAX_TEST_COMMANDS = 10;
@@ -35,26 +37,35 @@ var endsAsPrefix = (v) => /[/_.]$/.test(v);
 function isTestCommand(v) {
   return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
 }
-function parseWindowPolicy(text) {
-  let v;
+var areTestCommands = (v) => Array.isArray(v) && v.length <= MAX_TEST_COMMANDS && v.every((c) => typeof c === "string" && isTestCommand(c));
+var isPrefixOrNull = (v) => v === null || typeof v === "string" && isBranchName(v) && endsAsPrefix(v);
+var parseJson = (text) => {
   try {
-    v = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     return null;
   }
+};
+function parseWindowPolicy(text) {
+  const v = parseJson(text);
   if (typeof v !== "object" || v === null) return null;
   const p = v;
-  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  const { agentId, token: token2, ownBranchPrefix: prefix, integrationBranch, testCommands, mode } = p;
   if (p.version !== 1) return null;
+  if (mode !== void 0 && !isMode(mode)) return null;
   if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
-  if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
-  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
-  if (prefix !== null && !prefixOk) return null;
+  if (typeof token2 !== "string" || !TOKEN_PATTERN.test(token2)) return null;
+  if (!isPrefixOrNull(prefix)) return null;
   if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
-  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
-    return null;
-  }
-  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+  if (!areTestCommands(testCommands)) return null;
+  const policy = {
+    version: 1,
+    agentId,
+    token: token2,
+    ownBranchPrefix: prefix,
+    integrationBranch
+  };
+  return { ...policy, testCommands, ...isMode(mode) ? { mode } : {} };
 }
 function readWindowPolicy(home, platform) {
   try {
@@ -83,12 +94,21 @@ import path2 from "node:path";
 // src/guard/paths.ts
 import { lstatSync, readFileSync as readFileSync2, realpathSync } from "node:fs";
 import path from "node:path";
-var NOT_ABSOLUTE = { refused: "the path is not absolute" };
-var DEVICE = { refused: "device, UNC and stream paths are refused" };
-var OUTSIDE = { refused: "not inside .claude/worktrees/mesh-*" };
-var UNREGISTERED = { refused: "not a registered git worktree" };
-var DOT_GIT = { refused: ".git is off limits" };
-var AGENTMESH = { refused: "~/.agentmesh is off limits" };
+var OUTSIDE_TEXT = "not inside .claude/worktrees/mesh-*";
+var NOT_ABSOLUTE = { refused: "the path is not absolute", code: "path.not_absolute" };
+var DEVICE = {
+  refused: "device, UNC and stream paths are refused",
+  code: "path.device"
+};
+var OUTSIDE = { refused: OUTSIDE_TEXT, code: "path.outside_worktree" };
+var UNRESOLVED = { refused: OUTSIDE_TEXT, code: "path.unresolved" };
+var LINK = { refused: OUTSIDE_TEXT, code: "path.link" };
+var UNREGISTERED = {
+  refused: "not a registered git worktree",
+  code: "path.not_registered_worktree"
+};
+var DOT_GIT = { refused: ".git is off limits", code: "path.git_dir" };
+var AGENTMESH = { refused: "~/.agentmesh is off limits", code: "path.agentmesh_dir" };
 var lib = (o) => o.platform === "win32" ? path.win32 : path.posix;
 function attempt(fn) {
   try {
@@ -111,8 +131,8 @@ function split(file, o) {
   return { top, segments: file.slice(top.length).split(p.sep).filter(Boolean) };
 }
 var keys = (file, o) => {
-  const { top, segments } = split(file, o);
-  return [key(top, o), ...segments.map((s) => key(s, o))];
+  const { top, segments: segments2 } = split(file, o);
+  return [key(top, o), ...segments2.map((s) => key(s, o))];
 };
 var refusalKey = (k) => k.normalize("NFC").replace(new RegExp("\\p{Cf}", "gu"), "").toUpperCase();
 function within(inner, outer, o) {
@@ -125,12 +145,12 @@ function badInput(file, o) {
   if (typeof file !== "string" || file.includes("\0") || file !== file.trim()) return NOT_ABSOLUTE;
   const win = o.platform === "win32";
   if (win && /^[\\/]([\\/]|\?\?[\\/])/.test(file)) return DEVICE;
-  const segments = file.split(win ? /[\\/]/ : "/");
-  if (segments.some((s) => s === "." || s === "..")) return NOT_ABSOLUTE;
+  const segments2 = file.split(win ? /[\\/]/ : "/");
+  if (segments2.some((s) => s === "." || s === "..")) return NOT_ABSOLUTE;
   if (!win) return file.startsWith("/") ? null : NOT_ABSOLUTE;
   if (!/^[a-z]:[\\/]/i.test(file)) return NOT_ABSOLUTE;
   if (file.includes(":", 2)) return DEVICE;
-  return segments.slice(1).some((s) => /[. ]$/.test(s) || DOS_DEVICE.test(s)) ? DEVICE : null;
+  return segments2.slice(1).some((s) => /[. ]$/.test(s) || DOS_DEVICE.test(s)) ? DEVICE : null;
 }
 function realOrMissing(file) {
   const real = attempt(() => realpathSync.native(file));
@@ -144,9 +164,9 @@ function realOrMissing(file) {
 }
 function resolve(file, o) {
   const p = lib(o);
-  const { top, segments } = split(p.resolve(file), o);
+  const { top, segments: segments2 } = split(p.resolve(file), o);
   let current = top;
-  for (const segment of segments) {
+  for (const segment of segments2) {
     const next = realOrMissing(p.join(current, segment));
     if (next === null) return null;
     current = next;
@@ -164,12 +184,12 @@ function realFile(file, o) {
 var readLine = (file) => attempt(() => readFileSync2(file, "utf8"))?.replace(/[\r\n]+$/, "");
 function registered(resolved, o) {
   const p = lib(o);
-  const { top, segments } = split(resolved, o);
-  const k = segments.map((s) => key(s, o));
+  const { top, segments: segments2 } = split(resolved, o);
+  const k = segments2.map((s) => key(s, o));
   let i = k.length - 3;
   while (i >= 0 && !(k[i] === key(".claude", o) && k[i + 1] === key("worktrees", o))) i--;
   if (i < 0 || !k[i + 2]?.startsWith(key("mesh-", o))) return OUTSIDE;
-  const root = p.join(top, ...segments.slice(0, i + 3));
+  const root = p.join(top, ...segments2.slice(0, i + 3));
   const dotGit = p.join(root, ".git");
   if (!attempt(() => lstatSync(dotGit))?.isFile()) return UNREGISTERED;
   const pointer = /^gitdir: (.+)$/.exec(readLine(dotGit) ?? "")?.[1];
@@ -190,7 +210,7 @@ function registered(resolved, o) {
 function located(file, o) {
   const bad = badInput(file, o);
   if (bad) return bad;
-  return resolve(file, o) ?? OUTSIDE;
+  return resolve(file, o) ?? UNRESOLVED;
 }
 function meshWorktreeOf(file, o) {
   const resolved = located(file, o);
@@ -209,7 +229,7 @@ function editTarget(file, o) {
   if ("refused" in found) return found;
   if (found.below.length === 0) return OUTSIDE;
   if (found.below.some((k) => refusalKey(k) === ".GIT")) return DOT_GIT;
-  return escapes(file, resolved, o) ? OUTSIDE : { ok: true };
+  return escapes(file, resolved, o) ? LINK : { ok: true };
 }
 
 // src/guard/checkout.ts
@@ -245,10 +265,10 @@ function read(file) {
     return null;
   }
 }
-function looseRef(git, segments, o) {
+function looseRef(git2, segments2, o) {
   const p = lib2(o);
-  let at = p.join(git, "refs", "remotes", "origin");
-  for (const s of segments) {
+  let at = p.join(git2, "refs", "remotes", "origin");
+  for (const s of segments2) {
     let names;
     try {
       names = readdirSync(at);
@@ -265,12 +285,12 @@ function looseRef(git, segments, o) {
 }
 function remoteRefExists(top, branch, o) {
   if (typeof branch !== "string" || !isBranchName(branch)) return false;
-  const segments = branch.split("/");
-  if (!segments.every(plain)) return false;
+  const segments2 = branch.split("/");
+  if (!segments2.every(plain)) return false;
   const p = lib2(o);
-  const git = p.join(top, ".git");
-  if (kind(p.join(git, "reftable")) !== "missing") return false;
-  const loose = looseRef(git, segments, o);
+  const git2 = p.join(top, ".git");
+  if (kind(p.join(git2, "reftable")) !== "missing") return false;
+  const loose = looseRef(git2, segments2, o);
   if (loose === "refused") return false;
   if (loose !== "missing") {
     try {
@@ -280,7 +300,7 @@ function remoteRefExists(top, branch, o) {
     }
   }
   const name = `refs/remotes/origin/${branch}`;
-  const lines = read(p.join(git, "packed-refs"))?.split(/\r?\n/) ?? [];
+  const lines = read(p.join(git2, "packed-refs"))?.split(/\r?\n/) ?? [];
   return lines.some((line) => PACKED.exec(line)?.[1] === name);
 }
 
@@ -290,8 +310,9 @@ var NO_POLICY = "mesh window: ~/.agentmesh/mesh-window.json is missing or invali
 var TEST_OUTSIDE = "mesh window: run tests inside a task worktree (cd <worktree> && <test>)";
 var UNLISTED = "mesh window: this command isn't on the window's list, so your human decides";
 var foreign = (branch) => `mesh window: ${branch ?? "a detached checkout"} isn't your branch, so running its tests needs your human's approval`;
-var ask = (reason) => ({ ask: reason });
+var ask = (reason, code2) => ({ ask: reason, code: code2 });
 var pass = () => ({ pass: true });
+var unlisted = () => ask(UNLISTED, "command.not_listed");
 var PATH_RAW = "(?!-|//)(?:[A-Za-z]:(?=/))?[A-Za-z0-9._/-]+";
 var PATH_QUOTED = "(?!-|//)(?:[A-Za-z]:(?=/))?[A-Za-z0-9._/ -]+";
 var PATH = `(?:${PATH_RAW}|"${PATH_QUOTED}")`;
@@ -359,30 +380,239 @@ function delivers(rest, branch, p) {
   return pr !== null && pr[1] === p.integrationBranch && pr[2] === branch;
 }
 var isDelivery = (rest) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(rest));
+var isOwn = (branch, p) => branch !== null && p.ownBranchPrefix !== null && branch.startsWith(p.ownBranchPrefix);
 function inWorktree(command, c, p) {
   const test = p.testCommands.includes(command);
-  if (!test && !isDelivery(command)) return ask(UNLISTED);
+  if (!test && !isDelivery(command)) return unlisted();
   const wt = c.worktreeOf(c.cwd);
   const branch = wt?.branch ?? null;
-  const prefix = p.ownBranchPrefix;
-  const own = branch !== null && prefix !== null && branch.startsWith(prefix);
-  if (test) return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE);
-  return own && delivers(command, branch, p) ? pass() : ask(UNLISTED);
+  const own = isOwn(branch, p);
+  if (test)
+    return own ? pass() : ask(wt ? foreign(branch) : TEST_OUTSIDE, "command.needs_approval");
+  return own && delivers(command, branch, p) ? pass() : unlisted();
 }
 function listed(command, c, p) {
   if (EXACT.has(command) || reads(command, c)) return pass();
   const change = worktreeChange(command, c, p);
-  if (change !== null) return change ? pass() : ask(UNLISTED);
+  if (change !== null) return change ? pass() : unlisted();
   return inWorktree(command, c, p);
 }
 function classifyCommand(command, c) {
   const p = c.policy;
-  if (!p) return ask(NO_POLICY);
-  if (typeof command !== "string" || typeof c.cwd !== "string") return ask(UNLISTED);
+  if (!p) return ask(NO_POLICY, "marker.unverified");
+  if (typeof command !== "string" || typeof c.cwd !== "string") return unlisted();
   if (CD.test(command)) return pass();
   const at = placed(command, c.cwd);
-  return at === null ? ask(UNLISTED) : listed(at.rest, { ...c, cwd: at.dir }, p);
+  return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
 }
+
+// src/guard/places.ts
+import { resolve as resolve3 } from "node:path";
+
+// ../../packages/common/src/secret-paths.ts
+var SECRET_NAMES = [
+  ".env",
+  ".env.*",
+  "*.env",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.nk",
+  "*.creds",
+  "id_rsa*",
+  "id_ed25519*",
+  "id_ecdsa*",
+  "id_dsa*"
+];
+var SECRET_HOME_PATHS = [
+  ".ssh/**",
+  ".aws/**",
+  ".azure/**",
+  ".config/gcloud/**",
+  ".config/gh/**",
+  ".kube/**",
+  ".docker/config.json",
+  ".gnupg/**",
+  ".netrc",
+  ".git-credentials",
+  ".npmrc",
+  ".pypirc",
+  ".bash_history",
+  ".zsh_history",
+  "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
+  ".agentmesh/**",
+  ".claude/.credentials.json",
+  ".claude.json",
+  "AppData/Local/Google/Chrome/**",
+  "AppData/Local/Microsoft/Edge/**",
+  "AppData/Roaming/Mozilla/**",
+  "Library/Application Support/Google/Chrome/**",
+  "Library/Application Support/Firefox/**",
+  ".mozilla/**",
+  ".config/google-chrome/**",
+  ".config/chromium/**"
+];
+var CLAUDE_ACCOUNT_FILES = [".credentials.json", ".claude.json"];
+
+// src/guard/secrets.ts
+var AT = String.raw`(?:^|[\s/\\])`;
+var END = String.raw`(?=\s|$)`;
+var NAME = String.raw`[\w.-]`;
+var literal = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function token(glob) {
+  const parts = glob.replace(/\/\*\*$/, "").split("*");
+  const spelled = parts.map(
+    (p) => literal(p).replaceAll("/", String.raw`[/\\]`).replaceAll(" ", String.raw`\\? `)
+  );
+  return spelled.join(`${NAME}*`);
+}
+var fileToken = (glob) => String.raw`(?!(?:process|(?:import\.)?meta)\.env\b)${token(glob)}(?![\w.\-/\\])`;
+var homeToken = (glob) => `${token(glob)}(?!${NAME})`;
+var SECRET_PATH = new RegExp(
+  `(?<!${NAME})(?:${[
+    ...[...SECRET_NAMES, ...CLAUDE_ACCOUNT_FILES].map(fileToken),
+    ...SECRET_HOME_PATHS.map(homeToken)
+  ].join("|")})`,
+  "i"
+);
+var CONTINUATION = /\\\r?\n/g;
+var unfold = (command) => command.replace(CONTINUATION, " ");
+var SEPARATORS = /&&|\|\||\$\(|[;&|\n\r()`{}"'<>]/;
+var segments = (command) => unfold(command).split(SEPARATORS).map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean);
+var CREDENTIAL = new RegExp(
+  [
+    String.raw`${AT}gh(?:\.exe)?\s(?:.*\s)?auth\s(?:.*\s)?(?:token|status\s(?:.*\s)?(?:--show-token|-t))${END}`,
+    String.raw`${AT}git(?:\.exe)?(?:\s(?:.*\s)?|-)credential(?:-[\w.-]+)?(?:\.exe)?\s(?:.*\s)?(?:fill|get)${END}`
+  ].join("|"),
+  "i"
+);
+var DUMP_ANYWHERE = new RegExp(
+  [
+    String.raw`(?<![\w-])printenv(?![\w-])`,
+    String.raw`\/proc\/[^/\s]+\/environ`,
+    String.raw`GetEnvironmentVariables\s*\(`,
+    String.raw`(?<![\w-])(?:node|nodejs|bun|deno)(?:\.exe)?\s[\s\S]*process\.env(?![\w.$[])`,
+    String.raw`(?<![\w-])(?:python[\d.]*|py)(?:\.exe)?\s[\s\S]*os\.environ(?:\.(?:items|keys|values|copy)\(\s*\))?(?![\w.[])`
+  ].join("|"),
+  "i"
+);
+var WRAP = String.raw`(?:(?:sudo|doas|exec|nohup|time|builtin)(?: -\S+)* )*`;
+var ENV_ALONE = String.raw`(?:(?:/usr)?/bin/)?env(?:\.exe)?(?: (?:-0|--null|-i|--ignore-environment|-u ?[^\s-]\S*|--unset=\S+|[A-Za-z_]\w*=\S*))*`;
+var DUMP_SEGMENT = new RegExp(
+  String.raw`^${WRAP}(?:${ENV_ALONE}|export(?: -p)?|(?:declare|typeset) -[xp]|set|(?:\S*[/\\])?cmd(?:\.exe)? \/[ck] set|(?:get-childitem|gci|ls|dir|get-item|gi|get-content|gc|cat|type)(?: .*)? env:.*)$`,
+  "i"
+);
+var VARIABLE = /\$\{?(?:env:)?([A-Za-z_]\w*)|%([A-Za-z_]\w*)%|GetEnvironmentVariable\(\s*["']([A-Za-z_]\w*)|(?:process\.env\.|process\.env\[\s*["']|environ\[\s*["']|environ\.get\(\s*["']|getenv\(\s*["'])([A-Za-z_]\w*)/gi;
+var SECRET_VARIABLE = /TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|SEED|CREDENTIAL|AUTH(?!OR(?!IZ))/i;
+var isSecretVariable = (name) => SECRET_VARIABLE.test(name) || name.toUpperCase() === "AGENTMESH_MESH_WINDOW";
+var readsSecretVariable = (text) => [...text.matchAll(VARIABLE)].some((m) => isSecretVariable(m[1] ?? m[2] ?? m[3] ?? m[4] ?? ""));
+function secretUse(command) {
+  const text = unfold(command);
+  if (SECRET_PATH.test(text) || SECRET_PATH.test(command.replace(CONTINUATION, ""))) {
+    return "secret.path";
+  }
+  const pieces2 = segments(command);
+  if (pieces2.some((s) => CREDENTIAL.test(s))) return "secret.credential";
+  const dumps = DUMP_ANYWHERE.test(text) || pieces2.some((s) => DUMP_SEGMENT.test(s));
+  return dumps || readsSecretVariable(text) ? "secret.env_dump" : null;
+}
+
+// src/guard/places.ts
+var PIECES = /&&|\|\||\$\(|[;&|\n\r()`{}]/;
+var CD_STEP = /^(?:cd|chdir|pushd|set-location|sl)(?:\s+(?:-{1,2}[\w-]*|\/d))*\s+(.+)$/i;
+var WORDS = /"([^"]*)"|'([^']*)'|([^\s"']+)/g;
+var MESH2 = /\.claude[\\/]worktrees[\\/]mesh-[a-z0-9-]+/i;
+var LEAVES = /^(?!\/[a-z](?::\S*)?$)(?:[~$%\\/]|[A-Za-z]:)|(?:^|[\\/])\.\.(?:[\\/]|$)/i;
+var unquote = (s) => s.replace(/^(["'])(.*)\1$/, "$2");
+var pieces = (command) => unfold(command).split(PIECES);
+var words = (command) => [...unfold(command).matchAll(WORDS)].map((m) => m[1] ?? m[2] ?? m[3] ?? "");
+function cdTargets(command, cwd) {
+  const dirs = [];
+  let at = cwd;
+  for (const piece of pieces(command)) {
+    const target = CD_STEP.exec(piece.trim())?.[1];
+    const path3 = target === void 0 ? "" : unquote(target.trim());
+    if (path3 === "" || /^[~$%]/.test(path3)) continue;
+    at = resolve3(at, path3);
+    dirs.push(resolve3(cwd, path3), at);
+  }
+  return dirs;
+}
+function meshNamed(command, cwd) {
+  return words(command).flatMap((word) => {
+    const hit = MESH2.exec(word);
+    if (!hit) return [];
+    const upTo = word.slice(0, hit.index + hit[0].length);
+    const tail = upTo.slice(Math.max(...[" ", "=", ";", "("].map((c) => upTo.lastIndexOf(c))) + 1);
+    return [upTo.replace(/^[({`]+/, "").replace(/^[\w-]+=/, ""), tail].map((p) => resolve3(cwd, p));
+  });
+}
+function inForeignWorktree(command, c) {
+  const p = c.policy;
+  if (!p) return null;
+  for (const dir of [c.cwd, ...cdTargets(command, c.cwd), ...meshNamed(command, c.cwd)]) {
+    const wt = c.worktreeOf(dir);
+    if (wt && !isOwn(wt.branch, p))
+      return { ask: foreign(wt.branch), code: "command.needs_approval" };
+  }
+  return null;
+}
+function searchStaysInWorktree(command, c) {
+  const targets = cdTargets(command, c.cwd);
+  const startsWithCd = CD_STEP.test(pieces(command)[0]?.trim() ?? "");
+  const dirs = startsWithCd ? targets : [c.cwd, ...targets];
+  if (dirs.some((d) => c.worktreeOf(d) === null)) return false;
+  return words(command).every((w) => {
+    if (!LEAVES.test(w)) return true;
+    if (/^[~$%]/.test(w)) return false;
+    return dirs.every((d) => c.worktreeOf(resolve3(d, w)) !== null);
+  });
+}
+
+// src/guard/risky.ts
+var git = (rest) => String.raw`${AT}git(?:\.exe)?\s(?:.*\s)?${rest}${END}`;
+var gh = (rest) => String.raw`${AT}gh(?:\.exe)?\s(?:.*\s)?${rest}${END}`;
+var any = (s) => String.raw`\s(?:.*\s)?${s}`;
+var RISKY = [
+  git("(?:push|merge|restore)"),
+  git(`branch${any("(?:-[a-z]*d[a-z]*|--delete)")}`),
+  git(`reset${any("--hard")}`),
+  git(`checkout${any(String.raw`(?:--|\.)`)}`),
+  git(`stash${any("(?:drop|clear)")}`),
+  // any forced git command: clean -f, worktree remove --force, checkout -f, add -f, rm -rf
+  git(String.raw`(?:--force[\w-]*|-[a-z]*f[a-z]*)`),
+  gh(`pr${any(`(?:merge|review${any("(?:--approve|-a)")})`)}`),
+  gh(
+    `(?:workflow${any("run")}|run${any("rerun")}|release${any("(?:create|delete)")}|repo${any("delete")}|secret|variable${any("(?:set|delete)")})`
+  ),
+  // gh api writes: an explicit method, or fields, which make it a POST
+  gh(
+    `api${any(String.raw`(?:(?:-X\s?|--method[\s=])(?:DELETE|PUT|POST|PATCH)|-[fF]|--field|--raw-field|--input)`)}`
+  ),
+  String.raw`${AT}docker(?:\.exe)?\s(?:.*\s)?(?:push|--push(?:=\S*)?)${END}`,
+  String.raw`${AT}(?:terraform|pulumi|kubectl|helm|az|aws|gcloud|ssh|scp|rsync)(?:\.exe|\.cmd)?${END}`
+].map((r) => new RegExp(r, "i"));
+var REBASE = new RegExp(git("rebase"), "i");
+function ontoIntegration(piece, p) {
+  const b = p.integrationBranch;
+  return [b, `origin/${b}`, `refs/remotes/origin/${b}`].some(
+    (ref) => piece === `git rebase ${ref}`
+  );
+}
+function risky(command, p) {
+  return segments(command).some(
+    (s) => RISKY.some((r) => r.test(s)) || REBASE.test(s) && !ontoIntegration(s, p)
+  );
+}
+var SEARCH = [
+  String.raw`(?<![\w-])(?<!git(?:\.exe)? (?:-\S+ )*)[ef]?grep(?:\.exe)?${any("(?:-[a-z]*r[a-z]*|--(?:dereference-)?recursive|--directories=recurse|-d ?recurse)")}${END}`,
+  String.raw`(?<![\w-])rg(?:\.exe)?${any(String.raw`(?:--hidden|--unrestricted|--no-ignore[\w-]*|-[a-z.]*[u.][a-z.]*)`)}${END}`,
+  String.raw`(?<![\w-])findstr(?:\.exe)?${any(String.raw`\/[a-z:]*s[a-z:]*`)}${END}`,
+  String.raw`(?<![\w-])(?:select-string|sls)${any("-r[a-z]*")}${END}`
+].map((r) => new RegExp(r, "i"));
+var PIPED = /(?<![\w-])(?:get-childitem|gci|ls|dir)\s[^;\n]*?-r[a-z]*(?=\s|\|)[^;\n]*?\|\s*(?:select-string|sls)\b/i;
+var recursiveSearch = (command) => segments(command).some((s) => SEARCH.some((r) => r.test(s))) || PIPED.test(unfold(command));
 
 // src/relay/address.ts
 var WINDOWS_UDS = /^uds:\\\\\.\\pipe\\LOCAL\\cc-msg-([0-9a-f]{32})$/;
@@ -488,88 +718,145 @@ var KEYS = /* @__PURE__ */ new Set([
   "summary"
 ]);
 var SUMMARY_MAX = 200;
-var DENIED = { kind: "deny", reason: SEND_DENIED };
+var KEY_NAME = /^[A-Za-z_]{1,40}$/;
+var denied = (code2, key2) => ({
+  kind: "deny",
+  reason: SEND_DENIED,
+  code: code2,
+  ...key2 !== void 0 && KEY_NAME.test(key2) ? { key: key2 } : {}
+});
 var shortLabel = (v) => v === void 0 || typeof v === "string" && v.length <= SUMMARY_MAX;
 var contentOf = (content, message) => content === message || typeof content === "string" && content.endsWith("\u2026") && content.length < message.length && message.startsWith(content.slice(0, -1));
 function sendMessage(args, ctx) {
-  if (!Object.keys(args).every((k) => KEYS.has(k))) return DENIED;
+  const unknown = Object.keys(args).find((k) => !KEYS.has(k));
+  if (unknown !== void 0) return denied("send.unknown_key", unknown);
   const hex = udsHex(args.to, ctx.platform);
-  if (hex === null) return DENIED;
-  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string") && typeof args.message === "string" && contentOf(args.content, args.message) && shortLabel(args.summary);
-  if (!aliases || !ctx.forwards) return DENIED;
-  const record = ctx.forwards.read(hex, ctx.now ?? Date.now()).find((c) => pointerText(c.fields) === args.message);
-  return record && ctx.forwards.claim(record.name) ? { kind: "pass" } : DENIED;
+  if (hex === null) return denied("send.bad_address");
+  const { message } = args;
+  const aliases = args.recipient === args.to && args.type === "message" && (args.recipient_kind === void 0 || typeof args.recipient_kind === "string");
+  if (!aliases || typeof message !== "string") return denied("send.alias_mismatch");
+  if (!contentOf(args.content, message)) return denied("send.content_mismatch");
+  if (!shortLabel(args.summary)) return denied("send.bad_summary");
+  if (!ctx.forwards) return denied("send.no_record");
+  const record = ctx.forwards.read(hex, ctx.now ?? Date.now()).find((c) => pointerText(c.fields) === message);
+  if (!record) return denied("send.no_record");
+  if (!ctx.forwards.claim(record.name)) return denied("send.claim_failed");
+  const { messageId, threadId } = record.fields;
+  return { kind: "pass", claimed: { message: messageId, thread: threadId } };
 }
 
 // src/guard/decide.ts
 var ACTIVATE_TOOL = "mcp__plugin_agentmesh_mesh__activate";
 var FILE_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
 var PASS = { kind: "pass" };
-var deny = (reason) => ({ kind: "deny", reason });
-var ask2 = (reason) => ({ kind: "ask", reason });
+var deny = (reason, code2) => ({ kind: "deny", reason, code: code2 });
+var ask2 = (reason, code2) => ({ kind: "ask", reason, code: code2 });
 var UNREADABLE = "mesh window: the guard could not read this tool call, so it is refused";
 var NO_FILE = "mesh window: this edit names no file, so it is refused";
 var ENTER = "mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-\u2026";
 var ISOLATED = "mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-\u2026";
 var WORKFLOW = "mesh window: workflows need your human's approval here";
+var SECRET = "mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves (if this is a commit message, PR text or search pattern, reword it, or use the Grep tool)";
+var RISKY2 = "mesh window: this command can push, merge, rewrite or delete work, or reach infrastructure, so your human decides even in auto mode";
+var SEARCH2 = "mesh window: a recursive search outside a task worktree can read untracked secrets, so your human decides; search with the Grep tool or git grep";
+var SHELLS = ["Bash", "PowerShell", "Monitor"];
 var FIXED = /* @__PURE__ */ new Map([
   [ACTIVATE_TOOL, { kind: "stamp" }],
-  ["EnterWorktree", deny(ENTER)],
-  ["Workflow", ask2(WORKFLOW)],
-  ["ListAgents", deny(LIST_AGENTS)]
+  ["EnterWorktree", deny(ENTER, "tool.enter_worktree")],
+  ["Workflow", ask2(WORKFLOW, "tool.workflow")],
+  ["ListAgents", deny(LIST_AGENTS, "list_agents")]
 ]);
 var isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function edit(args, o) {
   const paths = [args.notebook_path, args.file_path].filter((p) => p !== void 0 && p !== null);
-  if (paths.length === 0 || paths.includes("")) return deny(NO_FILE);
+  if (paths.length === 0 || paths.includes("")) return deny(NO_FILE, "path.no_file");
   for (const path3 of paths) {
     const target = editTarget(path3, o);
-    if ("refused" in target)
-      return deny(`mesh window: work only inside a task worktree (${target.refused})`);
+    if ("refused" in target) {
+      const reason = `mesh window: work only inside a task worktree (${target.refused})`;
+      return deny(reason, target.code);
+    }
   }
   return PASS;
 }
-function bash(command, cwd, ctx, o) {
+var commandContext = (cwd, ctx, o) => ({
+  policy: ctx.policy,
+  cwd,
+  worktreeOf: (dir) => {
+    const w = meshWorktreeOf(dir, o);
+    return "refused" in w ? null : w;
+  },
+  checkoutTop: (dir) => checkoutTop(dir, o),
+  remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
+  freeSlot: (top, name) => freeSlot(top, name, o)
+});
+function toAuto(command, c, p) {
+  if (risky(command, p)) return ask2(RISKY2, "command.risky");
+  if (recursiveSearch(command) && !searchStaysInWorktree(command, c)) {
+    return ask2(SEARCH2, "command.risky");
+  }
+  const theirs = inForeignWorktree(command, c);
+  return theirs ? ask2(theirs.ask, theirs.code) : PASS;
+}
+function shell(tool, args, cwd, ctx, o, live) {
   try {
-    const d = classifyCommand(command, {
-      policy: ctx.policy,
-      cwd,
-      worktreeOf: (dir) => {
-        const w = meshWorktreeOf(dir, o);
-        return "refused" in w ? null : w;
-      },
-      checkoutTop: (dir) => checkoutTop(dir, o),
-      remoteRefExists: (top, branch) => remoteRefExists(top, branch, o),
-      freeSlot: (top, name) => freeSlot(top, name, o)
-    });
-    return "ask" in d ? ask2(d.ask) : PASS;
+    const command = args.command;
+    const secret = typeof command === "string" ? secretUse(command) : null;
+    if (secret) return deny(SECRET, secret);
+    const p = ctx.policy;
+    const auto = live === "auto" && p !== null && typeof command === "string" && typeof cwd === "string";
+    const c = commandContext(cwd, ctx, o);
+    if (tool === "Bash") {
+      const d = classifyCommand(command, c);
+      if (!("ask" in d)) return PASS;
+      if (!auto || d.code !== "command.not_listed") return ask2(d.ask, d.code);
+    } else if (!auto) {
+      return ask2(
+        `mesh window: ${tool} commands need your human's approval here`,
+        "command.needs_approval"
+      );
+    }
+    return toAuto(command, c, p);
   } catch {
-    return ask2(UNLISTED);
+    return ask2(UNLISTED, "guard.error");
   }
 }
-function decide(input, ctx) {
+function decide(input2, ctx) {
   if (!ctx.marked) return PASS;
-  if (!isObject(input)) return deny(UNREADABLE);
-  const { tool_name: tool, tool_input: args, cwd } = input;
-  if (typeof tool !== "string" || !isObject(args)) return deny(UNREADABLE);
+  if (!isObject(input2)) return deny(UNREADABLE, "guard.unreadable");
+  const { tool_name: tool, tool_input: args, cwd, permission_mode: live } = input2;
+  if (typeof tool !== "string" || !isObject(args)) return deny(UNREADABLE, "guard.unreadable");
   const o = { home: ctx.home, platform: ctx.platform };
   if (FILE_TOOLS.includes(tool)) return edit(args, o);
-  if (tool === "Bash") return bash(args.command, cwd, ctx, o);
-  if (tool === "PowerShell" || tool === "Monitor") {
-    return ask2(`mesh window: ${tool} commands need your human's approval here`);
-  }
-  if (tool === "Agent") return "isolation" in args ? deny(ISOLATED) : PASS;
+  if (SHELLS.includes(tool)) return shell(tool, args, cwd, ctx, o, live);
+  if (tool === "Agent") return "isolation" in args ? deny(ISOLATED, "tool.agent_isolated") : PASS;
   if (tool === "SendMessage") return sendMessage(args, ctx);
-  return FIXED.get(tool) ?? deny(`mesh window: the guard does not know ${tool}, so it is refused`);
+  const unknown = `mesh window: the guard does not know ${tool}, so it is refused`;
+  return FIXED.get(tool) ?? deny(unknown, "tool.unknown");
+}
+
+// src/guard/event.ts
+var TOKEN = /^[A-Za-z0-9_.+-]{1,64}$/;
+function toolName(input2) {
+  const name = typeof input2 === "object" && input2 !== null ? input2.tool_name : void 0;
+  const short = typeof name === "string" ? name.slice(0, 64) : "";
+  return TOKEN.test(short) ? short : "unknown";
+}
+function guardEvent(input2, d) {
+  if (d.kind === "deny" || d.kind === "ask") {
+    const key2 = d.kind === "deny" && d.key !== void 0 ? { key: d.key } : {};
+    return { kind: "guard", tool: toolName(input2), decision: d.kind, reason: d.code, ...key2 };
+  }
+  return d.kind === "pass" && d.claimed ? { kind: "relay", stage: "claimed", ...d.claimed } : null;
 }
 
 // src/guard/io.ts
 function readAll(stream, capMs) {
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve4, reject) => {
     const chunks = [];
     const done = () => {
       clearTimeout(timer);
-      resolve3(Buffer.concat(chunks).toString("utf8"));
+      resolve4(Buffer.concat(chunks).toString("utf8"));
     };
     const timer = capMs === null ? void 0 : setTimeout(done, capMs);
     stream.on(
@@ -596,13 +883,120 @@ function hookOutput(d) {
   return { exitCode: 0, stdout: "", stderr: "" };
 }
 
-// src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+// src/telemetry/events-file.ts
+import { randomUUID } from "node:crypto";
+import {
+  appendFileSync,
+  mkdirSync as mkdirSync2,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync6,
+  statSync as statSync2,
+  unlinkSync
+} from "node:fs";
+import { homedir } from "node:os";
+import { join as join4 } from "node:path";
+
+// src/agent-id.ts
+import { readFileSync as readFileSync5 } from "node:fs";
 import { join as join3 } from "node:path";
+function usable(value) {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("${")) return void 0;
+  return trimmed;
+}
+function fileApplies(options, saved) {
+  const agrees = (option, value) => {
+    const a = usable(option);
+    const b = usable(value);
+    return a === void 0 || b === void 0 || a === b;
+  };
+  return agrees(options.agentId, saved.agentId) && agrees(options.natsUrl, saved.natsUrl);
+}
+function resolveAgentId(options, saved) {
+  const file = saved && fileApplies(options, saved) ? saved : {};
+  return usable(options.agentId) ?? usable(file.agentId) ?? null;
+}
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
+function parseSavedAgent(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value;
+  const saved = {};
+  for (const key2 of FIELDS) {
+    const v = record[key2];
+    if (v === void 0) continue;
+    if (typeof v !== "string") return null;
+    saved[key2] = v;
+  }
+  return saved;
+}
+function hookAgentId(env, home) {
+  let saved = null;
+  try {
+    saved = parseSavedAgent(
+      JSON.parse(readFileSync5(join3(home, ".agentmesh", "agent.json"), "utf8"))
+    );
+  } catch {
+  }
+  return resolveAgentId(
+    { agentId: env.CLAUDE_PLUGIN_OPTION_AGENT_ID, natsUrl: env.CLAUDE_PLUGIN_OPTION_NATS_URL },
+    saved ?? {}
+  );
+}
+
+// src/telemetry/events-file.ts
+var MAX_EVENTS_FILE_BYTES = 256 * 1024;
+var MAX_EVENT_FILES = 500;
+var UNNAMED = /^events-\d+\.jsonl$/;
+var PID_FILE = /^\d+\.jsonl$/;
+function isFileOf(name, agent) {
+  if (agent === null) return UNNAMED.test(name);
+  const prefix = `events-${agent}-`;
+  return name.startsWith(prefix) && PID_FILE.test(name.slice(prefix.length));
+}
+function waiting(dir, agent) {
+  try {
+    return readdirSync3(dir).filter((name) => isFileOf(name, agent)).length;
+  } catch {
+    return 0;
+  }
+}
+function appendEvent(dataDir, event, agent = null) {
+  try {
+    if (agent !== null && !PARTICIPANT_ID.test(agent)) return;
+    const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
+    const file = join4(dataDir, `events-${name}.jsonl`);
+    const size = statSync2(file, { throwIfNoEntry: false })?.size;
+    const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
+    if (full) return;
+    mkdirSync2(dataDir, { recursive: true, mode: 448 });
+    appendFileSync(file, `${JSON.stringify(event)}
+`, { mode: 384 });
+  } catch {
+  }
+}
+function leaveEvent(source, session, fields) {
+  try {
+    const event = fields();
+    if (!event) return;
+    const env = process.env;
+    const home = homedir();
+    const dir = pullStateDirs(env, home)[0];
+    const id = hookAgentId(env, home);
+    const agent = id !== null && PARTICIPANT_ID.test(id) ? id : null;
+    if (!dir || agent === null && !env.CLAUDE_PLUGIN_DATA) return;
+    const stamped = { id: randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), session, source, ...event };
+    appendEvent(dir, stamped, agent);
+  } catch {
+  }
+}
+
+// src/window/guard-stamp.ts
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync7, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join5 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 function writeGuardStamp(dir, now, version) {
-  mkdirSync2(dir, { recursive: true, mode: 448 });
-  const file = join3(dir, GUARD_STAMP);
+  mkdirSync3(dir, { recursive: true, mode: 448 });
+  const file = join5(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
   writeFileSync2(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
   renameSync2(staged, file);
@@ -611,6 +1005,7 @@ function writeGuardStamp(dir, now, version) {
 // src/guard.ts
 var UNMARKED_STDIN_MS = 1e3;
 var FAILED = "mesh window: the guard failed on this call, so it is refused";
+var input = null;
 function parse(text) {
   try {
     return JSON.parse(text);
@@ -623,16 +1018,18 @@ async function main(marked2) {
   process.stdin.destroy();
   if (!marked2) return 0;
   const env = process.env;
-  const home = homedir();
+  const home = homedir2();
   const platform = process.platform;
   const { policy } = readMarker(env, home, platform);
   const dir = pullStateDirs(env, home)[0] ?? ".";
   const forwards = forwardReader(dir);
-  const decision = decide(parse(text), { marked: marked2, policy, home, platform, forwards });
+  input = parse(text);
+  const decision = decide(input, { marked: marked2, policy, home, platform, forwards });
   if (decision.kind === "stamp") writeGuardStamp(dir, /* @__PURE__ */ new Date(), VERSION);
   const out = hookOutput(decision);
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
+  leaveEvent("guard", null, () => guardEvent(input, decision));
   return out.exitCode;
 }
 var marked = !!process.env[MESH_WINDOW_ENV];
@@ -643,5 +1040,7 @@ main(marked).then(
   () => {
     if (marked) process.stderr.write(FAILED);
     process.exitCode = marked ? 2 : 0;
+    const failed = { kind: "deny", reason: FAILED, code: "guard.error" };
+    if (marked) leaveEvent("guard", null, () => guardEvent(input, failed));
   }
 );

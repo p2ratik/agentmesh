@@ -203,8 +203,15 @@ for:
 - your team's folder. We recommend the folder that holds the team's repos, so every repo is in
   reach; one repo checkout works too.
 - the exact test commands the window may run on its own branches, such as
-  `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt;
-  with none, every test run asks.
+  `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt
+  in manual mode; in auto mode other commands on its own branches go to auto mode's checks.
+
+The window starts in Claude Code's **auto mode** by default: commands not on its list go to auto
+mode's checks instead of asking you, while risky ones still ask (below). To review every such
+command yourself, ask Claude for manual mode when you run `/agentmesh:window` (it passes
+`agentmesh window init --mode manual`). Where auto mode isn't available (your plan, the model, or
+an admin setting), Claude Code starts the window in manual mode. A window set up before auto mode
+starts in manual mode and says so at each start; run `/agentmesh:window` again to switch it.
 
 The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
 `~/.agentmesh/`, and the `claude-mesh` command that runs the launcher. Run `/agentmesh:window`
@@ -289,12 +296,20 @@ it couldn't. It doesn't if another mesh window you started meanwhile is live: it
   and adding and removing those worktrees; reading diffs; and, on its own branches, your test
   commands, `git add`, `git commit`, a push of that branch and `gh pr create` into the integration
   branch.
-- **It asks you first:** before it runs the tests of a branch it didn't write (it tells the
-  author's agent that the verdict waits for you), and for merges, force pushes, other branches,
-  PowerShell commands and anything else not on its list.
-- **Refused outright:** edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git`
-  folder.
-- It never runs in auto or bypass mode. The details and their limits are in
+- **Auto mode's checks decide** (auto mode only): every other command, PowerShell included.
+- **It asks you first:** before it runs the tests of a branch it didn't write, or anything else in
+  that branch's worktree (it tells the author's agent that the verdict waits for you), and for
+  merges, force pushes and pushes to other branches, rebases, branch deletes, hard resets, changes
+  through `gh` (workflow runs, releases, approvals, secrets), infra commands (`terraform`,
+  `kubectl`, `aws`, `ssh` and the like) and recursive searches (`grep -r`) outside a task worktree.
+  In manual mode it also asks for PowerShell commands and anything else not on its list.
+- **Refused outright, in every mode:** commands that name secret files (`.env` files, keys,
+  `~/.ssh`, `~/.aws`, credentials, shell histories, browser profiles, `~/.agentmesh/`), print a
+  stored credential (`gh auth token`), dump the whole environment or read a secret-named variable
+  (`$GITHUB_TOKEN`); edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git` folder.
+  `.env.example` is blocked too: paste what the window needs from it yourself. So is a commit
+  message that names a secret file: the window rewords it.
+- It never runs in bypass mode. The details and their limits are in
   [security.md](security.md#the-mesh-window).
 
 **Worktrees.** Every task and review gets its own worktree in the repo's `.claude/worktrees/`. Add

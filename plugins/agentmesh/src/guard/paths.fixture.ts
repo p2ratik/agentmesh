@@ -7,12 +7,21 @@ import type { PathOptions } from './paths';
 export const win32 = process.platform === 'win32';
 export const folds = win32 || process.platform === 'darwin';
 
-export const NOT_ABSOLUTE = { refused: 'the path is not absolute' };
-export const DEVICE = { refused: 'device, UNC and stream paths are refused' };
-export const OUTSIDE = { refused: 'not inside .claude/worktrees/mesh-*' };
-export const UNREGISTERED = { refused: 'not a registered git worktree' };
-export const DOT_GIT = { refused: '.git is off limits' };
-export const AGENTMESH = { refused: '~/.agentmesh is off limits' };
+// Each refusal's text (what Claude sees) and its code (what the timeline records).
+const OUTSIDE_TEXT = 'not inside .claude/worktrees/mesh-*';
+export const NOT_ABSOLUTE = { refused: 'the path is not absolute', code: 'path.not_absolute' };
+export const DEVICE = { refused: 'device, UNC and stream paths are refused', code: 'path.device' };
+export const OUTSIDE = { refused: OUTSIDE_TEXT, code: 'path.outside_worktree' };
+/** Something is there but won't resolve: a dangling link, a loop, a file used as a folder. */
+export const UNRESOLVED = { refused: OUTSIDE_TEXT, code: 'path.unresolved' };
+/** The write would reach past the path: its last segment is a link, or a hard-linked file. */
+export const LINK = { refused: OUTSIDE_TEXT, code: 'path.link' };
+export const UNREGISTERED = {
+  refused: 'not a registered git worktree',
+  code: 'path.not_registered_worktree',
+};
+export const DOT_GIT = { refused: '.git is off limits', code: 'path.git_dir' };
+export const AGENTMESH = { refused: '~/.agentmesh is off limits', code: 'path.agentmesh_dir' };
 
 export const slash = (p: string) => p.replaceAll('\\', '/');
 

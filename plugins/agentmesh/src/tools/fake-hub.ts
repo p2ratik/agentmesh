@@ -1,6 +1,7 @@
 import { CLOSED_ASKER_DEFAULT_MINUTES } from '@agentmesh/protocol';
 import type { HubClient } from '../hub';
 import { FyiBuffer } from '../inbox/fyi';
+import { Recorder } from '../telemetry/recorder';
 import { NO_WINDOW } from '../window/context';
 import { newActivationState } from './activation';
 import type { ToolDeps } from './types';
@@ -13,6 +14,7 @@ import type { ToolDeps } from './types';
 export function fakeHub(answers: Record<string, unknown>, notes: Record<string, string[]> = {}) {
   const calls: Array<{ method: string; params: unknown; options: unknown }> = [];
   const hub = {
+    sessionId: 's-aaaaaaaaaaaa',
     call: async (method: string, params: unknown, options: unknown, sink?: string[]) => {
       calls.push({ method, params, options });
       const answer = answers[method];
@@ -34,6 +36,7 @@ export function fakeHub(answers: Record<string, unknown>, notes: Record<string, 
     window: NO_WINDOW,
     teamPolicy: () => null,
     closedAskerMinutes: () => CLOSED_ASKER_DEFAULT_MINUTES,
+    recorder: new Recorder({ max: () => 500, on: true }),
   };
   return { deps, calls };
 }

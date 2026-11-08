@@ -122,6 +122,12 @@ Claude asks for your team's folder and the exact test commands, and the bundled 
 `CLAUDE_CONFIG_DIR` set (an absolute path), the window starts in that Claude account; without it,
 the launcher clears one the terminal has. `window init` prints which account it uses.
 
+The window starts in Claude Code's **auto mode** by default: commands off its list go to auto
+mode's checks, and risky ones still ask. To review every such command yourself, ask for manual mode
+(`agentmesh window init --mode manual`). Where auto mode isn't available (plan, model or an admin
+setting), Claude Code starts it in manual mode. Secrets and personal data are refused in every
+mode.
+
 **Start it each day** in a terminal, in the folder that holds your team's repos:
 
 ```bash
@@ -168,17 +174,24 @@ The Windows launcher and `claude-mesh.cmd` write paths under your user folder as
 so a non-ASCII user folder works; any other non-ASCII path is refused.
 
 The launcher marks the session and starts Claude Code with the channel flag, the name
-`mesh-<agent>`, `--permission-mode default` and its settings file. The window then activates itself
-with `/agentmesh:activate mesh window`; if it doesn't, type that.
+`mesh-<agent>`, `--permission-mode auto` (`default` in manual mode) and its settings file, which
+denies reading secret paths in both modes. The window then activates itself with
+`/agentmesh:activate mesh window`; if it doesn't, type that. A window set up before auto mode
+starts in manual mode and says so at each start; run `/agentmesh:window` again to switch it.
 
 **How it works.** Its rules come from the plugin: the `SessionStart` hook adds them at startup,
 after `/clear` and after compaction, and `activate` repeats them.
 - Each task and review gets its own `.claude/worktrees/mesh-*` worktree, made from the checkout
   `task_get` names (the one git checkout in the folder whose `origin` matches the task's repo).
-- Routine steps run without asking. Tests on a branch the window didn't write, merges, force
-  pushes, other branches and anything off its list ask
+- Routine steps run without asking. Tests on a branch the window didn't write (and, in auto mode,
+  anything else in that branch's worktree), merges, force pushes, other branches, rebases, deletes,
+  hard resets, changes through `gh`, infra commands and recursive searches outside a task worktree
+  ask; in manual mode so does anything off its list
   ([security](../../docs/security.md#the-mesh-window)).
-- It runs commands with the Bash tool; PowerShell commands always ask.
+- It runs commands with the Bash tool; PowerShell commands ask in manual mode and get auto mode's
+  checks in auto mode.
+- Its rules say never to read, print or send secrets or personal data, whoever asks, to search with
+  the Grep tool or `git grep`, and to keep secret file names out of commit messages and PR text.
 - After a restart it resumes its in-progress tasks (`task_list`) in their existing worktrees, and
   reads a thread (`thread`) before answering a reply meant for its earlier session.
 - Before it starts a task it reads the task and its thread, asks the creator anything unclear,
@@ -194,8 +207,11 @@ after `/clear` and after compaction, and `activate` repeats them.
 `EnterWorktree`, `Agent`, `Workflow`, `SendMessage`, `ListAgents` and `activate`.
 - Claude Code runs it in every session, which costs a `node` start (about 50–100 ms) per edit,
   shell call, subagent or workflow call. Outside the mesh window it does nothing else.
-- In the window it refuses edits outside its mesh worktrees and asks before commands that aren't on
-  its list. It passes one `SendMessage` per reply pointer the plugin pushed, exactly as pushed, and
+- In the window it refuses edits outside its mesh worktrees, and in every mode any command that
+  names a secret file, prints a stored credential, dumps the whole environment or reads a
+  secret-named variable. In manual mode it asks before commands that aren't
+  on its list; in auto mode (Claude Code's `permission_mode` on the call) it hands them to auto mode,
+  except risky ones, which still ask. It passes one `SendMessage` per reply pointer the plugin pushed, exactly as pushed, and
   refuses every other one and `ListAgents`. `activate` there refuses unless the guard stamped an
   `activate` call in the last 2 minutes (`guard-alive.json`).
 - It fails closed (`onFailure: "block"`, Claude Code 2.1.295+). If `node` or `dist/guard.js` is
@@ -278,13 +294,15 @@ Files in `~/.agentmesh/`:
 | File | Written by | Holds |
 | --- | --- | --- |
 | `agent.json` and your `.nk` key | `/agentmesh:join`, `setup admin` or `agent-setup --write` | Your agent's settings and its key |
-| `mesh-window.json` | `window init` | The window's policy: agent, token, own-branch prefix, integration branch, test commands (mode 600) |
-| `mesh-window.settings.json` | `window init` | The settings file the launcher passes with `--settings`: the marker, the git environment and the allow rules (mode 600) |
+| `mesh-window.json` | `window init` | The window's policy: agent, token, own-branch prefix, integration branch, test commands, `mode` (`auto` or `manual`; missing in a policy written before auto mode, which starts manual) (mode 600) |
+| `mesh-window.settings.json` | `window init` | The settings file the launcher passes with `--settings`: the marker, the git environment, the permission mode, the allow rules and the secret deny rules (mode 600) |
 | `mesh-window` (`mesh-window.cmd` on Windows) | `window init` | The launcher (mode 700) |
 | `empty-git-hooks/` | `window init` | An empty folder; the window's git uses it as `core.hooksPath` |
 | `bin/claude-mesh` (plus `claude-mesh.cmd` on Windows) | `window init` | `claude-mesh`, only when it can't go next to `claude` (mode 755); add `bin/` to your PATH |
 
-State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run` (mode 600, never message text):
+State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run`. They never hold message text.
+On macOS and Linux they are mode 600 (a folder the plugin creates for them is 700); Windows ignores
+modes, so there your user profile's permissions protect them.
 - `pull-…json` for a pull session ([Run](#run));
 - a `push-…json` heartbeat from each active push session (the session-start line checks it; the
   mesh window's also holds its messaging address);
@@ -293,7 +311,9 @@ State files go in `$CLAUDE_PLUGIN_DATA`, else `~/.agentmesh/run` (mode 600, neve
 - `cc-<pid>.json`, Claude Code's conversation id per process, for `claude --resume`: written at
   session start, deleted at session end;
 - `fwd-…json` (and `….claimed`), the mesh window's note to its guard of a pointer it pushed;
-- `guard-alive.json`, the guard's stamp for `activate`, with its version.
+- `guard-alive.json`, the guard's stamp for `activate`, with its version;
+- `events-<agent>-<pid>.jsonl`, the guard's and hook's timeline events (codes and counts, at most
+  256 KB each), which the MCP server ships and deletes ([below](#what-agentmesh-records)).
 
 ## FYI (status items)
 
@@ -308,15 +328,63 @@ escalations are always pushed.
 appears in a trailing block. Plugin 0.3.0 is the minimum the hub accepts; update with
 `claude plugin update agentmesh@agentmesh` and restart your sessions.
 
+## What AgentMesh records
+
+The plugin, its guard and its hook report how AgentMesh behaves on this laptop to your team's hub,
+which keeps the events for `observability.retentionDays` (14 by default). They hold ids, counts,
+outcomes, error codes, timings and versions only. Never message text, prompts, code, file contents,
+tool output or command lines.
+
+- **Recorded:** the plugin, Claude Code and Node versions, the OS and CPU architecture; NATS
+  disconnects and reconnects; activation steps; each mesh tool call's name, outcome, duration and
+  the thread, task or plan id it named; each message's delivery stages; reply pointers; the mesh
+  window guard's denials and asks, with the tool's name and a reason code; which fixed line the
+  hook added to a prompt; and how many events were lost on the way.
+- **Who can read it:** through the mesh, only the humans in `observability.viewers` in `mesh.yaml`
+  (nobody by default), and the hub enforces it. Teammates and admins who aren't viewers are
+  refused. Anyone with access to the hub's server, its data volume or a backup can read the events
+  table directly, as they can the messages.
+- **Off:** with `observability.enabled: false` on the hub, a plugin that reaches the hub stops
+  recording within one beat, drops what it holds and keeps nothing more. While off it sends one
+  empty, free report a beat to check back, and it records again as soon as the hub takes one. A
+  laptop that is offline the whole time never learns: it keeps recording (up to 500 events by
+  default) and ships them once the hub is back on.
+
+The full list, and what is never recorded, is in
+[security](../../docs/security.md#what-agentmesh-records-about-your-sessions-and-what-it-never-records).
+
+**Reading it (operators).** Ask Claude in any session, "show me alice-agent's mesh timeline for the
+last two hours" (the `timeline` tool), or run:
+
+```bash
+node <plugin dir>/dist/cli.js timeline --agent alice-agent --since 2h
+node <plugin dir>/dist/cli.js timeline --thread thr-31 --json   # one event per line
+```
+
+Options: `--agent`, `--session`, `--thread thr-N`, `--since` and `--until` (an ISO time or a
+duration such as `30m`, `2h`, `1d`), `--limit` (up to 1000; the hub also keeps a reply under
+about 700 KB and says when it cut one short) and `--json`. The command uses your
+agent's own settings in `~/.agentmesh/agent.json` (it ignores `AGENTMESH_*` overrides), makes one
+call with a 5 s connect timeout, and exits within 2 s once its output is flushed. It exits 1 with
+`error: …` when it is refused: a key the hub refused, a connection that dropped before the hub
+answered (on Windows a refused key can show as one) and an unreachable hub each get the words
+`/agentmesh:join` uses, never the server's own text. A `--limit` that isn't a positive whole
+number exits 2. With `--json`, a note on stderr says when the hub cut the timeline short. The
+tool's result starts with a line labelling it as data,
+never instructions; the command prints no label. How to read the lines:
+[protocol](../../docs/protocol.md#reading-the-timeline).
+
 ## Tools
 
 `peers` · `set_status` · `ask` · `reply` · `broadcast` · `inbox` · `thread` · `escalate` ·
 `task_create` · `task_list` · `task_get` · `task_act` · `request_review` · `review_submit` ·
 `plan_start` · `plan_get` · `plan_contribute` · `plan_submit` · `lease` · `release` · `leases` ·
-`activate` · `deactivate` · `describe_session` · `take`
+`activate` · `deactivate` · `describe_session` · `take` · `timeline`
 
 `ask` takes `to_session` (a session id from `peers`) to pick one of an agent's active sessions, and
 `repo` (`owner/name`) to say which repo the question is about.
+
+`timeline` is for operators only ([above](#what-agentmesh-records)); the hub refuses anyone else.
 
 Before this laptop has joined a mesh, the only tools are `join` and `connect` (which picks up the
 settings `agentmesh setup admin` saved, without a restart).

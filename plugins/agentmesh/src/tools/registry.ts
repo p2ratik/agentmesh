@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { isMeshError } from '@agentmesh/common';
 import { z } from 'zod';
 import { formatFyi, seenIds } from '../inbox/fyi';
+import { recordShown, recordTool } from '../telemetry/plugin-events';
 import { leaseTools } from './leases';
 import { messagingTools } from './messaging';
+import { observeTools } from './observe';
 import { planningTools } from './planning';
 import { sessionTools } from './sessions';
 import { taskTools } from './tasks';
@@ -15,6 +17,7 @@ export const ALL_TOOLS: readonly ToolDef[] = [
   ...planningTools,
   ...leaseTools,
   ...sessionTools,
+  ...observeTools,
 ] as readonly ToolDef[];
 
 export interface ToolListing {
@@ -70,6 +73,7 @@ export async function callTool(
   if (fyi.items.length > 0) {
     result.content.push({ type: 'text', text: formatFyi(fyi) });
     deps.hub.reportSeen(seenIds(fyi));
+    recordShown(deps.recorder, deps.hub.sessionId, fyi);
   }
   return result;
 }
@@ -88,6 +92,9 @@ async function callConfigured(
   // Only this call's hub notes end its result, never those of parallel calls or background hellos.
   const notes: string[] = [];
   const hub: ToolDeps['hub'] = {
+    get sessionId() {
+      return deps.hub.sessionId;
+    },
     call: (method, params, options) => deps.hub.call(method, params, options, notes),
     reportSeen: (ids) => deps.hub.reportSeen(ids),
   };
@@ -96,11 +103,19 @@ async function callConfigured(
   return result;
 }
 
+/** A tool call's recorded outcome for a failure: its refusal, its hub error code, or a crash. */
+const outcomeOf = (err: unknown): string =>
+  err instanceof ToolRefusal ? 'refused' : isMeshError(err) ? err.code : 'internal';
+
 async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolResult> {
+  const started = Date.now();
+  const done = (outcome: string) => recordTool(deps, tool.name, args, outcome, started);
+  let result: ToolResult;
   try {
     const text = await tool.run(args, deps, tool.mutating ? randomUUID() : undefined);
-    return { content: [{ type: 'text', text }] };
+    result = { content: [{ type: 'text', text }] };
   } catch (err) {
+    done(outcomeOf(err));
     if (err instanceof ToolRefusal) return error(err.message);
     if (isMeshError(err)) {
       const issues = Array.isArray(err.details?.issues)
@@ -110,6 +125,8 @@ async function run(tool: ToolDef, args: unknown, deps: ToolDeps): Promise<ToolRe
     }
     return error(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  done('ok');
+  return result;
 }
 
 /** The mesh tools against the hub, or each one reporting the setup problem. */

@@ -33,7 +33,11 @@ export interface ConnectBusOptions {
   /** Lets NATS permissions scope reply subjects to this client. */
   inboxPrefix?: string;
   logger?: Logger;
+  /** Each disconnect, reconnect and error, once logged (connectBus only); must not throw. */
+  onStatus?: (type: BusStatus) => void;
 }
+
+export type BusStatus = 'disconnect' | 'reconnect' | 'error';
 
 const SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 
@@ -103,7 +107,7 @@ export async function connectBus(options: ConnectBusOptions): Promise<NatsConnec
     waitOnFirstConnect: true,
     ignoreAuthErrorAbort: true,
   });
-  if (options.logger) watchStatus(nc, options.logger);
+  if (options.logger || options.onStatus) watchStatus(nc, options);
   return nc;
 }
 
@@ -115,18 +119,20 @@ export function connectOnce(
   return connect({ ...baseOptions(options), reconnect: false, timeout: timeoutMs });
 }
 
-function watchStatus(nc: NatsConnection, logger: Logger): void {
+function watchStatus(nc: NatsConnection, { logger, onStatus }: ConnectBusOptions): void {
   void (async () => {
     for await (const status of nc.status()) {
       if (status.type === 'disconnect' || status.type === 'reconnect') {
-        logger.info({ nats: status.type, server: nc.getServer() }, `nats ${status.type}`);
+        logger?.info({ nats: status.type, server: nc.getServer() }, `nats ${status.type}`);
+        onStatus?.(status.type);
       } else if (status.type === 'error') {
-        logger.warn({ nats: status.type, err: status.error }, 'nats error');
+        logger?.warn({ nats: status.type, err: status.error }, 'nats error');
+        onStatus?.('error');
       }
     }
   })();
   void nc.closed().then((err) => {
-    if (err) logger.error({ err }, 'nats connection closed with error');
+    if (err) logger?.error({ err }, 'nats connection closed with error');
   });
 }
 

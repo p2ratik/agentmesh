@@ -12,6 +12,7 @@ import { setupHostCommand } from './commands/setup/host';
 import { setupInvitesCommand } from './commands/setup/invites';
 import { setupRenderCommand } from './commands/setup/render';
 import { setupStatusCommand } from './commands/setup/status';
+import { timelineCommand } from './commands/timeline';
 import { upgradeCommand } from './commands/upgrade';
 import { validateCommand } from './commands/validate';
 import { windowInitCommand } from './commands/window';
@@ -35,6 +36,7 @@ export const COMMANDS: readonly Command[] = [
   upgradeCommand,
   autoupdateCommand,
   windowInitCommand,
+  timelineCommand,
 ];
 
 function usage(): string {
@@ -86,10 +88,36 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
   }
 }
 
-const isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
-// Not process.exit: right after a fetch it aborts Node 24 on Windows (exit 127), even on success.
-if (isEntry) {
-  runCli(process.argv.slice(2), processContext()).then((code) => {
-    process.exitCode = code;
-  });
+/** How long a finished command may wait for Node to exit on its own. */
+export const EXIT_GRACE_MS = 2_000;
+
+/** An output stream: a write's callback runs once everything before it is flushed. */
+interface Flushable {
+  write(chunk: string, done: () => void): unknown;
 }
+
+/**
+ * Runs the CLI as this process. It sets the exit code and lets Node exit on its own:
+ * `process.exit` right after a `fetch` aborts Node 24 on Windows (exit 127) even on success. A
+ * finished command must not hang on a handle left open, though: nats.js keeps the socket of a
+ * connect that timed out (a server that accepts but never answers), so once stdout and stderr
+ * have flushed (pipes are asynchronous on macOS and Linux, and an exit drops what is pending),
+ * the process exits anyway after EXIT_GRACE_MS.
+ */
+export async function runMain(
+  argv: string[],
+  ctx: CliContext = processContext(),
+  io: { exit?: (code: number) => void; streams?: Flushable[] } = {},
+): Promise<number> {
+  const {
+    exit = (code: number) => process.exit(code),
+    streams = [process.stdout, process.stderr],
+  } = io;
+  const code = await runCli(argv, ctx);
+  process.exitCode = code;
+  await Promise.all(streams.map((s) => new Promise<void>((done) => s.write('', () => done()))));
+  setTimeout(() => exit(code), EXIT_GRACE_MS).unref();
+  return code;
+}
+
+if (process.argv[1] && /main\.(ts|js)$/.test(process.argv[1])) void runMain(process.argv.slice(2));

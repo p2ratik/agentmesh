@@ -1,12 +1,13 @@
 import type { z } from 'zod';
 import type { HubClient } from '../hub';
 import type { FyiBuffer } from '../inbox/fyi';
+import type { Recorder } from '../telemetry/recorder';
 import type { MeshWindowContext } from '../window/context';
 import type { ActivationState } from './activation';
 
 export interface ToolDeps {
   /** Hub calls; each tool call gets its own view, so its result carries only its own notes. */
-  hub: Pick<HubClient, 'call' | 'reportSeen'>;
+  hub: Pick<HubClient, 'call' | 'reportSeen' | 'sessionId'>;
   agentId: string;
   /** The mesh's subject prefix (`session.config.prefix`); it names the local session records. */
   prefix: string;
@@ -23,6 +24,8 @@ export interface ToolDeps {
   teamPolicy(): string | null;
   /** How long the hub waits on a closed asker's answer before it pings the owner (from hello). */
   closedAskerMinutes(): number;
+  /** Timeline events: each tool call and activation step records its outcome here. */
+  recorder: Recorder;
 }
 
 /** A refusal shown to Claude verbatim as an error (no code prefix). */

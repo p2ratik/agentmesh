@@ -1,10 +1,11 @@
 {
   "name": "@agentmesh/common",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./secret-paths": "./src/secret-paths.ts",
     "./window": "./src/window.ts",
     "./version": "./src/version.ts"
   },

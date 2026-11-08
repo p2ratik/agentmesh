@@ -143,6 +143,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
     teamPolicy: () => session.hello?.policy.instructions ?? null,
     closedAskerMinutes: () =>
       session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
+    recorder: session.recorder,
   };
 }
 
