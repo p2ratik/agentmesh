@@ -125,7 +125,10 @@ describe('decide', () => {
         deny(`mesh window: work only inside a task worktree (${why})`, code),
       );
     const outside = 'not inside .claude/worktrees/mesh-*';
-    refused(join(wt, '.git', 'config'), '.git is off limits', 'path.git_dir');
+    // The worktree's own .git pointer file, and a nested .git folder not made yet: the same on every
+    // OS (`.git/config` under a worktree uses a file as a folder, unresolved on POSIX).
+    refused(join(wt, '.git'), '.git is off limits', 'path.git_dir');
+    refused(join(wt, 'sub', '.git', 'hooks', 'x'), '.git is off limits', 'path.git_dir');
     refused(
       join(base, 'home', '.agentmesh', 'a'),
       '~/.agentmesh is off limits',
