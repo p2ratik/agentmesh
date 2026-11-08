@@ -468,15 +468,17 @@ Bash(gh pr create --base <integration branch> *)
   once and drops blanket ones such as `Bash(*)`; none of these is blanket.
 - **Deny rules, in both modes:** `permissions.deny` holds a `Read(...)` rule for every secret path,
   from one list in `packages/common/src/secret-paths.ts` that the guard shares. Anywhere:
-  `//**/.env`, `//**/.env.*`, `//**/*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.nk`, `id_rsa*`,
-  `id_ed25519*`, `id_ecdsa*` and `id_dsa*`. Under home: `~/.ssh/**`, `~/.aws/**`, `~/.azure/**`,
-  `~/.config/gcloud/**`, `~/.config/gh/**`, `~/.kube/**`, `~/.docker/config.json`, `~/.gnupg/**`,
-  `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, `~/.agentmesh/**`,
-  `~/.claude/.credentials.json`, and the Chrome, Edge and Firefox profiles on Windows, macOS and
-  Linux. With `CLAUDE_CONFIG_DIR` set, also that account's `.credentials.json`, as an absolute
-  `//` POSIX path. A deny rule blocks in every mode; a `Read` rule also covers Grep and Glob (best
-  effort) and stops Edit and Write on the path. `.env.example` and the like are blocked too: the
-  human pastes what the window needs from them.
+  `//**/.env`, `//**/.env.*`, `//**/*.env`, `//**/*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.nk`,
+  `*.creds`, `id_rsa*`, `id_ed25519*`, `id_ecdsa*` and `id_dsa*`. Under home: `~/.ssh/**`,
+  `~/.aws/**`, `~/.azure/**`, `~/.config/gcloud/**`, `~/.config/gh/**`, `~/.kube/**`,
+  `~/.docker/config.json`, `~/.gnupg/**`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`,
+  `~/.pypirc`, the shell histories (`~/.bash_history`, `~/.zsh_history`, PowerShell's
+  `ConsoleHost_history.txt`), `~/.agentmesh/**`, `~/.claude/.credentials.json`, `~/.claude.json`,
+  and the Chrome, Edge and Firefox profiles on Windows, macOS and Linux. With `CLAUDE_CONFIG_DIR`
+  set, also that account's `.credentials.json` and `.claude.json`, as absolute `//` POSIX paths. A
+  deny rule blocks in every mode; a `Read` rule also covers Grep and Glob (best effort) and stops
+  Edit and Write on the path. `.env.example` and the like are blocked too: the human pastes what
+  the window needs from them.
 - Claude Code runs some read-only commands (`ls`, `cd`, `pwd`, read-only `git`) without an allow
   rule. The guard lets them through only in its read forms.
 - Edits in a mesh worktree are expected to run without a prompt: Claude Code exempts "Claude's own
@@ -511,9 +513,11 @@ its input for at most a second and exits 0, whatever happens. With the marker se
   - every `SendMessage` except the one reply pointer the plugin pushed, and every `ListAgents`
     ([Reply pointers](#reply-pointers-the-relay));
   - in every mode, before the command list, a Bash, PowerShell or Monitor command that names a
-    secret path from the shared list (`secret.path`) or dumps the environment (`secret.env_dump`).
-    The reason reads `mesh window: secrets and personal data are never read, printed or sent from
-    here, in any mode; ask your human to do it themselves`
+    secret file from the shared list (`secret.path`), prints a stored credential
+    (`secret.credential`), or dumps the whole environment or reads a secret-named variable
+    (`secret.env_dump`). The reason reads `mesh window: secrets and personal data are never read,
+    printed or sent from here, in any mode; ask your human to do it themselves (if this is a commit
+    message, PR text or search pattern, reword it, or use the Grep tool)`
     ([Auto mode in the window](#auto-mode-in-the-window));
   - a call it can't read, an edit that names no file, a tool it doesn't know, and any failure of
     the guard itself.
@@ -523,7 +527,8 @@ its input for at most a second and exits 0, whatever happens. With the marker se
   - for every PowerShell and Monitor command, in manual mode; in auto mode they get the same checks
     as an unlisted Bash command;
   - for a test on a branch the window didn't write, in every mode, and in auto mode for any
-    unlisted command run in such a worktree;
+    unlisted command that runs in or names such a worktree;
+  - in auto mode, for a recursive search outside a mesh worktree;
   - for every `Workflow` call, whose script can ask for isolation the guard can't see;
   - for every command, while `~/.agentmesh/mesh-window.json` is missing or invalid.
 - **It stamps `activate`.** On that call it writes `guard-alive.json` in the plugin data folder,
@@ -566,7 +571,9 @@ mode past the floor ([Auto mode in the window](#auto-mode-in-the-window)).
   form with `--force`, `--amend`, `--no-verify` or a refspec.
 - Any of these after `cd P && `, checked as if it ran in P.
   - P must be absolute, or start with `./`, so bash never looks it up in `CDPATH`.
-  - `git -C`, a relative `cd` chain and a second `cd` ask.
+  - In manual mode, `git -C`, a relative `cd` chain and a second `cd` ask. In auto mode they go to
+    auto mode past the floor, and the teammate's-worktree check still resolves every `cd` target
+    (relative and `..` included) and every mesh worktree the command names.
   - No path starts with `//`. Git Bash maps that to a UNC host, and the SMB connection can leak
     NTLM.
 
@@ -602,21 +609,49 @@ command off the guard's list.
   guard doesn't list. The guard keeps a pattern-based floor. It follows the hook input's
   `permission_mode` on each call, not the policy's `mode`, so a human who switches with Shift+Tab
   gets that mode's rules.
-  - **Secrets are denied in every mode:** the deny rules above, and the guard's `secret.path` and
-    `secret.env_dump`. Auto mode's classifier allows reading `.env` by default, so the guard can't
-    leave it to auto mode. The window's environment holds its marker token, and may hold
-    teammates' tokens, so environment dumps are refused too.
+  - **Secrets are denied in every mode:** the deny rules above, and the guard's `secret.path`,
+    `secret.credential` and `secret.env_dump`. Auto mode's classifier allows reading `.env` by
+    default, so the guard can't leave it to auto mode. What the guard refuses:
+    - a secret file named anywhere in the command, also across a line continuation (`*.env`
+      matches neither a folder such as a `.env/` virtualenv nor `process.env` or
+      `import.meta.env` in code);
+    - a stored credential printed: `gh auth token`, `gh auth status --show-token|-t`,
+      `git credential fill|get` and `git credential-<helper> get`;
+    - the whole environment: `printenv`, `env` with nothing to run (options and assignments only,
+      also through `sudo` or as `/usr/bin/env`), `export [-p]`, `declare|typeset -x|-p`, `set`
+      alone or through `cmd /c`, PowerShell's `env:` drive, `[Environment]::GetEnvironmentVariables()`,
+      `/proc/<pid>/environ`, and `node`/`python` printing `process.env` or `os.environ` whole;
+    - a secret-named variable: `$NAME`, `${NAME}`, `$env:NAME`, `%NAME%`,
+      `GetEnvironmentVariable('NAME')`, `process.env.NAME`, `os.environ['NAME']` and `getenv('NAME')`,
+      where NAME contains `TOKEN`, `SECRET`, `PASSW`, `API_KEY`/`APIKEY`, `PRIVATE_KEY`, `SEED`,
+      `CREDENTIAL` or `AUTH` (any case), and `AGENTMESH_MESH_WINDOW` itself. The window's
+      environment holds its marker token, and may hold teammates' tokens.
   - **Risky commands ask** (`command.risky`): any `git push` but the listed own-branch form (auto
     mode allows a push to any branch, the default branch included, and blocks only force pushes),
     `git merge`, `gh pr merge`, `git rebase` other than onto the integration branch,
     `git branch -d|-D|--delete`, `git reset --hard`, forced git commands (`--force`, `-f`),
-    `git checkout --`, `git restore`, and the command words `terraform`, `pulumi`, `kubectl`,
-    `helm`, `az`, `aws`, `gcloud`, `docker push`, `ssh` and `scp`. They match in any piece of the
-    command (split at `&&`, `||`, `;`, `|`, `&`, `$(`, parentheses, braces, backticks, quotes and
-    redirections), so a compound command can't hide one. Over-matching asks.
-  - **A teammate's worktree asks:** an unlisted command run in a mesh worktree whose branch isn't
-    the window's own (the hook's `cwd`, or P in `cd P && …`) asks (`command.needs_approval`), so a
-    teammate's code still runs only with your approval (decision 5).
+    `git checkout --` or `.`, `git restore`, `git stash drop|clear`; changes through gh
+    (`workflow run`, `release create|delete`, `api` with `-X|--method` DELETE, PUT, POST or PATCH
+    or with fields, which make it a POST, `pr review --approve`, `repo delete`, any `secret`,
+    `variable set|delete`); `docker push` and `--push`; and the command words `terraform`,
+    `pulumi`, `kubectl`, `helm`, `az`, `aws`, `gcloud`, `ssh`, `scp` and `rsync`. They match in any
+    piece of the command (split at `&&`, `||`, `;`, `|`, `&`, `$(`, parentheses, braces, backticks,
+    quotes and redirections, with line continuations joined), so a compound command can't hide
+    one. Over-matching asks.
+  - **A recursive search outside a mesh worktree asks** (`command.risky`): `grep -r|-R|--recursive`
+    (also in a flag group such as `-rn`; `git grep` reads tracked files only and passes), `rg` with
+    `--hidden`, `-u`, `-uu`, `-uuu` or `--no-ignore`, `findstr /s`, and `Select-String -Recurse` or
+    after `Get-ChildItem -Recurse |`. It passes when the folders it runs in (the hook's `cwd`, or its
+    `cd` targets when it starts with one) are inside a mesh worktree and every absolute, `~`, `$`,
+    `%` or `..` path it names stays inside one. A worktree never holds the checkout's untracked
+    `.env`.
+  - **A teammate's worktree asks:** an unlisted command asks (`command.needs_approval`) when any
+    folder it runs in or names is a mesh worktree whose branch isn't the window's own: the hook's
+    `cwd`; every `cd`, `pushd`, `chdir`, `Set-Location` or `sl` target, relative and `..` ones
+    included, resolved against the `cwd` and against the step before it; and every
+    `.claude/worktrees/mesh-*` named anywhere in the command, quotes stripped (`pnpm --dir …`,
+    `bash -c "cd …"`). So a teammate's code still runs only with your approval (decision 5), as in
+    manual mode, where all of these forms ask anyway.
   - **Unchanged:** edits stay in mesh worktrees; `Workflow`, `marker.unverified`, `guard.error`
     and tests on a branch the window didn't write ask; EnterWorktree, isolated agents, SendMessage
     and ListAgents are as before.
@@ -637,6 +672,15 @@ command off the guard's list.
     held to worktrees.
   - The secret patterns match the command's text: a path built at run time, or read by a program
     the window runs, isn't seen. The deny rules still stop Claude Code's Read, Grep and Glob.
+  - Single variables whose names don't look secret (`$DATABASE_URL`, say) and other spellings of an
+    environment read (a script file, `Object.entries` in a longer program, `find … -exec grep`) are
+    not refused: the rules and the skill tell the window to keep the rule itself.
+  - The teammate's-worktree check sees folders named in the command. A path assembled at run time
+    (`cd "$DIR"`, a script that changes folder) isn't seen.
+  - Matching text has false positives, which refuse or ask: a commit message, PR body or search
+    pattern that names a secret file or a secret-named variable is refused (the reason says to
+    reword it or use the Grep tool), and a recursive search that names an absolute pattern such as
+    `/api` asks.
   - `.env.example` and similar files are blocked too. The human pastes what the window needs.
   - Where auto mode isn't available (plan, model or an admin setting), Claude Code starts the window
     in manual mode with no error, and the guard asks as before.
@@ -1268,10 +1312,11 @@ the guard and hook bundles stay built-ins only).
 | `path.agentmesh_dir` | Inside the real `~/.agentmesh`. |
 | `path.link` | The last segment is a link, or the file has other hard links. |
 | `command.not_listed` | A Bash command that isn't one of the guard's forms (asks, outside auto mode). |
-| `command.needs_approval` | A test on a branch the window didn't write or outside a worktree; outside auto mode, every PowerShell and Monitor command; in auto mode, any unlisted command run in a worktree that isn't on the window's own branch (asks). |
-| `command.risky` | In auto mode, a command on the floor: a push other than the window's own-branch form, a merge, a rebase other than onto the integration branch, a branch delete, a hard reset, a forced git command, `git checkout --` or `git restore`, or an infra command (asks). |
-| `secret.path` | A Bash, PowerShell or Monitor command names a secret path from the shared list (denies, in every mode). |
-| `secret.env_dump` | A command dumps the environment: `printenv`, `env`, `export -p`, `set`, `Get-ChildItem env:` and the like (denies, in every mode). |
+| `command.needs_approval` | A test on a branch the window didn't write or outside a worktree; outside auto mode, every PowerShell and Monitor command; in auto mode, any unlisted command that runs in or names a worktree that isn't on the window's own branch (asks). |
+| `command.risky` | In auto mode, a command on the floor: a push other than the window's own-branch form, a merge, a rebase other than onto the integration branch, a branch delete, a hard reset, a forced git command, `git checkout --` or `.`, `git restore`, `git stash drop` or `clear`, a change through gh, an infra command, or a recursive search outside a mesh worktree (asks). |
+| `secret.path` | A Bash, PowerShell or Monitor command names a secret file from the shared list (denies, in every mode). |
+| `secret.credential` | A command prints a stored credential: `gh auth token`, `gh auth status --show-token`, `git credential fill` or `get`, `git credential-<helper> get` (denies, in every mode). |
+| `secret.env_dump` | A command dumps the whole environment (`printenv`, `env`, `export -p`, `set`, `Get-ChildItem env:`, `node -p process.env` and the like) or reads a secret-named variable (`$GITHUB_TOKEN`, `$env:API_KEY`, `%NPM_TOKEN%`) (denies, in every mode). |
 | `tool.unknown` | A tool the guard doesn't know. |
 | `tool.enter_worktree` | `EnterWorktree`. |
 | `tool.agent_isolated` | An `Agent` call with an `isolation` key. |

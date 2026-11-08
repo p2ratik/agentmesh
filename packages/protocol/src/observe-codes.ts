@@ -23,6 +23,7 @@ export const REASON_CODES = [
   'command.needs_approval',
   'command.risky',
   'secret.path',
+  'secret.credential',
   'secret.env_dump',
   'tool.unknown',
   'tool.enter_worktree',

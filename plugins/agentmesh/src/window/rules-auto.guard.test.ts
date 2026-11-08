@@ -74,14 +74,47 @@ describe('the auto-mode window rules, through the guard in auto mode', () => {
       ['branch deletes', `cd ${C} && git branch -D agent/bob/x`, 'ask'],
       ['hard resets', `cd ${W} && git reset --hard`, 'ask'],
       ['forced git commands (--force, -f)', `cd ${W} && git clean -fd`, 'ask'],
-      ['git checkout -- and git restore', `cd ${W} && git restore src/a.ts`, 'ask'],
+      ['git checkout -- or ., git restore', `cd ${W} && git restore src/a.ts`, 'ask'],
+      ['git checkout -- or .', `cd ${W} && git checkout .`, 'ask'],
+      ['git stash drop or clear', `cd ${W} && git stash drop`, 'ask'],
       [
-        'infra commands (terraform, pulumi, kubectl, helm, az, aws, gcloud, docker push, ssh, scp)',
+        'infra commands (terraform, pulumi, kubectl, helm, az, aws, gcloud, docker push, ssh, scp, rsync)',
         'aws s3 ls',
         'ask',
       ],
-      ['The guard refuses those reads', `cd ${W} && cat .env`, 'deny'],
-      ['environment variables', 'Get-ChildItem env:', 'deny', 'PowerShell'],
+      ['scp, rsync)', 'rsync -a . host:/srv', 'ask'],
+      ['changes through gh (workflow run', 'gh workflow run deploy.yml', 'ask'],
+      ['api writes', 'gh api -X DELETE repos/o/r/git/refs/heads/x', 'ask'],
+      ['pr review --approve', 'gh pr review 12 --approve', 'ask'],
+      ['a recursive search outside a task worktree', `cd ${C} && grep -rn TOKEN .`, 'ask'],
+      ['Search code with the Grep tool or git grep', `cd ${W} && grep -rn login src`, 'pass'],
+      ['Search code with the Grep tool or git grep', `cd ${C} && git grep -n TOKEN`, 'pass'],
+      ['The guard refuses secret files', `cd ${W} && cat .env`, 'deny'],
+      ['whole-environment dumps', 'Get-ChildItem env:', 'deny', 'PowerShell'],
+      ['secret-named variables', 'echo $env:GH_TOKEN', 'deny', 'PowerShell'],
+      ['credential commands', 'git credential fill', 'deny'],
+    ]);
+  });
+
+  it('passes the listed forms the rules name, as in manual mode', () => {
+    check(auto, [
+      ['each as cd "<worktree>" && <command>: git add -A', `cd ${W} && git add -A`, 'pass'],
+      [
+        "gh pr create --base agents --head <branch> --title '<title>' --body '<body>'",
+        `cd ${W} && gh pr create --base agents --head agent/bob/task-1-login --title 'L' --body 'B'`,
+        'pass',
+      ],
+      [
+        'cd "<checkout>" && git worktree add .claude/worktrees/mesh-review-<task> refs/remotes/origin/<branch>',
+        `cd ${C} && git worktree add .claude/worktrees/mesh-review-task-9 refs/remotes/origin/agent/alice/task-2-x`,
+        'pass',
+      ],
+      [
+        'cd "<checkout>" && git worktree remove .claude/worktrees/mesh-<name>',
+        `cd ${C} && git worktree remove .claude/worktrees/mesh-task-1-login`,
+        'pass',
+      ],
+      ['cd "<checkout>" && git worktree list shows them', `cd ${C} && git worktree list`, 'pass'],
     ]);
   });
 

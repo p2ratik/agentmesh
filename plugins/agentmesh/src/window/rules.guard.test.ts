@@ -114,9 +114,13 @@ describe('the window rules, through the guard', () => {
       ['a relative cd chain', 'cd repo && git fetch origin', 'ask'],
       ['a second cd ask', `cd ${C} && cd src && git status`, 'ask'],
       ['Merging and anything not named here ask', `cd ${W} && gh pr merge 12`, 'ask'],
-      ['.env files, keys, tokens, credentials', `cd ${W} && cat .env`, 'deny'],
-      ['environment variables', 'printenv', 'deny'],
-      ['The guard refuses those reads', 'cat ~/.ssh/id_ed25519', 'deny', 'PowerShell'],
+      ['The guard refuses secret files', `cd ${W} && cat .env`, 'deny'],
+      ['whole-environment dumps', 'printenv', 'deny'],
+      ['secret-named variables', 'echo $GITHUB_TOKEN', 'deny'],
+      ['credential commands', 'gh auth token', 'deny'],
+      ['The guard refuses secret files', 'cat ~/.ssh/id_ed25519', 'deny', 'PowerShell'],
+      ['Commit messages, PR bodies', `cd ${W} && git commit -m 'Ignore .env'`, 'deny'],
+      ['never grep -r or rg --hidden from a checkout', `cd ${C} && grep -r TOKEN .`, 'ask'],
     ]);
   });
 

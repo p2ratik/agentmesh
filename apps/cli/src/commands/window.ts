@@ -21,8 +21,13 @@ import { printStart } from './window-start';
 
 const DEFAULT_TEMPLATE = 'agent/{owner}/{task}-{slug}';
 const MODE_LINES: Record<WindowMode, string> = {
-  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. To have them ask you instead, run window init again with --mode manual.",
+  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. Where auto mode isn't available (plan, model or an admin setting), Claude Code starts it in manual mode. To have them ask you instead, run window init again with --mode manual.",
   manual: 'It starts in manual mode: commands not on its list ask you.',
+};
+/** What asks without an own-branch prefix: in auto mode the worktree add goes to auto mode. */
+const NO_PREFIX_ASKS: Record<WindowMode, string> = {
+  auto: 'no worktree counts as its own: tests, commits, PRs and other commands in a task worktree, and every push, ask.',
+  manual: 'task worktrees, tests, commits, pushes and PRs all ask.',
 };
 
 function windowMode(value: string): WindowMode {
@@ -124,7 +129,7 @@ function printNotes(
   }
   if (n.prefix === null) {
     ctx.stdout(
-      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask.",
+      `Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so ${NO_PREFIX_ASKS[n.mode]}`,
     );
   }
   for (const w of shellShadowWarnings(ctx, platform)) ctx.stdout(w);

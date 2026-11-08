@@ -112,7 +112,7 @@ describe('secretUse', () => {
 });
 
 const REASON =
-  'mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves';
+  'mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves (if this is a commit message, PR text or search pattern, reword it, or use the Grep tool)';
 
 let base: string;
 let ctx: GuardContext;

@@ -46,12 +46,16 @@ Pratik decided on 2026-11-08:
   while one in auto mode can still Shift+Tab to manual.
 - **Secrets are denied in every mode, twice.**
   - The settings file's `permissions.deny` holds a `Read(...)` rule for every secret path: `.env`,
-    `.env.*`, key files and SSH keys anywhere; credential stores under home (`~/.ssh`, `~/.aws`,
-    `~/.azure`, `~/.config/gcloud`, `~/.config/gh`, `~/.kube`, `~/.docker/config.json`, `~/.gnupg`,
-    `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, `~/.agentmesh`, Claude's
-    credentials); browser profiles; and the window account's own `.credentials.json`.
+    `.env.*`, `*.env`, `*.creds`, key files and SSH keys anywhere; credential stores under home
+    (`~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`, `~/.kube`,
+    `~/.docker/config.json`, `~/.gnupg`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`,
+    `~/.agentmesh`, Claude's credentials and `~/.claude.json`); shell histories; browser profiles;
+    and the window account's own `.credentials.json` and `.claude.json`.
   - The guard denies a Bash, PowerShell or Monitor command that names one of those paths
-    (`secret.path`) or dumps the environment (`secret.env_dump`), before the command list.
+    (`secret.path`), prints a stored credential (`gh auth token`, `git credential fill`;
+    `secret.credential`), or dumps the whole environment or reads a secret-named variable
+    (`secret.env_dump`), before the command list. Other single variables and obfuscated forms are
+    left to the agent's own rule (fix round 1 of the task review).
   - The list is defined once, in `packages/common/src/secret-paths.ts` (no imports), which the CLI
     and the guard share.
 - **The guard follows the live mode.** It reads `permission_mode` from each call, not the policy's
@@ -62,10 +66,18 @@ Pratik decided on 2026-11-08:
   command, passes with no decision, unless:
   - it matches the risky floor (`command.risky`): any push but the listed own-branch form, merges,
     rebases other than onto the integration branch, branch deletes, hard resets, forced git
-    commands, `git checkout --`, `git restore`, and infra commands (`terraform`, `pulumi`, `kubectl`,
-    `helm`, `az`, `aws`, `gcloud`, `docker push`, `ssh`, `scp`), matched in any piece of the command;
-  - or it runs in a mesh worktree whose branch isn't the window's own (`command.needs_approval`),
-    which keeps decision 5 of ADR 0009: a teammate's code runs only with the human's approval.
+    commands, `git checkout --` or `.`, `git restore`, `git stash drop|clear`, changes through gh
+    (workflow runs, releases, `api` writes, approvals, repo deletes, secrets, variables), and infra
+    commands (`terraform`, `pulumi`, `kubectl`, `helm`, `az`, `aws`, `gcloud`, `docker push`, `ssh`,
+    `scp`, `rsync`), matched in any piece of the command;
+  - or it is a recursive search (`grep -r`, `rg --hidden`/`-u`, `findstr /s`, recursive
+    `Select-String`) outside a mesh worktree (`command.risky`): from a checkout it would read the
+    untracked `.env`;
+  - or any folder it runs in or names is a mesh worktree whose branch isn't the window's own
+    (`command.needs_approval`): the hook's `cwd`, every `cd`-like target (relative and `..` ones
+    included), and every `.claude/worktrees/mesh-*` named anywhere in the command, quotes stripped.
+    This keeps decision 5 of ADR 0009, a teammate's code runs only with the human's approval. A
+    path assembled at run time isn't seen.
 - **Everything else is unchanged in every mode:** edits stay in registered mesh worktrees; tests on
   a branch the window didn't write, `marker.unverified`, `guard.error` and `Workflow` ask; and the
   rules for SendMessage, isolated agents, EnterWorktree and ListAgents stay as they were. Manual
@@ -92,7 +104,9 @@ Pratik decided on 2026-11-08:
   own branch, merges, history rewrites, deletes, infra and a teammate's code.
 - The floor is pattern-based, so it has limits ([security.md](../security.md#auto-mode-in-the-window)):
   an obfuscated command can reach the classifier alone; Bash writes outside worktrees no longer ask
-  in auto mode; a secret path built at run time isn't seen by the guard; `.env.example` is blocked
-  too (the human pastes it); and where auto mode isn't available the window starts in manual mode.
+  in auto mode; a secret path built at run time, a folder assembled at run time and single
+  variables whose names don't look secret aren't seen by the guard; `.env.example` is blocked too
+  (the human pastes it); text that names a secret file (a commit message, a search pattern) is
+  refused; and where auto mode isn't available the window starts in manual mode.
 - A window set up before this change starts in manual mode until `/agentmesh:window` runs again.
 - Auto mode in a live window is not yet verified.

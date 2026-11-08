@@ -23,11 +23,13 @@ const permissions = (i: ReturnType<typeof inputs>) => windowSettings(i).permissi
 const DENY = [
   'Read(//**/.env)',
   'Read(//**/.env.*)',
+  'Read(//**/*.env)',
   'Read(//**/*.pem)',
   'Read(//**/*.key)',
   'Read(//**/*.p12)',
   'Read(//**/*.pfx)',
   'Read(//**/*.nk)',
+  'Read(//**/*.creds)',
   'Read(//**/id_rsa*)',
   'Read(//**/id_ed25519*)',
   'Read(//**/id_ecdsa*)',
@@ -44,8 +46,12 @@ const DENY = [
   'Read(~/.git-credentials)',
   'Read(~/.npmrc)',
   'Read(~/.pypirc)',
+  'Read(~/.bash_history)',
+  'Read(~/.zsh_history)',
+  'Read(~/AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt)',
   'Read(~/.agentmesh/**)',
   'Read(~/.claude/.credentials.json)',
+  'Read(~/.claude.json)',
   'Read(~/AppData/Local/Google/Chrome/**)',
   'Read(~/AppData/Local/Microsoft/Edge/**)',
   'Read(~/AppData/Roaming/Mozilla/**)',
@@ -94,17 +100,20 @@ describe('the secret deny list', () => {
     expect(secretReadRules(null)).toEqual(DENY);
   });
 
-  it("adds the window account's own credentials file as an absolute POSIX path", () => {
+  it("adds the window account's own credentials and .claude.json as absolute POSIX paths", () => {
     expect(secretReadRules('/home/bob/.claude-work')).toEqual([
       ...DENY,
       'Read(//home/bob/.claude-work/.credentials.json)',
+      'Read(//home/bob/.claude-work/.claude.json)',
     ]);
     expect(secretReadRules('C:\\Users\\bob\\.claude-work\\')).toEqual([
       ...DENY,
       'Read(//c/Users/bob/.claude-work/.credentials.json)',
+      'Read(//c/Users/bob/.claude-work/.claude.json)',
     ]);
-    expect(permissions(inputs('auto', '/home/bob/.cw')).deny.at(-1)).toBe(
+    expect(permissions(inputs('auto', '/home/bob/.cw')).deny.slice(-2)).toEqual([
       'Read(//home/bob/.cw/.credentials.json)',
-    );
+      'Read(//home/bob/.cw/.claude.json)',
+    ]);
   });
 });

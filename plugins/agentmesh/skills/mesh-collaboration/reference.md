@@ -88,11 +88,17 @@ That table is manual mode. In auto mode (the window's default) the Bash commands
 and PowerShell and Monitor, go to auto mode's checks instead, except these, which still ask: any
 push but the own-branch form, `git merge`, `gh pr merge`, rebases other than onto the integration
 branch, `git branch -d|-D|--delete`, `git reset --hard`, forced git commands (`--force`, `-f`),
-`git checkout --`, `git restore`, `terraform`, `pulumi`, `kubectl`, `helm`, `az`, `aws`, `gcloud`,
-`docker push`, `ssh`, `scp`, and any command run in a worktree that isn't on the window's own
-branch. Refused in every mode: a command naming a secret path (`.env` files, keys, `~/.ssh`,
-`~/.aws`, `~/.agentmesh`, credentials files and the like) or dumping the environment (`printenv`,
-`env`, `export -p`, `set`, `Get-ChildItem env:`); the window's settings also deny reading those
-paths with Read, Grep and Glob.
+`git checkout --` or `.`, `git restore`, `git stash drop|clear`, `terraform`, `pulumi`, `kubectl`,
+`helm`, `az`, `aws`, `gcloud`, `docker push` (and `--push`), `ssh`, `scp`, `rsync`, changes through
+gh (`workflow run`, `release create|delete`, `api` writes, `pr review --approve`, `repo delete`,
+`secret`, `variable set|delete`), a recursive search (`grep -r`, `rg --hidden`/`-u`, `findstr /s`,
+recursive `Select-String`) outside a mesh worktree, and any command run in or naming a worktree
+that isn't on the window's own branch. Refused in every mode: a command naming a secret file
+(`.env` and `*.env` files, keys, `~/.ssh`, `~/.aws`, `~/.agentmesh`, credentials files, shell
+histories and the like), printing a credential (`gh auth token`, `git credential fill`), dumping
+the environment (`printenv`, `env`, `export -p`, `set`, `Get-ChildItem env:`, `node -p
+process.env`) or reading a secret-named variable (`$GITHUB_TOKEN`, `$env:API_KEY`); the window's
+settings also deny reading those paths with Read, Grep and Glob. Other single variables and
+obfuscated commands aren't caught: keep the rule yourself.
 
 An "ask" is the guard working, not an obstacle: never look for a spelling that slips past it.

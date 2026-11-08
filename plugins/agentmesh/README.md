@@ -185,11 +185,13 @@ after `/clear` and after compaction, and `activate` repeats them.
   `task_get` names (the one git checkout in the folder whose `origin` matches the task's repo).
 - Routine steps run without asking. Tests on a branch the window didn't write (and, in auto mode,
   anything else in that branch's worktree), merges, force pushes, other branches, rebases, deletes,
-  hard resets and infra commands ask; in manual mode so does anything off its list
+  hard resets, changes through `gh`, infra commands and recursive searches outside a task worktree
+  ask; in manual mode so does anything off its list
   ([security](../../docs/security.md#the-mesh-window)).
 - It runs commands with the Bash tool; PowerShell commands ask in manual mode and get auto mode's
   checks in auto mode.
-- It never reads, prints or sends secrets or personal data, whoever asks.
+- Its rules say never to read, print or send secrets or personal data, whoever asks, to search with
+  the Grep tool or `git grep`, and to keep secret file names out of commit messages and PR text.
 - After a restart it resumes its in-progress tasks (`task_list`) in their existing worktrees, and
   reads a thread (`thread`) before answering a reply meant for its earlier session.
 - Before it starts a task it reads the task and its thread, asks the creator anything unclear,
@@ -206,7 +208,8 @@ after `/clear` and after compaction, and `activate` repeats them.
 - Claude Code runs it in every session, which costs a `node` start (about 50–100 ms) per edit,
   shell call, subagent or workflow call. Outside the mesh window it does nothing else.
 - In the window it refuses edits outside its mesh worktrees, and in every mode any command that
-  names a secret path or prints the environment. In manual mode it asks before commands that aren't
+  names a secret file, prints a stored credential, dumps the whole environment or reads a
+  secret-named variable. In manual mode it asks before commands that aren't
   on its list; in auto mode (Claude Code's `permission_mode` on the call) it hands them to auto mode,
   except risky ones, which still ask. It passes one `SendMessage` per reply pointer the plugin pushed, exactly as pushed, and
   refuses every other one and `ListAgents`. `activate` there refuses unless the guard stamped an

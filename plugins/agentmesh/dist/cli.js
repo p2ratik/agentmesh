@@ -46073,6 +46073,7 @@ var REASON_CODES = [
   "command.needs_approval",
   "command.risky",
   "secret.path",
+  "secret.credential",
   "secret.env_dump",
   "tool.unknown",
   "tool.enter_worktree",
@@ -50949,11 +50950,13 @@ import { dirname as dirname7, join as join17, posix as posix3, win32 as win323 }
 var SECRET_NAMES = [
   ".env",
   ".env.*",
+  "*.env",
   "*.pem",
   "*.key",
   "*.p12",
   "*.pfx",
   "*.nk",
+  "*.creds",
   "id_rsa*",
   "id_ed25519*",
   "id_ecdsa*",
@@ -50972,8 +50975,12 @@ var SECRET_HOME_PATHS = [
   ".git-credentials",
   ".npmrc",
   ".pypirc",
+  ".bash_history",
+  ".zsh_history",
+  "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
   ".agentmesh/**",
   ".claude/.credentials.json",
+  ".claude.json",
   "AppData/Local/Google/Chrome/**",
   "AppData/Local/Microsoft/Edge/**",
   "AppData/Roaming/Mozilla/**",
@@ -50983,7 +50990,7 @@ var SECRET_HOME_PATHS = [
   ".config/google-chrome/**",
   ".config/chromium/**"
 ];
-var CLAUDE_CREDENTIALS = ".credentials.json";
+var CLAUDE_ACCOUNT_FILES = [".credentials.json", ".claude.json"];
 
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
@@ -51004,7 +51011,7 @@ function secretReadRules(configDir = null) {
   return [
     ...SECRET_NAMES.map((name) => `Read(//**/${name})`),
     ...SECRET_HOME_PATHS.map((path) => `Read(~/${path})`),
-    ...own2 ? [`Read(/${own2}/${CLAUDE_CREDENTIALS})`] : []
+    ...own2 ? CLAUDE_ACCOUNT_FILES.map((file2) => `Read(/${own2}/${file2})`) : []
   ];
 }
 function windowSettings(i) {
@@ -51188,8 +51195,12 @@ function printStart(ctx, s) {
 // ../../apps/cli/src/commands/window.ts
 var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
 var MODE_LINES = {
-  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. To have them ask you instead, run window init again with --mode manual.",
+  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. Where auto mode isn't available (plan, model or an admin setting), Claude Code starts it in manual mode. To have them ask you instead, run window init again with --mode manual.",
   manual: "It starts in manual mode: commands not on its list ask you."
+};
+var NO_PREFIX_ASKS = {
+  auto: "no worktree counts as its own: tests, commits, PRs and other commands in a task worktree, and every push, ask.",
+  manual: "task worktrees, tests, commits, pushes and PRs all ask."
 };
 function windowMode(value) {
   const mode = WINDOW_MODES.find((m) => m === value);
@@ -51262,7 +51273,7 @@ function printNotes(ctx, platform, n) {
   }
   if (n.prefix === null) {
     ctx.stdout(
-      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask."
+      `Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so ${NO_PREFIX_ASKS[n.mode]}`
     );
   }
   for (const w of shellShadowWarnings(ctx, platform)) ctx.stdout(w);

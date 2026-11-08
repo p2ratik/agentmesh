@@ -50,7 +50,7 @@ describe('agentmesh window init', () => {
     expect(settings(auto.files).defaultMode).toBe('auto');
     expect(readFileSync(auto.files.launcher, 'utf8')).toContain('--permission-mode auto ');
     expect(auto.out).toContain(
-      "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. To have them ask you instead, run window init again with --mode manual.",
+      "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. Where auto mode isn't available (plan, model or an admin setting), Claude Code starts it in manual mode. To have them ask you instead, run window init again with --mode manual.",
     );
     const manual = setup();
     expect(await manual.run('--agent', 'bob-agent', '--mode', 'manual')).toBe(0);
@@ -84,12 +84,24 @@ describe('agentmesh window init', () => {
     );
   });
 
-  it('warns when the branch template cannot tell its own branches', async () => {
-    const { out, run } = setup();
-    await run('--agent', 'bob-agent', '--branch-template', 'feature/{task}');
-    expect(out).toContain(
-      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask.",
+  it('warns when the branch template cannot tell its own branches, in words for its mode', async () => {
+    const head =
+      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so ";
+    const auto = setup();
+    await auto.run('--agent', 'bob-agent', '--branch-template', 'feature/{task}');
+    expect(auto.out).toContain(
+      `${head}no worktree counts as its own: tests, commits, PRs and other commands in a task worktree, and every push, ask.`,
     );
+    const manual = setup();
+    await manual.run(
+      '--agent',
+      'bob-agent',
+      '--branch-template',
+      'feature/{task}',
+      '--mode',
+      'manual',
+    );
+    expect(manual.out).toContain(`${head}task worktrees, tests, commits, pushes and PRs all ask.`);
   });
 
   it('bakes a non-ASCII home folder so the launcher still finds its files', async () => {

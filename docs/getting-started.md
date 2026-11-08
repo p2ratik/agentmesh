@@ -299,13 +299,16 @@ it couldn't. It doesn't if another mesh window you started meanwhile is live: it
 - **Auto mode's checks decide** (auto mode only): every other command, PowerShell included.
 - **It asks you first:** before it runs the tests of a branch it didn't write, or anything else in
   that branch's worktree (it tells the author's agent that the verdict waits for you), and for
-  merges, force pushes and pushes to other branches, rebases, branch deletes, hard resets and infra
-  commands (`terraform`, `kubectl`, `aws`, `ssh` and the like). In manual mode it also asks for
-  PowerShell commands and anything else not on its list.
-- **Refused outright, in every mode:** reading secrets or personal data (`.env` files, keys,
-  `~/.ssh`, `~/.aws`, credentials, browser profiles, `~/.agentmesh/`) or printing the environment;
-  edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git` folder. `.env.example` is
-  blocked too: paste what the window needs from it yourself.
+  merges, force pushes and pushes to other branches, rebases, branch deletes, hard resets, changes
+  through `gh` (workflow runs, releases, approvals, secrets), infra commands (`terraform`,
+  `kubectl`, `aws`, `ssh` and the like) and recursive searches (`grep -r`) outside a task worktree.
+  In manual mode it also asks for PowerShell commands and anything else not on its list.
+- **Refused outright, in every mode:** commands that name secret files (`.env` files, keys,
+  `~/.ssh`, `~/.aws`, credentials, shell histories, browser profiles, `~/.agentmesh/`), print a
+  stored credential (`gh auth token`), dump the whole environment or read a secret-named variable
+  (`$GITHUB_TOKEN`); edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git` folder.
+  `.env.example` is blocked too: paste what the window needs from it yourself. So is a commit
+  message that names a secret file: the window rewords it.
 - It never runs in bypass mode. The details and their limits are in
   [security.md](security.md#the-mesh-window).
 

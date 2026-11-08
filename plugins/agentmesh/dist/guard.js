@@ -405,26 +405,21 @@ function classifyCommand(command, c) {
   const at = placed(command, c.cwd);
   return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
 }
-function inForeignWorktree(command, c) {
-  const p = c.policy;
-  if (!p) return null;
-  const at = placed(command, c.cwd);
-  for (const dir of at ? [c.cwd, at.dir] : [c.cwd]) {
-    const wt = c.worktreeOf(dir);
-    if (wt && !isOwn(wt.branch, p)) return ask(foreign(wt.branch), "command.needs_approval");
-  }
-  return null;
-}
+
+// src/guard/places.ts
+import { resolve as resolve3 } from "node:path";
 
 // ../../packages/common/src/secret-paths.ts
 var SECRET_NAMES = [
   ".env",
   ".env.*",
+  "*.env",
   "*.pem",
   "*.key",
   "*.p12",
   "*.pfx",
   "*.nk",
+  "*.creds",
   "id_rsa*",
   "id_ed25519*",
   "id_ecdsa*",
@@ -443,8 +438,12 @@ var SECRET_HOME_PATHS = [
   ".git-credentials",
   ".npmrc",
   ".pypirc",
+  ".bash_history",
+  ".zsh_history",
+  "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
   ".agentmesh/**",
   ".claude/.credentials.json",
+  ".claude.json",
   "AppData/Local/Google/Chrome/**",
   "AppData/Local/Microsoft/Edge/**",
   "AppData/Roaming/Mozilla/**",
@@ -454,9 +453,11 @@ var SECRET_HOME_PATHS = [
   ".config/google-chrome/**",
   ".config/chromium/**"
 ];
-var CLAUDE_CREDENTIALS = ".credentials.json";
+var CLAUDE_ACCOUNT_FILES = [".credentials.json", ".claude.json"];
 
 // src/guard/secrets.ts
+var AT = String.raw`(?:^|[\s/\\])`;
+var END = String.raw`(?=\s|$)`;
 var NAME = String.raw`[\w.-]`;
 var literal = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function token(glob) {
@@ -466,36 +467,131 @@ function token(glob) {
   );
   return spelled.join(`${NAME}*`);
 }
+var fileToken = (glob) => String.raw`(?!(?:process|(?:import\.)?meta)\.env\b)${token(glob)}(?![\w.\-/\\])`;
+var homeToken = (glob) => `${token(glob)}(?!${NAME})`;
 var SECRET_PATH = new RegExp(
-  `(?<!${NAME})(?:${[...SECRET_NAMES, ...SECRET_HOME_PATHS, CLAUDE_CREDENTIALS].map(token).join("|")})(?!${NAME})`,
+  `(?<!${NAME})(?:${[
+    ...[...SECRET_NAMES, ...CLAUDE_ACCOUNT_FILES].map(fileToken),
+    ...SECRET_HOME_PATHS.map(homeToken)
+  ].join("|")})`,
   "i"
 );
+var CONTINUATION = /\\\r?\n/g;
+var unfold = (command) => command.replace(CONTINUATION, " ");
 var SEPARATORS = /&&|\|\||\$\(|[;&|\n\r()`{}"'<>]/;
-var segments = (command) => command.split(SEPARATORS).map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean);
-var DUMP_ANYWHERE = /(?<![\w-])printenv(?![\w-])|\/proc\/[^/\s]+\/environ/i;
-var DUMP_SEGMENT = /^(?:env(?: -0)?|export(?: -p)?|(?:declare|typeset) -[xp]|set|(?:get-childitem|gci|ls|dir|get-item|gi|get-content|gc|cat|type)(?: .*)? env:.*)$/i;
+var segments = (command) => unfold(command).split(SEPARATORS).map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean);
+var CREDENTIAL = new RegExp(
+  [
+    String.raw`${AT}gh(?:\.exe)?\s(?:.*\s)?auth\s(?:.*\s)?(?:token|status\s(?:.*\s)?(?:--show-token|-t))${END}`,
+    String.raw`${AT}git(?:\.exe)?(?:\s(?:.*\s)?|-)credential(?:-[\w.-]+)?(?:\.exe)?\s(?:.*\s)?(?:fill|get)${END}`
+  ].join("|"),
+  "i"
+);
+var DUMP_ANYWHERE = new RegExp(
+  [
+    String.raw`(?<![\w-])printenv(?![\w-])`,
+    String.raw`\/proc\/[^/\s]+\/environ`,
+    String.raw`GetEnvironmentVariables\s*\(`,
+    String.raw`(?<![\w-])(?:node|nodejs|bun|deno)(?:\.exe)?\s[\s\S]*process\.env(?![\w.$[])`,
+    String.raw`(?<![\w-])(?:python[\d.]*|py)(?:\.exe)?\s[\s\S]*os\.environ(?:\.(?:items|keys|values|copy)\(\s*\))?(?![\w.[])`
+  ].join("|"),
+  "i"
+);
+var WRAP = String.raw`(?:(?:sudo|doas|command|exec|nohup|time|builtin)(?: -\S+)* )*`;
+var ENV_ALONE = String.raw`(?:\S*[/\\])?env(?:\.exe)?(?: (?:-0|--null|-i|--ignore-environment|-u(?: ?\S+)?|--unset=\S+|[A-Za-z_]\w*=\S*))*`;
+var DUMP_SEGMENT = new RegExp(
+  String.raw`^${WRAP}(?:${ENV_ALONE}|export(?: -p)?|(?:declare|typeset) -[xp]|set|(?:\S*[/\\])?cmd(?:\.exe)? \/[ck] set|(?:get-childitem|gci|ls|dir|get-item|gi|get-content|gc|cat|type)(?: .*)? env:.*)$`,
+  "i"
+);
+var VARIABLE = /\$\{?(?:env:)?([A-Za-z_]\w*)|%([A-Za-z_]\w*)%|GetEnvironmentVariable\(\s*["']([A-Za-z_]\w*)|(?:process\.env\.|process\.env\[\s*["']|environ\[\s*["']|environ\.get\(\s*["']|getenv\(\s*["'])([A-Za-z_]\w*)/gi;
+var SECRET_VARIABLE = /TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|SEED|CREDENTIAL|AUTH/i;
+var isSecretVariable = (name) => SECRET_VARIABLE.test(name) || name.toUpperCase() === "AGENTMESH_MESH_WINDOW";
+var readsSecretVariable = (text) => [...text.matchAll(VARIABLE)].some((m) => isSecretVariable(m[1] ?? m[2] ?? m[3] ?? m[4] ?? ""));
 function secretUse(command) {
-  if (SECRET_PATH.test(command)) return "secret.path";
-  if (DUMP_ANYWHERE.test(command) || segments(command).some((s) => DUMP_SEGMENT.test(s))) {
-    return "secret.env_dump";
+  const text = unfold(command);
+  if (SECRET_PATH.test(text) || SECRET_PATH.test(command.replace(CONTINUATION, ""))) {
+    return "secret.path";
+  }
+  const pieces2 = segments(command);
+  if (pieces2.some((s) => CREDENTIAL.test(s))) return "secret.credential";
+  const dumps = DUMP_ANYWHERE.test(text) || pieces2.some((s) => DUMP_SEGMENT.test(s));
+  return dumps || readsSecretVariable(text) ? "secret.env_dump" : null;
+}
+
+// src/guard/places.ts
+var PIECES = /&&|\|\||\$\(|[;&|\n\r()`{}]/;
+var CD_STEP = /^(?:cd|chdir|pushd|set-location|sl)(?:\s+(?:-{1,2}[\w-]*|\/d))*\s+(.+)$/i;
+var WORDS = /"([^"]*)"|'([^']*)'|([^\s"']+)/g;
+var MESH2 = /\.claude[\\/]worktrees[\\/]mesh-[a-z0-9-]+/i;
+var LEAVES = /^(?!\/[a-z](?::\S*)?$)(?:[~$%\\/]|[A-Za-z]:)|(?:^|[\\/])\.\.(?:[\\/]|$)/i;
+var unquote = (s) => s.replace(/^(["'])(.*)\1$/, "$2");
+var pieces = (command) => unfold(command).split(PIECES);
+var words = (command) => [...unfold(command).matchAll(WORDS)].map((m) => m[1] ?? m[2] ?? m[3] ?? "");
+function cdTargets(command, cwd) {
+  const dirs = [];
+  let at = cwd;
+  for (const piece of pieces(command)) {
+    const target = CD_STEP.exec(piece.trim())?.[1];
+    const path3 = target === void 0 ? "" : unquote(target.trim());
+    if (path3 === "" || /^[~$%]/.test(path3)) continue;
+    at = resolve3(at, path3);
+    dirs.push(resolve3(cwd, path3), at);
+  }
+  return dirs;
+}
+function meshNamed(command, cwd) {
+  return words(command).flatMap((word) => {
+    const hit = MESH2.exec(word);
+    if (!hit) return [];
+    const upTo = word.slice(0, hit.index + hit[0].length);
+    const tail = upTo.slice(Math.max(...[" ", "=", ";", "("].map((c) => upTo.lastIndexOf(c))) + 1);
+    return [upTo.replace(/^[({`]+/, "").replace(/^[\w-]+=/, ""), tail].map((p) => resolve3(cwd, p));
+  });
+}
+function inForeignWorktree(command, c) {
+  const p = c.policy;
+  if (!p) return null;
+  for (const dir of [c.cwd, ...cdTargets(command, c.cwd), ...meshNamed(command, c.cwd)]) {
+    const wt = c.worktreeOf(dir);
+    if (wt && !isOwn(wt.branch, p))
+      return { ask: foreign(wt.branch), code: "command.needs_approval" };
   }
   return null;
 }
+function searchStaysInWorktree(command, c) {
+  const targets = cdTargets(command, c.cwd);
+  const startsWithCd = CD_STEP.test(pieces(command)[0]?.trim() ?? "");
+  const dirs = startsWithCd ? targets : [c.cwd, ...targets];
+  if (dirs.some((d) => c.worktreeOf(d) === null)) return false;
+  return words(command).every((w) => {
+    if (!LEAVES.test(w)) return true;
+    if (/^[~$%]/.test(w)) return false;
+    return dirs.every((d) => c.worktreeOf(resolve3(d, w)) !== null);
+  });
+}
 
 // src/guard/risky.ts
-var AT = String.raw`(?:^|[\s/\\])`;
-var END = String.raw`(?=\s|$)`;
 var git = (rest) => String.raw`${AT}git(?:\.exe)?\s(?:.*\s)?${rest}${END}`;
+var gh = (rest) => String.raw`${AT}gh(?:\.exe)?\s(?:.*\s)?${rest}${END}`;
+var any = (s) => String.raw`\s(?:.*\s)?${s}`;
 var RISKY = [
   git("(?:push|merge|restore)"),
-  git(String.raw`branch\s(?:.*\s)?(?:-[a-z]*d[a-z]*|--delete)`),
-  git(String.raw`reset\s(?:.*\s)?--hard`),
-  git(String.raw`checkout\s(?:.*\s)?--`),
+  git(`branch${any("(?:-[a-z]*d[a-z]*|--delete)")}`),
+  git(`reset${any("--hard")}`),
+  git(`checkout${any(String.raw`(?:--|\.)`)}`),
+  git(`stash${any("(?:drop|clear)")}`),
   // any forced git command: clean -f, worktree remove --force, checkout -f, add -f, rm -rf
   git(String.raw`(?:--force[\w-]*|-[a-z]*f[a-z]*)`),
-  String.raw`${AT}gh(?:\.exe)?\s(?:.*\s)?pr\s(?:.*\s)?merge${END}`,
-  String.raw`${AT}docker(?:\.exe)?\s(?:.*\s)?push${END}`,
-  String.raw`${AT}(?:terraform|pulumi|kubectl|helm|az|aws|gcloud|ssh|scp)(?:\.exe|\.cmd)?${END}`
+  gh(`pr${any(`(?:merge|review${any("(?:--approve|-a)")})`)}`),
+  gh(
+    `(?:workflow${any("run")}|release${any("(?:create|delete)")}|repo${any("delete")}|secret|variable${any("(?:set|delete)")})`
+  ),
+  // gh api writes: an explicit method, or fields, which make it a POST
+  gh(
+    `api${any(String.raw`(?:(?:-X\s?|--method[\s=])(?:DELETE|PUT|POST|PATCH)|-[fF]|--field|--raw-field|--input)`)}`
+  ),
+  String.raw`${AT}docker(?:\.exe)?\s(?:.*\s)?(?:push|--push(?:=\S*)?)${END}`,
+  String.raw`${AT}(?:terraform|pulumi|kubectl|helm|az|aws|gcloud|ssh|scp|rsync)(?:\.exe|\.cmd)?${END}`
 ].map((r) => new RegExp(r, "i"));
 var REBASE = new RegExp(git("rebase"), "i");
 function ontoIntegration(piece, p) {
@@ -509,6 +605,14 @@ function risky(command, p) {
     (s) => RISKY.some((r) => r.test(s)) || REBASE.test(s) && !ontoIntegration(s, p)
   );
 }
+var SEARCH = [
+  String.raw`(?<![\w-])(?<!git(?:\.exe)? (?:-\S+ )*)[ef]?grep(?:\.exe)?${any("(?:-[a-z]*r[a-z]*|--(?:dereference-)?recursive|--directories=recurse|-d ?recurse)")}${END}`,
+  String.raw`(?<![\w-])rg(?:\.exe)?${any(String.raw`(?:--hidden|--no-ignore[\w-]*|-[a-z.]*[u.][a-z.]*)`)}${END}`,
+  String.raw`(?<![\w-])findstr(?:\.exe)?${any(String.raw`\/[a-z:]*s[a-z:]*`)}${END}`,
+  String.raw`(?<![\w-])(?:select-string|sls)${any("-r[a-z]*")}${END}`
+].map((r) => new RegExp(r, "i"));
+var PIPED = /(?<![\w-])(?:get-childitem|gci|ls|dir)\s[^;\n]*?-r[a-z]*(?=\s|\|)[^;\n]*?\|\s*(?:select-string|sls)\b/i;
+var recursiveSearch = (command) => segments(command).some((s) => SEARCH.some((r) => r.test(s))) || PIPED.test(unfold(command));
 
 // src/relay/address.ts
 var WINDOWS_UDS = /^uds:\\\\\.\\pipe\\LOCAL\\cc-msg-([0-9a-f]{32})$/;
@@ -652,8 +756,9 @@ var NO_FILE = "mesh window: this edit names no file, so it is refused";
 var ENTER = "mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-\u2026";
 var ISOLATED = "mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-\u2026";
 var WORKFLOW = "mesh window: workflows need your human's approval here";
-var SECRET = "mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves";
+var SECRET = "mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves (if this is a commit message, PR text or search pattern, reword it, or use the Grep tool)";
 var RISKY2 = "mesh window: this command can push, merge, rewrite or delete work, or reach infrastructure, so your human decides even in auto mode";
+var SEARCH2 = "mesh window: a recursive search outside a task worktree can read untracked secrets, so your human decides; search with the Grep tool or git grep";
 var SHELLS = ["Bash", "PowerShell", "Monitor"];
 var FIXED = /* @__PURE__ */ new Map([
   [ACTIVATE_TOOL, { kind: "stamp" }],
@@ -687,6 +792,9 @@ var commandContext = (cwd, ctx, o) => ({
 });
 function toAuto(command, c, p) {
   if (risky(command, p)) return ask2(RISKY2, "command.risky");
+  if (recursiveSearch(command) && !searchStaysInWorktree(command, c)) {
+    return ask2(SEARCH2, "command.risky");
+  }
   const theirs = inForeignWorktree(command, c);
   return theirs ? ask2(theirs.ask, theirs.code) : PASS;
 }
@@ -696,7 +804,7 @@ function shell(tool, args, cwd, ctx, o, live) {
     const secret = typeof command === "string" ? secretUse(command) : null;
     if (secret) return deny(SECRET, secret);
     const p = ctx.policy;
-    const auto = live === "auto" && p !== null && typeof command === "string";
+    const auto = live === "auto" && p !== null && typeof command === "string" && typeof cwd === "string";
     const c = commandContext(cwd, ctx, o);
     if (tool === "Bash") {
       const d = classifyCommand(command, c);
@@ -744,11 +852,11 @@ function guardEvent(input2, d) {
 
 // src/guard/io.ts
 function readAll(stream, capMs) {
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve4, reject) => {
     const chunks = [];
     const done = () => {
       clearTimeout(timer);
-      resolve3(Buffer.concat(chunks).toString("utf8"));
+      resolve4(Buffer.concat(chunks).toString("utf8"));
     };
     const timer = capMs === null ? void 0 : setTimeout(done, capMs);
     stream.on(

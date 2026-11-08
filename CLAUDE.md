@@ -119,10 +119,11 @@ file is gitignored and is never committed.
     runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. It starts in Claude
     Code's auto mode by default (`window init --mode manual` opts out; ADR 0012). Its worktree
     guard (`dist/guard.js`, a `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*`
-    worktrees and refuses commands that read secrets or print the environment, in every mode. In
-    manual mode it asks before commands that aren't on its list; in auto mode it hands them to auto
-    mode, except risky ones (pushes beyond its own branch, merges, rebases, deletes, hard resets,
-    infra, a teammate's worktree), which still ask.
+    worktrees and refuses commands that name secret files, print credentials, dump the
+    environment or read secret-named variables, in every mode. In manual mode it asks before
+    commands that aren't on its list; in auto mode it hands them to auto mode, except risky ones
+    (pushes beyond its own branch, merges, rebases, deletes, hard resets, changes through gh, infra,
+    recursive searches outside a worktree, a teammate's worktree), which still ask.
   - The window also forwards reply pointers to the human's private sessions (ADR 0009 part 3; see
     Status).
   - It records behaviour events (ids, counts, codes and timings, never content) and ships them to
@@ -339,10 +340,12 @@ Run `pnpm check` before calling anything done.
   - `window init --mode auto|manual` (default auto) sets the launcher's `--permission-mode`, the
     settings' `defaultMode` (`disableAutoMode` only in manual) and the policy's `mode`.
   - The settings deny `Read(...)` on every secret path in both modes, from one list
-    (`packages/common/src/secret-paths.ts`) the guard shares. The guard denies a command naming one
-    (`secret.path`) or dumping the environment (`secret.env_dump`) in every mode.
+    (`packages/common/src/secret-paths.ts`) the guard shares. The guard denies, in every mode, a
+    command naming one (`secret.path`), printing a credential (`secret.credential`), or dumping the
+    environment or reading a secret-named variable (`secret.env_dump`).
   - The guard follows the call's live `permission_mode`. In auto mode an unlisted command passes to
-    auto mode unless it is on the risky floor (`command.risky`) or runs in a teammate's worktree.
+    auto mode unless it is on the risky floor (`command.risky`, recursive searches outside a mesh
+    worktree included) or runs in or names a teammate's worktree (any `cd` target or mesh path).
   - The window's rules follow `policy.mode`; every mode, and the `mesh-collaboration` skill, get the
     hard rule on secrets; a window set up before auto mode says at session start that it is manual.
 

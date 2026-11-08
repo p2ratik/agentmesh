@@ -21,7 +21,7 @@ export interface CommandContext {
   freeSlot: (top: string, name: string) => boolean;
 }
 
-type Ask = { ask: string; code: ReasonCode };
+export type Ask = { ask: string; code: ReasonCode };
 export type CommandDecision = { pass: true } | Ask;
 
 const NO_POLICY =
@@ -29,7 +29,7 @@ const NO_POLICY =
 const TEST_OUTSIDE = 'mesh window: run tests inside a task worktree (cd <worktree> && <test>)';
 export const UNLISTED =
   "mesh window: this command isn't on the window's list, so your human decides";
-const foreign = (branch: string | null) =>
+export const foreign = (branch: string | null) =>
   `mesh window: ${branch ?? 'a detached checkout'} isn't your branch, so running its tests needs your human's approval`;
 
 const ask = (reason: string, code: ReasonCode): Ask => ({ ask: reason, code });
@@ -145,7 +145,7 @@ function delivers(rest: string, branch: string, p: WindowPolicy): boolean {
 
 const isDelivery = (rest: string) => [ADD, COMMIT, PUSH, PR].some((r) => r.test(rest));
 
-const isOwn = (branch: string | null, p: WindowPolicy): branch is string =>
+export const isOwn = (branch: string | null, p: WindowPolicy): branch is string =>
   branch !== null && p.ownBranchPrefix !== null && branch.startsWith(p.ownBranchPrefix);
 
 /** A test or delivery command: it passes only in a mesh worktree on the window's own branch. Test
@@ -179,18 +179,4 @@ export function classifyCommand(command: string, c: CommandContext): CommandDeci
   if (CD.test(command)) return pass();
   const at = placed(command, c.cwd);
   return at === null ? unlisted() : listed(at.rest, { ...c, cwd: at.dir }, p);
-}
-
-/** In auto mode, for a command off the list: it asks when it would run in a mesh worktree whose
- * branch isn't the window's own (the hook's cwd, or P in `cd P && …`), since anything run there
- * can run a teammate's code. Null otherwise. */
-export function inForeignWorktree(command: string, c: CommandContext): Ask | null {
-  const p = c.policy;
-  if (!p) return null;
-  const at = placed(command, c.cwd);
-  for (const dir of at ? [c.cwd, at.dir] : [c.cwd]) {
-    const wt = c.worktreeOf(dir);
-    if (wt && !isOwn(wt.branch, p)) return ask(foreign(wt.branch), 'command.needs_approval');
-  }
-  return null;
 }

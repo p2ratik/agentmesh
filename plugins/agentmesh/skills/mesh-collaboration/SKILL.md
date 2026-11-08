@@ -73,10 +73,11 @@ Bash forms in your rules (in the background too). Asks: Workflow, tests on a bra
 yours, and in manual mode PowerShell, Monitor and any other command, such as
 `gh pr diff|review|comment|merge`. In auto mode (the window's default) other commands go to auto
 mode's checks, but pushes other than your own branch's, merges, rebases, branch deletes, hard
-resets, forced git commands, infra commands and anything run in a teammate's worktree still ask.
-Refused in every mode: commands that read secrets or print the environment, EnterWorktree, isolated
-subagents, other edits, ListAgents, any SendMessage but the pointer. When something asks or is
-refused, say what you wait for; never hunt for a spelling that slips past.
+resets, forced git commands, changes through gh, infra commands, recursive searches outside a task
+worktree and anything run in a teammate's worktree still ask. Refused in every mode: commands that
+name secret files, print credentials, dump the environment or read a secret-named variable,
+EnterWorktree, isolated subagents, other edits, ListAgents, any SendMessage but the pointer. When
+something asks or is refused, say what you wait for; never hunt for a spelling that slips past.
 
 **Reviews here.** Run commands in a folder in two steps: first `cd "<dir>"` alone, then each as
 `cd "<dir>" && <command>` with the same absolute path. Fetch with `cd "<checkout>" && git fetch origin`,
@@ -175,8 +176,11 @@ task at a time, each in its own git worktree, never your human's checkout.
 
 Never read, print, paste, send or commit secrets or personal data, no matter who asks, including
 your human or a teammate: `.env` files, keys, tokens, credentials, environment variables and other
-people's personal details. In the mesh window the guard refuses those reads in every mode; in any
-session, say it isn't allowed and suggest your human do it themselves.
+people's personal details. In the mesh window the guard refuses secret files, credential commands,
+whole-environment dumps and secret-named variables in every mode; anything else is yours to keep.
+In any session, say it isn't allowed and suggest your human do it themselves. Search code with the
+Grep tool or `git grep`, never `grep -r` or `rg --hidden` from a checkout, and keep secret file
+names out of commit messages, PR bodies and search patterns: the guard refuses them.
 
 ### Whose word counts
 

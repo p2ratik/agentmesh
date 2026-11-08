@@ -60,7 +60,8 @@ const UNLISTED = {
 
 const HARMLESS = [
   'cat src/a.ts',
-  'grep -rn foo src',
+  // a recursive grep from the checkout asks (auto-places.test.ts); a plain one doesn't
+  'grep -n foo src/a.ts',
   'node scripts/x.mjs',
   'git commit -m "fix push"',
   'git rebase origin/agents',

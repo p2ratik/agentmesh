@@ -1,5 +1,5 @@
 import {
-  CLAUDE_CREDENTIALS,
+  CLAUDE_ACCOUNT_FILES,
   SECRET_HOME_PATHS,
   SECRET_NAMES,
 } from '@agentmesh/common/secret-paths';
@@ -64,8 +64,8 @@ const permissionMode = (mode: WindowMode) => (mode === 'auto' ? 'auto' : 'defaul
 
 /**
  * `Read` deny rules for every secret path, in every mode: they also cover Grep and Glob, and stop
- * Edit and Write on those paths. The window account's own credentials file is named as an absolute
- * POSIX path (`C:\Users\a` is `/c/Users/a`), written `//…`.
+ * Edit and Write on those paths. The window account's own files (credentials, `.claude.json`) are
+ * named as absolute POSIX paths (`C:\Users\a` is `/c/Users/a`), written `//…`.
  */
 export function secretReadRules(configDir: string | null = null): string[] {
   const own = configDir
@@ -77,7 +77,7 @@ export function secretReadRules(configDir: string | null = null): string[] {
   return [
     ...SECRET_NAMES.map((name) => `Read(//**/${name})`),
     ...SECRET_HOME_PATHS.map((path) => `Read(~/${path})`),
-    ...(own ? [`Read(/${own}/${CLAUDE_CREDENTIALS})`] : []),
+    ...(own ? CLAUDE_ACCOUNT_FILES.map((file) => `Read(/${own}/${file})`) : []),
   ];
 }
 

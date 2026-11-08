@@ -6,18 +6,21 @@
 export const SECRET_NAMES = [
   '.env',
   '.env.*',
+  '*.env',
   '*.pem',
   '*.key',
   '*.p12',
   '*.pfx',
   '*.nk',
+  '*.creds',
   'id_rsa*',
   'id_ed25519*',
   'id_ecdsa*',
   'id_dsa*',
 ] as const;
 
-/** Credential stores and browser profiles below the home folder (a deny rule spells `~/<path>`). */
+/** Credential stores, shell histories, Claude's account files and browser profiles below the home
+ * folder (a deny rule spells `~/<path>`). */
 export const SECRET_HOME_PATHS = [
   '.ssh/**',
   '.aws/**',
@@ -31,8 +34,12 @@ export const SECRET_HOME_PATHS = [
   '.git-credentials',
   '.npmrc',
   '.pypirc',
+  '.bash_history',
+  '.zsh_history',
+  'AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt',
   '.agentmesh/**',
   '.claude/.credentials.json',
+  '.claude.json',
   'AppData/Local/Google/Chrome/**',
   'AppData/Local/Microsoft/Edge/**',
   'AppData/Roaming/Mozilla/**',
@@ -43,5 +50,5 @@ export const SECRET_HOME_PATHS = [
   '.config/chromium/**',
 ] as const;
 
-/** A Claude account's credentials file, in its config folder (`CLAUDE_CONFIG_DIR`, `~/.claude`). */
-export const CLAUDE_CREDENTIALS = '.credentials.json';
+/** A Claude account's own files, in its config folder (`CLAUDE_CONFIG_DIR` when set). */
+export const CLAUDE_ACCOUNT_FILES = ['.credentials.json', '.claude.json'] as const;

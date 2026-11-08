@@ -8,9 +8,10 @@
 import type { WindowPolicy } from '@agentmesh/common/window';
 import type { ReasonCode } from '@agentmesh/protocol/observe-codes';
 import { checkoutTop, freeSlot, remoteRefExists } from './checkout';
-import { type CommandContext, classifyCommand, inForeignWorktree, UNLISTED } from './commands';
+import { type CommandContext, classifyCommand, UNLISTED } from './commands';
 import { editTarget, meshWorktreeOf, type PathOptions } from './paths';
-import { risky } from './risky';
+import { inForeignWorktree, searchStaysInWorktree } from './places';
+import { recursiveSearch, risky } from './risky';
 import { secretUse } from './secrets';
 import { type ForwardReader, LIST_AGENTS, sendMessage } from './send';
 
@@ -47,9 +48,11 @@ const ISOLATED =
   'mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-…';
 const WORKFLOW = "mesh window: workflows need your human's approval here";
 const SECRET =
-  'mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves';
+  'mesh window: secrets and personal data are never read, printed or sent from here, in any mode; ask your human to do it themselves (if this is a commit message, PR text or search pattern, reword it, or use the Grep tool)';
 const RISKY =
   'mesh window: this command can push, merge, rewrite or delete work, or reach infrastructure, so your human decides even in auto mode';
+const SEARCH =
+  'mesh window: a recursive search outside a task worktree can read untracked secrets, so your human decides; search with the Grep tool or git grep';
 const SHELLS = ['Bash', 'PowerShell', 'Monitor'];
 
 /** Tools the window answers the same way every time (a Map: a tool name can't hit a prototype). */
@@ -91,18 +94,21 @@ const commandContext = (cwd: unknown, ctx: GuardContext, o: PathOptions): Comman
   freeSlot: (top, name) => freeSlot(top, name, o),
 });
 
-/** Auto mode, for a command off the list: the risky floor and a teammate's worktree ask; anything
- * else goes to auto mode's checks. */
+/** Auto mode, for a command off the list: the risky floor, a recursive search outside a mesh
+ * worktree and a teammate's worktree ask; anything else goes to auto mode's checks. */
 function toAuto(command: string, c: CommandContext, p: WindowPolicy): GuardDecision {
   if (risky(command, p)) return ask(RISKY, 'command.risky');
+  if (recursiveSearch(command) && !searchStaysInWorktree(command, c)) {
+    return ask(SEARCH, 'command.risky');
+  }
   const theirs = inForeignWorktree(command, c);
   return theirs ? ask(theirs.ask, theirs.code) : PASS;
 }
 
 /** Bash, PowerShell and Monitor. Secrets are refused in every mode, before the command list. Then
- * Bash goes through the list, and PowerShell and Monitor ask; in auto mode (with a policy) what
- * would ask only for being off the list goes to `toAuto`. Anything that throws asks: never pass,
- * never crash the hook. */
+ * Bash goes through the list, and PowerShell and Monitor ask; in auto mode (with a policy and a
+ * cwd) what would ask only for being off the list goes to `toAuto`. Anything that throws asks:
+ * never pass, never crash the hook. */
 function shell(
   tool: string,
   args: Record<string, unknown>,
@@ -116,7 +122,8 @@ function shell(
     const secret = typeof command === 'string' ? secretUse(command) : null;
     if (secret) return deny(SECRET, secret);
     const p = ctx.policy;
-    const auto = live === 'auto' && p !== null && typeof command === 'string';
+    const auto =
+      live === 'auto' && p !== null && typeof command === 'string' && typeof cwd === 'string';
     const c = commandContext(cwd, ctx, o);
     if (tool === 'Bash') {
       const d = classifyCommand(command as string, c);
