@@ -1,110 +1,18 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { connectBus, type NatsConnection } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { VERSION } from '@agentmesh/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { message } from './inbox/session-inbox.fixture';
 import { PullWatcher } from './pull/watcher';
 import { writeClaudeSession } from './resume/claude-session';
 import { openSession, startSession } from './session';
+import { config, fakeHub, fakeServer, logger, pushes } from './session.fixture';
 
 vi.mock('@agentmesh/bus', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@agentmesh/bus')>()),
   connectBus: vi.fn(),
 }));
-
-const peer = {
-  id: 'alice-agent',
-  kind: 'agent',
-  displayName: "Alice's Claude",
-  owner: 'alice',
-  status: 'online',
-  statusNote: null,
-  lastSeen: null,
-  repo: null,
-  branch: null,
-  skills: [],
-  areas: [],
-  activeTasks: 0,
-};
-
-type Callback = (err: Error | null, msg: unknown) => void;
-
-/**
- * A hub whose hellos hand out `ids` in order (one per hello); records each
- * hello's params, and the subscriptions, publishes and other requests (with
- * their session) in the order sent. Like the real hub, `session.check` sends a
- * check with code K7Q2ZP to the calling session's subject.
- */
-function fakeHub(ids: string[], unreadThreads = 0, reclaimed: string[] = []) {
-  /** What later hellos answer in `policy` (older hubs send no closedAskerEscalationMinutes). */
-  const policy: { closedAskerEscalationMinutes?: number } = {};
-  const hellos: Array<Record<string, unknown>> = [];
-  const wire: string[] = [];
-  /** The other requests' params: [subject, params]. */
-  const sent: Array<[string, unknown]> = [];
-  const listeners = new Map<string, Callback>();
-  const answer = (result: unknown) => ({ json: () => ({ ok: true, result }) });
-  const nc = {
-    getServer: () => 'nats://hub.test:4222',
-    publish: (subject: string, data: string) =>
-      wire.push(`pub ${subject} ${JSON.parse(data).session}`),
-    drain: async () => undefined,
-    subscribe: (subject: string, opts: { callback: Callback }) => {
-      wire.push(`sub ${subject}`);
-      listeners.set(subject, opts.callback);
-      return { unsubscribe: () => listeners.delete(subject) };
-    },
-    request: async (subject: string, data: string) => {
-      const { params, session } = JSON.parse(data);
-      if (!subject.endsWith('session.hello')) {
-        wire.push(`req ${subject} ${session}`);
-        sent.push([subject, params]);
-        if (subject.endsWith('session.check')) {
-          const check = { type: 'check', code: 'K7Q2ZP' };
-          listeners.get(`mesh.session.alice-agent.${session}`)?.(null, {
-            subject,
-            json: () => check,
-            respond: () => true,
-          });
-        }
-        const view = { id: session, active: true, repo: null, branch: null, owns: [] };
-        const { description } = params;
-        if (subject.endsWith('session.activate')) return answer({ ...view, description });
-        return answer({ ok: true });
-      }
-      hellos.push(params);
-      return answer({
-        self: peer,
-        mesh: { name: 'acme', prefix: 'mesh' },
-        policy: {
-          instructions: '',
-          git: {
-            integrationBranch: 'agents',
-            protectedBranches: ['main'],
-            branchTemplate: 'agent/{owner}/{task}-{slug}',
-            agentsMayMergeInto: ['agents'],
-          },
-          ...policy,
-        },
-        unreadThreads,
-        sessionId: ids.shift(),
-        reclaimed,
-      });
-    },
-  } as unknown as NatsConnection;
-  vi.mocked(connectBus).mockResolvedValue(nc);
-  return { hellos, wire, sent, listeners, policy };
-}
-
-const logger = createLogger('test', { level: 'silent', destination: 'stderr' });
-const config = { agentId: 'alice-agent', servers: [], prefix: 'mesh', heartbeatSeconds: 30 };
-const pushes = (notification: ReturnType<typeof vi.fn>) =>
-  notification.mock.calls.map(
-    (call) => (call[0] as { params: { content: string; meta: Record<string, string> } }).params,
-  );
 
 describe('session listening', () => {
   // The hub marks a session away when a delivery finds nobody listening, until its next
@@ -112,8 +20,7 @@ describe('session listening', () => {
   it('heartbeats right after it starts listening, at startup and after a re-hello', async () => {
     const { wire } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
     const session = await openSession(config, logger);
-    const notification = vi.fn(async () => undefined);
-    const stop = startSession({ notification } as unknown as Server, session, logger, 0);
+    const stop = startSession(fakeServer().server, session, logger, 0);
     const sub = 'sub mesh.session.alice-agent.s-aaaaaaaaaaaa';
     await vi.waitFor(() => expect(wire).toContain(sub));
     expect(wire.slice(wire.indexOf(sub))).toEqual([
@@ -135,8 +42,8 @@ describe('session listening', () => {
   it('pushes nothing at startup, even with unread threads waiting', async () => {
     const { wire } = fakeHub(['s-aaaaaaaaaaaa'], 3);
     const session = await openSession(config, logger);
-    const notification = vi.fn(async () => undefined);
-    const stop = startSession({ notification } as unknown as Server, session, logger, 0);
+    const { notification, server } = fakeServer();
+    const stop = startSession(server, session, logger, 0);
     await vi.waitFor(() => expect(wire).toContain('sub mesh.session.alice-agent.s-aaaaaaaaaaaa'));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(notification).not.toHaveBeenCalled();
@@ -225,8 +132,8 @@ describe('session renewal', () => {
       's-dddddddddddd',
     ]);
     const session = await openSession(config, logger);
-    const notification = vi.fn(async () => undefined);
-    const stop = startSession({ notification } as unknown as Server, session, logger, 0);
+    const { notification, server } = fakeServer();
+    const stop = startSession(server, session, logger, 0);
     await vi.waitFor(() => expect(wire).toContain('sub mesh.session.alice-agent.s-aaaaaaaaaaaa'));
 
     // The same session again (a short sleep): nothing to re-check.
@@ -283,8 +190,8 @@ describe("a closed asker's notice", () => {
     session.hello = null; // what openSession keeps when the first hello misses HELLO_WAIT_MS
     policy.closedAskerEscalationMinutes = 30;
     await session.sayHello();
-    const notification = vi.fn(async () => undefined);
-    const stop = startSession({ notification } as unknown as Server, session, logger, 0);
+    const { notification, server } = fakeServer();
+    const stop = startSession(server, session, logger, 0);
     const subject = 'mesh.session.alice-agent.s-aaaaaaaaaaaa';
     await vi.waitFor(() => expect(listeners.has(subject)).toBe(true));
     const marker = { bySession: 's-bbbbbbbbbbbb', closedAt: '2026-11-04T09:30:00.000Z' };
@@ -294,5 +201,76 @@ describe("a closed asker's notice", () => {
     await vi.waitFor(() => expect(notification).toHaveBeenCalledOnce());
     expect(pushes(notification)[0]?.content).toContain('within 30 minutes');
     await stop();
+  });
+});
+
+describe("the session's timeline events", () => {
+  let data: string;
+  beforeEach(() => {
+    data = mkdtempSync(join(tmpdir(), 'am-session-'));
+    vi.stubEnv('CLAUDE_PLUGIN_DATA', data);
+    vi.stubEnv('AGENTMESH_MESH_WINDOW', '');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(data, { recursive: true, force: true });
+  });
+
+  it('a hello records connected with the Claude Code version', async () => {
+    const { hello } = fakeHub(['s-aaaaaaaaaaaa', 's-bbbbbbbbbbbb']);
+    hello.observability = { enabled: true, maxBufferedEvents: 500 };
+    const session = await openSession(config, logger);
+    // Claude Code's version is known after its handshake, so the startup hello records then.
+    expect(session.recorder.take(10)).toEqual([]);
+    const stop = startSession(fakeServer().server, session, logger, 0);
+    const connected = {
+      kind: 'connected',
+      source: 'plugin',
+      session: 's-aaaaaaaaaaaa',
+      pluginVersion: VERSION,
+      claudeCodeVersion: '2.1.319',
+      os: process.platform,
+      arch: process.arch,
+      node: process.versions.node,
+      meshWindow: false,
+      pull: false,
+    };
+    expect(session.recorder.take(10)).toMatchObject([connected]);
+
+    // A renewal records it again, on the new session; so does NATS trouble.
+    await session.sayHello();
+    session.hub.onStatus?.('disconnect');
+    expect(session.recorder.take(10)).toMatchObject([
+      { ...connected, session: 's-bbbbbbbbbbbb' },
+      { kind: 'nats', source: 'plugin', session: 's-bbbbbbbbbbbb', event: 'disconnect' },
+    ]);
+    await stop();
+  });
+
+  // The events just before a session closes are the ones an operator debugs.
+  it('shutdown sends a last report before the bye, within the shutdown budget', async () => {
+    const { hello, hang, wire } = fakeHub(['s-aaaaaaaaaaaa']);
+    hello.observability = { enabled: true, maxBufferedEvents: 500 };
+    const session = await openSession(config, logger);
+    const stop = startSession(fakeServer().server, session, logger, 0); // records connected
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      hang.add('telemetry.report').add('session.bye');
+      let closed = false;
+      void stop().then(() => {
+        closed = true;
+      });
+      // Both hang: the report waits 100 ms and the bye the rest of the 250 ms.
+      await vi.advanceTimersByTimeAsync(240);
+      expect(closed).toBe(false);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(closed).toBe(true);
+      const report = wire.indexOf('req mesh.rpc.alice-agent.telemetry.report s-aaaaaaaaaaaa');
+      const bye = wire.indexOf('req mesh.rpc.alice-agent.session.bye s-aaaaaaaaaaaa');
+      expect(report).toBeGreaterThan(-1);
+      expect(bye).toBeGreaterThan(report);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

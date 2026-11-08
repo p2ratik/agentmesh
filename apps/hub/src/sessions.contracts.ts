@@ -47,6 +47,8 @@ export interface OpenInput {
 /** One Claude Code session per plugin process; each thread is owned per agent by one session. */
 export interface SessionsService {
   open(agentId: string, input: OpenInput): { session: SessionRecord; reclaimed: number[] };
+  /** True if the agent has this session at any liveness (closed included); ids are per agent. */
+  owns(agentId: string, sessionId: string): boolean;
   /** The agent's non-closed session, else not_found "Unknown or closed session <id>; reconnect". */
   verify(agentId: string, sessionId: string): SessionRecord;
   /**

@@ -1,5 +1,6 @@
 // Built-ins only: the worktree guard bundle (dist/guard.js) imports this. The one SendMessage the
 // mesh window may make: the reply pointer the plugin pushed, to the address it named, once.
+import type { ReasonCode } from '@agentmesh/protocol/observe-codes';
 import { udsHex } from '../relay/address';
 import { claimForward, type ForwardCandidate, readForwards } from '../relay/forward-record';
 import { pointerText } from '../relay/pointer';
@@ -36,7 +37,16 @@ const KEYS = new Set([
   'summary',
 ]);
 const SUMMARY_MAX = 200;
-const DENIED: GuardDecision = { kind: 'deny', reason: SEND_DENIED };
+/** A key name the timeline may keep: a plain identifier, never text the model wrote. */
+const KEY_NAME = /^[A-Za-z_]{1,40}$/;
+
+/** Every refusal says the same to Claude; the code says which check failed. */
+const denied = (code: ReasonCode, key?: string): GuardDecision => ({
+  kind: 'deny',
+  reason: SEND_DENIED,
+  code,
+  ...(key !== undefined && KEY_NAME.test(key) ? { key } : {}),
+});
 
 const shortLabel = (v: unknown) =>
   v === undefined || (typeof v === 'string' && v.length <= SUMMARY_MAX);
@@ -55,19 +65,25 @@ const contentOf = (content: unknown, message: string) =>
  * pointerText, never taken from the file, and the address is checked before any file is read.
  */
 export function sendMessage(args: Record<string, unknown>, ctx: GuardContext): GuardDecision {
-  if (!Object.keys(args).every((k) => KEYS.has(k))) return DENIED;
+  const unknown = Object.keys(args).find((k) => !KEYS.has(k));
+  if (unknown !== undefined) return denied('send.unknown_key', unknown);
   const hex = udsHex(args.to, ctx.platform);
-  if (hex === null) return DENIED;
+  if (hex === null) return denied('send.bad_address');
+  const { message } = args;
   const aliases =
     args.recipient === args.to &&
     args.type === 'message' &&
-    (args.recipient_kind === undefined || typeof args.recipient_kind === 'string') &&
-    typeof args.message === 'string' &&
-    contentOf(args.content, args.message) &&
-    shortLabel(args.summary);
-  if (!aliases || !ctx.forwards) return DENIED;
+    (args.recipient_kind === undefined || typeof args.recipient_kind === 'string');
+  if (!aliases || typeof message !== 'string') return denied('send.alias_mismatch');
+  if (!contentOf(args.content, message)) return denied('send.content_mismatch');
+  if (!shortLabel(args.summary)) return denied('send.bad_summary');
+  if (!ctx.forwards) return denied('send.no_record');
   const record = ctx.forwards
     .read(hex, ctx.now ?? Date.now())
-    .find((c) => pointerText(c.fields) === args.message);
-  return record && ctx.forwards.claim(record.name) ? { kind: 'pass' } : DENIED;
+    .find((c) => pointerText(c.fields) === message);
+  if (!record) return denied('send.no_record');
+  if (!ctx.forwards.claim(record.name)) return denied('send.claim_failed');
+  // The ids come from the record's fields, which pointerText validated.
+  const { messageId, threadId } = record.fields;
+  return { kind: 'pass', claimed: { message: messageId, thread: threadId } };
 }

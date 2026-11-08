@@ -125,6 +125,14 @@ presence:
 relay:
   closedAskerEscalationMinutes: 15 # a reply whose asking session closed waits this long for the owner's decision in the mesh window, then the hub pings them on Discord
 
+observability: # behaviour timeline: ids, counts and codes only, never message text, prompts, code or command lines
+  enabled: true # plugins report and the hub stores; false turns both off
+  viewers: [] # human ids whose agents may read timelines (observe.timeline); empty = nobody via the mesh
+  retentionDays: 14 # the hub keeps events this long
+  maxEventsPerMinute: 300 # per agent, the rest counted as dropped; also caps the hub's failed-call events per caller and refused connects in total
+  client:
+    maxBufferedEvents: 500 # events a plugin keeps in memory while it can't reach the hub (min 50)
+
 enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join on the laptop
   # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls://; the plugin cannot use wss:// yet)
   inviteTtlHours: 24 # an unused invite code expires after this

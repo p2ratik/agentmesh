@@ -1,10 +1,23 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdtempSync, openSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdtempSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ReportedEvent } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ACTIVATE_TOOL } from './guard/decide';
+import { SEND_DENIED } from './guard/send';
+import { FORWARD_TTL_MS, writeForward } from './relay/forward-record';
+import { pointerText } from './relay/pointer';
 
 // The guard entry as Claude Code runs it: a process with the hook input on stdin. tsx stands in
 // for the bundle (Task 12 smoke-tests dist/guard.js); home is a temp folder, never the real one.
@@ -31,6 +44,8 @@ const ARGS = ['--import', 'tsx', 'plugins/agentmesh/src/guard.ts'];
 function environment(env: Record<string, string>): NodeJS.ProcessEnv {
   const clean = { ...process.env };
   for (const k of ['AGENTMESH_MESH_WINDOW', 'CLAUDE_PLUGIN_DATA']) delete clean[k];
+  // Options inherited from a Claude Code session running these tests are stubbed empty.
+  for (const k of Object.keys(clean)) if (k.startsWith('CLAUDE_PLUGIN_OPTION_')) clean[k] = '';
   const home = join(base, 'home');
   return { ...clean, HOME: home, USERPROFILE: home, ...env };
 }
@@ -121,10 +136,144 @@ describe('dist/guard.js (from source)', () => {
     }
   });
 
-  it('never fails outside the mesh window', () => {
-    const r = unreadable((fd) => guard(null, {}, fd));
+  it('never fails outside the mesh window, and records nothing there', () => {
+    const data = join(base, 'data');
+    const env = { CLAUDE_PLUGIN_DATA: data, CLAUDE_PLUGIN_OPTION_AGENT_ID: 'alice-agent' };
+    const r = unreadable((fd) => guard(null, env, fd));
     expect(r.status).toBe(0);
     expect(r.stdout).toBe('');
     expect(r.stderr).toBe('');
+    expect(lines(data)).toEqual([]);
+    expect(existsSync(join(base, 'home'))).toBe(false);
+  });
+});
+
+/** The event lines the guard left in `dir`, each checked with the shipper's schema. */
+function lines(dir: string): ReportedEvent[] {
+  const names = existsSync(dir)
+    ? readdirSync(dir).filter((n) => /^events-(?:[a-z0-9-]+-)?\d+\.jsonl$/.test(n))
+    : [];
+  return names.flatMap((n) =>
+    readFileSync(join(dir, n), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => ReportedEvent.parse(JSON.parse(l))),
+  );
+}
+
+const HEX = 'c'.repeat(32);
+const TO = `uds:\\\\.\\pipe\\LOCAL\\cc-msg-${HEX}`;
+const FIELDS = { from: 'alice-agent', threadId: 'thr-9', messageId: `msg-${'2'.repeat(26)}` };
+const POINTER = pointerText(FIELDS) ?? '';
+const sendCall = (extra: Record<string, unknown> = {}) => ({
+  hook_event_name: 'PreToolUse',
+  tool_name: 'SendMessage',
+  tool_input: {
+    to: TO,
+    recipient: TO,
+    type: 'message',
+    message: POINTER,
+    content: POINTER,
+    ...extra,
+  },
+  cwd: ROOT,
+});
+
+describe('the guard leaves events for the timeline', () => {
+  it('appends one guard line with the code for a denied SendMessage, and no text', () => {
+    const data = join(base, 'data');
+    const env = { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_DATA: data };
+    const r = guard(sendCall({ notify_when_idle: true }), env);
+    expect(r).toMatchObject({ status: 2, stderr: SEND_DENIED });
+    const [line, ...rest] = lines(data);
+    expect(rest).toEqual([]);
+    expect(line).toEqual({
+      id: expect.any(String),
+      at: expect.any(String),
+      session: null,
+      source: 'guard',
+      kind: 'guard',
+      tool: 'SendMessage',
+      decision: 'deny',
+      reason: 'send.unknown_key',
+      key: 'notify_when_idle',
+    });
+    expect(JSON.stringify(line)).not.toContain('AgentMesh:');
+  });
+
+  it.runIf(process.platform === 'win32')('appends relay claimed when SendMessage passes', () => {
+    const data = join(base, 'data');
+    writeForward(data, HEX, FIELDS, Date.now() + FORWARD_TTL_MS);
+    const r = guard(sendCall(), { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_DATA: data });
+    expect(r).toMatchObject({ status: 0, stdout: '', stderr: '' });
+    expect(lines(data)).toEqual([
+      expect.objectContaining({
+        source: 'guard',
+        kind: 'relay',
+        stage: 'claimed',
+        message: FIELDS.messageId,
+        thread: FIELDS.threadId,
+      }),
+    ]);
+  });
+
+  it('records an ask, and the failure it refuses, with codes', () => {
+    const data = join(base, 'data');
+    const env = { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_DATA: data };
+    const bash = {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls' },
+    };
+    expect(guard({ ...bash, cwd: ROOT }, env).status).toBe(0);
+    const failed = unreadable((fd) => guard(null, env, fd));
+    expect(failed).toMatchObject({
+      status: 2,
+      stderr: 'mesh window: the guard failed on this call, so it is refused',
+    });
+    expect(lines(data).map((e) => e.kind === 'guard' && [e.tool, e.decision, e.reason])).toEqual(
+      expect.arrayContaining([
+        ['Bash', 'ask', 'marker.unverified'],
+        ['unknown', 'deny', 'guard.error'],
+      ]),
+    );
+  });
+
+  it('decides exactly the same when the events file cannot be written', () => {
+    const blocked = join(base, 'file');
+    writeFileSync(blocked, '');
+    const env = { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_DATA: join(blocked, 'data') };
+    const open = { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_DATA: join(base, 'data') };
+    const bash = {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls' },
+    };
+    for (const call of [edit, sendCall({ cc: 1 }), { ...bash, cwd: ROOT }]) {
+      const pick = ({ status, stdout, stderr }: ReturnType<typeof guard>) => ({
+        status,
+        stdout,
+        stderr,
+      });
+      expect(pick(guard(call, env))).toEqual(pick(guard(call, open)));
+    }
+    expect(lines(join(base, 'data'))).toHaveLength(3);
+  });
+
+  it('writes nothing outside the mesh window', () => {
+    const data = join(base, 'data');
+    expect(guard(sendCall({ cc: 1 }), { CLAUDE_PLUGIN_DATA: data }).status).toBe(0);
+    expect(lines(data)).toEqual([]);
+    expect(existsSync(join(base, 'home'))).toBe(false);
+  });
+
+  it('names its file by agent, and leaves no unnamed file in the shared folder', () => {
+    const run = join(base, 'home', '.agentmesh', 'run');
+    const deny = sendCall({ cc: 1 });
+    guard(deny, { AGENTMESH_MESH_WINDOW: MARK });
+    expect(lines(run)).toEqual([]);
+    guard(deny, { AGENTMESH_MESH_WINDOW: MARK, CLAUDE_PLUGIN_OPTION_AGENT_ID: 'alice-agent' });
+    expect(readdirSync(run)).toEqual([expect.stringMatching(/^events-alice-agent-\d+\.jsonl$/)]);
+    expect(lines(run)).toMatchObject([{ kind: 'guard', reason: 'send.unknown_key', key: 'cc' }]);
   });
 });

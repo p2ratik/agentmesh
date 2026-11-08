@@ -13,12 +13,10 @@ import { forwardRelay } from './relay/window-relay';
 import { readClaudeSession } from './resume/claude-session';
 import { afterHello, byeQuietly, followEvery, SHUTDOWN_MS } from './resume/conversation';
 import { pushEvent, VERSION } from './server';
-import {
-  type ActivationState,
-  answerCheck,
-  newActivationState,
-  reactivatePull,
-} from './tools/activation';
+import { connectedEvent, Recorder } from './telemetry/recorder';
+import { FLUSH_MS, startShipper } from './telemetry/shipper';
+import { type ActivationState, answerCheck, newActivationState } from './tools/activation';
+import { recheck } from './tools/recheck';
 import { type MeshWindowContext, meshWindowContext } from './window/context';
 
 const HELLO_WAIT_MS = 4000;
@@ -52,6 +50,8 @@ export interface Session {
   claudeSessionId: string | null;
   /** Lines that end the next tool result: threads the hub gave back to this session. */
   notices: string[];
+  /** Timeline events (ids, counts and codes); records nothing until a hello turns it on. */
+  recorder: Recorder;
 }
 
 /** Connects in the background and waits briefly for the hub's hello. */
@@ -95,6 +95,8 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
     startedAt,
     claudeSessionId: readClaudeSession(window.dataDir, process.ppid, startedAt),
     notices: [],
+    // Off until startSession applies a hello: see `landed` there.
+    recorder: new Recorder({ max: () => session.hello?.observability.maxBufferedEvents ?? 500 }),
     sayHello: () => {
       inFlight ??= register(session, logger)
         .then((landed) => afterHello(session, landed))
@@ -106,6 +108,8 @@ export async function openSession(config: PluginConfig, logger: Logger): Promise
   };
   // A call without a session says hello first (or waits for this one): the hub refuses it otherwise.
   hub.sayHello = session.sayHello;
+  hub.onStatus = (event) =>
+    session.recorder.record({ kind: 'nats', source: 'plugin', session: hub.sessionId, event });
   // The handshake must not wait on the network; a late hello still sets `hub.sessionId`.
   session.hello = await Promise.race([
     session.sayHello(),
@@ -128,30 +132,48 @@ export function startSession(
   logger: Logger,
   pushDelayMs: number,
 ): () => Promise<void> {
-  const { hub, presence } = session;
+  const { hub, presence, recorder } = session;
+  const beatMs = hub.config.heartbeatSeconds * 1000;
   const abort = new AbortController();
   let inbox: ReturnType<typeof runSessionInbox> | null = null;
   const rehello = () => void session.sayHello();
   hub.onSessionLost = rehello;
+  /** Each hello sets the recorder's one on/off state (the shipper checks back while off). */
+  const landed = () => {
+    if (session.hello?.observability.enabled) recorder.on();
+    else recorder.pause();
+    recorder.record(connectedEvent(session, server));
+  };
   session.onHello = (renewed) => {
+    landed();
     inbox?.resubscribe();
     if (renewed) recheck(session, logger);
   };
+  if (session.hello) landed(); // the startup hello, now that Claude Code's version is known
+  const dataDir = session.window.dataDir;
+  const stopShipping = startShipper({
+    hub,
+    recorder,
+    dataDir,
+    agentId: session.config.agentId,
+    pluginDataFolder: dataDir === process.env.CLAUDE_PLUGIN_DATA,
+    intervalMs: beatMs,
+    logger,
+    relayExpiry: session.window.state === 'verified',
+  });
   presence.start();
   session.pull.start();
   const stopFollowing = followEvery(session, () =>
-    readClaudeSession(session.window.dataDir, process.ppid, session.startedAt),
+    readClaudeSession(dataDir, process.ppid, session.startedAt),
   );
   // Without a session the hub delivers nothing, so keep asking until it answers; a refused
   // subscription (NATS permissions, say) is retried on the same beat.
-  const retry = setInterval(
-    () => (hub.sessionId ? inbox?.retryFailed() : rehello()),
-    hub.config.heartbeatSeconds * 1000,
-  );
+  const retry = setInterval(() => (hub.sessionId ? inbox?.retryFailed() : rehello()), beatMs);
   retry.unref();
   const startPushes = () => {
     inbox = runSessionInbox({
       hub,
+      recorder,
       logger,
       signal: abort.signal,
       fyi: session.fyi,
@@ -162,6 +184,7 @@ export function startSession(
           activation: session.activation,
           window: session.window,
           logger,
+          recorder,
           push: (event) => pushEvent(server, event),
           refresh: () => session.pull.refresh(),
           agentSessions: () => session.hello?.self.sessions ?? [],
@@ -183,6 +206,7 @@ export function startSession(
           now: Date.now(),
           push: (event) => pushEvent(server, event),
           logger,
+          recorder,
         }),
       closedAskerMinutes: () =>
         session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
@@ -199,30 +223,10 @@ export function startSession(
     hub.onSessionLost = null;
     session.onHello = null;
     presence.stop();
-    await byeQuietly(hub);
+    await stopShipping(); // its last report needs the live session, so before the bye
+    await byeQuietly(hub, hub.sessionId, SHUTDOWN_MS - FLUSH_MS);
     await hub.close(SHUTDOWN_MS);
   };
-}
-
-/**
- * The hub closed this window's active session (a long sleep, say) and gave it a
- * new, inactive one. The human opted this window in, so the hub sends a fresh
- * check, which this process answers itself with the previous line (`answerCheck`).
- * A pull session gets no check to answer, so it re-activates in pull mode at once.
- */
-function recheck(session: Session, logger: Logger): void {
-  const { activation, hub } = session;
-  if (activation.lastDescription === null) return;
-  if (activation.pull) {
-    void reactivatePull({ hub, activation, logger, refresh: () => session.pull.refresh() });
-    return;
-  }
-  activation.renewedFrom = activation.lastDescription;
-  void session.pull.refresh();
-  logger.info({ session: hub.sessionId }, 'new hub session; re-running the activation check');
-  void hub
-    .call('session.check', {})
-    .catch((err) => logger.warn({ err }, 'could not start the activation check'));
 }
 
 /**

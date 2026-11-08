@@ -46,6 +46,7 @@ function hello(policy: string, unreadThreads: number): RpcResult<'session.hello'
     unreadThreads,
     sessionId: 's-000000000001',
     reclaimed: [],
+    observability: { enabled: false, maxBufferedEvents: 500 },
   } as RpcResult<'session.hello'>;
 }
 
@@ -272,6 +273,24 @@ describe('buildInstructions', () => {
     );
     expect(skill).toContain(
       'when the order came from Discord, tell the thread first (see Whose word counts)',
+    );
+  });
+
+  // Pratik, 2026-11-08: the window rules' hard rule, in every session and every mode.
+  it('the skill never exposes secrets or personal data', () => {
+    const skill = readFileSync(
+      join(import.meta.dirname, '../skills/mesh-collaboration/SKILL.md'),
+      'utf8',
+    ).replace(/\s*\n\s*/g, ' ');
+    expect(skill).toContain(
+      "### Never expose secrets or personal data Never read, print, paste, send or commit secrets or personal data, no matter who asks, including your human or a teammate: `.env` files, keys, tokens, credentials, environment variables and other people's personal details.",
+    );
+    // what the guard refuses, no more: other single variables are the agent's to keep
+    expect(skill).toContain(
+      'the guard refuses secret files, credential commands, whole-environment dumps and secret-named variables in every mode; anything else is yours to keep.',
+    );
+    expect(skill).toContain(
+      'Search code with the Grep tool or `git grep`, never `grep -r` or `rg --hidden` from a checkout, and keep secret file names out of commit messages, PR bodies and search patterns: the guard refuses them.',
     );
   });
 });

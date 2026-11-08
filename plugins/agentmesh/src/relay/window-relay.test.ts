@@ -5,11 +5,12 @@ import { createLogger, type Logger } from '@agentmesh/common';
 import type { SessionRelay } from '@agentmesh/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelEvent } from '../inbox/render';
+import { Recorder } from '../telemetry/recorder';
 import { newActivationState } from '../tools/activation';
 import { fakeHub } from '../tools/fake-hub';
 import { callTool } from '../tools/registry';
 import { GUARD_STAMP } from '../window/guard-stamp';
-import { readForwards } from './forward-record';
+import { readForwards, sweepExpired } from './forward-record';
 import type { LocalSession } from './local-session';
 import { pointerText } from './pointer';
 import { forwardRelay, type WindowRelayDeps } from './window-relay';
@@ -27,6 +28,7 @@ const NO_RECORD = 'no fresh record for that session';
 let dataDir: string;
 let pushed: ChannelEvent[];
 let logger: Logger;
+let recorder: Recorder;
 
 function writeRecord(over: Partial<LocalSession> = {}, at = now): void {
   const record: LocalSession = {
@@ -60,6 +62,7 @@ function deps(over: Partial<WindowRelayDeps> = {}): WindowRelayDeps {
       pushed.push(event);
     },
     logger,
+    recorder,
     ...over,
   };
 }
@@ -69,6 +72,7 @@ const forwards = () => readdirSync(dataDir).filter((f) => f.startsWith('fwd-'));
 beforeEach(() => {
   dataDir = mkdtempSync(join(tmpdir(), 'am-relay-'));
   pushed = [];
+  recorder = new Recorder({ max: () => 100, on: true });
   logger = createLogger('test', { level: 'silent', destination: 'stderr' });
   writeRecord();
 });
@@ -76,6 +80,32 @@ beforeEach(() => {
 afterEach(() => rmSync(dataDir, { recursive: true, force: true }));
 
 describe('the mesh window forwarding a relay', () => {
+  it('a relay push records relay pushed, with ids only', async () => {
+    await forwardRelay(RELAY, deps());
+    expect(recorder.take(10)).toMatchObject([
+      {
+        kind: 'relay',
+        source: 'plugin',
+        session: 's-wwwwwwwwwwww',
+        message: ID,
+        thread: 'thr-12',
+        stage: 'pushed',
+      },
+    ]);
+  });
+
+  it('a pointer that expired unsent is forwarded again when the hub resends it', async () => {
+    await forwardRelay(RELAY, deps());
+    expect(sweepExpired(dataDir, Date.now())).toEqual([FIELDS]);
+    await forwardRelay(RELAY, deps());
+    expect(pushed).toHaveLength(2);
+  });
+
+  it('a refused relay records nothing here', async () => {
+    await forwardRelay(RELAY, deps({ platform: 'linux' }));
+    expect(recorder.take(10)).toEqual([]);
+  });
+
   it('writes the guard record, pushes the pointer and answers forwarded', async () => {
     expect(await forwardRelay(RELAY, deps())).toEqual({ forwarded: true, reason: 'forwarded' });
     expect(pushed).toEqual([

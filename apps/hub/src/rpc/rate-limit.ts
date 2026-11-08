@@ -24,6 +24,9 @@ const FREE: ReadonlySet<RpcMethodName> = new Set<RpcMethodName>([
   'refs.get',
   'refs.find',
   'enrollment.list',
+  // Telemetry has its own per-agent cap, so it never competes with real work.
+  'telemetry.report',
+  'observe.timeline',
 ]);
 
 export interface RateLimits {

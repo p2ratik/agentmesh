@@ -89,13 +89,17 @@ export const B = 'agent/pratik/task-3-login';
 export const PASS: Decision = { pass: true };
 export const NO_POLICY: Decision = {
   ask: "mesh window: ~/.agentmesh/mesh-window.json is missing or invalid, so every command needs your human's approval",
+  code: 'marker.unverified',
 };
 export const OUTSIDE: Decision = {
   ask: 'mesh window: run tests inside a task worktree (cd <worktree> && <test>)',
+  code: 'command.needs_approval',
 };
 export const UNLISTED: Decision = {
   ask: "mesh window: this command isn't on the window's list, so your human decides",
+  code: 'command.not_listed',
 };
 export const foreign = (branch: string): Decision => ({
   ask: `mesh window: ${branch} isn't your branch, so running its tests needs your human's approval`,
+  code: 'command.needs_approval',
 });

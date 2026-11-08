@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RpcClient } from '@agentmesh/bus';
-import { MESH_WINDOW_ENV, MESH_WINDOW_HINT_ENV } from '@agentmesh/common/window';
 import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -62,20 +61,22 @@ export interface AgentEnv {
   extraEnv?: Record<string, string>;
 }
 
+/**
+ * This process's environment without the Claude Code and AgentMesh variables of the session
+ * running the tests: a spawned bundle runs in no mesh window, with no messaging address, relay
+ * setting or seed, unless the test says so.
+ */
+export function cleanEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      (e): e is [string, string] => e[1] !== undefined && !/^(CLAUDE|AGENTMESH)/.test(e[0]),
+    ),
+  );
+}
+
 /** Starts one plugin process over MCP stdio and records its channel events. */
 export async function spawnAgent(env: AgentEnv): Promise<Agent> {
-  const inherited = { ...process.env };
-  // A test runs in no mesh window, and with no messaging address or relay setting, unless it says so.
-  for (const key of [
-    MESH_WINDOW_ENV,
-    MESH_WINDOW_HINT_ENV,
-    'CLAUDE_CODE_MESSAGING_SOCKET',
-    'CLAUDE_CODE_MESSAGING_TOKEN',
-    'CLAUDE_PID',
-    'AGENTMESH_RELAY',
-  ]) {
-    delete inherited[key];
-  }
+  const inherited = cleanEnv();
   const dataDir = mkdtempSync(join(tmpdir(), 'am-e2e-data-'));
   const transport = new StdioClientTransport({
     command: process.execPath,

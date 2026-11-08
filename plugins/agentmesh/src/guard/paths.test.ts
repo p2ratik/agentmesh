@@ -15,6 +15,7 @@ import {
   put,
   slash,
   UNREGISTERED,
+  UNRESOLVED,
   win32,
 } from './paths.fixture';
 
@@ -134,7 +135,7 @@ describe('refuses', () => {
     refusedBoth(join(wt, 'out', 'a.ts'), OUTSIDE);
     refusedBoth(join(wt, 'out', 'new', 'b.ts'), OUTSIDE);
     link(join(repo, 'src', 'missing'), join(wt, 'dangling'));
-    refusedBoth(join(wt, 'dangling', 'b.ts'), OUTSIDE);
+    refusedBoth(join(wt, 'dangling', 'b.ts'), UNRESOLVED);
     const fake = join(base, 'fake', '.claude');
     mkdirSync(fake, { recursive: true });
     link(join(repo, 'src'), join(fake, 'worktrees'));

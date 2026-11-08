@@ -91,6 +91,10 @@ export function sessionHandlers(
         unreadThreads: messaging.unreadThreadCount(agentId),
         sessionId: session.id,
         reclaimed: reclaimed.map(threadKey),
+        observability: {
+          enabled: config.observability.enabled,
+          maxBufferedEvents: config.observability.client.maxBufferedEvents,
+        },
       };
     },
     /** The participant goes offline only with its last live session. */

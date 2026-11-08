@@ -6,6 +6,7 @@ export {
   jetstreamManager,
 } from '@nats-io/jetstream';
 export * from './connect';
+export * from './connect-error';
 export * from './consumer';
 export * from './permissions';
 export * from './publisher';

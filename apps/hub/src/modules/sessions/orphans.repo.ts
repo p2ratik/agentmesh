@@ -44,10 +44,13 @@ export class OrphansRepo {
     );
   }
 
-  deleteOrphan(threadId: number, agentId: string): void {
-    this.#db.run(
-      'DELETE FROM orphan_decisions WHERE thread_id = $threadId AND agent_id = $agentId',
-      { threadId, agentId },
+  /** True when a row was there. */
+  deleteOrphan(threadId: number, agentId: string): boolean {
+    return (
+      this.#db.run(
+        'DELETE FROM orphan_decisions WHERE thread_id = $threadId AND agent_id = $agentId',
+        { threadId, agentId },
+      ).changes > 0
     );
   }
 }

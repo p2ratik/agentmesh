@@ -1,5 +1,5 @@
 {
-  "description": "Pull-only AgentMesh sessions (Claude Desktop, or no channel flag): announces unread mesh work in one line on each prompt and at session start. Session start and end keep the conversation id for the mesh, so a resumed conversation gets its threads back. In the mesh window, the worktree guard refuses edits outside its task worktrees and asks before commands that aren't on its list.",
+  "description": "Pull-only AgentMesh sessions (Claude Desktop, or no channel flag): announces unread mesh work in one line on each prompt and at session start. Session start and end keep the conversation id for the mesh, so a resumed conversation gets its threads back. In the mesh window, the worktree guard refuses edits outside its task worktrees and, in every mode, any command that names a secret file, prints a credential, dumps the environment or reads a secret-named variable. In manual mode it asks before commands that aren't on its list; in auto mode it hands them to auto mode's checks, except risky ones (pushes other than the window's own branch, merges, rebases, deletes, hard resets, changes through gh, infra commands, recursive searches outside a task worktree, anything in a teammate's worktree), which still ask.",
   "hooks": {
     "UserPromptSubmit": [
       {

@@ -120,6 +120,13 @@ describe('hub end to end (no NATS)', () => {
     expect(liveness()).toBe('live');
   });
 
+  // `agentmesh timeline` is no session: reading the timeline must not show its agent online.
+  it('a timeline read without a session leaves presence alone', async () => {
+    const { hub } = await start({ observability: { viewers: ['alice'] } });
+    await hub.dispatch({ caller: 'alice-agent', method: 'observe.timeline' }, {});
+    expect(hub.services.presence.status('alice-agent')).toBe('offline');
+  });
+
   it('stops agent-to-agent loops at the configured depth', async () => {
     const { call } = await start({ limits: { maxThreadDepth: 1 } });
     const first = await call<{ threadId: string }>('alice-agent', 'message.send', {

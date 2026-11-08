@@ -9,6 +9,7 @@ import {
   DEVICE,
   DOT_GIT,
   fixture,
+  LINK,
   link,
   mesh,
   NOT_ABSOLUTE,
@@ -115,10 +116,10 @@ describe('path spellings', () => {
 describe('what the write would really touch', () => {
   it('refuses a hard link', () => {
     linkSync(join(repo, 'src', 'a.ts'), join(wt, 'hl.ts'));
-    expect(editTarget(join(wt, 'hl.ts'), o)).toEqual(OUTSIDE);
+    expect(editTarget(join(wt, 'hl.ts'), o)).toEqual(LINK);
     put(join(wt, 'own.ts'));
     linkSync(join(wt, 'own.ts'), join(wt, 'twin.ts'));
-    expect(editTarget(join(wt, 'own.ts'), o)).toEqual(OUTSIDE);
+    expect(editTarget(join(wt, 'own.ts'), o)).toEqual(LINK);
     put(join(wt, 'plain.ts'));
     expect(editTarget(join(wt, 'plain.ts'), o)).toEqual({ ok: true });
   });
@@ -126,10 +127,10 @@ describe('what the write would really touch', () => {
   it('refuses a last segment that is itself a link, even one into the worktree', () => {
     mkdirSync(join(wt, 'dir'));
     link(join(wt, 'dir'), join(wt, 'lnk'));
-    expect(editTarget(join(wt, 'lnk'), o)).toEqual(OUTSIDE);
+    expect(editTarget(join(wt, 'lnk'), o)).toEqual(LINK);
     expect(editTarget(join(wt, 'lnk', 'a.ts'), o)).toEqual({ ok: true });
     link(join(wt, 'dir'), join(repo, 'src', 'in'));
-    expect(editTarget(join(repo, 'src', 'in'), o)).toEqual(OUTSIDE);
+    expect(editTarget(join(repo, 'src', 'in'), o)).toEqual(LINK);
   });
 
   it('refuses a .git that is a folder link', () => {
@@ -149,7 +150,7 @@ describe('what the write would really touch', () => {
     refusedBoth(join(other, 'out.ts'), OUTSIDE);
     put(join(other, 'real.ts'));
     symlinkSync(join(other, 'real.ts'), join(other, 'in.ts'), 'file');
-    expect(editTarget(join(other, 'in.ts'), o)).toEqual(OUTSIDE);
+    expect(editTarget(join(other, 'in.ts'), o)).toEqual(LINK);
     expect(editTarget(join(other, 'real.ts'), o)).toEqual({ ok: true });
   });
 

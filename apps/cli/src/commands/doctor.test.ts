@@ -161,6 +161,21 @@ describe('doctor', () => {
     expect(await t.doctor()).toBe(1);
     const output = t.out.join('\n');
     expect(output).toContain(' ✗ riya-agent cannot connect to nats://127.0.0.1:4222');
-    expect(output).toContain('Authorization Violation');
+    expect(output).toContain("The hub refused riya-agent's key");
+  });
+
+  it('a reset or an unreachable hub reads as clearly as join says it', async () => {
+    const t = await workspace(trialAnswers());
+    t.ctx.connectNats = async () => {
+      throw new Error('read ECONNRESET');
+    };
+    await t.doctor();
+    expect(t.out.join('\n')).toContain("it may have refused riya-agent's key");
+    t.ctx.connectNats = async () => {
+      throw new Error('connect ECONNREFUSED 127.0.0.1:4222');
+    };
+    t.out.length = 0;
+    await t.doctor();
+    expect(t.out.join('\n')).toContain('Could not reach the hub at nats://127.0.0.1:4222');
   });
 });

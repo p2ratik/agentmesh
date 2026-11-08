@@ -39,10 +39,14 @@ const call = (tool_name: string, tool_input: unknown, cwd = repo) => ({
 });
 
 const PASS = { kind: 'pass' };
-const deny = (reason: string) => ({ kind: 'deny', reason });
-const ask = (reason: string) => ({ kind: 'ask', reason });
-const UNREADABLE = deny('mesh window: the guard could not read this tool call, so it is refused');
-const UNLISTED = ask("mesh window: this command isn't on the window's list, so your human decides");
+const deny = (reason: string, code: string) => ({ kind: 'deny', reason, code });
+const ask = (reason: string, code: string) => ({ kind: 'ask', reason, code });
+const UNREADABLE = deny(
+  'mesh window: the guard could not read this tool call, so it is refused',
+  'guard.unreadable',
+);
+const LIST = "mesh window: this command isn't on the window's list, so your human decides";
+const UNLISTED = ask(LIST, 'command.not_listed');
 
 describe('decide', () => {
   it('does nothing outside the mesh window', () => {
@@ -59,6 +63,7 @@ describe('decide', () => {
     expect(decide(call('Agent', { prompt: 'x', description: 'y' }), ctx)).toEqual(PASS);
     const isolated = deny(
       'mesh window: subagents run here, without isolation; worktrees are made with git worktree add .claude/worktrees/mesh-…',
+      'tool.agent_isolated',
     );
     for (const isolation of ['remote', 'worktree', null, '']) {
       expect(decide(call('Agent', { prompt: 'x', isolation }), ctx)).toEqual(isolated);
@@ -67,7 +72,7 @@ describe('decide', () => {
 
   it('asks before a workflow', () => {
     expect(decide(call('Workflow', { script: 'x' }), ctx)).toEqual(
-      ask("mesh window: workflows need your human's approval here"),
+      ask("mesh window: workflows need your human's approval here", 'tool.workflow'),
     );
   });
 
@@ -81,7 +86,7 @@ describe('decide', () => {
   });
 
   it('refuses an edit with no path', () => {
-    const none = deny('mesh window: this edit names no file, so it is refused');
+    const none = deny('mesh window: this edit names no file, so it is refused', 'path.no_file');
     expect(decide(call('Write', { content: 'x' }), ctx)).toEqual(none);
     expect(decide(call('Edit', { file_path: '' }), ctx)).toEqual(none);
     expect(decide(call('NotebookEdit', { new_source: 'x' }), ctx)).toEqual(none);
@@ -89,11 +94,11 @@ describe('decide', () => {
 
   it('refuses a tool it does not know', () => {
     expect(decide(call('Glob', { pattern: '**' }), ctx)).toEqual(
-      deny('mesh window: the guard does not know Glob, so it is refused'),
+      deny('mesh window: the guard does not know Glob, so it is refused', 'tool.unknown'),
     );
     for (const tool of ['constructor', '__proto__', 'toString']) {
       expect(decide(call(tool, {}), ctx)).toEqual(
-        deny(`mesh window: the guard does not know ${tool}, so it is refused`),
+        deny(`mesh window: the guard does not know ${tool}, so it is refused`, 'tool.unknown'),
       );
     }
   });
@@ -101,12 +106,42 @@ describe('decide', () => {
   it('refuses an edit outside a task worktree', () => {
     const d = decide(call('Edit', { file_path: join(repo, 'src', 'a.ts') }), ctx);
     expect(d).toEqual(
-      deny('mesh window: work only inside a task worktree (not inside .claude/worktrees/mesh-*)'),
+      deny(
+        'mesh window: work only inside a task worktree (not inside .claude/worktrees/mesh-*)',
+        'path.outside_worktree',
+      ),
     );
     expect(decide(call('Write', { file_path: 'src/a.ts' }), ctx)).toMatchObject({
       kind: 'deny',
       reason: expect.stringMatching(/^mesh window: work only inside a task worktree \(/),
+      code: 'path.not_absolute',
     });
+  });
+
+  it("records each path refusal's own code, with the same text Claude sees", () => {
+    const wt = mesh(repo, 'mesh-a', 'agent/pratik/task-1-a');
+    const refused = (file_path: string, why: string, code: string) =>
+      expect(decide(call('Edit', { file_path }), ctx)).toEqual(
+        deny(`mesh window: work only inside a task worktree (${why})`, code),
+      );
+    const outside = 'not inside .claude/worktrees/mesh-*';
+    // The worktree's own .git pointer file, and a nested .git folder not made yet: the same on every
+    // OS (`.git/config` under a worktree uses a file as a folder, unresolved on POSIX).
+    refused(join(wt, '.git'), '.git is off limits', 'path.git_dir');
+    refused(join(wt, 'sub', '.git', 'hooks', 'x'), '.git is off limits', 'path.git_dir');
+    refused(
+      join(base, 'home', '.agentmesh', 'a'),
+      '~/.agentmesh is off limits',
+      'path.agentmesh_dir',
+    );
+    refused('src/a.ts', 'the path is not absolute', 'path.not_absolute');
+    refused(wt, outside, 'path.outside_worktree');
+    const fake = mesh(repo, 'mesh-b', 'agent/pratik/task-2-b');
+    rmSync(join(fake, '.git'));
+    refused(join(fake, 'a.ts'), 'not a registered git worktree', 'path.not_registered_worktree');
+    if (process.platform === 'win32') {
+      refused('\\\\host\\share\\a.ts', 'device, UNC and stream paths are refused', 'path.device');
+    }
   });
 
   it('lets an edit inside a registered mesh worktree through', () => {
@@ -133,6 +168,7 @@ describe('decide', () => {
     expect(decide(call('EnterWorktree', { name: 'x' }), ctx)).toEqual(
       deny(
         'mesh window: stay in this folder; make worktrees with git worktree add .claude/worktrees/mesh-…',
+        'tool.enter_worktree',
       ),
     );
   });
@@ -140,7 +176,10 @@ describe('decide', () => {
   it('asks for PowerShell and Monitor', () => {
     for (const tool of ['PowerShell', 'Monitor']) {
       expect(decide(call(tool, { command: 'git status' }), ctx)).toEqual(
-        ask(`mesh window: ${tool} commands need your human's approval here`),
+        ask(
+          `mesh window: ${tool} commands need your human's approval here`,
+          'command.needs_approval',
+        ),
       );
     }
   });
@@ -156,6 +195,7 @@ describe('decide', () => {
     expect(decide(call('Bash', { command: 'git status' }), { ...ctx, policy: null })).toEqual(
       ask(
         "mesh window: ~/.agentmesh/mesh-window.json is missing or invalid, so every command needs your human's approval",
+        'marker.unverified',
       ),
     );
   });
@@ -167,10 +207,14 @@ describe('decide', () => {
     expect(decide(call('Bash', { command: 'pnpm check' }, theirs), ctx)).toEqual(
       ask(
         "mesh window: agent/bob/task-2-x isn't your branch, so running its tests needs your human's approval",
+        'command.needs_approval',
       ),
     );
     expect(decide(call('Bash', { command: 'pnpm check' }), ctx)).toEqual(
-      ask('mesh window: run tests inside a task worktree (cd <worktree> && <test>)'),
+      ask(
+        'mesh window: run tests inside a task worktree (cd <worktree> && <test>)',
+        'command.needs_approval',
+      ),
     );
   });
 
@@ -196,8 +240,9 @@ describe('decide', () => {
   it('asks when a reader throws, and never throws itself', () => {
     boom.on = true;
     expect(decide(call('Bash', { command: 'git worktree list' }), ctx)).toEqual(PASS);
+    // the same question as an unlisted command; the code says the guard failed
     expect(
       decide(call('Bash', { command: 'git worktree remove .claude/worktrees/mesh-a' }), ctx),
-    ).toEqual(UNLISTED);
+    ).toEqual(ask(LIST, 'guard.error'));
   });
 });

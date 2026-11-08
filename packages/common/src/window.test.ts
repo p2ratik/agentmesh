@@ -71,6 +71,19 @@ describe('parseWindowPolicy', () => {
     for (const b of bad) expect(parseWindowPolicy(JSON.stringify(b))).toBeNull();
     expect(parseWindowPolicy('not json')).toBeNull();
   });
+
+  it('keeps the mode, accepts none (an older window init) and refuses an invalid one', () => {
+    for (const mode of ['auto', 'manual'] as const) {
+      expect(parseWindowPolicy(JSON.stringify({ ...policy, mode }))).toEqual({ ...policy, mode });
+    }
+    const old = parseWindowPolicy(JSON.stringify(policy));
+    expect(old).not.toBeNull();
+    expect(old?.mode).toBeUndefined();
+    expect(old && 'mode' in old).toBe(false);
+    for (const mode of ['default', 'Auto', '', null, 1, 'bypassPermissions']) {
+      expect(parseWindowPolicy(JSON.stringify({ ...policy, mode }))).toBeNull();
+    }
+  });
 });
 
 describe('readMarker', () => {

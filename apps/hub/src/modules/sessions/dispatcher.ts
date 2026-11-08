@@ -2,6 +2,7 @@ import type { Logger } from '@agentmesh/common';
 import type { RelayAnswer, SessionDelivery, SessionRelay } from '@agentmesh/protocol';
 import type { MessagingService, SessionsService } from '../../contracts';
 import type { DeliveryPort, DeliveryReceipt } from '../../ports';
+import type { RecordHub } from '../observe/hub-event';
 import { RelayMarks, type RelayTarget } from './relay';
 import { follow, withReleased } from './released';
 import type { Route } from './routing';
@@ -19,6 +20,8 @@ export interface SessionTransport {
 
 /** The most unread status items of one thread that ride along with a delivery in it. */
 const CARRIED_PER_THREAD = 20;
+/** The most messages remembered as already recorded `no_session`. */
+const NOTED_CAP = 1000;
 
 interface Routed {
   message: SessionDelivery;
@@ -59,29 +62,45 @@ export class SessionDispatcher implements DeliveryPort {
   readonly #transport: SessionTransport;
   readonly #logger: Logger;
   readonly #marks = new RelayMarks();
+  readonly #record: RecordHub;
+  /** Messages already recorded as waiting for a session, so a retry flush records none again. */
+  readonly #noted = new Set<string>();
 
   constructor(deps: {
     sessions: SessionsService;
     messaging: MessagingService;
     transport: SessionTransport;
     logger: Logger;
+    /** Observability: the hub's event recorder; none records nothing. */
+    record?: RecordHub;
   }) {
     this.#sessions = deps.sessions;
     this.#messaging = deps.messaging;
     this.#transport = deps.transport;
     this.#logger = deps.logger;
+    this.#record = deps.record ?? (() => {});
   }
 
   async deliver(agentId: string, messages: SessionDelivery[]): Promise<DeliveryReceipt> {
     // Already read through inbox or thread: delivered, with nothing to push, claim or mark read.
     const alreadyRead = messages.filter((m) => this.#messaging.isRead(agentId, m.id));
     // The owner read the thread: its next reply may wake it again.
-    for (const m of alreadyRead) this.#marks.clearThread(agentId, m.threadId);
+    for (const m of alreadyRead) {
+      this.#marks.clearThread(agentId, m.threadId);
+      this.#noted.delete(m.id);
+    }
     const seen = alreadyRead.map((m) => m.id);
     // No active, live session: every route would wait.
-    if (!this.#sessions.hasReadySession(agentId)) return { delivered: seen };
+    if (!this.#sessions.hasReadySession(agentId)) {
+      this.#noSession(
+        agentId,
+        messages.filter((m) => !seen.includes(m.id)),
+      );
+      return { delivered: seen };
+    }
     const unseen = messages.filter((m) => !seen.includes(m.id));
     const { routed, waiting } = this.#route(agentId, unseen);
+    this.#noSession(agentId, waiting);
     // Fire and forget: a window that never answers must not hold up this flush.
     for (const r of this.#relays(agentId, waiting)) void this.#relay(agentId, r);
     const batches = [...Map.groupBy(routed, (r) => r.route.sessionId)];
@@ -94,9 +113,13 @@ export class SessionDispatcher implements DeliveryPort {
       const result = results[i];
       if (result?.status === 'fulfilled') {
         for (const id of result.value) acked.add(id);
+        this.#notAcked(agentId, sessionId, routed, acked);
         return;
       }
       this.#sessions.unreachable(sessionId);
+      for (const { message } of batches[i]?.[1] ?? []) {
+        this.#stage(agentId, sessionId, message, 'failed', 'unreachable');
+      }
       this.#logger.warn(
         { agent: agentId, session: sessionId, err: result?.reason },
         'session unreachable; its deliveries wait',
@@ -104,6 +127,10 @@ export class SessionDispatcher implements DeliveryPort {
     });
     // In message order, so the first claim on a thread wins.
     const delivered = routed.filter((r) => acked.has(r.message.id));
+    for (const { message, route } of delivered) {
+      this.#noted.delete(message.id);
+      this.#stage(agentId, route.sessionId, message, 'acked');
+    }
     // Status rides along: published, but it claims nothing and stays unread until seen.
     const actions = delivered.filter((r) => r.message.class === 'action');
     const read = actions.map((r) => r.message.id);
@@ -145,6 +172,8 @@ export class SessionDispatcher implements DeliveryPort {
     const { windowId, forSession } = target;
     const log = { agent: agentId, window: windowId, thread: threadId, message: id };
     this.#marks.set(agentId, threadId, forSession);
+    const at = { kind: 'relay', message: id, thread: threadId } as const;
+    this.#record(agentId, windowId, { ...at, stage: 'sent' });
     try {
       const answer = await this.#transport.relay(agentId, windowId, {
         type: 'relay',
@@ -154,9 +183,47 @@ export class SessionDispatcher implements DeliveryPort {
         forSession,
       });
       this.#logger.info({ ...log, ...answer }, 'relay answered');
+      const stage = answer.forwarded ? 'forwarded' : 'not_forwarded';
+      this.#record(agentId, windowId, { ...at, stage });
     } catch (err) {
       this.#marks.delete(agentId, threadId, forSession);
       this.#logger.warn({ ...log, err }, 'relay pointer failed; the next flush sends it again');
+    }
+  }
+
+  /** Messages sent to the session that its ack left out. */
+  #notAcked(agentId: string, sessionId: string, routed: Routed[], acked: Set<string>): void {
+    for (const r of routed) {
+      if (r.route.sessionId !== sessionId || acked.has(r.message.id)) continue;
+      this.#stage(agentId, sessionId, r.message, 'failed', 'not_acked');
+    }
+  }
+
+  /** For tests: how many messages are remembered as recorded `no_session`. */
+  get notedCount(): number {
+    return this.#noted.size;
+  }
+
+  #stage(
+    agentId: string,
+    session: string | null,
+    m: SessionDelivery,
+    stage: 'sent' | 'acked' | 'failed' | 'no_session',
+    code?: string,
+  ): void {
+    const fields = { kind: 'delivery', message: m.id, thread: m.threadId, stage } as const;
+    this.#record(agentId, session, code ? { ...fields, code } : fields);
+  }
+
+  /** Messages that wait because no session can take them: recorded once each (Ruling R3). */
+  #noSession(agentId: string, waiting: SessionDelivery[]): void {
+    for (const m of waiting) {
+      if (this.#noted.has(m.id)) continue;
+      // ponytail: capped, not timed: a dropped or expired message's entry ages out by size.
+      if (this.#noted.size >= NOTED_CAP)
+        this.#noted.delete(this.#noted.values().next().value ?? '');
+      this.#noted.add(m.id);
+      this.#stage(agentId, null, m, 'no_session');
     }
   }
 
@@ -165,6 +232,7 @@ export class SessionDispatcher implements DeliveryPort {
     const messages = batch.map((r) => r.message);
     const routed = batch.map((r) => withReleased(r.message, r.route));
     const sent = [...this.#carried(agentId, messages), ...routed];
+    for (const m of messages) this.#stage(agentId, sessionId, m, 'sent');
     const acked = new Set(await this.#transport.send(agentId, sessionId, sent));
     return messages.filter((m) => acked.has(m.id)).map((m) => m.id);
   }

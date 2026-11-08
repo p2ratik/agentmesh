@@ -2,6 +2,7 @@
 // directly and never spawns git. Nothing throws: a git file that is missing or wrong is a refusal.
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import type { ReasonCode } from '@agentmesh/protocol/observe-codes';
 
 export interface PathOptions {
   platform: NodeJS.Platform;
@@ -14,14 +15,26 @@ export interface MeshWorktree {
   branch: string | null;
 }
 
-type Refusal = { refused: string };
+/** Why a path is refused: the text Claude sees, and the code the timeline records. */
+type Refusal = { refused: string; code: ReasonCode };
 
-const NOT_ABSOLUTE = { refused: 'the path is not absolute' };
-const DEVICE = { refused: 'device, UNC and stream paths are refused' };
-const OUTSIDE = { refused: 'not inside .claude/worktrees/mesh-*' };
-const UNREGISTERED = { refused: 'not a registered git worktree' };
-const DOT_GIT = { refused: '.git is off limits' };
-const AGENTMESH = { refused: '~/.agentmesh is off limits' };
+const OUTSIDE_TEXT = 'not inside .claude/worktrees/mesh-*';
+const NOT_ABSOLUTE: Refusal = { refused: 'the path is not absolute', code: 'path.not_absolute' };
+const DEVICE: Refusal = {
+  refused: 'device, UNC and stream paths are refused',
+  code: 'path.device',
+};
+const OUTSIDE: Refusal = { refused: OUTSIDE_TEXT, code: 'path.outside_worktree' };
+/** Something is there but won't resolve (a dangling link, a loop, a file used as a folder). */
+const UNRESOLVED: Refusal = { refused: OUTSIDE_TEXT, code: 'path.unresolved' };
+/** The write would reach past the path (a link as its last segment, or a hard-linked file). */
+const LINK: Refusal = { refused: OUTSIDE_TEXT, code: 'path.link' };
+const UNREGISTERED: Refusal = {
+  refused: 'not a registered git worktree',
+  code: 'path.not_registered_worktree',
+};
+const DOT_GIT: Refusal = { refused: '.git is off limits', code: 'path.git_dir' };
+const AGENTMESH: Refusal = { refused: '~/.agentmesh is off limits', code: 'path.agentmesh_dir' };
 
 const lib = (o: PathOptions) => (o.platform === 'win32' ? path.win32 : path.posix);
 
@@ -168,7 +181,7 @@ function registered(
 function located(file: string, o: PathOptions): string | Refusal {
   const bad = badInput(file, o);
   if (bad) return bad;
-  return resolve(file, o) ?? OUTSIDE;
+  return resolve(file, o) ?? UNRESOLVED;
 }
 
 /** The registered mesh worktree that contains `file` (or is it), resolved through links. */
@@ -193,5 +206,5 @@ export function editTarget(file: string, o: PathOptions): { ok: true } | Refusal
   if ('refused' in found) return found;
   if (found.below.length === 0) return OUTSIDE;
   if (found.below.some((k) => refusalKey(k) === '.GIT')) return DOT_GIT;
-  return escapes(file, resolved, o) ? OUTSIDE : { ok: true };
+  return escapes(file, resolved, o) ? LINK : { ok: true };
 }

@@ -840,13 +840,13 @@ var require_redact = __commonJS({
         paths = [],
         censor = "[REDACTED]",
         serialize = JSON.stringify,
-        strict = true,
+        strict: strict2 = true,
         remove = false
       } = options;
       validatePaths(paths);
       const pathStructure = buildPathStructure(paths);
       return function redact(obj) {
-        if (strict && (obj === null || typeof obj !== "object")) {
+        if (strict2 && (obj === null || typeof obj !== "object")) {
           if (obj === null || obj === void 0) {
             return serialize ? serialize(obj) : obj;
           }
@@ -958,7 +958,7 @@ var require_redaction = __commonJS({
     var { redactFmtSym, wildcardFirstSym } = require_symbols();
     var rx = /[^.[\]]+|\[([^[\]]*?)\]/g;
     var CENSOR = "[Redacted]";
-    var strict = false;
+    var strict2 = false;
     function redaction(opts, serialize) {
       const { paths, censor, remove } = handle(opts);
       const shape = paths.reduce((o, str) => {
@@ -993,7 +993,7 @@ var require_redaction = __commonJS({
         return o;
       }, /* @__PURE__ */ Object.create(null));
       const result = Object.assign(/* @__PURE__ */ Object.create(null), {
-        [redactFmtSym]: Redact({ paths, censor, serialize, strict, remove })
+        [redactFmtSym]: Redact({ paths, censor, serialize, strict: strict2, remove })
       });
       const topCensor = (...args) => {
         return typeof censor === "function" ? serialize(censor(...args)) : serialize(censor);
@@ -1009,7 +1009,7 @@ var require_redaction = __commonJS({
             paths: shape[k],
             censor: wrappedCensor,
             serialize,
-            strict,
+            strict: strict2,
             remove
           });
         }
@@ -9073,7 +9073,7 @@ var require_resolve_block_scalar = __commonJS({
       const end = start + header.length + scalar.source.length;
       return { value, type, comment: header.comment, range: [start, end, end] };
     }
-    function parseBlockScalarHeader({ offset, props }, strict, onError) {
+    function parseBlockScalarHeader({ offset, props }, strict2, onError) {
       if (props[0].type !== "block-scalar-header") {
         onError(props[0], "IMPOSSIBLE", "Block scalar header not found");
         return null;
@@ -9110,7 +9110,7 @@ var require_resolve_block_scalar = __commonJS({
             length += token.source.length;
             break;
           case "comment":
-            if (strict && !hasSpace) {
+            if (strict2 && !hasSpace) {
               const message = "Comments must be separated from other tokens by white space characters";
               onError(token, "MISSING_CHAR", message);
             }
@@ -9153,7 +9153,7 @@ var require_resolve_flow_scalar = __commonJS({
     "use strict";
     var Scalar = require_Scalar();
     var resolveEnd = require_resolve_end();
-    function resolveFlowScalar(scalar, strict, onError) {
+    function resolveFlowScalar(scalar, strict2, onError) {
       const { offset, type, source, end } = scalar;
       let _type;
       let value;
@@ -9182,7 +9182,7 @@ var require_resolve_flow_scalar = __commonJS({
           };
       }
       const valueEnd = offset + source.length;
-      const re = resolveEnd.resolveEnd(end, valueEnd, strict, onError);
+      const re = resolveEnd.resolveEnd(end, valueEnd, strict2, onError);
       return {
         value,
         type: _type,
@@ -9844,7 +9844,7 @@ var require_cst_scalar = __commonJS({
     var resolveFlowScalar = require_resolve_flow_scalar();
     var errors = require_errors();
     var stringifyString = require_stringifyString();
-    function resolveAsScalar(token, strict = true, onError) {
+    function resolveAsScalar(token, strict2 = true, onError) {
       if (token) {
         const _onError = (pos, code, message) => {
           const offset = typeof pos === "number" ? pos : Array.isArray(pos) ? pos[0] : pos.offset;
@@ -9857,9 +9857,9 @@ var require_cst_scalar = __commonJS({
           case "scalar":
           case "single-quoted-scalar":
           case "double-quoted-scalar":
-            return resolveFlowScalar.resolveFlowScalar(token, strict, _onError);
+            return resolveFlowScalar.resolveFlowScalar(token, strict2, _onError);
           case "block-scalar":
-            return resolveBlockScalar.resolveBlockScalar({ options: { strict } }, token, _onError);
+            return resolveBlockScalar.resolveBlockScalar({ options: { strict: strict2 } }, token, _onError);
         }
       }
       return null;
@@ -25557,15 +25557,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join } from "node:path";
 var agentmeshDir = (home = homedir2()) => join(home, ".agentmesh");
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
 function existingMesh(home = homedir2()) {
   const file2 = join(agentmeshDir(home), "agent.json");
   if (!existsSync(file2)) return null;
   try {
     const value = JSON.parse(readFileSync(file2, "utf8"));
-    const pick2 = (k) => typeof value[k] === "string" ? value[k] : void 0;
-    const agentId = pick2("agentId");
-    const natsUrl = pick2("natsUrl");
-    return agentId || natsUrl ? { ...agentId ? { agentId } : {}, ...natsUrl ? { natsUrl } : {} } : null;
+    const saved = {};
+    for (const k of FIELDS) {
+      const v = value[k];
+      if (typeof v === "string" && v) saved[k] = v;
+    }
+    return saved.agentId || saved.natsUrl ? saved : null;
   } catch {
     return null;
   }
@@ -25696,7 +25699,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.6.0";
+var VERSION = "0.7.0";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -46047,6 +46050,255 @@ var LeaseConflict = external_exports.object({
   expiresAt: IsoDate
 });
 
+// ../../packages/protocol/src/observe-codes.ts
+var REASON_CODES = [
+  "send.unknown_key",
+  "send.bad_address",
+  "send.alias_mismatch",
+  "send.content_mismatch",
+  "send.bad_summary",
+  "send.no_record",
+  "send.claim_failed",
+  "list_agents",
+  "path.outside_worktree",
+  "path.no_file",
+  "path.not_absolute",
+  "path.device",
+  "path.unresolved",
+  "path.link",
+  "path.not_registered_worktree",
+  "path.git_dir",
+  "path.agentmesh_dir",
+  "command.not_listed",
+  "command.needs_approval",
+  "command.risky",
+  "secret.path",
+  "secret.credential",
+  "secret.env_dump",
+  "tool.unknown",
+  "tool.enter_worktree",
+  "tool.agent_isolated",
+  "tool.workflow",
+  "marker.unverified",
+  "guard.unreadable",
+  "guard.error",
+  "activation.wrong_code",
+  "activation.guard_down",
+  "activation.not_window",
+  "activation.another_window_live",
+  "activation.no_proof",
+  "activation.hub_error",
+  "activation.no_description",
+  "activation.pull_in_window",
+  "auth.no_signature",
+  "auth.bad_signature",
+  "auth.unknown_key",
+  "auth.too_many_from_address",
+  "auth.malformed_invite",
+  "auth.too_many_redemptions",
+  "auth.invite_refused"
+];
+var EVENT_SOURCES = ["plugin", "guard", "hook"];
+var REPORTED_KINDS = [
+  "connected",
+  "nats",
+  "activation",
+  "tool",
+  "delivery",
+  "relay",
+  "guard",
+  "hook",
+  "dropped"
+];
+var HUB_KINDS = ["session", "delivery", "relay", "orphan", "rpc", "auth"];
+var NATS_EVENTS = ["disconnect", "reconnect", "error"];
+var ACTIVATION_PHASES = [
+  "check_sent",
+  "activated",
+  "refused",
+  "failed",
+  "renewed",
+  "renewal_fallback",
+  "deactivated"
+];
+var DELIVERY_MODES = ["push", "pull"];
+var PLUGIN_DELIVERY_STAGES = [
+  "received",
+  "pushed",
+  "push_failed",
+  "deduped",
+  "held"
+];
+var PLUGIN_RELAY_STAGES = ["pushed", "claimed", "expired", "denied"];
+var GUARD_DECISIONS = ["deny", "ask"];
+var HOOK_NOTES = [
+  "note_shown",
+  "pull_shown",
+  "pointer_labelled",
+  "window_labelled",
+  "not_mesh_labelled",
+  "error"
+];
+var HUB_SESSION_PHASES = [
+  "opened",
+  "hello",
+  "away",
+  "live",
+  "closed",
+  "evicted",
+  "taken_over"
+];
+var HUB_DELIVERY_STAGES = ["sent", "acked", "failed", "no_session"];
+var HUB_RELAY_STAGES = ["sent", "forwarded", "not_forwarded"];
+var ORPHAN_PHASES = ["recorded", "escalated", "settled"];
+var AUTH_EVENTS = ["denied", "budget_hit"];
+var NODE_PLATFORMS = [
+  "aix",
+  "android",
+  "darwin",
+  "freebsd",
+  "haiku",
+  "linux",
+  "openbsd",
+  "sunos",
+  "win32",
+  "cygwin",
+  "netbsd"
+];
+var NODE_ARCHES = [
+  "arm",
+  "arm64",
+  "ia32",
+  "loong64",
+  "mips",
+  "mipsel",
+  "ppc64",
+  "riscv64",
+  "s390x",
+  "x64"
+];
+
+// ../../packages/protocol/src/observe.ts
+var ThreadRef = external_exports.string().regex(/^thr-\d{1,12}$/);
+var MessageRef = external_exports.string().regex(/^msg-[0-9A-HJKMNP-TV-Z]{26}$/);
+var TaskRef = external_exports.string().regex(/^task-\d{1,12}$/);
+var PlanRef = external_exports.string().regex(/^plan-\d{1,12}$/);
+var Token = external_exports.string().regex(/^[A-Za-z0-9_.+-]{1,64}$/);
+var Version = external_exports.string().regex(/^[0-9][0-9A-Za-z.+_-]{0,63}$/);
+var Ms = external_exports.number().int().nonnegative();
+var Count = external_exports.number().int().nonnegative();
+var Reason = external_exports.enum(REASON_CODES);
+var Time = external_exports.iso.datetime({ offset: true }).max(40);
+var common = { id: external_exports.uuid().max(36), at: Time, session: SessionId.nullable() };
+var reported = { ...common, source: external_exports.enum(EVENT_SOURCES) };
+var hub = { ...common, source: external_exports.literal("hub") };
+var strict = (shape) => external_exports.object(shape).strict();
+var MAX_TAKEN_THREADS = 50;
+var ReportedEvent = external_exports.discriminatedUnion("kind", [
+  strict({
+    ...reported,
+    kind: external_exports.literal("connected"),
+    pluginVersion: Version,
+    /** Null when Claude Code didn't say. */
+    claudeCodeVersion: Version.nullable(),
+    os: external_exports.enum(NODE_PLATFORMS),
+    arch: external_exports.enum(NODE_ARCHES),
+    node: Version,
+    meshWindow: external_exports.boolean(),
+    pull: external_exports.boolean()
+  }),
+  strict({ ...reported, kind: external_exports.literal("nats"), event: external_exports.enum(NATS_EVENTS) }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("activation"),
+    phase: external_exports.enum(ACTIVATION_PHASES),
+    mode: external_exports.enum(DELIVERY_MODES),
+    reason: Reason.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("tool"),
+    tool: Token,
+    /** `ok` or an error code. */
+    outcome: Token,
+    ms: Ms,
+    thread: ThreadRef.optional(),
+    task: TaskRef.optional(),
+    plan: PlanRef.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("delivery"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(PLUGIN_DELIVERY_STAGES),
+    sinceReceivedMs: Ms
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("relay"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(PLUGIN_RELAY_STAGES),
+    reason: Reason.optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("guard"),
+    tool: Token,
+    decision: external_exports.enum(GUARD_DECISIONS),
+    reason: Reason,
+    /** The offending key name of a `send.unknown_key`, kept only when it is a plain identifier. */
+    key: external_exports.string().regex(/^[A-Za-z_]{1,40}$/).optional()
+  }),
+  strict({
+    ...reported,
+    kind: external_exports.literal("hook"),
+    note: external_exports.enum(HOOK_NOTES),
+    unread: Count.optional()
+  }),
+  strict({ ...reported, kind: external_exports.literal("dropped"), count: Count })
+]);
+var HubEvent = external_exports.discriminatedUnion("kind", [
+  strict({
+    ...hub,
+    kind: external_exports.literal("session"),
+    phase: external_exports.enum(HUB_SESSION_PHASES),
+    replacedSession: SessionId.optional(),
+    threads: external_exports.array(ThreadRef).max(MAX_TAKEN_THREADS).optional(),
+    threadCount: Count.optional()
+  }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("delivery"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(HUB_DELIVERY_STAGES),
+    code: Token.optional()
+  }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("relay"),
+    message: MessageRef,
+    thread: ThreadRef,
+    stage: external_exports.enum(HUB_RELAY_STAGES),
+    reason: Reason.optional()
+  }),
+  strict({ ...hub, kind: external_exports.literal("orphan"), thread: ThreadRef, phase: external_exports.enum(ORPHAN_PHASES) }),
+  strict({ ...hub, kind: external_exports.literal("rpc"), method: Token, caller: Token, code: Token }),
+  strict({
+    ...hub,
+    kind: external_exports.literal("auth"),
+    event: external_exports.enum(AUTH_EVENTS),
+    reason: Reason.optional()
+  })
+]);
+var stored = { agent: ParticipantId, receivedAt: Time };
+var ObservedEvent = external_exports.union([
+  ...ReportedEvent.options.map((o) => o.extend(stored)),
+  ...HubEvent.options.map((o) => o.extend(stored))
+]);
+
 // ../../packages/protocol/src/rpc/define.ts
 var defineMethod = (def) => def;
 var ANY_CALLER = ["agent", "human", "service"];
@@ -46368,6 +46620,42 @@ var messagingMethods = {
   })
 };
 
+// ../../packages/protocol/src/rpc/observe.ts
+var MAX_REPORT_EVENTS = 100;
+var MAX_TIMELINE_EVENTS = 1e3;
+var When = external_exports.string().max(40);
+var observeMethods = {
+  "telemetry.report": defineMethod({
+    description: "Ship a batch of this session's behaviour events (ids, counts and codes only).",
+    callers: ["agent"],
+    // Each event is checked by the hub on its own (`ReportedEvent`), so one this hub doesn't know
+    // (from a newer plugin) costs only itself, counted in `dropped`.
+    params: external_exports.object({ events: external_exports.array(external_exports.unknown()).max(MAX_REPORT_EVENTS) }),
+    result: external_exports.object({
+      accepted: external_exports.number().int().nonnegative(),
+      dropped: external_exports.number().int().nonnegative()
+    })
+  }),
+  "observe.timeline": defineMethod({
+    description: "Read the event timeline. Only humans listed in observability.viewers may.",
+    callers: ["agent"],
+    params: external_exports.object({
+      agent: ParticipantId.optional(),
+      session: SessionId.optional(),
+      thread: external_exports.string().regex(/^thr-\d{1,12}$/).optional(),
+      since: When.default("2h"),
+      until: When.optional(),
+      kinds: external_exports.array(external_exports.enum([...REPORTED_KINDS, ...HUB_KINDS])).max(20).optional(),
+      limit: external_exports.number().int().min(1).max(MAX_TIMELINE_EVENTS).default(500)
+    }),
+    result: external_exports.object({
+      events: external_exports.array(ObservedEvent),
+      text: external_exports.string(),
+      truncated: external_exports.boolean()
+    })
+  })
+};
+
 // ../../packages/protocol/src/rpc/planning.ts
 var planningMethods = {
   "plan.start": defineMethod({
@@ -46457,7 +46745,9 @@ var sessionMethods = {
       /** The hub-issued id this session sends on every call. */
       sessionId: SessionId,
       /** Thread keys taken back from the previous session because nobody else took them. */
-      reclaimed: external_exports.array(external_exports.string())
+      reclaimed: external_exports.array(external_exports.string()),
+      /** Whether to record events (`observability.enabled`); older hubs send nothing, so a plugin records nothing. */
+      observability: external_exports.object({ enabled: external_exports.boolean(), maxBufferedEvents: external_exports.number().int().positive() }).default({ enabled: false, maxBufferedEvents: 500 })
     })
   }),
   "session.bye": defineMethod({
@@ -46628,7 +46918,8 @@ var RPC_METHODS = {
   ...planningMethods,
   ...leaseMethods,
   ...adminMethods,
-  ...enrollmentMethods
+  ...enrollmentMethods,
+  ...observeMethods
 };
 
 // ../../packages/config/src/schema/integrations.ts
@@ -46789,6 +47080,20 @@ var RelayConfig = external_exports.object({
    * window, then the hub pings them on Discord.
    */
   closedAskerEscalationMinutes: external_exports.number().int().min(1).max(1440).default(CLOSED_ASKER_DEFAULT_MINUTES)
+});
+var ObservabilityConfig = external_exports.object({
+  /** Plugins report and the hub stores; false turns both off. */
+  enabled: external_exports.boolean().default(true),
+  /** Humans whose agents may read timelines; empty means nobody via the mesh. */
+  viewers: external_exports.array(external_exports.string()).default([]),
+  retentionDays: external_exports.number().int().min(1).default(14),
+  /**
+   * Events the hub accepts per agent per minute; the rest are counted as dropped. The same cap
+   * applies, separately, to the hub's own failed-call events per caller and to connect refusals
+   * (one shared budget).
+   */
+  maxEventsPerMinute: external_exports.number().int().min(1).default(300),
+  client: external_exports.object({ maxBufferedEvents: external_exports.number().int().min(50).default(500) }).prefault({})
 });
 
 // ../../packages/config/src/schema/rules.ts
@@ -46987,6 +47292,7 @@ var MeshConfigSchema = external_exports.object({
   leases: LeaseConfig.prefault({}),
   presence: PresenceConfig.prefault({}),
   relay: RelayConfig.prefault({}),
+  observability: ObservabilityConfig.prefault({}),
   enrollment: EnrollmentConfig.prefault({}),
   planning: PlanningConfig.prefault({}),
   tasks: external_exports.object({ defaultWorkflow: external_exports.string().default("feature") }).prefault({}),
@@ -47030,6 +47336,14 @@ function validateReferences(config2) {
   if (facilitator !== "initiator") expectKind("planning.facilitator", facilitator, "agent");
   config2.rules.forEach((rule, i) => {
     checkRule(rule, `rules[${i}]`, expectKind, workflowIds, add);
+  });
+  config2.observability.viewers.forEach((id, i) => {
+    if (!humans.has(id)) {
+      add(
+        `observability.viewers[${i}]`,
+        `observability.viewers: "${id}" is not a human in this mesh`
+      );
+    }
   });
   checkDiscord(config2, add);
   checkIngest(config2, add);
@@ -47869,6 +48183,31 @@ function connectOnce(options, timeoutMs = 5e3) {
   return (0, import_transport_node.connect)({ ...baseOptions(options), reconnect: false, timeout: timeoutMs });
 }
 
+// ../../packages/bus/src/connect-error.ts
+function described(error62, depth = 0) {
+  if (!(error62 instanceof Error)) return error62 === void 0 ? "" : String(error62);
+  const { code } = error62;
+  const own2 = `${error62.name} ${error62.message} ${typeof code === "string" ? code : ""}`;
+  return depth < 3 ? `${own2} ${described(error62.cause, depth + 1)}` : own2;
+}
+function refusedOrUnreachable(error62, hub2, words, details) {
+  const text = described(error62);
+  if (/authori[sz]ation/i.test(text)) return new MeshError("unauthenticated", words.refused);
+  if (/tls/i.test(text)) {
+    return new MeshError(
+      "unavailable",
+      `${hub2} did not offer TLS, so nothing was sent. Check the hub URL with your admin.`
+    );
+  }
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(text)) {
+    return new MeshError(
+      "unavailable",
+      `Could not reach the hub at ${hub2}. Check your network and try again.`
+    );
+  }
+  return new MeshError("unauthenticated", words.dropped, details);
+}
+
 // ../../packages/bus/src/permissions.ts
 var APP_ACCOUNT = "APP";
 var SYS_ACCOUNT = "SYS";
@@ -47919,6 +48258,65 @@ function permissionsFor(user, prefix) {
   }
 }
 
+// ../../packages/bus/src/rpc-client.ts
+var RpcClient = class {
+  #nc;
+  #subjects;
+  #caller;
+  #timeoutMs;
+  constructor(nc, prefix, callerId, timeoutMs = 15e3) {
+    this.#nc = nc;
+    this.#subjects = subjects(prefix);
+    this.#caller = callerId;
+    this.#timeoutMs = timeoutMs;
+  }
+  async call(method, params, options = {}) {
+    return (await this.callWithNotes(method, params, options)).result;
+  }
+  /** Like `call`, also returning the hub's advisory notes (empty when none). */
+  async callWithNotes(method, params, options = {}) {
+    const envelope = {
+      v: PROTOCOL_VERSION,
+      params,
+      ...options.session ? { session: options.session } : {},
+      ...options.actAs ? { actAs: options.actAs } : {},
+      ...options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}
+    };
+    let reply;
+    try {
+      reply = await this.#nc.request(
+        this.#subjects.rpc(this.#caller, method),
+        JSON.stringify(envelope),
+        {
+          timeout: options.timeoutMs ?? this.#timeoutMs
+        }
+      );
+    } catch (error62) {
+      throw translateTransportError(error62);
+    }
+    const response = reply.json();
+    if (!response.ok) throw MeshError.fromPayload(response.error);
+    return {
+      result: RPC_METHODS[method].result.parse(response.result),
+      notes: response.notes ?? []
+    };
+  }
+};
+function translateTransportError(error62) {
+  const text = `${error62?.name ?? ""} ${error62?.message ?? ""}`.toLowerCase();
+  if (text.includes("no responders") || text.includes("503")) {
+    return new MeshError("unavailable", "The mesh hub is not reachable right now.");
+  }
+  if (text.includes("timeout"))
+    return new MeshError("timeout", "The mesh hub did not answer in time.");
+  if (text.includes("permission"))
+    return new MeshError("forbidden", "NATS permissions rejected the request.");
+  return new MeshError(
+    "unavailable",
+    `Mesh transport error: ${error62?.message ?? "unknown"}`
+  );
+}
+
 // ../../packages/bus/src/topology.ts
 var import_jetstream = __toESM(require_mod4(), 1);
 var import_transport_node2 = __toESM(require_transport_node(), 1);
@@ -47927,16 +48325,20 @@ var MINUTE_MS2 = 60 * 1e3;
 
 // ../../apps/cli/src/setup/checks/agent.ts
 var connectNats = (servers, seedFile, name) => connectOnce({ servers, name, credentials: { nkeySeed: seedFile } });
+var keyWords = (agentId, hub2) => ({
+  refused: `The hub refused ${agentId}'s key: the agent was removed, or the hub doesn't know this key.`,
+  dropped: `The connection to ${hub2} dropped before the hub answered: it may have refused ${agentId}'s key, or the network failed.`
+});
 async function checkAgentConnects(natsUrl, seedFile, agentId, connect2 = connectNats) {
   let connection;
   try {
     connection = await connect2([natsUrl], seedFile, `doctor-${agentId}`);
   } catch (error62) {
-    const reason = error62 instanceof Error ? error62.message : String(error62);
+    const reason = refusedOrUnreachable(error62, natsUrl, keyWords(agentId, natsUrl)).message;
     return {
       ok: false,
       label: `${agentId} cannot connect to ${natsUrl}`,
-      detail: `${reason}. Its key is ${seedFile}; setup render makes it and setup deploy gives the hub its public key.`
+      detail: `${reason} Its key is ${seedFile}; setup render makes it and setup deploy gives the hub its public key.`
     };
   }
   await connection.close();
@@ -48836,11 +49238,11 @@ function requireKeys(keys, hubId) {
   return { issuer: keys.issuer, xkey: keys.xkey, sysNkey: keys.sysNkey };
 }
 function renderCalloutAuth(staticUsers, prefix, keys) {
-  const hub = staticUsers.find((u) => u.kind === "hub");
-  if (!hub) {
+  const hub2 = staticUsers.find((u) => u.kind === "hub");
+  if (!hub2) {
     throw new MeshError("invalid_request", "--auth-callout needs the hub nkey (`keys add hub`).");
   }
-  const { issuer, xkey, sysNkey } = requireKeys(keys, hub.id);
+  const { issuer, xkey, sysNkey } = requireKeys(keys, hub2.id);
   const authUsers = [...staticUsers.map((u) => u.nkey), sysNkey];
   return [
     "",
@@ -48854,7 +49256,7 @@ function renderCalloutAuth(staticUsers, prefix, keys) {
     "  }",
     `  ${SYS_ACCOUNT} {`,
     "    users: [",
-    renderNkeyUser(`${hub.id} system user (kick only)`, sysNkey, SYS_USER_PERMISSIONS, "      "),
+    renderNkeyUser(`${hub2.id} system user (kick only)`, sysNkey, SYS_USER_PERMISSIONS, "      "),
     "    ]",
     "  }",
     "}",
@@ -50148,6 +50550,97 @@ var setupStatusCommand = {
   }
 };
 
+// ../../apps/cli/src/commands/timeline.ts
+var callTimeline = async (s, params) => {
+  let nc;
+  try {
+    nc = await connectOnce({
+      servers: [s.natsUrl],
+      name: `timeline-${s.agentId}`,
+      inboxPrefix: inboxPrefix(s.agentId),
+      credentials: { nkeySeed: s.nkeySeed }
+    });
+  } catch (error62) {
+    throw refusedOrUnreachable(error62, s.natsUrl, keyWords(s.agentId, s.natsUrl));
+  }
+  try {
+    return await new RpcClient(nc, s.prefix, s.agentId).call("observe.timeline", params);
+  } finally {
+    await nc.close();
+  }
+};
+var NOT_JOINED = "No agent settings found: run /agentmesh:join or agentmesh agent-setup --write first.";
+function readSettings(ctx) {
+  const { agentId, natsUrl, nkeySeed, prefix = "mesh" } = existingMesh(ctx.homeDir) ?? {};
+  if (!agentId || !natsUrl || !nkeySeed) throw new MeshError("not_found", NOT_JOINED);
+  return { agentId, natsUrl, nkeySeed, prefix };
+}
+function parseLimit(value) {
+  if (value === void 0) return void 0;
+  if (!/^[1-9]\d*$/.test(value)) throw usageError("--limit must be a positive whole number");
+  return Number(value);
+}
+function print(r, json2, ctx) {
+  if (!json2) {
+    ctx.stdout(r.text);
+    return;
+  }
+  for (const e of r.events) ctx.stdout(JSON.stringify(e));
+  if (r.truncated) {
+    ctx.stderr(
+      "note: truncated: only the newest events are shown; narrow the window or raise --limit"
+    );
+  }
+}
+var timelineCommand = {
+  name: "timeline",
+  summary: "Show the mesh's event timeline (operators only)",
+  help: `Usage: agentmesh timeline [--agent <id>] [--session <id>] [--thread thr-N] [--since 2h]
+                          [--until <time>] [--limit N] [--json]
+
+For this mesh's operators only (humans in observability.viewers); anyone else is refused.
+Reads ~/.agentmesh/agent.json, asks the hub and prints the timeline: ids, counts, outcomes and
+timings, never message contents. AGENTMESH_* environment overrides are ignored. --since and
+--until take an ISO time or a duration (30m, 2h, 1d). --limit is at most 1000.
+
+--json   one event per line (a note on stderr says when the hub cut it short)`,
+  async run(argv, ctx) {
+    const { values: v } = parseCommandArgs(
+      argv,
+      {
+        agent: { type: "string" },
+        session: { type: "string" },
+        thread: { type: "string" },
+        since: { type: "string" },
+        until: { type: "string" },
+        limit: { type: "string" },
+        json: { type: "boolean", default: false }
+      },
+      { min: 0, max: 0, names: "" }
+    );
+    const limit = parseLimit(v.limit);
+    const settings = readSettings(ctx);
+    const params = {
+      ...v.agent ? { agent: v.agent } : {},
+      ...v.session ? { session: v.session } : {},
+      ...v.thread ? { thread: v.thread } : {},
+      ...v.since ? { since: v.since } : {},
+      ...v.until ? { until: v.until } : {},
+      ...limit ? { limit } : {}
+    };
+    try {
+      print(await (ctx.observeCall ?? callTimeline)(settings, params), v.json, ctx);
+      return 0;
+    } catch (error62) {
+      if (error62 instanceof MeshError) {
+        ctx.stderr(`error: ${error62.message}`);
+        return 1;
+      }
+      throw error62;
+    }
+  }
+};
+
 // ../../apps/cli/src/commands/upgrade.ts
 var upgradeCommand = {
   name: "upgrade",
@@ -50285,6 +50778,8 @@ function windowFiles(home, platform) {
     bin: join20(dir, "bin")
   };
 }
+var WINDOW_MODES = ["auto", "manual"];
+var isMode = (v) => WINDOW_MODES.some((m) => m === v);
 var TOKEN_PATTERN = /^[0-9a-f]{32}$/;
 var PARTICIPANT_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 var MAX_TEST_COMMANDS = 10;
@@ -50295,26 +50790,35 @@ var endsAsPrefix = (v) => /[/_.]$/.test(v);
 function isTestCommand(v) {
   return /^[A-Za-z0-9][A-Za-z0-9 ._:/=@-]{0,199}$/.test(v) && !v.includes("  ") && !v.endsWith(" ");
 }
-function parseWindowPolicy(text) {
-  let v;
+var areTestCommands = (v) => Array.isArray(v) && v.length <= MAX_TEST_COMMANDS && v.every((c) => typeof c === "string" && isTestCommand(c));
+var isPrefixOrNull = (v) => v === null || typeof v === "string" && isBranchName(v) && endsAsPrefix(v);
+var parseJson2 = (text) => {
   try {
-    v = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     return null;
   }
+};
+function parseWindowPolicy(text) {
+  const v = parseJson2(text);
   if (typeof v !== "object" || v === null) return null;
   const p = v;
-  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands } = p;
+  const { agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands, mode } = p;
   if (p.version !== 1) return null;
+  if (mode !== void 0 && !isMode(mode)) return null;
   if (typeof agentId !== "string" || !PARTICIPANT_PATTERN.test(agentId)) return null;
   if (typeof token !== "string" || !TOKEN_PATTERN.test(token)) return null;
-  const prefixOk = typeof prefix === "string" && isBranchName(prefix) && endsAsPrefix(prefix);
-  if (prefix !== null && !prefixOk) return null;
+  if (!isPrefixOrNull(prefix)) return null;
   if (typeof integrationBranch !== "string" || !isBranchName(integrationBranch)) return null;
-  if (!Array.isArray(testCommands) || testCommands.length > MAX_TEST_COMMANDS || !testCommands.every((c) => typeof c === "string" && isTestCommand(c))) {
-    return null;
-  }
-  return { version: 1, agentId, token, ownBranchPrefix: prefix, integrationBranch, testCommands };
+  if (!areTestCommands(testCommands)) return null;
+  const policy = {
+    version: 1,
+    agentId,
+    token,
+    ownBranchPrefix: prefix,
+    integrationBranch
+  };
+  return { ...policy, testCommands, ...isMode(mode) ? { mode } : {} };
 }
 function ownBranchPrefix(template, owner, agent) {
   const cut = template.search(/{(?!owner}|agent})[^}]*}/);
@@ -50442,6 +50946,52 @@ function shellShadowWarnings(ctx, platform) {
 import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync13, realpathSync } from "node:fs";
 import { dirname as dirname7, join as join17, posix as posix3, win32 as win323 } from "node:path";
 
+// ../../packages/common/src/secret-paths.ts
+var SECRET_NAMES = [
+  ".env",
+  ".env.*",
+  "*.env",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.nk",
+  "*.creds",
+  "id_rsa*",
+  "id_ed25519*",
+  "id_ecdsa*",
+  "id_dsa*"
+];
+var SECRET_HOME_PATHS = [
+  ".ssh/**",
+  ".aws/**",
+  ".azure/**",
+  ".config/gcloud/**",
+  ".config/gh/**",
+  ".kube/**",
+  ".docker/config.json",
+  ".gnupg/**",
+  ".netrc",
+  ".git-credentials",
+  ".npmrc",
+  ".pypirc",
+  ".bash_history",
+  ".zsh_history",
+  "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
+  ".agentmesh/**",
+  ".claude/.credentials.json",
+  ".claude.json",
+  "AppData/Local/Google/Chrome/**",
+  "AppData/Local/Microsoft/Edge/**",
+  "AppData/Roaming/Mozilla/**",
+  "Library/Application Support/Google/Chrome/**",
+  "Library/Application Support/Firefox/**",
+  ".mozilla/**",
+  ".config/google-chrome/**",
+  ".config/chromium/**"
+];
+var CLAUDE_ACCOUNT_FILES = [".credentials.json", ".claude.json"];
+
 // ../../apps/cli/src/render/window.ts
 var sessionName = (agentId) => `mesh-${agentId}`.slice(0, 64);
 function bakedPath(path, platform, userProfile = null) {
@@ -50454,6 +51004,15 @@ function bakeable(path, platform, userProfile = null) {
   if (/[\r\n]/.test(path)) return false;
   if (platform !== "win32") return !path.includes("'");
   return !/[%^&"!<>|]/.test(path) && /^[\x20-\x7e]*$/.test(bakedPath(path, platform, userProfile));
+}
+var permissionMode = (mode) => mode === "auto" ? "auto" : "default";
+function secretReadRules(configDir = null) {
+  const own2 = configDir ? configDir.replaceAll("\\", "/").replace(/\/+$/, "").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`) : null;
+  return [
+    ...SECRET_NAMES.map((name) => `Read(//**/${name})`),
+    ...SECRET_HOME_PATHS.map((path) => `Read(~/${path})`),
+    ...own2 ? CLAUDE_ACCOUNT_FILES.map((file2) => `Read(/${own2}/${file2})`) : []
+  ];
 }
 function windowSettings(i) {
   const push = i.ownBranchPrefix ? [
@@ -50473,9 +51032,11 @@ function windowSettings(i) {
     },
     disableAllHooks: false,
     permissions: {
-      defaultMode: "default",
+      defaultMode: permissionMode(i.mode),
       disableBypassPermissionsMode: "disable",
-      disableAutoMode: "disable",
+      // Only in manual mode: a teammate who chose manual stays there. In auto, Shift+Tab still
+      // reaches manual.
+      ...i.mode === "manual" ? { disableAutoMode: "disable" } : {},
       allow: [
         "Edit(**/.claude/worktrees/mesh-*/**)",
         "Bash(git status)",
@@ -50487,7 +51048,8 @@ function windowSettings(i) {
         "Bash(git commit -m *)",
         ...push,
         `Bash(gh pr create --base ${i.integrationBranch} *)`
-      ]
+      ],
+      deny: secretReadRules(i.configDir)
     }
   };
 }
@@ -50500,7 +51062,7 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
     CHANNEL_FLAG,
     "-n",
     q(sessionName(i.agentId)),
-    "--permission-mode default --settings",
+    `--permission-mode ${permissionMode(i.mode)} --settings`,
     q(at(i.files.settings)),
     ...prompt === null ? [] : [q(prompt)]
   ].join(" ");
@@ -50632,6 +51194,19 @@ function printStart(ctx, s) {
 
 // ../../apps/cli/src/commands/window.ts
 var DEFAULT_TEMPLATE = "agent/{owner}/{task}-{slug}";
+var MODE_LINES = {
+  auto: "It starts in auto mode: commands not on its list go to auto mode's checks, and secrets stay blocked. Where auto mode isn't available (plan, model or an admin setting), Claude Code starts it in manual mode. To have them ask you instead, run window init again with --mode manual.",
+  manual: "It starts in manual mode: commands not on its list ask you."
+};
+var NO_PREFIX_ASKS = {
+  auto: "no worktree counts as its own: tests, commits, PRs and other commands in a task worktree, and every push, ask.",
+  manual: "task worktrees, tests, commits, pushes and PRs all ask."
+};
+function windowMode(value) {
+  const mode = WINDOW_MODES.find((m) => m === value);
+  if (!mode) throw usageError("--mode is auto or manual.");
+  return mode;
+}
 var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
 var read = (path) => {
   try {
@@ -50690,6 +51265,7 @@ var present = (p) => {
   }
 };
 function printNotes(ctx, platform, n) {
+  ctx.stdout(MODE_LINES[n.mode]);
   if (n.rerun) {
     ctx.stdout(
       "A mesh window that is already running keeps working; restart it to load the new settings."
@@ -50697,7 +51273,7 @@ function printNotes(ctx, platform, n) {
   }
   if (n.prefix === null) {
     ctx.stdout(
-      "Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so task worktrees, tests, commits, pushes and PRs all ask."
+      `Warning: the branch template's prefix (the part before {task} or any other placeholder) must name {owner} or {agent} and end in /, _ or . (like agent/{owner}/). Without one the window can't tell its own branches, so ${NO_PREFIX_ASKS[n.mode]}`
     );
   }
   for (const w of shellShadowWarnings(ctx, platform)) ctx.stdout(w);
@@ -50716,6 +51292,7 @@ var windowInitCommand = {
   summary: "Write the mesh window launcher, its settings and policy in ~/.agentmesh",
   help: `Usage: agentmesh window init --agent <id> [--owner <id>] [--branch-template <t>]
                             [--integration-branch <b>] [--test <command>]... [--dir <folder>]
+                            [--mode auto|manual]
 
 Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
@@ -50730,7 +51307,9 @@ that Claude account.
 --branch-template     default ${DEFAULT_TEMPLATE}
 --integration-branch  default agents
 --test                a test command the window may run without asking; repeatable
---dir                 the folder the launcher is started in (default: the current folder)`,
+--dir                 the folder the launcher is started in (default: the current folder)
+--mode                auto (default): commands not on the window's list go to Claude Code's auto
+                      mode checks; manual: they ask you. Secrets are refused in both.`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,
@@ -50740,12 +51319,14 @@ that Claude account.
         "branch-template": { type: "string", default: DEFAULT_TEMPLATE },
         "integration-branch": { type: "string", default: "agents" },
         test: { type: "string", multiple: true },
-        dir: { type: "string" }
+        dir: { type: "string" },
+        mode: { type: "string", default: "auto" }
       },
       { min: 0, max: 0, names: "" }
     );
     const agentId = values.agent;
     if (!agentId) throw usageError("Missing --agent <id>");
+    const mode = windowMode(values.mode);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values["branch-template"], values.owner ?? agentId, agentId);
@@ -50757,7 +51338,8 @@ that Claude account.
       token: kept?.token ?? randomBytes(16).toString("hex"),
       ownBranchPrefix: prefix,
       integrationBranch: values["integration-branch"],
-      testCommands: values.test ?? []
+      testCommands: values.test ?? [],
+      mode
     };
     if (!parseWindowPolicy(JSON.stringify(policy))) {
       throw usageError(
@@ -50789,6 +51371,7 @@ that Claude account.
       testCommands: policy.testCommands,
       ownBranchPrefix: prefix,
       integrationBranch: policy.integrationBranch,
+      mode,
       userProfile,
       configDir
     };
@@ -50818,7 +51401,8 @@ that Claude account.
       reached,
       reachesOurs: reached !== null && isOwnShim(reached)
     });
-    printNotes(ctx, platform, { rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks });
+    const notes = { mode, rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks };
+    printNotes(ctx, platform, notes);
     return 0;
   }
 };
@@ -50841,7 +51425,8 @@ var COMMANDS = [
   doctorCommand,
   upgradeCommand,
   autoupdateCommand,
-  windowInitCommand
+  windowInitCommand,
+  timelineCommand
 ];
 function usage() {
   const width = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;
@@ -50889,14 +51474,19 @@ ${usage()}`);
     return 1;
   }
 }
-var isEntry = process.argv[1] && /main\.(ts|js)$/.test(process.argv[1]);
-if (isEntry) {
-  runCli(process.argv.slice(2), processContext()).then((code) => {
-    process.exitCode = code;
-  });
+var EXIT_GRACE_MS = 2e3;
+async function runMain(argv, ctx = processContext(), io = {}) {
+  const {
+    exit = (code2) => process.exit(code2),
+    streams = [process.stdout, process.stderr]
+  } = io;
+  const code = await runCli(argv, ctx);
+  process.exitCode = code;
+  await Promise.all(streams.map((s) => new Promise((done) => s.write("", () => done()))));
+  setTimeout(() => exit(code), EXIT_GRACE_MS).unref();
+  return code;
 }
+if (process.argv[1] && /main\.(ts|js)$/.test(process.argv[1])) void runMain(process.argv.slice(2));
 
 // src/cli.ts
-runCli(process.argv.slice(2), processContext()).then((code) => {
-  process.exitCode = code;
-});
+void runMain(process.argv.slice(2));

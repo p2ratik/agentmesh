@@ -43,6 +43,14 @@ describe('the /agentmesh:window skill', () => {
     expect(flat).toContain('exactly as printed');
   });
 
+  it('starts the window in auto mode, and offers manual mode in the summary, not up front', () => {
+    expect(flat).toContain(
+      "The window starts in Claude Code's auto mode by default; add `--mode manual` only when the user has asked to review every command themselves. Don't ask about it up front",
+    );
+    expect(flat).toContain('In your final summary, say which mode the window starts in');
+    expect(flat).toContain('Secrets and personal data are refused in every mode.');
+  });
+
   it('names a step the CLI has', async () => {
     const out: string[] = [];
     const ctx = {

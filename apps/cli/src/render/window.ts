@@ -1,8 +1,14 @@
 import {
+  CLAUDE_ACCOUNT_FILES,
+  SECRET_HOME_PATHS,
+  SECRET_NAMES,
+} from '@agentmesh/common/secret-paths';
+import {
   CHANNEL_FLAG,
   LAUNCH_PROMPT,
   START_COMMAND,
   type WindowFiles,
+  type WindowMode,
 } from '@agentmesh/common/window';
 
 export interface WindowInputs {
@@ -13,6 +19,7 @@ export interface WindowInputs {
   testCommands: string[];
   ownBranchPrefix: string | null;
   integrationBranch: string;
+  mode: WindowMode;
   /** %USERPROFILE% as `window init` saw it; the Windows launcher writes paths below it that way. */
   userProfile?: string | null;
   /** CLAUDE_CONFIG_DIR as `window init` saw it: the Claude account the window starts in. */
@@ -52,6 +59,28 @@ export function bakeable(
   return !/[%^&"!<>|]/.test(path) && /^[\x20-\x7e]*$/.test(bakedPath(path, platform, userProfile));
 }
 
+/** Claude Code's name for the mode: manual is `default`. */
+const permissionMode = (mode: WindowMode) => (mode === 'auto' ? 'auto' : 'default');
+
+/**
+ * `Read` deny rules for every secret path, in every mode: they also cover Grep and Glob, and stop
+ * Edit and Write on those paths. The window account's own files (credentials, `.claude.json`) are
+ * named as absolute POSIX paths (`C:\Users\a` is `/c/Users/a`), written `//…`.
+ */
+export function secretReadRules(configDir: string | null = null): string[] {
+  const own = configDir
+    ? configDir
+        .replaceAll('\\', '/')
+        .replace(/\/+$/, '')
+        .replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`)
+    : null;
+  return [
+    ...SECRET_NAMES.map((name) => `Read(//**/${name})`),
+    ...SECRET_HOME_PATHS.map((path) => `Read(~/${path})`),
+    ...(own ? CLAUDE_ACCOUNT_FILES.map((file) => `Read(/${own}/${file})`) : []),
+  ];
+}
+
 export function windowSettings(i: WindowInputs): Record<string, unknown> {
   const push = i.ownBranchPrefix
     ? [
@@ -72,9 +101,11 @@ export function windowSettings(i: WindowInputs): Record<string, unknown> {
     },
     disableAllHooks: false,
     permissions: {
-      defaultMode: 'default',
+      defaultMode: permissionMode(i.mode),
       disableBypassPermissionsMode: 'disable',
-      disableAutoMode: 'disable',
+      // Only in manual mode: a teammate who chose manual stays there. In auto, Shift+Tab still
+      // reaches manual.
+      ...(i.mode === 'manual' ? { disableAutoMode: 'disable' } : {}),
       allow: [
         'Edit(**/.claude/worktrees/mesh-*/**)',
         'Bash(git status)',
@@ -87,6 +118,7 @@ export function windowSettings(i: WindowInputs): Record<string, unknown> {
         ...push,
         `Bash(gh pr create --base ${i.integrationBranch} *)`,
       ],
+      deny: secretReadRules(i.configDir),
     },
   };
 }
@@ -105,7 +137,7 @@ export function launcherScript(
     CHANNEL_FLAG,
     '-n',
     q(sessionName(i.agentId)),
-    '--permission-mode default --settings',
+    `--permission-mode ${permissionMode(i.mode)} --settings`,
     q(at(i.files.settings)),
     ...(prompt === null ? [] : [q(prompt)]),
   ].join(' ');
