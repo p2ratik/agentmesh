@@ -67,7 +67,7 @@ Pratik decided on 2026-11-08:
   - it matches the risky floor (`command.risky`): any push but the listed own-branch form, merges,
     rebases other than onto the integration branch, branch deletes, hard resets, forced git
     commands, `git checkout --` or `.`, `git restore`, `git stash drop|clear`, changes through gh
-    (workflow runs, releases, `api` writes, approvals, repo deletes, secrets, variables), and infra
+    (workflow runs and re-runs, releases, `api` writes, approvals, repo deletes, secrets, variables), and infra
     commands (`terraform`, `pulumi`, `kubectl`, `helm`, `az`, `aws`, `gcloud`, `docker push`, `ssh`,
     `scp`, `rsync`), matched in any piece of the command;
   - or it is a recursive search (`grep -r`, `rg --hidden`/`-u`, `findstr /s`, recursive

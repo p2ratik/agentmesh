@@ -79,9 +79,11 @@ const DUMP_ANYWHERE = new RegExp(
 );
 
 /** Wrappers that run what follows them. */
-const WRAP = String.raw`(?:(?:sudo|doas|command|exec|nohup|time|builtin)(?: -\S+)* )*`;
-/** `env` with nothing to run: only options and assignments, so it prints the environment. */
-const ENV_ALONE = String.raw`(?:\S*[/\\])?env(?:\.exe)?(?: (?:-0|--null|-i|--ignore-environment|-u(?: ?\S+)?|--unset=\S+|[A-Za-z_]\w*=\S*))*`;
+const WRAP = String.raw`(?:(?:sudo|doas|exec|nohup|time|builtin)(?: -\S+)* )*`;
+/** `env` with nothing to run: only options and assignments, so it prints the environment. Run by
+ * name or from a bin folder only: a quoted path that ends in a folder named env is not it. `-u`
+ * takes its name, so a run of options parses one way (no runaway backtracking). */
+const ENV_ALONE = String.raw`(?:(?:/usr)?/bin/)?env(?:\.exe)?(?: (?:-0|--null|-i|--ignore-environment|-u ?[^\s-]\S*|--unset=\S+|[A-Za-z_]\w*=\S*))*`;
 /** A piece that is a whole dump: `env` alone, `export` with none or `-p`, `declare -x|-p`, `set`
  * alone or through cmd, or a PowerShell cmdlet reading the env: drive. */
 const DUMP_SEGMENT = new RegExp(
@@ -93,7 +95,9 @@ const DUMP_SEGMENT = new RegExp(
  * `GetEnvironmentVariable('NAME')`, and Node's and Python's spellings. */
 const VARIABLE =
   /\$\{?(?:env:)?([A-Za-z_]\w*)|%([A-Za-z_]\w*)%|GetEnvironmentVariable\(\s*["']([A-Za-z_]\w*)|(?:process\.env\.|process\.env\[\s*["']|environ\[\s*["']|environ\.get\(\s*["']|getenv\(\s*["'])([A-Za-z_]\w*)/gi;
-const SECRET_VARIABLE = /TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|SEED|CREDENTIAL|AUTH/i;
+// AUTH, but not AUTHOR (GIT_AUTHOR_NAME); AUTHORIZATION still counts.
+const SECRET_VARIABLE =
+  /TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|SEED|CREDENTIAL|AUTH(?!OR(?!IZ))/i;
 const isSecretVariable = (name: string) =>
   SECRET_VARIABLE.test(name) || name.toUpperCase() === 'AGENTMESH_MESH_WINDOW';
 const readsSecretVariable = (text: string) =>

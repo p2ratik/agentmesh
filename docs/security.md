@@ -631,7 +631,7 @@ command off the guard's list.
     `git merge`, `gh pr merge`, `git rebase` other than onto the integration branch,
     `git branch -d|-D|--delete`, `git reset --hard`, forced git commands (`--force`, `-f`),
     `git checkout --` or `.`, `git restore`, `git stash drop|clear`; changes through gh
-    (`workflow run`, `release create|delete`, `api` with `-X|--method` DELETE, PUT, POST or PATCH
+    (`workflow run`, `run rerun`, `release create|delete`, `api` with `-X|--method` DELETE, PUT, POST or PATCH
     or with fields, which make it a POST, `pr review --approve`, `repo delete`, any `secret`,
     `variable set|delete`); `docker push` and `--push`; and the command words `terraform`,
     `pulumi`, `kubectl`, `helm`, `az`, `aws`, `gcloud`, `ssh`, `scp` and `rsync`. They match in any
@@ -640,7 +640,7 @@ command off the guard's list.
     one. Over-matching asks.
   - **A recursive search outside a mesh worktree asks** (`command.risky`): `grep -r|-R|--recursive`
     (also in a flag group such as `-rn`; `git grep` reads tracked files only and passes), `rg` with
-    `--hidden`, `-u`, `-uu`, `-uuu` or `--no-ignore`, `findstr /s`, and `Select-String -Recurse` or
+    `--hidden`, `-u`, `-uu`, `-uuu`, `--unrestricted` or `--no-ignore`, `findstr /s`, and `Select-String -Recurse` or
     after `Get-ChildItem -Recurse |`. It passes when the folders it runs in (the hook's `cwd`, or its
     `cd` targets when it starts with one) are inside a mesh worktree and every absolute, `~`, `$`,
     `%` or `..` path it names stays inside one. A worktree never holds the checkout's untracked

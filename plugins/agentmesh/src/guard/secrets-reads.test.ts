@@ -89,9 +89,29 @@ describe('secretUse, secret-named variables and other dumps', () => {
         'python -c "import os; print(os.environ.get(\'PATH\'))"',
         'env -u X node x.js',
         'env FOO=1 pnpm test',
+        // a folder named env, quoted, is a path, not the env command
+        'cd "/w/.claude/worktrees/mesh-1-a/src/env" && ls',
+        'git add -- "src/env"',
+        'command -v env',
+        // AUTHOR is not AUTH
+        'git log --author="$AUTHOR"',
+        'echo $GIT_AUTHOR_NAME',
       ],
       null,
     );
+  });
+
+  it('still refuses env run by path, and an Authorization variable', () => {
+    expectAll(
+      ['/usr/bin/env', '/bin/env -0', 'echo $AUTHORIZATION', 'echo $OAUTH_TOKEN'],
+      'secret.env_dump',
+    );
+  });
+
+  it('checks a long run of env options quickly (no runaway backtracking)', () => {
+    const start = Date.now();
+    secretUse(`env ${'-u '.repeat(40)}x`);
+    expect(Date.now() - start).toBeLessThan(50);
   });
 });
 

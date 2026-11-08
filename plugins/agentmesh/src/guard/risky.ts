@@ -21,7 +21,7 @@ const RISKY = [
   git(String.raw`(?:--force[\w-]*|-[a-z]*f[a-z]*)`),
   gh(`pr${any(`(?:merge|review${any('(?:--approve|-a)')})`)}`),
   gh(
-    `(?:workflow${any('run')}|release${any('(?:create|delete)')}|repo${any('delete')}|secret|variable${any('(?:set|delete)')})`,
+    `(?:workflow${any('run')}|run${any('rerun')}|release${any('(?:create|delete)')}|repo${any('delete')}|secret|variable${any('(?:set|delete)')})`,
   ),
   // gh api writes: an explicit method, or fields, which make it a POST
   gh(
@@ -53,7 +53,7 @@ export function risky(command: string, p: WindowPolicy): boolean {
  * findstr /s and recursive Select-String. */
 const SEARCH = [
   String.raw`(?<![\w-])(?<!git(?:\.exe)? (?:-\S+ )*)[ef]?grep(?:\.exe)?${any('(?:-[a-z]*r[a-z]*|--(?:dereference-)?recursive|--directories=recurse|-d ?recurse)')}${END}`,
-  String.raw`(?<![\w-])rg(?:\.exe)?${any(String.raw`(?:--hidden|--no-ignore[\w-]*|-[a-z.]*[u.][a-z.]*)`)}${END}`,
+  String.raw`(?<![\w-])rg(?:\.exe)?${any(String.raw`(?:--hidden|--unrestricted|--no-ignore[\w-]*|-[a-z.]*[u.][a-z.]*)`)}${END}`,
   String.raw`(?<![\w-])findstr(?:\.exe)?${any(String.raw`\/[a-z:]*s[a-z:]*`)}${END}`,
   String.raw`(?<![\w-])(?:select-string|sls)${any('-r[a-z]*')}${END}`,
 ].map((r) => new RegExp(r, 'i'));

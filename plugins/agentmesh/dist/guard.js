@@ -497,14 +497,14 @@ var DUMP_ANYWHERE = new RegExp(
   ].join("|"),
   "i"
 );
-var WRAP = String.raw`(?:(?:sudo|doas|command|exec|nohup|time|builtin)(?: -\S+)* )*`;
-var ENV_ALONE = String.raw`(?:\S*[/\\])?env(?:\.exe)?(?: (?:-0|--null|-i|--ignore-environment|-u(?: ?\S+)?|--unset=\S+|[A-Za-z_]\w*=\S*))*`;
+var WRAP = String.raw`(?:(?:sudo|doas|exec|nohup|time|builtin)(?: -\S+)* )*`;
+var ENV_ALONE = String.raw`(?:(?:/usr)?/bin/)?env(?:\.exe)?(?: (?:-0|--null|-i|--ignore-environment|-u ?[^\s-]\S*|--unset=\S+|[A-Za-z_]\w*=\S*))*`;
 var DUMP_SEGMENT = new RegExp(
   String.raw`^${WRAP}(?:${ENV_ALONE}|export(?: -p)?|(?:declare|typeset) -[xp]|set|(?:\S*[/\\])?cmd(?:\.exe)? \/[ck] set|(?:get-childitem|gci|ls|dir|get-item|gi|get-content|gc|cat|type)(?: .*)? env:.*)$`,
   "i"
 );
 var VARIABLE = /\$\{?(?:env:)?([A-Za-z_]\w*)|%([A-Za-z_]\w*)%|GetEnvironmentVariable\(\s*["']([A-Za-z_]\w*)|(?:process\.env\.|process\.env\[\s*["']|environ\[\s*["']|environ\.get\(\s*["']|getenv\(\s*["'])([A-Za-z_]\w*)/gi;
-var SECRET_VARIABLE = /TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|SEED|CREDENTIAL|AUTH/i;
+var SECRET_VARIABLE = /TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|SEED|CREDENTIAL|AUTH(?!OR(?!IZ))/i;
 var isSecretVariable = (name) => SECRET_VARIABLE.test(name) || name.toUpperCase() === "AGENTMESH_MESH_WINDOW";
 var readsSecretVariable = (text) => [...text.matchAll(VARIABLE)].some((m) => isSecretVariable(m[1] ?? m[2] ?? m[3] ?? m[4] ?? ""));
 function secretUse(command) {
@@ -584,7 +584,7 @@ var RISKY = [
   git(String.raw`(?:--force[\w-]*|-[a-z]*f[a-z]*)`),
   gh(`pr${any(`(?:merge|review${any("(?:--approve|-a)")})`)}`),
   gh(
-    `(?:workflow${any("run")}|release${any("(?:create|delete)")}|repo${any("delete")}|secret|variable${any("(?:set|delete)")})`
+    `(?:workflow${any("run")}|run${any("rerun")}|release${any("(?:create|delete)")}|repo${any("delete")}|secret|variable${any("(?:set|delete)")})`
   ),
   // gh api writes: an explicit method, or fields, which make it a POST
   gh(
@@ -607,7 +607,7 @@ function risky(command, p) {
 }
 var SEARCH = [
   String.raw`(?<![\w-])(?<!git(?:\.exe)? (?:-\S+ )*)[ef]?grep(?:\.exe)?${any("(?:-[a-z]*r[a-z]*|--(?:dereference-)?recursive|--directories=recurse|-d ?recurse)")}${END}`,
-  String.raw`(?<![\w-])rg(?:\.exe)?${any(String.raw`(?:--hidden|--no-ignore[\w-]*|-[a-z.]*[u.][a-z.]*)`)}${END}`,
+  String.raw`(?<![\w-])rg(?:\.exe)?${any(String.raw`(?:--hidden|--unrestricted|--no-ignore[\w-]*|-[a-z.]*[u.][a-z.]*)`)}${END}`,
   String.raw`(?<![\w-])findstr(?:\.exe)?${any(String.raw`\/[a-z:]*s[a-z:]*`)}${END}`,
   String.raw`(?<![\w-])(?:select-string|sls)${any("-r[a-z]*")}${END}`
 ].map((r) => new RegExp(r, "i"));
