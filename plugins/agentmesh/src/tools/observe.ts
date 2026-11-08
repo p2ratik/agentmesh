@@ -1,3 +1,4 @@
+import { MAX_TIMELINE_EVENTS } from '@agentmesh/protocol';
 import { z } from 'zod';
 import { defineTool } from './types';
 
@@ -16,7 +17,7 @@ export const observeTools = [
       thread_id: z.string().optional(),
       since: z.string().optional(),
       until: z.string().optional(),
-      limit: z.number().int().positive().optional(),
+      limit: z.number().int().positive().max(MAX_TIMELINE_EVENTS).optional(),
     }),
     mutating: false,
     run: async (args, { hub }) => {

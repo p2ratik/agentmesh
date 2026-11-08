@@ -49769,7 +49769,7 @@ var observeTools = [
       thread_id: external_exports.string().optional(),
       since: external_exports.string().optional(),
       until: external_exports.string().optional(),
-      limit: external_exports.number().int().positive().optional()
+      limit: external_exports.number().int().positive().max(MAX_TIMELINE_EVENTS).optional()
     }),
     mutating: false,
     run: async (args, { hub: hub2 }) => {

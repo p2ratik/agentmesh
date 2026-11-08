@@ -588,7 +588,8 @@ agent's timeline has two and every line names one.)
   changes. A laptop whose clock is off moves its lines by that much.
 - `(sent late, +Nm)` marks a reported event that reached the hub more than 2 minutes after it
   happened: it waited in the plugin's buffer, through an outage say. Its line still sits where it
-  happened.
+  happened. A laptop clock running more than 2 minutes slow marks every line this way, so suspect
+  the clock when all of one plugin's lines say it.
 - `(clock +Nm)` and `(clock -Nm)` mark a reported event only when its own time is impossible: more
   than 2 minutes later than the hub received it (the laptop's clock is N minutes ahead), or more
   than 2 minutes before the hub opened its session (behind by at least N; only when the window

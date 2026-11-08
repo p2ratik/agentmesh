@@ -815,6 +815,10 @@ passes that session a pointer through Claude Code's cross-session messaging
 - **Every string and array a caller sends is capped** in its zod schema (ids 64 characters, repos
   and branches 300, labels 60, lists bounded), so no field carries megabytes into the hub's rows,
   logs or error messages. A unit test walks every RPC's params and fails on an uncapped one.
+  The one exception is `telemetry.report`: it takes up to 100 events of any shape, so that one
+  event a newer plugin sends with an unknown code costs only that event. Each event is then
+  checked against the strict event schema. One that fails is counted as dropped, and never
+  stored, logged or echoed back. The whole call is bounded by NATS's message size (1 MB).
 - **The JetStream streams have size caps** (`hub.streams.eventsMaxMB`, 128 MB, and
   `ingestMaxMB`, 64 MB) and drop their oldest messages when full. The hub applies them at every
   start, to streams an older hub created too. Their sum must fit in `nats.conf`'s

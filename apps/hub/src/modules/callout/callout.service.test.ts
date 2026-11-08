@@ -12,13 +12,13 @@ const utf8 = (text: string) => new TextEncoder().encode(text);
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64url');
 const NONCE = 'nonce-1';
 
-/** A callout fed sealed, server-signed requests the way nats-server sends them. */
 /** The stored events' rows, once the hub's queued events are written. */
 function eventRows<T>(s: { ctx: ReturnType<typeof createTestHarness>['ctx'] }, sql: string): T[] {
   s.ctx.events.flush();
   return s.ctx.db.all<T>(sql);
 }
 
+/** A callout fed sealed, server-signed requests the way nats-server sends them. */
 function setup(overrides: Record<string, unknown> = {}) {
   const h = createTestHarness(testTeamConfig(overrides));
   const logs: Array<{ level: string; fields: Record<string, unknown> }> = [];

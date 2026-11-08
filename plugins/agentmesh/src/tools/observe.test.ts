@@ -32,4 +32,13 @@ describe('timeline tool', () => {
     expect(text(refused)).toContain('forbidden');
     expect(text(refused)).toContain('operators only');
   });
+
+  it("refuses a limit over the hub's maximum before calling the hub", async () => {
+    const { deps, calls } = fakeHub({
+      'observe.timeline': { events: [], text: 'x', truncated: false },
+    });
+    const r = await callTool('timeline', { limit: 1001 }, deps);
+    expect(r.isError).toBe(true);
+    expect(calls).toHaveLength(0);
+  });
 });
