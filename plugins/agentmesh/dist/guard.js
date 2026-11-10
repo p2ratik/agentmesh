@@ -4,7 +4,7 @@ import { createRequire as __createRequire } from 'node:module'; const require = 
 import { homedir as homedir2 } from "node:os";
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.7.0";
+var VERSION = "0.7.1";
 
 // ../../packages/common/src/window.ts
 import { readFileSync } from "node:fs";
@@ -657,7 +657,7 @@ function pointerText({ from, threadId, messageId }) {
 }
 
 // src/relay/forward-record.ts
-var FORWARD_TTL_MS = 6e5;
+var FORWARD_TTL_MS = 24 * 36e5;
 var HEX = /^[0-9a-f]{32}$/;
 function forwardFile(hex, messageId) {
   return HEX.test(hex) && MESSAGE_ID.test(messageId) ? `fwd-${hex}-${messageId}.json` : null;

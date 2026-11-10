@@ -20,8 +20,9 @@ describe('hooks.json', () => {
       'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|EnterWorktree|Agent|Workflow|SendMessage|ListAgents',
       'mcp__plugin_agentmesh_mesh__activate',
     ]);
-    expect(pre[0]?.hooks).toEqual([{ ...GUARD, timeout: 10, onFailure: 'block' }]);
-    expect(pre[1]?.hooks).toEqual([{ ...GUARD, timeout: 10 }]);
+    // A slow laptop (node took ~3 s to start, hooks ~18 s on 2026-11-10) waits rather than blocks.
+    expect(pre[0]?.hooks).toEqual([{ ...GUARD, timeout: 60, onFailure: 'block' }]);
+    expect(pre[1]?.hooks).toEqual([{ ...GUARD, timeout: 60 }]);
     expect(hooks.description).toMatch(/guard/);
   });
 

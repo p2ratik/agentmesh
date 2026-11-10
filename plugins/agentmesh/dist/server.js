@@ -25498,7 +25498,7 @@ function expandHome(path2, home = homedir2()) {
 }
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.7.0";
+var VERSION = "0.7.1";
 var RELAY_MIN_VERSION = "0.6.0";
 var DOTTED = /^\d+(\.\d+)*$/;
 function isAtLeast(version2, min) {
@@ -49196,7 +49196,7 @@ function pointerText({ from, threadId, messageId }) {
 }
 
 // src/relay/forward-record.ts
-var FORWARD_TTL_MS = 6e5;
+var FORWARD_TTL_MS = 24 * 36e5;
 var HEX = /^[0-9a-f]{32}$/;
 function forwardFile(hex3, messageId) {
   return HEX.test(hex3) && MESSAGE_ID.test(messageId) ? `fwd-${hex3}-${messageId}.json` : null;
