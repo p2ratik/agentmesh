@@ -232,6 +232,15 @@ On Windows `claude-mesh` works in cmd, PowerShell and Git Bash. In PowerShell, t
 unquoted, so a folder name with `&` or `^` would misbehave. In cmd and Git Bash a quoted folder
 argument is fine.
 
+**Windows 10: turn QuickEdit off for the window.** Windows 10 opens PowerShell and cmd in the old
+console (no tabs). With its QuickEdit mode on, a single click in the window starts a text
+selection, and the console pauses Claude Code until you press Enter or Esc. Minimizing doesn't
+pause it, but a selection left in a minimized window does, so the window takes no work for hours.
+Right-click the title bar, choose **Properties** (the shortcut's own settings override Defaults),
+untick **QuickEdit Mode** on the Options tab, and click OK. Windows Terminal (the default on
+Windows 11, with tabs) doesn't pause on a selection. In PowerShell, `$env:WT_SESSION` is set only
+inside Windows Terminal.
+
 `window init` puts `claude-mesh` in the folder `claude` was found in, which is on your PATH
 already, when that folder is really under your home folder (links resolved): the native
 installer's `~/.local/bin`, or npm's folder on Windows. On Windows that is a `claude-mesh.cmd` for

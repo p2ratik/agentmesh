@@ -55,7 +55,7 @@ afterEach(() => rmSync(join(dir, '..'), { recursive: true, force: true }));
 
 describe('forward records', () => {
   it('names the file only for a valid hex and message id', () => {
-    expect(FORWARD_TTL_MS).toBe(600_000);
+    expect(FORWARD_TTL_MS).toBe(24 * 3_600_000);
     expect(forwardFile(HEX, ID)).toBe(NAME);
     expect(forwardFile('A'.repeat(32), ID)).toBeNull();
     expect(forwardFile(`${HEX}0`, ID)).toBeNull();
@@ -69,6 +69,13 @@ describe('forward records', () => {
     expect(readForwards(dir, HEX, now + FORWARD_TTL_MS + 1)).toEqual([]);
     expect(readForwards(dir, 'b'.repeat(32), now)).toEqual([]);
     expect(readForwards(join(dir, 'missing'), HEX, now)).toEqual([]);
+  });
+
+  it('still passes a pointer the window only reaches hours after the push', () => {
+    // 2026-11-10: a frozen window took its pushes 20 minutes and 9 hours late, and found the
+    // records expired. Claude Code holds a push for as long as the window is frozen.
+    writeForward(dir, HEX, FIELDS, now + FORWARD_TTL_MS);
+    expect(readForwards(dir, HEX, now + 9 * 3_600_000)).toEqual([{ name: NAME, fields: FIELDS }]);
   });
 
   it('refuses a record whose expiry lies further ahead than the TTL', () => {

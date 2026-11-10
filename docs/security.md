@@ -538,8 +538,11 @@ its input for at most a second and exits 0, whatever happens. With the marker se
 - **It never allows.** Silence hands the call to Claude Code's permission rules, which in auto mode
   means auto mode's classifier.
 - **It fails closed.** The first matcher group has `onFailure: "block"` (Claude Code 2.1.295+), so
-  a guard that crashes, can't start or runs past its 10 s timeout blocks the call. The `activate`
-  group has none, but a failed run there writes no stamp, so `activate` refuses.
+  a guard that crashes, can't start or runs past its 60 s timeout blocks the call. The `activate`
+  group has none, but a failed run there writes no stamp, so `activate` refuses. (0.7.1: the
+  timeout was 10 s, but on a busy Windows laptop `node` took seconds just to start. Calls were
+  blocked, and a guard that finished after the block could still claim a forward record. A longer
+  timeout only lets a slow guard answer; it allows nothing more.)
 
 **The Bash forms it passes.** Everything else asks in manual mode; in auto mode it goes to auto
 mode past the floor ([Auto mode in the window](#auto-mode-in-the-window)).
@@ -803,8 +806,13 @@ passes that session a pointer through Claude Code's cross-session messaging
     in "…" that `message` starts with. Only `message` is sent, and it must match exactly;
   - a forward record for that address exists and hasn't expired. The window's plugin wrote it when
     it pushed the pointer: `fwd-<32 hex>-<message id>.json`, holding only `from`, the thread and
-    the message id, valid for 10 minutes. The guard trusts no text from the file: it rebuilds the
-    pointer from those fields and requires `message` to equal it byte for byte;
+    the message id, valid for 24 hours. The guard trusts no text from the file: it rebuilds the
+    pointer from those fields and requires `message` to equal it byte for byte. (0.7.1: it was 10
+    minutes, but Claude Code holds a push until the window can take it, and nothing pushes it
+    again. A window frozen by a console text selection took its pointers 20 minutes and 9 hours
+    late, and both were refused. The lifetime isn't a defence: the text, the address and the
+    single claim are. Any of the human's sessions could write a fresh record anyway, so a longer
+    lifetime gives a forged record no more reach;)
   - it claims the record by creating `<record>.claimed` exclusively. A rename isn't exclusive on
     Windows. A replayed or parallel send finds the claim and is denied.
 - **Every other `SendMessage`, and every `ListAgents`, is denied in the window.** Injected teammate
