@@ -45,7 +45,7 @@
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/dist/guard.js"],
-            "timeout": 10,
+            "timeout": 60,
             "onFailure": "block"
           }
         ]
@@ -57,7 +57,7 @@
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/dist/guard.js"],
-            "timeout": 10
+            "timeout": 60
           }
         ]
       }

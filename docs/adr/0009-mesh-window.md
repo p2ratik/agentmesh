@@ -276,8 +276,10 @@ policy, which the instructions cut at 4096 characters.
   its hub session, its work and the first conversation id, because its hub session holds team work
   and a new one would need activating again.
 - **Forward records:** one file per pointer, `fwd-<32 hex>-<message id>.json`, so two pointers to
-  one session in flight don't overwrite each other. Each is valid for 10 minutes, because the window
-  forwards between steps. The guard lists them by the address's validated 32-hex part.
+  one session in flight don't overwrite each other. Each is valid for 24 hours. (Amended in 0.7.1:
+  10 minutes assumed the window forwards between steps, but Claude Code holds a push for as long
+  as the window is frozen or busy, and nothing pushes it again.) The guard lists them by the
+  address's validated 32-hex part.
 - **The guard claims a record by creating `<record>.claimed` exclusively** (`wx`), not by renaming
   it: on Windows a rename isn't exclusive, and parallel sends passed twice. The marker stays, so a
   caller that read the record earlier can't claim it again.

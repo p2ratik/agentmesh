@@ -10,7 +10,7 @@ import { newActivationState } from '../tools/activation';
 import { fakeHub } from '../tools/fake-hub';
 import { callTool } from '../tools/registry';
 import { GUARD_STAMP } from '../window/guard-stamp';
-import { readForwards, sweepExpired } from './forward-record';
+import { FORWARD_TTL_MS, readForwards, sweepExpired } from './forward-record';
 import type { LocalSession } from './local-session';
 import { pointerText } from './pointer';
 import { forwardRelay, type WindowRelayDeps } from './window-relay';
@@ -173,7 +173,7 @@ describe('the mesh window forwarding a relay', () => {
 
   it('pushes again once the unclaimed record has expired', async () => {
     await forwardRelay(RELAY, deps());
-    const later = now + 600_001;
+    const later = now + FORWARD_TTL_MS + 1;
     writeRecord({}, later);
     expect(await forwardRelay(RELAY, deps({ now: later }))).toMatchObject({ forwarded: true });
     expect(pushed).toHaveLength(2);

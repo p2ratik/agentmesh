@@ -15,8 +15,13 @@ import {
 import { join } from 'node:path';
 import { MESSAGE_ID, type PointerFields, pointerText } from './pointer';
 
-/** How long the window's guard will pass a pushed pointer. */
-export const FORWARD_TTL_MS = 600_000;
+/**
+ * How long the window's guard will pass a pushed pointer. Claude Code holds a push until the
+ * window can take it, which can be hours (a console frozen by a text selection, a long turn), and
+ * nothing pushes it again. The pointer is fixed text to a fixed address, once, so a longer life
+ * adds no reach.
+ */
+export const FORWARD_TTL_MS = 24 * 3_600_000;
 
 const HEX = /^[0-9a-f]{32}$/;
 
