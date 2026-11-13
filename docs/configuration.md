@@ -142,6 +142,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | `ingest.sources[].auth` | — | `{ type: bearer, token }` (≥16 chars), `{ type: hmac-sha256, secret, header: x-hub-signature-256, prefix: "sha256=" }`, or `{ type: none }`. |
 | `ingest.dedupWindowMinutes` | `60` | JetStream dedup window for ingested events. |
 | `ingest.retentionDays` | `30` | How long the hub keeps received events (payloads up to 1 MB each), and so how long it recognises a repeated id as a duplicate. |
+| `ingest.linkHosts` | `[]` | Host names (subdomains included, no scheme) a `format: markdown` notice may link to, e.g. `[grafana.net, github.com]`. A link slot whose URL is elsewhere, or not `https`, is dropped ([events-and-hermes.md](events-and-hermes.md#rules)). |
 | `rules` | `[]` | See [events-and-hermes.md](events-and-hermes.md). |
 | `rules[].actions[].notify.class` | `action` | `action` interrupts the recipient's session; `status` is delivered as an FYI that rides along later. |
 | `rules[].actions[].create_task.assignee` / `.area` | — | A configured agent id / area id. A `{{template}}` is refused, so an event cannot choose who gets the task. |

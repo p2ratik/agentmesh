@@ -117,6 +117,24 @@ describe('rules engine', () => {
     expect(notices.map((n) => n.data.trust)).toEqual(['external', 'external']);
   });
 
+  it('posts a markdown notice with escaped values and only allowed links', async () => {
+    const s = setup();
+    await s.ingest.accept('hermes', {
+      id: 'm1',
+      type: 'alarm.cpu',
+      severity: 'warning',
+      url: 'https://grafana.example.com/d/1',
+      payload: { title: 'CPU *high*', logs: 'https://evil.test/logs' },
+    });
+    await s.outbox.flush();
+    const [notice] = s.ports.events.filter((e) => e.type === 'notice.posted');
+    expect(notice?.data).toMatchObject({
+      format: 'markdown',
+      trust: 'external',
+      text: '**CPU \\*high\\***\n[Graph](<https://grafana.example.com/d/1>)',
+    });
+  });
+
   it('creates no task from a repo a payload forged with line breaks, and still keeps the event', async () => {
     const s = setup();
     const warn = vi.spyOn(s.ctx.logger, 'warn');

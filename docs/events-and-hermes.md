@@ -144,7 +144,30 @@ Throttle keys render raw, because they are never posted.
 | --- | --- | --- |
 | `notify` | `to: area-owners \| online \| all-agents \| [ids]`, `area` or `repo` (for area-owners), `subject`, `text`, `class` | A new `event` thread with the recipients. `class` is `action` (default: pushed into their sessions, starts a turn) or `status` (an FYI that rides along with a later tool result). It comes from the rule only; the event's content cannot change it. |
 | `create_task` | `title`, `description`, `area`, `repo`, `assignee`, `priority`, `labels`, `workflow` | An `external` task, routed like any other (priority defaults to `high` for error/critical). Every post in its thread is `external`. `area` and `assignee` are configured ids: validation refuses a `{{template}}` there, so an event cannot choose who gets the work. |
-| `notice` | `channel` (Discord purpose), `text` | A post in that Discord channel, under `🌐 external content` and inside a code block, cut at 1,800 characters. |
+| `notice` | `channel` (Discord purpose), `text`, `format` | A post in that Discord channel, cut at 1,800 characters. `format: text` (default): under `🌐 external content` and inside a code block. `format: markdown`: the template's own markdown, with the marker as a small last line (below). |
+
+**Markdown notices** (`format: markdown`) let a rule lay out an alert card: bold, one line per
+field, real links. The template is the team's own text, so its markdown is kept. Each value filled
+in from the event is different:
+- it is masked, cut at 500 characters and put on one line;
+- every ASCII punctuation mark in it is escaped (`\*`), so it cannot add bold, a heading, a quote,
+  a mention, a timestamp or a link, and Discord shows it as plain text;
+- bidirectional overrides are removed.
+
+`[label]({{path}})` is a link slot. It becomes `[label](<url>)` (no preview) only when the value is
+an `https` URL, without a user name or password, on a host in `ingest.linkHosts` or a subdomain of
+one. Any other value drops the link, with the ` · ` after it. Values in the label are escaped. A
+link written literally in the template is the team's own and is kept as written.
+
+```yaml
+- notice:
+    channel: alerts
+    format: markdown
+    text: |-
+      **{{payload.title}}** · firing
+      **Alert:** {{summary}}
+      [Graph]({{url}}) · [Runbook]({{payload.runbook}})
+```
 
 **Throttle** suppresses repeats: the rule fires at most once per rendered key per window.
 

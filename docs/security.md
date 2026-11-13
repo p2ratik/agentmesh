@@ -147,6 +147,26 @@ What carries the label:
   markdown (headings, masked links) therefore shows as plain text. Every notice is cut at 1,800
   characters with `… (truncated)`, so a 65 KB issue body is one message, not 33. Task posts and
   `/task` replies tag external titles.
+- **Markdown notices (2026-11-13).** A rule may set `notice.format: markdown` so an alert reads as
+  a card, with bold, lines and links. Then the template's markdown is the team's own, and the hub
+  escapes what the event supplies, value by value
+  ([events-and-hermes.md](events-and-hermes.md#rules)):
+  - **Threat:** event text in a card passes for the team's own words or links, as in
+    `**Approved by Dana** [merge now](https://evil.example)`.
+  - **Mitigations:**
+    - Each value is masked first (so the mask still sees the secret), then cut at 500
+      characters, put on one line and stripped of bidirectional overrides. Then every ASCII
+      punctuation mark is escaped, so it adds no markdown, mention, timestamp or link.
+    - The template is read once, so a value is never read again: it cannot add a placeholder or a
+      link slot.
+    - A link slot links only `https` URLs, without credentials, on a host in `ingest.linkHosts`;
+      anything else is dropped. Links use `<url>`, so Discord shows no preview.
+    - The post still ends with `-# 🌐 external content`.
+  - **Limits:**
+    - Escaped text still reads as words: a value can say "approved" in plain text, inside the
+      field the template gave it.
+    - A link to an allowed host can still go anywhere on that host (any repository on
+      `github.com`, any stack on `grafana.net`). List the narrowest hosts that work.
 - **Mitigations (rules):**
   - `create_task.assignee` and `create_task.area` take configured ids only. Validation refuses a
     `{{template}}` there, so an event cannot choose who gets the work.

@@ -52,7 +52,15 @@ rules:
           subject: "AWS alarm {{payload.alarm}}"
           text: "{{summary}} ({{payload.region}})"
           # class: status   # optional: ride along as FYI instead of interrupting (default: action)
-      - notice: { channel: alerts, text: "🚨 AWS alarm {{payload.alarm}}: {{summary}}" }
+      # format: markdown keeps this layout's bold, lines and links in Discord; the event's values
+      # are escaped, and a [label]({{path}}) link appears only if its host is in ingest.linkHosts.
+      - notice:
+          channel: alerts
+          format: markdown
+          text: |-
+            **AWS alarm {{payload.alarm}}**
+            {{summary}}
+            [Alarm]({{url}})
 
   - id: daily-digest
     description: Hermes posts a daily digest from a cron job.

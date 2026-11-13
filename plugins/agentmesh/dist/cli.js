@@ -25699,7 +25699,7 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 });
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.7.1";
+var VERSION = "0.7.2";
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync5 } from "node:fs";
@@ -46022,7 +46022,12 @@ var DomainEvent = external_exports.discriminatedUnion("type", [
       text: external_exports.string(),
       severity: Severity,
       /** `external` when the text holds event content. Older hubs send none: read it as external. */
-      trust: Trust.default("external")
+      trust: Trust.default("external"),
+      /**
+       * `markdown`: the hub escaped every event value in `text` and checked its links, so it is
+       * posted as written. Absent (older hubs, team notices): plain text.
+       */
+      format: external_exports.enum(["text", "markdown"]).optional()
     })
   ),
   event("mesh.paused", external_exports.object({ by: external_exports.string(), reason: external_exports.string().nullable() })),
@@ -46950,7 +46955,12 @@ var IngestConfig = external_exports.object({
   sources: external_exports.array(IngestSource).default([]),
   dedupWindowMinutes: external_exports.number().int().positive().default(60),
   /** Days the hub keeps received events (audit and dedup); older ones are deleted. */
-  retentionDays: external_exports.number().int().positive().default(30)
+  retentionDays: external_exports.number().int().positive().default(30),
+  /**
+   * Hosts a `format: markdown` notice may link to (subdomains included), e.g. `grafana.net`.
+   * A link slot whose URL is anywhere else is dropped.
+   */
+  linkHosts: external_exports.array(external_exports.string().regex(/^[a-z0-9.-]+$/i, "a host name, without scheme or path")).default([])
 });
 var REQUIRED_CHANNEL_PURPOSES = [
   "council",
@@ -47140,7 +47150,15 @@ var CreateTaskAction = external_exports.object({
   })
 });
 var NoticeAction = external_exports.object({
-  notice: external_exports.object({ channel: external_exports.string(), text: Template })
+  notice: external_exports.object({
+    channel: external_exports.string(),
+    text: Template,
+    /**
+     * `text`: the whole post is external content, fenced in Discord. `markdown`: the template's
+     * own markdown is kept; event values are escaped and links checked (`ingest.linkHosts`).
+     */
+    format: external_exports.enum(["text", "markdown"]).default("text")
+  })
 });
 var RuleAction = external_exports.union([NotifyAction, CreateTaskAction, NoticeAction]);
 var RuleConfig = external_exports.object({
