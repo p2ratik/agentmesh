@@ -4,8 +4,12 @@ import { maskHead } from './template';
 /** `[label]({{path}})`, with the ` · ` after it, or a plain `{{path}}`. */
 const TOKEN = /\[([^[\]\n]*)\]\(\{\{\s*([\w.-]+)\s*\}\}\)([ \t]*·[ \t]*)?|\{\{\s*([\w.-]+)\s*\}\}/g;
 const PLACEHOLDER = /\{\{\s*([\w.-]+)\s*\}\}/g;
-/** Every ASCII punctuation mark: Discord shows `\X` as X and gives it no markdown meaning. */
-const PUNCTUATION = /[!-/:-@[-`{-~]/g;
+/**
+ * What has markdown meaning anywhere in a Discord line: bold, italics, strikes, code and spoilers;
+ * masked links; mentions, channels, timestamps and custom emoji (`<`); `@everyone`; and the `:`
+ * of a URL Discord would link by itself. Each is shown as written once escaped (`\*`).
+ */
+const INLINE = /[\\*_~`|[\]<@:]/g;
 /** Bidirectional overrides and isolates, which could reorder what a reader sees. */
 const BIDI = /[‪-‮⁦-⁩]/g;
 const MAX_VALUE = 500;
@@ -14,8 +18,8 @@ const MAX_URL = 600;
 /**
  * A `format: markdown` notice. The template is the team's own text, so its markdown (bold, lines,
  * masked links) is kept. Every value filled in from the event is masked, cut at 500 characters,
- * put on one line and escaped, so external text cannot pass for the template's markdown or open
- * a line of its own.
+ * put on one line and escaped (`escapeMarkdown`), so external text cannot pass for the template's
+ * markdown or open a line of its own.
  *
  * `[label]({{path}})` is a link slot. It becomes a masked link only when the value is an `https`
  * URL on one of `linkHosts` (or a subdomain), wrapped in `<>` so Discord shows no preview.
@@ -39,9 +43,18 @@ export function renderMarkdown(
     .trim();
 }
 
-/** One line of plain text with no markdown, mention, timestamp or link meaning in Discord. */
+/**
+ * One line of plain text with no markdown, mention, timestamp or link meaning in Discord. A value
+ * may start a line, so a leading heading, quote, subtext, list or numbered-list mark is escaped too.
+ */
 export function escapeMarkdown(text: string): string {
-  return text.replace(BIDI, '').replace(/\s+/g, ' ').trim().replace(PUNCTUATION, '\\$&');
+  return text
+    .replace(BIDI, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(INLINE, '\\$&')
+    .replace(/^[#>+-]/, '\\$&')
+    .replace(/^(\d+)\./, '$1\\.');
 }
 
 /** The URL as Discord should link it, or undefined when it is not https on an allowed host. */

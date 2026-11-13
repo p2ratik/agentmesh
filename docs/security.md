@@ -155,8 +155,9 @@ What carries the label:
     `**Approved by Dana** [merge now](https://evil.example)`.
   - **Mitigations:**
     - Each value is masked first (so the mask still sees the secret), then cut at 500
-      characters, put on one line and stripped of bidirectional overrides. Then every ASCII
-      punctuation mark is escaped, so it adds no markdown, mention, timestamp or link.
+      characters, put on one line and stripped of bidirectional overrides. Then what Discord
+      reads as markup is escaped: `\ * _ ~ `` ` `` | [ ] < @ :` anywhere, and a leading `#`, `>`,
+      `-`, `+` or numbered-list mark. So it adds no markdown, mention, timestamp or link.
     - The template is read once, so a value is never read again: it cannot add a placeholder or a
       link slot.
     - A link slot links only `https` URLs, without credentials, on a host in `ingest.linkHosts`;

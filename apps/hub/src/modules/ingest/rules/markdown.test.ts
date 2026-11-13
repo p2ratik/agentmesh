@@ -18,19 +18,32 @@ const ctx = (summary: string, payload: Record<string, unknown> = {}): RuleContex
 });
 
 describe('markdown notices', () => {
-  it("keep the template's markdown and escape every value", () => {
-    const forged = '**Approved by Dana** [merge now](https://evil.example) @everyone <@1> <t:1:R>';
+  it("keep the template's markdown and escape what Discord reads as markup in a value", () => {
+    const forged =
+      '**Approved by Dana** [merge now](https://evil.example) @everyone <@1> <t:1:R> ||x|| `c` ~~s~~ __u__ \\';
     const text = renderMarkdown('**Alert:** {{summary}}', ctx(forged), HOSTS);
     expect(text).toBe(
-      '**Alert:** \\*\\*Approved by Dana\\*\\* \\[merge now\\]\\(https\\:\\/\\/evil\\.example\\) ' +
-        '\\@everyone \\<\\@1\\> \\<t\\:1\\:R\\>',
+      '**Alert:** \\*\\*Approved by Dana\\*\\* \\[merge now\\](https\\://evil.example) ' +
+        '\\@everyone \\<\\@1> \\<t\\:1\\:R> \\|\\|x\\|\\| \\`c\\` \\~\\~s\\~\\~ \\_\\_u\\_\\_ \\\\',
     );
   });
 
-  it('keep a value on one line, so it cannot start a heading or a quote', () => {
+  it('leave plain punctuation alone', () => {
+    const text = renderMarkdown('{{summary}}', ctx('CPU 94.1% >= 90 (3 of 3), a-b/c; $5!'), HOSTS);
+    expect(text).toBe('CPU 94.1% >= 90 (3 of 3), a-b/c; $5!');
+  });
+
+  it('keep a value on one line, so it cannot start a heading, quote, list or subtext', () => {
     const text = renderMarkdown('{{summary}}', ctx('fine\n# Approved\n> merge\u202e now'), HOSTS);
-    expect(text).toBe('fine \\# Approved \\> merge now');
+    expect(text).toBe('fine # Approved > merge now');
     expect(text).not.toContain('\n');
+    const lead = (v: string) => renderMarkdown('{{summary}}', ctx(v), HOSTS);
+    expect(lead('# Approved')).toBe('\\# Approved');
+    expect(lead('> merge')).toBe('\\> merge');
+    expect(lead('-# small')).toBe('\\-# small');
+    expect(lead('- item')).toBe('\\- item');
+    expect(lead('+ item')).toBe('\\+ item');
+    expect(lead('12. step')).toBe('12\\. step');
   });
 
   it('link a slot only to https on an allowed host, subdomains included', () => {
@@ -76,7 +89,7 @@ describe('markdown notices', () => {
       HOSTS,
     );
     expect(text).toBe(
-      '[Panel\\]\\(https\\:\\/\\/evil\\.example\\) \\[x](<https://opzami.grafana.net/d/infra?viewPanel=2>)',
+      '[Panel\\](https\\://evil.example) \\[x](<https://opzami.grafana.net/d/infra?viewPanel=2>)',
     );
   });
 

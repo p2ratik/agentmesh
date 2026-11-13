@@ -150,8 +150,10 @@ Throttle keys render raw, because they are never posted.
 field, real links. The template is the team's own text, so its markdown is kept. Each value filled
 in from the event is different:
 - it is masked, cut at 500 characters and put on one line;
-- every ASCII punctuation mark in it is escaped (`\*`), so it cannot add bold, a heading, a quote,
-  a mention, a timestamp or a link, and Discord shows it as plain text;
+- what Discord reads as markup is escaped (`\*`): `\ * _ ~ `` ` `` | [ ] < @ :` anywhere, and a
+  leading `#`, `>`, `-`, `+` or `12.`. So it cannot add bold, a code span, a spoiler, a heading, a
+  quote, a list, a mention, a timestamp or a link (a URL's `\:` stops Discord linking it). Other
+  punctuation (`. % ( ) /`) is left as it is;
 - bidirectional overrides are removed.
 
 `[label]({{path}})` is a link slot. It becomes `[label](<url>)` (no preview) only when the value is
