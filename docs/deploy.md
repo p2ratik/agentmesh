@@ -332,9 +332,11 @@ release by itself from GitHub Actions, so nobody SSHes in to upgrade it
    workflow attests every image it publishes. An image pushed to the same tag from any other
    workflow or branch (anyone with write access can push one) is refused. The verified digests
    are what the server pulls, so the tag can no longer change what runs.
-5. It signs in to Azure with GitHub's OIDC token (no Azure password is stored anywhere) and adds
-   an NSG rule that opens port 22 to **this runner's IP only**. It removes the rule when the job
-   ends, even if the deploy failed. The admin's own SSH rule is never touched.
+5. It signs in to the cloud with GitHub's OIDC token, so no cloud password or access key is stored
+   (except on AWS accounts that may not use OIDC; see [below](#setting-it-up-on-aws)), and adds a
+   firewall rule that opens port 22 to **this runner's IP only**: an NSG
+   rule on Azure, or a rule in a security group of its own on AWS. It removes the rule when the
+   job ends, even if the deploy failed. The admin's own SSH rule is never touched.
 6. It connects with the deploy key, checks the server's host key against `DEPLOY_KNOWN_HOSTS`, and
    asks for `deploy <version> <hub digest> <bridge digest>`. On the server, that key's forced
    command is `/usr/local/sbin/agentmesh-deploy`. It runs nothing else, and over SSH it refuses a
@@ -436,6 +438,57 @@ Re-running it is safe, and it rotates the deploy key. Run it **before** the next
 built by hand moves to the published images on its first deploy. To move it sooner, run
 `agentmesh-deploy deploy <the version it runs>` on the server.
 
+### Setting it up on AWS
+
+Run this once from the repo root on the admin's laptop. You need to be signed in to `aws` (in the
+account that runs the instance) and `gh`, and to have SSH to the server:
+
+```bash
+AWS_PROFILE=<profile> AWS_REGION=<the instance's region> REPO=<owner>/agentmesh \
+INSTANCE=<instance id> DEPLOY_USER=ubuntu DEPLOY_HOST=<the server's DNS name> \
+./deploy/aws/github-deploy-setup.sh
+```
+
+It:
+- **AWS:** first checks that the instance is in the account `aws` is signed in to, so a wrong
+  profile stops before anything is created. Then it:
+  - registers GitHub's OIDC provider (`token.actions.githubusercontent.com`, audience
+    `sts.amazonaws.com`) if the account has none;
+  - creates the security group `agentmesh-github-deploy` in the instance's VPC and attaches it to
+    the instance next to its other groups. It is empty between deploys;
+  - creates the role `agentmesh-github-deploy`, which only tokens for the repo's `production`
+    environment can assume (the subject is worked out as on Azure, above). Its one inline policy
+    allows adding and removing inbound rules in that security group, and listing rules.
+- **Server, GitHub and cleanup:** as on Azure. The role's ARN goes into the environment secret
+  `AWS_DEPLOY_ROLE_ARN`; `AWS_REGION` and `AWS_DEPLOY_SG` become repository variables. It removes
+  the Azure secrets and variables, if a move from Azure left them.
+
+IAM cannot limit a rule's port or address, only the group it goes into. That is why the deploy
+gets a group of its own: the role cannot touch the admin's SSH rule or the NATS rule.
+
+`DEPLOY_USER` is the user who owns the checkout and runs `docker compose`; on Ubuntu images that is
+usually `ubuntu`, which must be in the `docker` group. Re-running the script is safe: it rotates
+the deploy key and fixes the role's trust policy.
+
+**Accounts with service control policies (SCPs)**, which an AWS Organization applies, and which
+AWS itself applies to accounts on its **free plan**:
+- **A region lock** (EC2 allowed in some regions only) is fine. `AWS_REGION` is required and must
+  be the instance's region; the script never falls back to the profile's default. The workflow
+  calls EC2 and STS only in that region. IAM is global, and region locks usually exempt it.
+- **An SCP that denies OIDC providers** (`iam:*OpenIDConnectProvider*`; the free plan has one)
+  blocks the keyless sign-in. The script checks this before it creates anything and stops. Then
+  either:
+  - if you run the organization: in its management account, make the SCP's deny statement leave
+    GitHub's provider out (in place of `"Resource": "*"`, give it
+    `"NotResource": "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com"`), and
+    re-run the script; or
+  - if you can't change it: re-run with **`AWS_AUTH=key`**. The script then creates an IAM user
+    `agentmesh-github-deploy` instead of the role. It has no console sign-in, and its one inline
+    policy is the role's. Its access key goes straight into the environment secrets
+    `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, on stdin, and is never printed. Every re-run
+    rotates the key (it deletes the old ones first); re-run it to rotate, every few months.
+    Switching back to `AWS_AUTH=oidc` later deletes the user's keys and the key secrets.
+
 **Repository settings** that keep anyone else from shipping unreviewed code:
 - **`main`:** a ruleset that requires a pull request with one approval and the CI checks, and
   **approval of the most recent push**. Without that last rule, a collaborator could push to your
@@ -448,12 +501,13 @@ built by hand moves to the published images on its first deploy. To move it soon
 
 ### Other providers
 
-The workflow's Azure steps run only when `AZURE_NSG` is set. Elsewhere:
+The workflow's Azure steps run only when `AZURE_NSG` is set, and its AWS steps only when
+`AWS_DEPLOY_SG` is set. Elsewhere:
 1. On the server, from the checkout, run
    `sudo MESH_USER=<user> DEPLOY_PUBKEY='ssh-ed25519 …' ./deploy/auto-deploy/install.sh`.
 2. Let GitHub's runners reach port 22. Their addresses change and span many ranges, so either open
    SSH to the internet for key logins only (the deploy key still runs nothing but the deploy), or
-   replace the two NSG steps with your provider's API.
+   add steps for your provider's API next to the Azure and AWS ones.
 3. Create the environment, the secrets and the variables by hand.
 
 ## Deploying by hand
