@@ -33,6 +33,13 @@ export const IngestConfig = z.object({
   dedupWindowMinutes: z.number().int().positive().default(60),
   /** Days the hub keeps received events (audit and dedup); older ones are deleted. */
   retentionDays: z.number().int().positive().default(30),
+  /**
+   * Hosts a `format: markdown` notice may link to (subdomains included), e.g. `grafana.net`.
+   * A link slot whose URL is anywhere else is dropped.
+   */
+  linkHosts: z
+    .array(z.string().regex(/^[a-z0-9.-]+$/i, 'a host name, without scheme or path'))
+    .default([]),
 });
 
 /** Channel purposes the Discord bridge always needs. */

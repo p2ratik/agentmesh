@@ -62,7 +62,15 @@ export const CreateTaskAction = z.object({
 });
 
 export const NoticeAction = z.object({
-  notice: z.object({ channel: z.string(), text: Template }),
+  notice: z.object({
+    channel: z.string(),
+    text: Template,
+    /**
+     * `text`: the whole post is external content, fenced in Discord. `markdown`: the template's
+     * own markdown is kept; event values are escaped and links checked (`ingest.linkHosts`).
+     */
+    format: z.enum(['text', 'markdown']).default('text'),
+  }),
 });
 
 export const RuleAction = z.union([NotifyAction, CreateTaskAction, NoticeAction]);

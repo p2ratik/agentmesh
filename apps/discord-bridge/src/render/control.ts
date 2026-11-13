@@ -11,13 +11,19 @@ const FENCE = '```';
  * one Discord message (a 65k issue body would otherwise stall the feed). External text is marked
  * and fenced as code, so its markdown (headings, masked links) cannot pass for the mesh's own;
  * a zero-width space after each backtick keeps it from closing the fence.
+ *
+ * A `markdown` notice was escaped value by value by the hub (its links checked), so it is posted
+ * as written; an external one ends with the marker as a small line.
  */
 export function renderNotice(data: DomainEventData<'notice.posted'>): PostIntent[] {
   const prefix = isAtLeast(data.severity, 'warning') ? `${SEVERITY_EMOJI[data.severity]} ` : '';
-  const content =
-    data.trust === 'external'
-      ? `${prefix}${EXTERNAL}\n${FENCE}\n${cut(data.text.replaceAll('`', '`\u200b'))}\n${FENCE}`
-      : `${prefix}${cut(data.text)}`;
+  const external = data.trust === 'external';
+  let content = `${prefix}${cut(data.text)}`;
+  if (data.format === 'markdown') {
+    if (external) content += `\n-# ${EXTERNAL}`;
+  } else if (external) {
+    content = `${prefix}${EXTERNAL}\n${FENCE}\n${cut(data.text.replaceAll('`', '`\u200b'))}\n${FENCE}`;
+  }
   return [{ purpose: data.channel, content }];
 }
 
