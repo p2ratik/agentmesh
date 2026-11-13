@@ -114,13 +114,17 @@ jobs:
             --federated-token "$TOKEN" --output none
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-      # AWS accepts only this repo's `production` tokens for the role (OIDC), and the role may only
-      # add and remove inbound rules in the deploy security group.
+      # Through OIDC when the environment has AWS_DEPLOY_ROLE_ARN: AWS accepts only this repo's
+      # `production` tokens for the role, and no key is stored. Where the account may not use OIDC
+      # providers, with the access key in AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY instead. Either may
+      # only add and remove inbound rules in the deploy security group.
       - name: Sign in to AWS
         if: vars.AWS_DEPLOY_SG != ''
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: agentmesh-deploy-${{ github.run_id }}
           role-skip-session-tagging: true

@@ -332,8 +332,9 @@ release by itself from GitHub Actions, so nobody SSHes in to upgrade it
    workflow attests every image it publishes. An image pushed to the same tag from any other
    workflow or branch (anyone with write access can push one) is refused. The verified digests
    are what the server pulls, so the tag can no longer change what runs.
-5. It signs in to the cloud with GitHub's OIDC token (no cloud password or access key is stored
-   anywhere) and adds a firewall rule that opens port 22 to **this runner's IP only**: an NSG
+5. It signs in to the cloud with GitHub's OIDC token, so no cloud password or access key is stored
+   (except on AWS accounts that may not use OIDC; see [below](#setting-it-up-on-aws)), and adds a
+   firewall rule that opens port 22 to **this runner's IP only**: an NSG
    rule on Azure, or a rule in a security group of its own on AWS. It removes the rule when the
    job ends, even if the deploy failed. The admin's own SSH rule is never touched.
 6. It connects with the deploy key, checks the server's host key against `DEPLOY_KNOWN_HOSTS`, and
@@ -466,19 +467,27 @@ IAM cannot limit a rule's port or address, only the group it goes into. That is 
 gets a group of its own: the role cannot touch the admin's SSH rule or the NATS rule.
 
 `DEPLOY_USER` is the user who owns the checkout and runs `docker compose`; on Ubuntu images that is
-usually `ubuntu`, which must be in the `docker` group.
+usually `ubuntu`, which must be in the `docker` group. Re-running the script is safe: it rotates
+the deploy key and fixes the role's trust policy.
 
-**Accounts in an AWS Organization** can be limited by service control policies (SCPs):
+**Accounts with service control policies (SCPs)**, which an AWS Organization applies, and which
+AWS itself applies to accounts on its **free plan**:
 - **A region lock** (EC2 allowed in some regions only) is fine. `AWS_REGION` is required and must
   be the instance's region; the script never falls back to the profile's default. The workflow
   calls EC2 and STS only in that region. IAM is global, and region locks usually exempt it.
-- **An SCP that denies OIDC providers** (`iam:*OpenIDConnectProvider*`) blocks the deploy's
-  sign-in. The script checks this before it creates anything and stops. In the management
-  account, make the SCP's deny statement leave GitHub's provider out: in place of
-  `"Resource": "*"`, give it
-  `"NotResource": "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com"`. Then
-  re-run the script. Re-running the script is safe; it rotates
-the deploy key and fixes the role's trust policy.
+- **An SCP that denies OIDC providers** (`iam:*OpenIDConnectProvider*`; the free plan has one)
+  blocks the keyless sign-in. The script checks this before it creates anything and stops. Then
+  either:
+  - if you run the organization: in its management account, make the SCP's deny statement leave
+    GitHub's provider out (in place of `"Resource": "*"`, give it
+    `"NotResource": "arn:aws:iam::*:oidc-provider/token.actions.githubusercontent.com"`), and
+    re-run the script; or
+  - if you can't change it: re-run with **`AWS_AUTH=key`**. The script then creates an IAM user
+    `agentmesh-github-deploy` instead of the role. It has no console sign-in, and its one inline
+    policy is the role's. Its access key goes straight into the environment secrets
+    `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, on stdin, and is never printed. Every re-run
+    rotates the key (it deletes the old ones first); re-run it to rotate, every few months.
+    Switching back to `AWS_AUTH=oidc` later deletes the user's keys and the key secrets.
 
 **Repository settings** that keep anyone else from shipping unreviewed code:
 - **`main`:** a ruleset that requires a pull request with one approval and the CI checks, and

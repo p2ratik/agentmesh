@@ -216,6 +216,7 @@ who can read the run logs can see them, which is everyone on a public repo:
 | `DEPLOY_SSH_KEY` | The deploy key's private half (ed25519). On the server, it can only run `agentmesh-deploy`. |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | The app registration the job signs in as through OIDC. These are not secret, but storing them as secrets masks them in the log. |
 | `AWS_DEPLOY_ROLE_ARN` | On AWS, the role the job assumes through OIDC. Not secret either; as a secret, the account id in it is masked in the log. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | On AWS accounts that may not use OIDC providers (`AWS_AUTH=key` in the setup script): the access key of the IAM user the job signs in as. Set either these or `AWS_DEPLOY_ROLE_ARN`, never both. |
 
 **On the server: `/etc/default/agentmesh-deploy`.** `deploy/auto-deploy/install.sh` writes it
 once and never replaces it. `agentmesh-deploy` reads it on every run:

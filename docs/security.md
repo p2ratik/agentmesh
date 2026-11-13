@@ -1594,7 +1594,8 @@ identity (Azure or AWS), and a moment when SSH is open to an address other than 
   rules on the one NSG, so it cannot touch the VM, its disks or its run commands. **Residual risk:**
   a compromised deploy job could open other ports in that NSG. Behind them, the hub's HTTP port
   listens on 127.0.0.1 only and NATS is already public.
-  - **On AWS** there is no access key either. The role trusts only GitHub's OIDC provider, with
+  - **On AWS** with OIDC (the default) there is no access key either. The role trusts only
+    GitHub's OIDC provider, with
     audience `sts.amazonaws.com` and the same immutable subject. Its one inline policy allows
     adding and removing inbound rules in **a security group of its own**, attached to the instance
     and empty between deploys, plus listing rules (`DescribeSecurityGroupRules`, which takes no
@@ -1603,6 +1604,17 @@ identity (Azure or AWS), and a moment when SSH is open to an address other than 
     group rules that out. The role cannot touch the instance, its volumes or SSM. **Residual
     risk:** as on Azure, a compromised deploy job could open any port in the deploy group, to any
     address, until the next deploy's cleanup; the same services sit behind it.
+  - **On AWS accounts that may not use OIDC providers** (AWS's free plan, or an organization's
+    SCP), `AWS_AUTH=key` replaces the role with an IAM user, and **a long-lived access key**
+    exists. **Threat:** the key leaks. **Mitigation:** the user has no console password, and its
+    one inline policy is the role's, so the key can only add and remove inbound rules in the
+    deploy group and list rules. The key lives only in the `production` environment's secrets
+    (main only, never in forks' runs). The setup script passes it to `gh` on stdin, never in
+    arguments, output or files, and every re-run rotates it. **Residual risk:** until it is
+    rotated, whoever holds it can open ports in the deploy group from anywhere, not only during a
+    deploy. Behind them, sshd takes keys only and the hub's HTTP port listens on 127.0.0.1. Rotate
+    it every few months, and at once if a secret may have leaked; prefer OIDC once the account
+    allows it.
 - **Threat: secrets in a public log.** On a public repository, anyone can read the job's log.
   **Mitigation:** the script never reads `deploy/.env` and never prints container logs; a failure
   says which command to run on the server instead. The Azure ids and the AWS role ARN are stored

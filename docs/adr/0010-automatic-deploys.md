@@ -80,7 +80,10 @@ Constraints:
     assumes an IAM role through OIDC and opens SSH in a security group of its own, attached to the
     instance; IAM cannot scope a rule's port or address, so the separate group keeps the role away
     from the instance's other rules. The workflow's cloud steps run for whichever cloud's variable
-    is set (`AZURE_NSG` or `AWS_DEPLOY_SG`).
+    is set (`AZURE_NSG` or `AWS_DEPLOY_SG`). Accounts that may not use OIDC providers (AWS's free
+    plan) fall back to an IAM user's access key with the same policy (`AWS_AUTH=key`): a stored
+    credential, which this ADR otherwise avoids, accepted there because the alternative is SSH
+    open to the internet.
 - Versions released before provenance (0.5.0 and older) cannot be deployed from Actions; an admin
   deploys them on the server. The server trusts the digests the deploy job sends and does not verify
   provenance itself (see [security.md](../security.md#automatic-deploys)).
