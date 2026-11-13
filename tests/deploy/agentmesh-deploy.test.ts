@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // The deploy key's forced command (docs/deploy.md#automatic-deploys): whatever the SSH client
@@ -95,6 +97,77 @@ describe.skipIf(!hasBash)('agentmesh-deploy forced command', () => {
     const r = spawnSync('bash', ['-n', file], { encoding: 'utf8' });
     expect(r.stderr).toBe('');
     expect(r.status).toBe(0);
+  });
+});
+
+// A real deploy from tag v1.0.0 to v1.0.1, with docker faked: Linux only (flock, GNU tee).
+const hasFlock = hasBash && spawnSync('bash', ['-c', 'command -v flock']).status === 0;
+
+describe.skipIf(!hasFlock)('agentmesh-deploy over a checkout with hand edits', () => {
+  it('saves the edits as a patch, deploys the release and keeps the live config', () => {
+    const root = mkdtempSync(join(tmpdir(), 'agentmesh-deploy-'));
+    const git = (cwd: string, ...args: string[]) => {
+      const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+        cwd,
+        encoding: 'utf8',
+      });
+      if (r.status !== 0) throw new Error(r.stderr);
+      return r.stdout.trim();
+    };
+    const write = (file: string, text: string) => {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, text, { mode: 0o755 });
+    };
+    try {
+      const origin = join(root, 'origin');
+      write(join(origin, '.gitignore'), '/config/*\n!/config/examples/\n');
+      write(join(origin, 'deploy/docker-compose.yml'), 'services: {}\n');
+      write(join(origin, 'config/examples/mesh.yaml'), 'one\n');
+      git(origin, 'init', '-q', '-b', 'main');
+      git(origin, 'add', '.');
+      git(origin, 'commit', '-qm', 'one');
+      git(origin, 'tag', 'v1.0.0');
+      write(join(origin, 'config/examples/mesh.yaml'), 'two\n');
+      git(origin, 'commit', '-qam', 'two');
+      git(origin, 'tag', 'v1.0.1');
+
+      const checkout = join(root, 'agentmesh');
+      git(root, 'clone', '-q', origin, checkout);
+      git(checkout, 'checkout', '-q', '--detach', 'v1.0.0');
+      write(join(checkout, 'config/examples/mesh.yaml'), 'stale copy\n');
+      write(join(checkout, 'config/mesh.yaml'), 'live\n');
+
+      // A running, healthy stack with no hub container to back up yet; sleep returns at once.
+      const bin = join(root, 'bin');
+      write(
+        join(bin, 'docker'),
+        `#!/usr/bin/env bash
+case "$*" in
+  'compose ps -a -q hub') ;;
+  'compose ps -q '*) echo c1 ;;
+  inspect*) echo 'running 0' ;;
+  'compose exec '*) echo '{"ok":true}' ;;
+esac
+`,
+      );
+      write(join(bin, 'sleep'), '#!/bin/sh\n');
+
+      const r = spawnSync('bash', [SCRIPT, 'deploy', '1.0.1'], {
+        encoding: 'utf8',
+        env: { PATH: `${bin}:${process.env.PATH}`, HOME: root, AGENTMESH_DIR: checkout },
+      });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(git(checkout, 'describe', '--tags')).toBe('v1.0.1');
+      expect(readFileSync(join(checkout, 'config/examples/mesh.yaml'), 'utf8')).toBe('two\n');
+      expect(readFileSync(join(checkout, 'config/mesh.yaml'), 'utf8')).toBe('live\n');
+      expect(r.stdout).toContain('M config/examples/mesh.yaml');
+      const state = join(root, '.local/state/agentmesh-deploy');
+      const patches = readdirSync(state).filter((f) => f.startsWith('local-edits-'));
+      expect(patches).toHaveLength(1);
+      expect(readFileSync(join(state, patches[0] ?? ''), 'utf8')).toContain('+stale copy');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

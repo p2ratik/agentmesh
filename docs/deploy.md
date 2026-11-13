@@ -349,7 +349,9 @@ release by itself from GitHub Actions, so nobody SSHes in to upgrade it
    - checks out the tag, so `deploy/docker-compose.yml` matches the release. It also writes
      `deploy/docker-compose.override.yml` (gitignored), which pins the hub and the bridge to those
      images. Compose loads that file by itself, so the `docker compose` commands you run by hand
-     use the same images;
+     use the same images. A hand edit to a tracked file on the server (a stale copy of
+     `config/examples/`, say) would block the checkout, so it is saved as
+     `~/.local/state/agentmesh-deploy/local-edits-<time>.patch`, named in the log, and replaced;
    - backs up the database **while the hub keeps running**: SQLite's `VACUUM INTO` takes a
      consistent copy inside the hub container, saved to
      `~/backups/hub-data-<time>-pre-<version>.auto.sqlite.gz` (mode 600; it keeps the last 10). A
