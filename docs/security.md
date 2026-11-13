@@ -1542,7 +1542,7 @@ follows is set by the compose files, `agentmesh nats-config`, `setup host` and
 
 [Automatic deploys](deploy.md#automatic-deploys) ([ADR 0010](adr/0010-automatic-deploys.md)) let
 a GitHub Actions job reach the hub server. They add a credential (the deploy key), a cloud
-identity (Azure), and a moment when SSH is open to an address other than the admin's.
+identity (Azure or AWS), and a moment when SSH is open to an address other than the admin's.
 
 - **Threat: the deploy key is used to run something else.** **Mitigation:** its
   `authorized_keys` line is `restrict,command="/usr/local/sbin/agentmesh-deploy"`, so there is no
@@ -1594,10 +1594,32 @@ identity (Azure), and a moment when SSH is open to an address other than the adm
   rules on the one NSG, so it cannot touch the VM, its disks or its run commands. **Residual risk:**
   a compromised deploy job could open other ports in that NSG. Behind them, the hub's HTTP port
   listens on 127.0.0.1 only and NATS is already public.
+  - **On AWS** with OIDC (the default) there is no access key either. The role trusts only
+    GitHub's OIDC provider, with
+    audience `sts.amazonaws.com` and the same immutable subject. Its one inline policy allows
+    adding and removing inbound rules in **a security group of its own**, attached to the instance
+    and empty between deploys, plus listing rules (`DescribeSecurityGroupRules`, which takes no
+    resource). IAM has no condition key for a rule's port or address, so a role scoped to the
+    instance's main group could also delete the admin's SSH rule or the NATS rule; the separate
+    group rules that out. The role cannot touch the instance, its volumes or SSM. **Residual
+    risk:** as on Azure, a compromised deploy job could open any port in the deploy group, to any
+    address, until the next deploy's cleanup; the same services sit behind it.
+  - **On AWS accounts that may not use OIDC providers** (AWS's free plan, or an organization's
+    SCP), `AWS_AUTH=key` replaces the role with an IAM user, and **a long-lived access key**
+    exists. **Threat:** the key leaks. **Mitigation:** the user has no console password, and its
+    one inline policy is the role's, so the key can only add and remove inbound rules in the
+    deploy group and list rules. The key lives only in the `production` environment's secrets
+    (main only, never in forks' runs). The setup script passes it to `gh` on stdin, never in
+    arguments, output or files, and every re-run rotates it. **Residual risk:** until it is
+    rotated, whoever holds it can open ports in the deploy group from anywhere, not only during a
+    deploy. Behind them, sshd takes keys only and the hub's HTTP port listens on 127.0.0.1. Rotate
+    it every few months, and at once if a secret may have leaked; prefer OIDC once the account
+    allows it.
 - **Threat: secrets in a public log.** On a public repository, anyone can read the job's log.
   **Mitigation:** the script never reads `deploy/.env` and never prints container logs; a failure
-  says which command to run on the server instead. The Azure ids are stored as secrets, so the log
-  masks them, and `az` prints nothing (`--output none`). The host name is public anyway.
+  says which command to run on the server instead. The Azure ids and the AWS role ARN are stored
+  as secrets, so the log masks them; the AWS sign-in also masks the account id, and the job sends
+  `az` and `aws` output to nowhere. The host name is public anyway.
 - **Threat: a half-finished or broken deploy.** **Mitigation:**
   - the script holds a lock and ignores SIGHUP (a dropped connection or a cancelled run);
   - it takes a `hub-data` backup first (mode 600, in a directory with mode 700);

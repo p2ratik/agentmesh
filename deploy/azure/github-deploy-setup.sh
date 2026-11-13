@@ -43,6 +43,7 @@ gh auth status >/dev/null 2>&1 || { echo "sign in first: gh auth login" >&2; exi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+. deploy/auto-deploy/github-setup.sh
 # A file argument for az. On Windows az is a native program that cannot open Git Bash's /tmp/…
 # paths, so it gets the Windows form (cygpath -m: C:/Users/…).
 azfile() { if command -v cygpath >/dev/null; then printf '@%s' "$(cygpath -m "$1")"; else printf '@%s' "$1"; fi; }
@@ -56,11 +57,8 @@ APP_ID=$(az ad app list --display-name "$APP_NAME" --query '[0].appId' -o tsv)
 SP_ID=$(az ad sp list --filter "appId eq '$APP_ID'" --query '[0].id' -o tsv)
 [ -n "$SP_ID" ] || SP_ID=$(az ad sp create --id "$APP_ID" --query id -o tsv)
 
-# Tokens GitHub issues for jobs in this repo's environment are the only way to sign in. Their
-# subject starts with the repo's prefix as GitHub reports it: with immutable subjects that is
-# repo:<owner>@<owner id>/<repo>@<repo id>, older repos use repo:<owner>/<repo>.
-PREFIX=$(gh api "repos/$REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null) || PREFIX=
-SUBJECT="${PREFIX:-repo:$REPO}:environment:$ENVIRONMENT"
+# Tokens GitHub issues for jobs in this repo's environment are the only way to sign in.
+SUBJECT=$(oidc_subject)
 cat >"$TMP/federation.json" <<EOF
 {"name": "github-$ENVIRONMENT", "issuer": "https://token.actions.githubusercontent.com",
  "subject": "$SUBJECT", "audiences": ["api://AzureADTokenExchange"],
@@ -98,30 +96,12 @@ if [ "$(az role assignment list --assignee "$SP_ID" --scope "$NSG_ID" --query 'l
   done
 fi
 
-echo "== server: deploy endpoint and key"
-ssh-keygen -q -t ed25519 -N '' -C agentmesh-github-deploy -f "$TMP/deploy_key"
-printf -v REMOTE 'd=$(mktemp -d) && tar -xf - -C "$d" && sudo MESH_USER=%q DEPLOY_PUBKEY=%q bash "$d/install.sh"; rc=$?; rm -rf "$d"; exit $rc' \
-  "$DEPLOY_USER" "$(cat "$TMP/deploy_key.pub")"
-tar -cf - -C deploy/auto-deploy agentmesh-deploy.sh install.sh | "${SSH_CMD[@]}" "$TARGET" "$REMOTE"
-# Read over the SSH session just authenticated, so the host key is the one this laptop trusts.
-HOST_KEY=$("${SSH_CMD[@]}" "$TARGET" cat /etc/ssh/ssh_host_ed25519_key.pub | cut -d' ' -f1,2)
-
-echo "== GitHub: environment $ENVIRONMENT, secrets and variables"
-echo '{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}' |
-  gh api -X PUT "repos/$REPO/environments/$ENVIRONMENT" --input - >/dev/null
-if ! gh api "repos/$REPO/environments/$ENVIRONMENT/deployment-branch-policies" \
-  --jq '.branch_policies[].name' | grep -qx main; then
-  gh api -X POST "repos/$REPO/environments/$ENVIRONMENT/deployment-branch-policies" \
-    -f name=main -f type=branch >/dev/null
-fi
-gh secret set DEPLOY_SSH_KEY --repo "$REPO" --env "$ENVIRONMENT" <"$TMP/deploy_key"
+setup_server_and_github
+echo "== GitHub: Azure secrets and variables"
 # Not secrets, but stored as secrets so they are masked in the public workflow log.
 gh secret set AZURE_CLIENT_ID --repo "$REPO" --env "$ENVIRONMENT" --body "$APP_ID"
 gh secret set AZURE_TENANT_ID --repo "$REPO" --env "$ENVIRONMENT" --body "$TENANT"
 gh secret set AZURE_SUBSCRIPTION_ID --repo "$REPO" --env "$ENVIRONMENT" --body "$SUBSCRIPTION"
-gh variable set DEPLOY_HOST --repo "$REPO" --body "$DEPLOY_HOST"
-gh variable set DEPLOY_USER --repo "$REPO" --body "$DEPLOY_USER"
-gh variable set DEPLOY_KNOWN_HOSTS --repo "$REPO" --body "$DEPLOY_HOST $HOST_KEY"
 gh variable set AZURE_RESOURCE_GROUP --repo "$REPO" --body "$RG"
 gh variable set AZURE_NSG --repo "$REPO" --body "$NSG"
 
