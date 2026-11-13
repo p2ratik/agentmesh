@@ -192,7 +192,7 @@ references and the compose settings. Never commit it or paste its values into a 
 ## Automatic deploys
 
 The settings for [automatic deploys](deploy.md#automatic-deploys) from GitHub Actions.
-`deploy/azure/github-deploy-setup.sh` sets the GitHub ones on Azure.
+`deploy/azure/github-deploy-setup.sh` and `deploy/aws/github-deploy-setup.sh` set the GitHub ones.
 
 **GitHub repository variables** (Settings → Secrets and variables → Actions → Variables). Anyone
 who can read the run logs can see them, which is everyone on a public repo:
@@ -205,6 +205,8 @@ who can read the run logs can see them, which is everyone on a public repo:
 | `AZURE_RESOURCE_GROUP`, `AZURE_NSG` | none | The VM's NSG. Set them to open port 22 only to the runner for the length of the job. Leave them empty if SSH is reachable some other way. |
 | `DEPLOY_SSH_RULE` | `github-deploy-ssh` | The name of that temporary NSG rule. |
 | `DEPLOY_SSH_RULE_PRIORITY` | `200` | Its priority. Pick one no other rule in the NSG uses. |
+| `AWS_DEPLOY_SG` | none | On AWS, the id of the security group that holds only the deploy's temporary SSH rule (the setup script creates `agentmesh-github-deploy`). Set it to open port 22 only to the runner for the length of the job. |
+| `AWS_REGION` | none | The region of that security group and the instance. Needed with `AWS_DEPLOY_SG`. |
 | `DEPLOY_NATS_PORT` | `4222` | The public NATS port the post-deploy smoke test checks. |
 
 **Secrets of the `production` environment.** That environment deploys only from `main`:
@@ -213,6 +215,7 @@ who can read the run logs can see them, which is everyone on a public repo:
 | --- | --- |
 | `DEPLOY_SSH_KEY` | The deploy key's private half (ed25519). On the server, it can only run `agentmesh-deploy`. |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | The app registration the job signs in as through OIDC. These are not secret, but storing them as secrets masks them in the log. |
+| `AWS_DEPLOY_ROLE_ARN` | On AWS, the role the job assumes through OIDC. Not secret either; as a secret, the account id in it is masked in the log. |
 
 **On the server: `/etc/default/agentmesh-deploy`.** `deploy/auto-deploy/install.sh` writes it
 once and never replaces it. `agentmesh-deploy` reads it on every run:

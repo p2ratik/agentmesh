@@ -22,15 +22,15 @@ on:
 
 permissions:
   contents: read
-  id-token: write # the Azure sign-in (OIDC); no Azure password is stored anywhere
+  id-token: write # the cloud sign-in (OIDC, Azure or AWS); no cloud password is stored anywhere
   attestations: read # the images' build provenance
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # The secrets live in this environment, which deploys only from main; the Azure identity
-    # trusts only this environment's tokens.
+    # The secrets live in this environment, which deploys only from main; the cloud identity
+    # (Azure or AWS) trusts only this environment's tokens.
     environment: production
     # One deploy at a time. A second one waits: cancelling a deploy halfway helps no one.
     concurrency:
@@ -44,6 +44,8 @@ jobs:
       AZURE_NSG: ${{ vars.AZURE_NSG }}
       SSH_RULE: ${{ vars.DEPLOY_SSH_RULE || 'github-deploy-ssh' }}
       SSH_RULE_PRIORITY: ${{ vars.DEPLOY_SSH_RULE_PRIORITY || '200' }}
+      # On AWS: a security group of its own, attached to the instance, that holds only this job's rule.
+      AWS_DEPLOY_SG: ${{ vars.AWS_DEPLOY_SG }}
     steps:
       - name: Check the request
         run: |
@@ -112,21 +114,46 @@ jobs:
             --federated-token "$TOKEN" --output none
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
+      # AWS accepts only this repo's `production` tokens for the role (OIDC), and the role may only
+      # add and remove inbound rules in the deploy security group.
+      - name: Sign in to AWS
+        if: vars.AWS_DEPLOY_SG != ''
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: agentmesh-deploy-${{ github.run_id }}
+          role-skip-session-tagging: true
+          mask-aws-account-id: true
+
       # Port 22 stays closed to everyone else: the rule names only this runner's address and is
       # removed when the job ends, whatever happens.
       - name: Open SSH to this runner
-        if: vars.AZURE_NSG != ''
+        if: vars.AZURE_NSG != '' || vars.AWS_DEPLOY_SG != ''
         run: |
           IP=$(curl -4 -fsS --retry 3 https://api.ipify.org)
           [[ "$IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] ||
             { echo "::error::Could not read this runner's public IPv4 address."; exit 1; }
-          # A run that died before its cleanup may have left its rule behind.
-          az network nsg rule delete -g "$AZURE_RESOURCE_GROUP" --nsg-name "$AZURE_NSG" -n "$SSH_RULE" \
-            --output none 2>/dev/null || true
-          az network nsg rule create -g "$AZURE_RESOURCE_GROUP" --nsg-name "$AZURE_NSG" -n "$SSH_RULE" \
-            --priority "$SSH_RULE_PRIORITY" --direction Inbound --access Allow --protocol Tcp \
-            --source-address-prefixes "$IP/32" --destination-port-ranges 22 \
-            --description "GitHub Actions deploy run $GITHUB_RUN_ID; removed when it ends" --output none
+          if [ -n "$AZURE_NSG" ]; then
+            # A run that died before its cleanup may have left its rule behind.
+            az network nsg rule delete -g "$AZURE_RESOURCE_GROUP" --nsg-name "$AZURE_NSG" -n "$SSH_RULE" \
+              --output none 2>/dev/null || true
+            az network nsg rule create -g "$AZURE_RESOURCE_GROUP" --nsg-name "$AZURE_NSG" -n "$SSH_RULE" \
+              --priority "$SSH_RULE_PRIORITY" --direction Inbound --access Allow --protocol Tcp \
+              --source-address-prefixes "$IP/32" --destination-port-ranges 22 \
+              --description "GitHub Actions deploy run $GITHUB_RUN_ID; removed when it ends" --output none
+          fi
+          if [ -n "$AWS_DEPLOY_SG" ]; then
+            # The group holds only deploy rules: drop any that a run which died before its cleanup left.
+            OLD=$(aws ec2 describe-security-group-rules --filters "Name=group-id,Values=$AWS_DEPLOY_SG" \
+              --query 'SecurityGroupRules[?!IsEgress].SecurityGroupRuleId' --output text)
+            if [ -n "$OLD" ] && [ "$OLD" != None ]; then
+              aws ec2 revoke-security-group-ingress --group-id "$AWS_DEPLOY_SG" --security-group-rule-ids $OLD >/dev/null
+            fi
+            aws ec2 authorize-security-group-ingress --group-id "$AWS_DEPLOY_SG" --ip-permissions "$(jq -nc \
+              --arg cidr "$IP/32" --arg note "GitHub Actions deploy run $GITHUB_RUN_ID, removed when it ends" \
+              '[{IpProtocol: "tcp", FromPort: 22, ToPort: 22, IpRanges: [{CidrIp: $cidr, Description: $note}]}]')" >/dev/null
+          fi
 
       - name: Deploy over SSH
         env:
@@ -146,7 +173,7 @@ jobs:
               -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
               "$DEPLOY_USER@$DEPLOY_HOST" "$@"
           }
-          # A new NSG rule takes a few seconds to apply.
+          # A new firewall rule takes a few seconds to apply.
           for i in $(seq 1 12); do
             remote status >/dev/null 2>&1 && break
             [ "$i" = 12 ] && { echo "::error::SSH to $DEPLOY_HOST does not work:"; remote status; exit 1; }
@@ -169,7 +196,15 @@ jobs:
         if: always()
         run: |
           rm -f "$RUNNER_TEMP/deploy_key"
-          [ -n "$AZURE_NSG" ] && az account show --output none 2>/dev/null || exit 0
-          az network nsg rule delete -g "$AZURE_RESOURCE_GROUP" --nsg-name "$AZURE_NSG" -n "$SSH_RULE" \
-            --output none
-          az logout || true
+          if [ -n "$AWS_DEPLOY_SG" ] && aws sts get-caller-identity >/dev/null 2>&1; then
+            RULES=$(aws ec2 describe-security-group-rules --filters "Name=group-id,Values=$AWS_DEPLOY_SG" \
+              --query 'SecurityGroupRules[?!IsEgress].SecurityGroupRuleId' --output text)
+            if [ -n "$RULES" ] && [ "$RULES" != None ]; then
+              aws ec2 revoke-security-group-ingress --group-id "$AWS_DEPLOY_SG" --security-group-rule-ids $RULES >/dev/null
+            fi
+          fi
+          if [ -n "$AZURE_NSG" ] && az account show --output none 2>/dev/null; then
+            az network nsg rule delete -g "$AZURE_RESOURCE_GROUP" --nsg-name "$AZURE_NSG" -n "$SSH_RULE" \
+              --output none
+            az logout || true
+          fi

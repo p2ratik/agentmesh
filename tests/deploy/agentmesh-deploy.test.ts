@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 // The deploy key's forced command (docs/deploy.md#automatic-deploys): whatever the SSH client
 // asks for arrives in SSH_ORIGINAL_COMMAND, and only two fixed shapes may pass.
 const SCRIPT = 'deploy/auto-deploy/agentmesh-deploy.sh';
-const SCRIPTS = [SCRIPT, 'deploy/auto-deploy/install.sh', 'deploy/azure/github-deploy-setup.sh'];
+const SCRIPTS = [
+  SCRIPT,
+  'deploy/auto-deploy/install.sh',
+  'deploy/auto-deploy/github-setup.sh',
+  'deploy/azure/github-deploy-setup.sh',
+  'deploy/aws/github-deploy-setup.sh',
+];
 // A bash that receives our environment (WSL's bash.exe on Windows does not pass it through).
 const hasBash =
   spawnSync('bash', ['-c', '[ "$PROBE" = 1 ]'], { env: { ...process.env, PROBE: '1' } }).status ===
