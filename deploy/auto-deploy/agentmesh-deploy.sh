@@ -168,10 +168,25 @@ wait_ready() {
   fi
 }
 
+# The checkout runs the release's files. A hand edit to a tracked file on the server (such as a
+# stale copy of config/examples/) would block it and fail the deploy, so the edits are saved as a
+# patch in STATE_DIR, named in the log, and the checkout replaces them. The live config, deploy/.env,
+# nats.conf and the override are untracked, so a checkout never touches them.
+save_local_edits() {
+  local changed patch
+  changed=$(git_ status --porcelain --untracked-files=no) || return 1
+  [ -n "$changed" ] || return 0
+  patch=$STATE_DIR/local-edits-$(date -u +%Y%m%d-%H%M%S).patch
+  git_ diff --binary HEAD >"$patch" || return 1
+  log "replacing local edits to tracked files (saved in $patch):"
+  printf '%s\n' "$changed"
+}
+
 # Every step checks its own result: set -e does not apply inside a function called from `if`.
 switch_to() {
+  save_local_edits || return 1
   log "checkout v$VERSION"
-  git_ -c advice.detachedHead=false checkout --quiet --detach "v$VERSION" || return 1
+  git_ -c advice.detachedHead=false checkout --quiet --force --detach "v$VERSION" || return 1
   write_override "$VERSION" || return 1
   log "back up hub-data"
   backup || return 1
@@ -184,7 +199,7 @@ switch_to() {
 rollback() {
   log "rolling back to $PREV_DEPLOYED"
   if [ -f "$OVERRIDE.prev" ]; then mv "$OVERRIDE.prev" "$OVERRIDE"; else rm -f "$OVERRIDE"; fi
-  git_ -c advice.detachedHead=false checkout --quiet --detach "$PREV_REF" &&
+  git_ -c advice.detachedHead=false checkout --quiet --force --detach "$PREV_REF" &&
     docker compose up -d --no-build --pull never && wait_ready &&
     { log "rolled back to $PREV_DEPLOYED; v$VERSION is not running"; return 0; }
   echo "agentmesh-deploy: the rollback is not ready either. On the server: cd $DEPLOY_DIR" \
