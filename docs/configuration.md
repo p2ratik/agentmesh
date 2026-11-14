@@ -231,6 +231,23 @@ once and never replaces it. `agentmesh-deploy` reads it on every run:
 | `BACKUP_DIR`, `KEEP_BACKUPS` | `~/backups`, `10` | Where the pre-deploy `hub-data` backups go, and how many of the script's own backups to keep. |
 | `HEALTH_TIMEOUT` | `60` | How many seconds the new hub's `/healthz` has to answer 200 before the deploy rolls back. A hub that exits or restarts fails at once. |
 
+## Off-site backups
+
+The settings for [off-site backups](deploy.md#off-site-backups), in
+`/etc/default/agentmesh-backup` on the hub server. `deploy/backup/install.sh` writes it once and
+never replaces it; `agentmesh-backup` reads it on every run. Neither required value is secret.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `BACKUP_REMOTE` | none (required) | The private backup repository, as an SSH URL: `git@github.com:<owner>/<repo>.git`. |
+| `AGE_RECIPIENT` | none (required) | The admin's age public key (`age1…`). Every copy is encrypted to it; its private half never goes to the server. |
+| `AGENTMESH_DIR` | `/opt/agentmesh` | The repo checkout the stack runs from. |
+| `BACKUP_PATHS` | `config deploy/.env deploy/secrets deploy/nats/nats.conf deploy/docker-compose.override.yml` | The files and folders, relative to the checkout, that go into each copy next to `hub.sqlite`. A missing one is skipped with a warning. |
+| `BACKUP_SSH_KEY` | `~/.ssh/agentmesh-backup` | The key that pushes to the repository. `<key>.known_hosts` next to it holds the repository host's keys. |
+
+The schedule is the systemd timer's: every hour, a few minutes late at random, and caught up after
+the server was off. Change it with `sudo systemctl edit agentmesh-backup.timer`.
+
 ## Laptop (plugin)
 
 Each laptop's settings live outside `mesh.yaml`. The plugin options, the environment knobs and the

@@ -165,7 +165,9 @@ plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard,relay
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
 deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup,github-deploy-setup}.sh,
                     aws/github-deploy-setup.sh, auto-deploy/ (agentmesh-deploy.sh: the deploy key's forced
-                    command; install.sh; github-setup.sh, shared by the cloud setup scripts)
+                    command; install.sh; github-setup.sh, shared by the cloud setup scripts),
+                    backup/ (agentmesh-backup.sh: hourly encrypted off-site backups; install.sh;
+                    backup-watch.yml, a workflow template for the backup repository)
 docs/               getting-started, deploy, configuration, workflows, planning, discord,
                     events-and-hermes, protocol, security, adr/, specs/ (original design spec)
 tests/integration   e2e against a real nats-server + hub + bundled plugin over MCP
