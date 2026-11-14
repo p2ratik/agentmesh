@@ -25498,7 +25498,7 @@ function expandHome(path2, home = homedir2()) {
 }
 
 // ../../packages/common/src/version.ts
-var VERSION = "0.7.1";
+var VERSION = "0.7.2";
 var RELAY_MIN_VERSION = "0.6.0";
 var DOTTED = /^\d+(\.\d+)*$/;
 function isAtLeast(version2, min) {
@@ -45640,7 +45640,12 @@ var DomainEvent = external_exports.discriminatedUnion("type", [
       text: external_exports.string(),
       severity: Severity,
       /** `external` when the text holds event content. Older hubs send none: read it as external. */
-      trust: Trust.default("external")
+      trust: Trust.default("external"),
+      /**
+       * `markdown`: the hub escaped every event value in `text` and checked its links, so it is
+       * posted as written. Absent (older hubs, team notices): plain text.
+       */
+      format: external_exports.enum(["text", "markdown"]).optional()
     })
   ),
   event("mesh.paused", external_exports.object({ by: external_exports.string(), reason: external_exports.string().nullable() })),

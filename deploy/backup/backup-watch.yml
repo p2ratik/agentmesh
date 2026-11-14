@@ -1,0 +1,32 @@
+# A template for the BACKUP repository, not for this one: copy it there as
+# .github/workflows/backup-watch.yml on `main` (docs/deploy.md#off-site-backups).
+#
+# The hub server pushes a new `hourly` copy every hour. This fails, and GitHub emails whoever last
+# changed this file's schedule, when that copy is older than MAX_AGE_HOURS: the backup broke, or
+# the server is gone. It reads only the branch's commit time, never the backup.
+name: Backup watch
+
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: The hourly copy is recent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_AGE_HOURS: 3
+        run: |
+          WHEN=$(gh api "repos/$GITHUB_REPOSITORY/commits/hourly" --jq .commit.committer.date) ||
+            { echo "::error::No hourly backup branch: the backup has never run."; exit 1; }
+          AGE=$(( $(date +%s) - $(date -d "$WHEN" +%s) ))
+          echo "The newest hourly backup is $((AGE / 60)) minutes old ($WHEN)."
+          [ "$AGE" -le $((MAX_AGE_HOURS * 3600)) ] ||
+            { echo "::error::No backup for over $MAX_AGE_HOURS hours. Check the hub server: agentmesh-backup status, journalctl -u agentmesh-backup."; exit 1; }

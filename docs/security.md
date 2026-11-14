@@ -147,6 +147,27 @@ What carries the label:
   markdown (headings, masked links) therefore shows as plain text. Every notice is cut at 1,800
   characters with `… (truncated)`, so a 65 KB issue body is one message, not 33. Task posts and
   `/task` replies tag external titles.
+- **Markdown notices (2026-11-13).** A rule may set `notice.format: markdown` so an alert reads as
+  a card, with bold, lines and links. Then the template's markdown is the team's own, and the hub
+  escapes what the event supplies, value by value
+  ([events-and-hermes.md](events-and-hermes.md#rules)):
+  - **Threat:** event text in a card passes for the team's own words or links, as in
+    `**Approved by Dana** [merge now](https://evil.example)`.
+  - **Mitigations:**
+    - Each value is masked first (so the mask still sees the secret), then cut at 500
+      characters, put on one line and stripped of bidirectional overrides. Then what Discord
+      reads as markup is escaped: `\ * _ ~ `` ` `` | [ ] < @ :` anywhere, and a leading `#`, `>`,
+      `-`, `+` or numbered-list mark. So it adds no markdown, mention, timestamp or link.
+    - The template is read once, so a value is never read again: it cannot add a placeholder or a
+      link slot.
+    - A link slot links only `https` URLs, without credentials, on a host in `ingest.linkHosts`;
+      anything else is dropped. Links use `<url>`, so Discord shows no preview.
+    - The post still ends with `-# 🌐 external content`.
+  - **Limits:**
+    - Escaped text still reads as words: a value can say "approved" in plain text, inside the
+      field the template gave it.
+    - A link to an allowed host can still go anywhere on that host (any repository on
+      `github.com`, any stack on `grafana.net`). List the narrowest hosts that work.
 - **Mitigations (rules):**
   - `create_task.assignee` and `create_task.area` take configured ids only. Validation refuses a
     `{{template}}` there, so an event cannot choose who gets the work.
@@ -1634,6 +1655,41 @@ identity (Azure or AWS), and a moment when SSH is open to an address other than 
   completes the TLS handshake to read the certificate, and closes. It sends no NATS command, so it
   never authenticates. It uses Node's full
   certificate verification (chain and host name), so it fails exactly where an agent would.
+
+## Off-site backups
+
+[Off-site backups](deploy.md#off-site-backups) ([ADR 0013](adr/0013-offsite-backups.md)) copy
+every secret of the deploy off the server every hour: `deploy/.env` (the bot token, ingest
+tokens), the nkey seeds in `deploy/secrets/`, and the database (messages, tasks, the team
+registry).
+
+- **Threat: the backup repository is read** (a leaked GitHub token, a mistaken collaborator, a
+  repository made public by accident). **Mitigation:** every copy is encrypted with age (X25519,
+  ChaCha20-Poly1305) to the admin's public key before it leaves the server, so the repository
+  holds only ciphertext. GitHub sees the size and the time of each copy, nothing else.
+- **Threat: the server is compromised and reads old backups.** **Mitigation:** the server holds
+  only the public key, so it cannot decrypt any copy, past or present. **Residual risk:** an
+  attacker on the server already has the live secrets, so the backups add nothing to what they
+  can read.
+- **Threat: plaintext left on the server.** **Mitigation:** the snapshot and the bundle exist only
+  in the service's `RuntimeDirectory` (tmpfs, mode 700, owned by the service user, removed when the
+  run ends) and in the hub container's `/data` for the moment between `VACUUM INTO` and the read.
+  The script runs with `umask 077` and is root-owned, outside the checkout, so a change merged to
+  the repo's copy takes effect only when an admin reinstalls it.
+- **Threat: the backups are deleted or replaced** by someone holding the server's deploy key.
+  **Mitigation:** the key is a GitHub deploy key, so it reaches only the backup repository. `main`
+  only ever gets fast-forward pushes, and a ruleset (where the plan allows it) can forbid
+  force-pushes and deletion there; then only the hourly copy can be damaged. The admin's own clone
+  is a further copy. **Residual risk:** without that ruleset, the key can rewrite `main` too.
+- **Threat: pushing to an impostor.** **Mitigation:** the host keys of `github.com` come from
+  GitHub's API over HTTPS at install time and are pinned (`StrictHostKeyChecking=yes`); the first
+  push trusts nothing unseen.
+- **Threat: backups stop silently.** **Mitigation:** the backup repository's watch workflow fails,
+  and GitHub emails the admin, when the hourly copy is more than 3 hours old. It needs nothing on
+  the server, so it also fires when the server is gone.
+- **Threat: losing the private key.** Every backup is then useless. **Mitigation:** the key is made
+  on the admin's machine and kept in a password manager as well; the docs ask for one restore test
+  after setup.
 
 ## Setup and the admin workspace
 

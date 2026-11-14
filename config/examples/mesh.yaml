@@ -157,6 +157,8 @@ ingest:
       idHeader: x-github-delivery # logged only: the HMAC signs the body, so the id is the body's hash
       auth: { type: hmac-sha256, secret: "${GITHUB_WEBHOOK_SECRET}" }
   retentionDays: 30 # received events (and their dedup ids) are kept this long
+  # Hosts (and their subdomains) a `format: markdown` notice may link to; other links are dropped.
+  linkHosts: [console.aws.amazon.com, github.com]
 
 discord:
   enabled: false # set to true once the bot exists (docs/discord.md)
