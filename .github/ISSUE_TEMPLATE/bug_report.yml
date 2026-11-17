@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in the hub, the plugin, the Discord bridge or setup does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste a secret here.** No bot token, NATS seed (`SU…`), invite code or `deploy/.env`
+        value. Logs from AgentMesh can contain them: check before you paste, and replace them with
+        `<redacted>`. A security problem goes to a [private report](https://github.com/p2ratik/agentmesh/security/advisories/new), not here.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The plugin's version (`claude plugin list`), and the hub image tag if it differs.
+      placeholder: "0.5.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Where
+      options:
+        - Plugin (Claude Code session, tools, mesh window)
+        - Hub
+        - Discord bridge
+        - Setup / CLI (`/agentmesh:setup`, `agentmesh …`)
+        - Deploy (compose, images, automatic deploys)
+        - Docs
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How the hub runs
+      options:
+        - "/agentmesh:setup on a server"
+        - "/agentmesh:setup trial on my machine"
+        - "By hand from this repository"
+        - "Not relevant"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      placeholder: "1. …\n2. …"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (redacted)
+      description: "`docker compose logs --tail 50 hub`, or the session's error. Secrets removed."
+      render: text
+  - type: checkboxes
+    id: secrets
+    attributes:
+      label: Before you submit
+      options:
+        - label: This report contains no token, seed, invite code or `.env` value.
+          required: true

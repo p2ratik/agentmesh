@@ -1,0 +1,21 @@
+name: Feature request
+description: A change you need, once it is clear enough to build. Open ideas go to Discussions first.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What your team is trying to do, and where AgentMesh gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried or considered instead
