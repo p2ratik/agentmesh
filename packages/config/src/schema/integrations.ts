@@ -57,13 +57,15 @@ export const DiscordChannel = z.object({
   topic: z.string().optional(),
 });
 
+export const DEFAULT_CATEGORY = 'Cosmicwave';
+
 export const DiscordConfig = z.object({
   enabled: z.boolean().default(false),
   token: z.string().default(''),
   applicationId: z.string().default(''),
   guildId: z.string().default(''),
   provision: z
-    .object({ enabled: z.boolean().default(true), category: z.string().default('Cosmicwave') })
+    .object({ enabled: z.boolean().default(true), category: z.string().default(DEFAULT_CATEGORY) })
     .prefault({}),
   /** Keyed by purpose; `reviews` falls back to `tasks`, `alerts` to `events`. */
   channels: z.record(z.string(), DiscordChannel).default({

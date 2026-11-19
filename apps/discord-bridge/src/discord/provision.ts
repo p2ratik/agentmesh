@@ -1,5 +1,5 @@
 import type { Logger } from '@cosmicwave/common';
-import type { DiscordConfig } from '@cosmicwave/config';
+import { DEFAULT_CATEGORY, type DiscordConfig } from '@cosmicwave/config';
 import { type CategoryChannel, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import { ChannelDirectory } from './directory';
 
@@ -48,10 +48,27 @@ export async function provisionChannels(
   return new ChannelDirectory(byPurpose);
 }
 
+/** The default category name before the rename. */
+export const LEGACY_CATEGORY = 'Agent Mesh';
+
+/** The category to reuse: the wanted name, else (default name only) the old default. */
+export function pickCategory<T extends { name: string }>(
+  categories: Iterable<T>,
+  wanted: string,
+): T | undefined {
+  const all = [...categories];
+  return (
+    all.find((c) => c.name === wanted) ??
+    (wanted === DEFAULT_CATEGORY ? all.find((c) => c.name === LEGACY_CATEGORY) : undefined)
+  );
+}
+
 async function ensureCategory(guild: Guild, name: string): Promise<CategoryChannel> {
-  const found = guild.channels.cache.find(
-    (c: GuildBasedChannel): c is CategoryChannel =>
-      c.type === ChannelType.GuildCategory && c.name === name,
+  const found = pickCategory(
+    guild.channels.cache
+      .filter((c: GuildBasedChannel): c is CategoryChannel => c.type === ChannelType.GuildCategory)
+      .values(),
+    name,
   );
   return (
     found ?? guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'Cosmicwave' })
