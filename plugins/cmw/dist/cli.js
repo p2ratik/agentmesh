@@ -48994,47 +48994,79 @@ function renderClaudeSettings() {
 
 // ../../apps/cli/src/setup/legacy-workspace.ts
 var OLD_STATE = ".agentmesh-setup.json";
+var NEW_STATE = ".cosmicwave-setup.json";
 var OLD_PREFIX = "AGENTMESH_";
 var OLD_PROJECT = "agentmesh";
 var OLD_REMOTE_DIR = "/opt/agentmesh";
-var KEYS = ["CONFIG_DIR", "LOG_LEVEL", "IMAGE_REGISTRY", "VERSION"];
-function convertEnv(envFile, env) {
-  const add = {};
-  for (const k of KEYS) {
-    const old = env.get(`${OLD_PREFIX}${k}`);
-    if (old !== void 0 && !env.has(`COSMICWAVE_${k}`)) add[`COSMICWAVE_${k}`] = old;
-  }
-  if (!env.has("COMPOSE_PROJECT_NAME")) add.COMPOSE_PROJECT_NAME = OLD_PROJECT;
-  const keys = Object.keys(add);
-  if (keys.length === 0) return void 0;
-  updateEnvFile(envFile, add);
-  return `Added ${keys.join(", ")} to deploy/.env`;
+var KEYS = ["CONFIG_DIR", "LOG_LEVEL", "IMAGE_REGISTRY"];
+function envLiteral(value) {
+  if (!/^["']|^\s|\s$|\s#/.test(value)) return value;
+  if (!value.includes('"')) return `"${value}"`;
+  if (!value.includes("'")) return `'${value}'`;
+  return value;
 }
-function convertAnswers(path) {
-  const raw = JSON.parse(readFileSync8(path, "utf8"));
-  if (raw.hosting?.mode !== "server" || raw.hosting.remoteDir !== void 0) return void 0;
+function copyKeys(env, keys) {
+  const add = {};
+  for (const k of keys) {
+    const old = env.get(`${OLD_PREFIX}${k}`);
+    if (old !== void 0 && !env.has(`COSMICWAVE_${k}`)) add[`COSMICWAVE_${k}`] = envLiteral(old);
+  }
+  return add;
+}
+function addToEnv(envFile, add, lines) {
+  const keys = Object.keys(add);
+  if (keys.length === 0) return;
+  updateEnvFile(envFile, add);
+  lines.push(`Added ${keys.join(", ")} to deploy/.env`);
+}
+function pinRemoteDir(path) {
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync8(path, "utf8"));
+  } catch (error62) {
+    if (error62 instanceof SyntaxError) {
+      throw new MeshError("invalid_request", `${path} is not valid JSON: ${error62.message}`);
+    }
+    throw error62;
+  }
+  if (raw?.hosting?.mode !== "server" || raw.hosting.remoteDir !== void 0) return void 0;
   raw.hosting.remoteDir = OLD_REMOTE_DIR;
   writeFileSync3(path, `${JSON.stringify(raw, null, 2)}
 `);
   return "Set hosting.remoteDir in setup-answers.json to the server folder it already uses";
 }
 function convertLegacyWorkspace(root) {
-  const p = workspacePaths(root);
+  const envFile = join10(root, "deploy", ".env");
+  const answers = join10(root, "setup-answers.json");
+  const compose = join10(root, "deploy", "docker-compose.yml");
   const oldState = join10(root, OLD_STATE);
-  const env = existsSync8(p.envFile) ? readEnvFile(p.envFile) : /* @__PURE__ */ new Map();
+  const newState = join10(root, NEW_STATE);
+  const env = existsSync8(envFile) ? readEnvFile(envFile) : /* @__PURE__ */ new Map();
   const legacy = existsSync8(oldState) || env.has(`${OLD_PREFIX}VERSION`) && !env.has("COSMICWAVE_VERSION");
   if (!legacy) return [];
   const lines = [];
-  if (existsSync8(oldState) && !existsSync8(p.state)) {
-    renameSync4(oldState, p.state);
-    lines.push(`Renamed ${OLD_STATE} to .cosmicwave-setup.json`);
+  if (existsSync8(answers)) {
+    const pinned = pinRemoteDir(answers);
+    if (pinned) lines.push(pinned);
   }
-  if (existsSync8(p.envFile)) lines.push(convertEnv(p.envFile, env));
-  if (existsSync8(p.answers)) lines.push(convertAnswers(p.answers));
-  if (existsSync8(p.compose) && writeRendered(p.compose, renderCompose(), true) === "replaced") {
-    lines.push("Rendered deploy/docker-compose.yml again");
+  if (existsSync8(compose)) {
+    const next = renderCompose();
+    if (readFileSync8(compose, "utf8") !== next) {
+      writeFileWithDirs(compose, next);
+      lines.push("Rendered deploy/docker-compose.yml again");
+    }
   }
-  return lines.filter((l) => l !== void 0);
+  if (existsSync8(envFile)) {
+    const add = copyKeys(env, KEYS);
+    if (!env.has("COMPOSE_PROJECT_NAME")) add.COMPOSE_PROJECT_NAME = OLD_PROJECT;
+    addToEnv(envFile, add, lines);
+    addToEnv(envFile, copyKeys(env, ["VERSION"]), lines);
+  }
+  if (existsSync8(oldState) && !existsSync8(newState)) {
+    renameSync4(oldState, newState);
+    lines.push(`Renamed ${OLD_STATE} to ${NEW_STATE}`);
+  }
+  return lines;
 }
 
 // ../../apps/cli/src/setup/workspace.ts

@@ -111,6 +111,41 @@ describe('convertLegacyWorkspace', () => {
     expect(convertLegacyWorkspace(w.root)).toEqual([]);
   });
 
+  it('stops with a readable error on a broken answers file, then finishes once it is repaired', () => {
+    const w = legacy();
+    const answers = join(w.root, 'setup-answers.json');
+    const good = readFileSync(answers, 'utf8');
+    writeFileSync(answers, '{ not json');
+    expect(() => convertLegacyWorkspace(w.root)).toThrow(/setup-answers\.json is not valid JSON/);
+    // Nothing that marks the workspace as converted was written.
+    expect(w.read('.agentmesh-setup.json')).toContain('render');
+    expect(() => w.read('.cosmicwave-setup.json')).toThrow();
+    expect(readEnvFile(w.env).has('COSMICWAVE_VERSION')).toBe(false);
+    expect(w.read('deploy/docker-compose.yml')).toBe('name: agentmesh\n');
+
+    writeFileSync(answers, good);
+    expect(convertLegacyWorkspace(w.root).length).toBeGreaterThan(0);
+    expect(JSON.parse(w.read('setup-answers.json')).hosting.remoteDir).toBe('/opt/agentmesh');
+    expect(w.read('deploy/docker-compose.yml')).toContain('name: cosmicwave');
+    expect(readEnvFile(w.env).get('COSMICWAVE_VERSION')).toBe('0.7.2');
+    expect(w.read('.cosmicwave-setup.json')).toContain('render');
+    expect(convertLegacyWorkspace(w.root)).toEqual([]);
+  });
+
+  it('copies quoted values and values with a comment mark faithfully', () => {
+    const w = legacy({
+      env:
+        'AGENTMESH_VERSION=0.7.2\nAGENTMESH_LOG_LEVEL="a # b"\n' +
+        "AGENTMESH_CONFIG_DIR='../my config'\nAGENTMESH_IMAGE_REGISTRY=\"say 'hi' # x\"\n",
+    });
+    const before = readEnvFile(w.env);
+    convertLegacyWorkspace(w.root);
+    const after = readEnvFile(w.env);
+    for (const k of ['LOG_LEVEL', 'CONFIG_DIR', 'IMAGE_REGISTRY', 'VERSION']) {
+      expect(after.get(`COSMICWAVE_${k}`)).toBe(before.get(`AGENTMESH_${k}`));
+    }
+  });
+
   it('never prints a value from .env', () => {
     const w = legacy();
     const lines = convertLegacyWorkspace(w.root);
