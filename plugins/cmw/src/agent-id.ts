@@ -2,6 +2,7 @@
 // MCP server uses too (`resolveConfig`): the option, else ~/.cosmicwave/agent.json when it applies.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { meshHome } from '@cosmicwave/common/mesh-home';
 
 /** ~/.cosmicwave/agent.json; the zod schema for the server's reader lives in config.ts. */
 export interface SavedAgent {
@@ -62,9 +63,7 @@ export function parseSavedAgent(value: unknown): SavedAgent | null {
 export function hookAgentId(env: Record<string, string | undefined>, home: string): string | null {
   let saved: SavedAgent | null = null;
   try {
-    saved = parseSavedAgent(
-      JSON.parse(readFileSync(join(home, '.cosmicwave', 'agent.json'), 'utf8')),
-    );
+    saved = parseSavedAgent(JSON.parse(readFileSync(join(meshHome(home), 'agent.json'), 'utf8')));
   } catch {
     // no file, or not JSON: the options alone decide
   }

@@ -1,13 +1,30 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/hook.ts
-import { existsSync } from "node:fs";
-import { homedir as homedir2 } from "node:os";
-import { join as join5 } from "node:path";
+import { existsSync as existsSync2 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join6 } from "node:path";
+
+// ../../packages/common/src/mesh-home.ts
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, posix, win32 } from "node:path";
+var HOME_DIR = ".cosmicwave";
+var LEGACY_HOME_DIR = ".agentmesh";
+var AGENT_FILE = "agent.json";
+function homeDirName(home, exists = existsSync) {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) return HOME_DIR;
+  if (exists(join(home, LEGACY_HOME_DIR, AGENT_FILE))) return LEGACY_HOME_DIR;
+  const onlyLegacy = exists(join(home, LEGACY_HOME_DIR)) && !exists(join(home, HOME_DIR));
+  return onlyLegacy ? LEGACY_HOME_DIR : HOME_DIR;
+}
+function meshHome(home = homedir(), exists) {
+  return join(home, homeDirName(home, exists));
+}
 
 // src/agent-id.ts
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync as readFileSync2 } from "node:fs";
+import { join as join2 } from "node:path";
 function usable(value) {
   const trimmed = value?.trim();
   if (!trimmed || trimmed.startsWith("${")) return void 0;
@@ -41,9 +58,7 @@ function parseSavedAgent(value) {
 function hookAgentId(env, home) {
   let saved = null;
   try {
-    saved = parseSavedAgent(
-      JSON.parse(readFileSync(join(home, ".cosmicwave", "agent.json"), "utf8"))
-    );
+    saved = parseSavedAgent(JSON.parse(readFileSync2(join2(meshHome(home), "agent.json"), "utf8")));
   } catch {
   }
   return resolveAgentId(
@@ -53,8 +68,8 @@ function hookAgentId(env, home) {
 }
 
 // src/pull/state.ts
-import { readdirSync, readFileSync as readFileSync2 } from "node:fs";
-import { join as join2 } from "node:path";
+import { readdirSync, readFileSync as readFileSync3 } from "node:fs";
+import { join as join3 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
@@ -62,7 +77,7 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
   return age >= 0 && age <= maxAge;
 }
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join2(home, ".cosmicwave", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join3(meshHome(home), "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 function readJsonFiles(dir, filter) {
@@ -74,7 +89,7 @@ function readJsonFiles(dir, filter) {
   }
   return names.map((name) => {
     try {
-      return JSON.parse(readFileSync2(join2(dir, name), "utf8"));
+      return JSON.parse(readFileSync3(join3(dir, name), "utf8"));
     } catch {
       return null;
     }
@@ -236,13 +251,13 @@ function promptContext({
 import {
   mkdirSync,
   readdirSync as readdirSync2,
-  readFileSync as readFileSync3,
-  renameSync,
+  readFileSync as readFileSync4,
+  renameSync as renameSync2,
   rmSync,
   statSync,
-  writeFileSync
+  writeFileSync as writeFileSync2
 } from "node:fs";
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var RECORD_MAX_AGE_MS = 24 * 36e5;
 var RECORD_FILE = /^cc-\d{1,10}\.json(?:\.tmp)?$/;
@@ -256,16 +271,16 @@ function writeClaudeSession(dir, pid, input, now) {
   const id = input.session_id;
   if (!name || typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return;
   const source = typeof input.source === "string" ? input.source.slice(0, 32) : null;
-  const file = join3(dir, name);
+  const file = join4(dir, name);
   mkdirSync(dir, { recursive: true, mode: 448 });
-  writeFileSync(`${file}.tmp`, JSON.stringify({ session_id: id, source, at: now.toISOString() }), {
+  writeFileSync2(`${file}.tmp`, JSON.stringify({ session_id: id, source, at: now.toISOString() }), {
     mode: 384
   });
-  renameSync(`${file}.tmp`, file);
+  renameSync2(`${file}.tmp`, file);
 }
 function readRecord(file) {
   try {
-    return JSON.parse(readFileSync3(file, "utf8"));
+    return JSON.parse(readFileSync4(file, "utf8"));
   } catch {
     return null;
   }
@@ -273,7 +288,7 @@ function readRecord(file) {
 function deleteClaudeSession(dir, pid, sessionId) {
   const name = claudeSessionFile(pid);
   if (!name || typeof sessionId !== "string" || !CLAUDE_SESSION_ID.test(sessionId)) return;
-  const file = join3(dir, name);
+  const file = join4(dir, name);
   if (readRecord(file)?.session_id === sessionId) rmSync(file, { force: true });
 }
 function pruneClaudeSessions(dir, now) {
@@ -285,7 +300,7 @@ function pruneClaudeSessions(dir, now) {
   }
   for (const name of names) {
     try {
-      const file = join3(dir, name);
+      const file = join4(dir, name);
       if (now - statSync(file).mtimeMs > RECORD_MAX_AGE_MS) rmSync(file, { force: true });
     } catch {
     }
@@ -298,12 +313,12 @@ import {
   appendFileSync,
   mkdirSync as mkdirSync2,
   readdirSync as readdirSync3,
-  readFileSync as readFileSync4,
+  readFileSync as readFileSync5,
   statSync as statSync2,
   unlinkSync
 } from "node:fs";
-import { homedir } from "node:os";
-import { join as join4 } from "node:path";
+import { homedir as homedir2 } from "node:os";
+import { join as join5 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
 var MAX_EVENT_FILES = 500;
 var UNNAMED = /^events-\d+\.jsonl$/;
@@ -324,7 +339,7 @@ function appendEvent(dataDir, event, agent = null) {
   try {
     if (agent !== null && !PARTICIPANT_ID.test(agent)) return;
     const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
-    const file = join4(dataDir, `events-${name}.jsonl`);
+    const file = join5(dataDir, `events-${name}.jsonl`);
     const size = statSync2(file, { throwIfNoEntry: false })?.size;
     const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
     if (full) return;
@@ -339,7 +354,7 @@ function leaveEvent(source, session, fields) {
     const event = fields();
     if (!event) return;
     const env = process.env;
-    const home = homedir();
+    const home = homedir2();
     const dir = pullStateDirs(env, home)[0];
     const id = hookAgentId(env, home);
     const agent = id !== null && PARTICIPANT_ID.test(id) ? id : null;
@@ -364,23 +379,23 @@ function windowAddresses(values, prefix, agentId, now) {
 }
 
 // ../../packages/common/src/window.ts
-import { readFileSync as readFileSync5 } from "node:fs";
-import { posix, win32 } from "node:path";
+import { readFileSync as readFileSync6 } from "node:fs";
+import { posix as posix2, win32 as win322 } from "node:path";
 var MESH_WINDOW_ENV = "COSMICWAVE_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform) {
-  const { join: join6 } = platform === "win32" ? win32 : posix;
-  const dir = join6(home, ".cosmicwave");
+  const { join: join7 } = platform === "win32" ? win322 : posix2;
+  const dir = join7(home, homeDirName(home));
   return {
     dir,
-    policy: join6(dir, "mesh-window.json"),
-    settings: join6(dir, "mesh-window.settings.json"),
-    launcher: join6(dir, launcherName(platform)),
-    emptyHooks: join6(dir, "empty-git-hooks"),
-    bin: join6(dir, "bin")
+    policy: join7(dir, "mesh-window.json"),
+    settings: join7(dir, "mesh-window.settings.json"),
+    launcher: join7(dir, launcherName(platform)),
+    emptyHooks: join7(dir, "empty-git-hooks"),
+    bin: join7(dir, "bin")
   };
 }
 var WINDOW_MODES = ["auto", "manual"];
@@ -427,7 +442,7 @@ function parseWindowPolicy(text) {
 }
 function readWindowPolicy(home, platform) {
   try {
-    return parseWindowPolicy(readFileSync5(windowFiles(home, platform).policy, "utf8"));
+    return parseWindowPolicy(readFileSync6(windowFiles(home, platform).policy, "utf8"));
   } catch {
     return null;
   }
@@ -558,14 +573,14 @@ function parse(text) {
 }
 function sessionStart(source) {
   const env = process.env;
-  const home = homedir2();
+  const home = homedir3();
   const { policy, setUp } = windowStartState(env, hookAgentId(env, home), home, process.platform);
   const dir = pullStateDirs(env, home)[0];
   return sessionStartOutput({
     source: typeof source === "string" ? source : void 0,
     marked: !!env.COSMICWAVE_MESH_WINDOW,
     policy,
-    enrolled: existsSync(join5(home, ".cosmicwave", "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
+    enrolled: existsSync2(join6(meshHome(home), "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.COSMICWAVE_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
     setUp
@@ -631,7 +646,7 @@ function prompted(event, pull, line) {
 async function main() {
   const text = await readStdin();
   const input = parse(text);
-  const dirs = pullStateDirs(process.env, homedir2());
+  const dirs = pullStateDirs(process.env, homedir3());
   const unread = input === null ? unreadLine(text, dirs) : null;
   const event = unread ? "UserPromptSubmit" : input?.hook_event_name;
   if (typeof event !== "string" || !EVENTS.has(event)) return;

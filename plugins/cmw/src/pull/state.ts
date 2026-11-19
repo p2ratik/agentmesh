@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { meshHome } from '@cosmicwave/common/mesh-home';
 
 /**
  * The pull-mode state file (ADR 0008): what an active pull session's MCP server
@@ -33,7 +34,7 @@ export function isFresh(at: unknown, now: number, maxAge = STATE_MAX_AGE_MS): bo
 
 /** Where state files live: the plugin's data dir, then the fallback; the writer uses the first. */
 export function pullStateDirs(env: NodeJS.ProcessEnv, home: string): string[] {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, '.cosmicwave', 'run')];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join(meshHome(home), 'run')];
   return [...new Set(dirs.filter((d): d is string => !!d))];
 }
 

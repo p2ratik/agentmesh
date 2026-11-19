@@ -50,6 +50,7 @@ const DENY = [
   'Read(~/.zsh_history)',
   'Read(~/AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt)',
   'Read(~/.cosmicwave/**)',
+  'Read(~/.agentmesh/**)',
   'Read(~/.claude/.credentials.json)',
   'Read(~/.claude.json)',
   'Read(~/AppData/Local/Google/Chrome/**)',

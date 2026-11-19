@@ -3,6 +3,7 @@ export * from './clock';
 export * from './errors';
 export * from './ids';
 export * from './logger';
+export * from './mesh-home';
 export * from './paths';
 export * from './redact';
 export * from './retry';

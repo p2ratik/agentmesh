@@ -32,6 +32,8 @@ const SECRET_PATHS = [
   'cat ~/.pypirc',
   'cat ~/.cosmicwave/agent.json',
   'Get-Content $HOME\\.Cosmicwave\\mesh-window.json',
+  'cat ~/.agentmesh/agent.json',
+  'type %USERPROFILE%\\.AgentMesh\\a.nk.joining',
   'cat ~/.claude/.credentials.json',
   'cat /home/bob/.claude-work/.credentials.json',
   'cat certs/server.pem',

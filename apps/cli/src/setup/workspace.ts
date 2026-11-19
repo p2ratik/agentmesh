@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cosmicwaveDir, MeshError } from '@cosmicwave/common';
+import { MeshError, meshHome } from '@cosmicwave/common';
 import { z } from 'zod';
 import { usageError } from '../args';
 import { type CliContext, resolveFrom } from '../context';
@@ -57,7 +57,7 @@ export function workspacePaths(root: string): WorkspacePaths {
  * keeps it apart from the seeds `/cmw:join` and other meshes keep in that folder.
  */
 export function agentSeedFile(homeDir: string, meshName: string, agentId: string): string {
-  return join(cosmicwaveDir(homeDir), `${meshName}-${agentId}.nk`);
+  return join(meshHome(homeDir), `${meshName}-${agentId}.nk`);
 }
 
 /** The setup steps in order; the state file records when each one finished. */

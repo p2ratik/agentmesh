@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
+import { MeshError } from '@cosmicwave/common';
+import { BOTH_FOLDERS, HOME_DIR, LEGACY_HOME_DIR } from '@cosmicwave/common/mesh-home';
 import {
   ownBranchPrefix,
   parseWindowPolicy,
@@ -115,6 +117,16 @@ const present = (p: string): boolean => {
   }
 };
 
+const NOT_MOVED =
+  '~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder, then run this again.';
+
+/** A window is never written into ~/.agentmesh: its launcher and settings bake the folder's path,
+ * which the move would break. The CLI tried the move before this command ran. */
+function assertMoved(home: string): void {
+  if (!present(join(home, LEGACY_HOME_DIR))) return;
+  throw new MeshError('invalid_request', present(join(home, HOME_DIR)) ? BOTH_FOLDERS : NOT_MOVED);
+}
+
 /** What follows the start line: the mode, a re-run note, then the warnings. */
 function printNotes(
   ctx: CliContext,
@@ -184,6 +196,7 @@ that Claude account.
     const agentId = values.agent;
     if (!agentId) throw usageError('Missing --agent <id>');
     const mode = windowMode(values.mode);
+    assertMoved(ctx.homeDir);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values['branch-template'], values.owner ?? agentId, agentId);

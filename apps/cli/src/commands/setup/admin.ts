@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { cosmicwaveDir, existingMesh, MeshError } from '@cosmicwave/common';
+import { existingMesh, MeshError, meshHome } from '@cosmicwave/common';
 import { parseCommandArgs } from '../../args';
 import { type Command, cliOf } from '../../context';
 import { loadTopology } from '../../lib/config-files';
@@ -27,7 +27,7 @@ refuses to replace settings for another agent or hub unless --replace.`,
     const p = workspaceFrom(ctx, values.dir);
     const a = loadAnswers(p);
     const agentId = agentIdOf(a.admin.id);
-    const dir = cosmicwaveDir(ctx.homeDir);
+    const dir = meshHome(ctx.homeDir);
     const seedFile = agentSeedFile(ctx.homeDir, a.team.meshName, agentId);
     if (!existsSync(seedFile)) {
       throw new MeshError('not_found', `No seed at ${seedFile}. Run setup render first.`);

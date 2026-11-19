@@ -1,4 +1,10 @@
-import { createLogger, type Logger } from '@cosmicwave/common';
+import {
+  BOTH_FOLDERS,
+  createLogger,
+  type Logger,
+  type MoveResult,
+  moveLegacyHome,
+} from '@cosmicwave/common';
 import { CLOSED_ASKER_DEFAULT_MINUTES, type RpcResult } from '@cosmicwave/protocol';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { type PluginConfig, resolveConfig } from './config';
@@ -24,6 +30,8 @@ let cleanup: () => Promise<void> = async () => undefined;
  * `server.js join` is the terminal path for invites instead.
  */
 async function main(): Promise<void> {
+  // Before anything reads the laptop folder: ~/.agentmesh becomes ~/.cosmicwave (one rename).
+  const moved = moveLegacyHome();
   if (process.argv[2] === 'join') {
     process.exit(await runJoinCli(process.argv.slice(3), VERSION));
   }
@@ -32,6 +40,7 @@ async function main(): Promise<void> {
   const logger = createLogger('cosmicwave-plugin', {
     destination: logFile ? { file: logFile } : 'stderr',
   });
+  logMove(logger, moved);
   watchLifecycle(logger);
   if (resolved.ok) {
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
@@ -145,6 +154,12 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
       session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
     recorder: session.recorder,
   };
+}
+
+function logMove(logger: Logger, moved: MoveResult): void {
+  if (moved === 'moved') logger.info('moved ~/.agentmesh to ~/.cosmicwave');
+  if (moved === 'failed') logger.warn('could not move ~/.agentmesh yet; using it in place');
+  if (moved === 'both') logger.warn(BOTH_FOLDERS);
 }
 
 /** Exits when Claude Code closes stdin, on signals, or if orphaned. */

@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join14 } = __require("path");
+    var { join: join15 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join14(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join15(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2552,9 +2552,9 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync5 } = __require("node:fs");
+    var { existsSync: existsSync6 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join14, isAbsolute, sep: sep2 } = __require("node:path");
+    var { join: join15, isAbsolute, sep: sep2 } = __require("node:path");
     var { fileURLToPath } = __require("node:url");
     var sleep3 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute(path2) && !existsSync5(path2);
+      return isAbsolute(path2) && !existsSync6(path2);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join15(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join15(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join14(__dirname, "..", "file.js");
+          return join15(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join14 = ",";
+            let join15 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join14 = `,
+                join15 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join14;
+                res += join15;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join14 = `,
+              join15 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join14;
+                separator = join15;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join14;
+              separator = join15;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join14 = ",";
+            let join15 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join14 = `,
+                join15 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join14;
+                res += join15;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join14 = `,
+              join15 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join14;
+                separator = join15;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join15 = `,
+              const join16 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join15;
+                res2 += join16;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join16}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join14 = `,
+            const join15 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join14, maximumBreadth);
+              res += stringifyTypedArray(value, join15, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join14;
+              separator = join15;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join14;
+                separator = join15;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join14;
+              separator = join15;
             }
             if (separator !== "") {
               res = `
@@ -25416,21 +25416,99 @@ var require_dist = __commonJS({
 });
 
 // ../../packages/common/src/agent-files.ts
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join2 } from "node:path";
+
+// ../../packages/common/src/mesh-home.ts
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
-var cosmicwaveDir = (home = homedir()) => join(home, ".cosmicwave");
-var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
-function existingMesh(home = homedir()) {
-  const file2 = join(cosmicwaveDir(home), "agent.json");
-  if (!existsSync(file2)) return null;
+import { join, posix, win32 } from "node:path";
+var HOME_DIR = ".cosmicwave";
+var LEGACY_HOME_DIR = ".agentmesh";
+var BOTH_FOLDERS = "Both ~/.cosmicwave and ~/.agentmesh exist. Move what you need into ~/.cosmicwave, then delete ~/.agentmesh.";
+var AGENT_FILE = "agent.json";
+var nodeFs = {
+  existsSync,
+  renameSync,
+  readFileSync,
+  // agent.json is the user's alone, like every file join writes there.
+  writeFileSync: (path2, text3) => writeFileSync(path2, text3, { mode: 384 })
+};
+function homeDirName(home, exists = existsSync) {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) return HOME_DIR;
+  if (exists(join(home, LEGACY_HOME_DIR, AGENT_FILE))) return LEGACY_HOME_DIR;
+  const onlyLegacy = exists(join(home, LEGACY_HOME_DIR)) && !exists(join(home, HOME_DIR));
+  return onlyLegacy ? LEGACY_HOME_DIR : HOME_DIR;
+}
+function meshHome(home = homedir(), exists) {
+  return join(home, homeDirName(home, exists));
+}
+function moveLegacyHome(home = homedir(), fs = nodeFs) {
+  const from = join(home, LEGACY_HOME_DIR);
+  const to = join(home, HOME_DIR);
+  const hasLegacy = fs.existsSync(from);
+  if (hasLegacy && fs.existsSync(to)) return "both";
+  if (!hasLegacy) return "nothing";
   try {
-    const value = JSON.parse(readFileSync(file2, "utf8"));
+    fs.renameSync(from, to);
+  } catch {
+    return fs.existsSync(to) ? "moved" : "failed";
+  }
+  rewriteSeed(home, fs);
+  return "moved";
+}
+function rewriteSeed(home, fs) {
+  const file2 = join(home, HOME_DIR, AGENT_FILE);
+  try {
+    if (!fs.existsSync(file2)) return;
+    const saved = JSON.parse(fs.readFileSync(file2, "utf8"));
+    if (typeof saved !== "object" || saved === null || Array.isArray(saved)) return;
+    const seed = saved.nkeySeed;
+    if (typeof seed !== "string") return;
+    const mapped = mapLegacyPath(seed, home, fs.existsSync);
+    if (mapped === seed) return;
+    const temp = `${file2}.tmp`;
+    fs.writeFileSync(temp, `${JSON.stringify({ ...saved, nkeySeed: mapped }, null, 2)}
+`);
+    fs.renameSync(temp, file2);
+  } catch {
+  }
+}
+function mapLegacyPath(file2, home, exists = existsSync, platform2 = process.platform) {
+  try {
+    const fold = (s) => {
+      const slashed = s.replaceAll("\\", "/");
+      return platform2 === "win32" ? slashed.toLowerCase() : slashed;
+    };
+    const top = home.replaceAll("\\", "/").replace(/\/+$/, "");
+    const base = [`${top}/${LEGACY_HOME_DIR}/`, `~/${LEGACY_HOME_DIR}/`].find(
+      (b) => fold(file2.slice(0, b.length)) === fold(b)
+    );
+    if (!base) return file2;
+    const rest = file2.slice(base.length).replaceAll("\\", "/").split("/");
+    if (rest.includes("..")) return file2;
+    const lib = platform2 === "win32" ? win32 : posix;
+    if (exists(lib.join(home, LEGACY_HOME_DIR, ...rest))) return file2;
+    return lib.join(home, HOME_DIR, ...rest);
+  } catch {
+    return file2;
+  }
+}
+
+// ../../packages/common/src/agent-files.ts
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
+function existingMesh(home = homedir2()) {
+  const file2 = join2(meshHome(home), "agent.json");
+  if (!existsSync2(file2)) return null;
+  try {
+    const value = JSON.parse(readFileSync2(file2, "utf8"));
     const saved = {};
     for (const k of FIELDS) {
       const v = value[k];
       if (typeof v === "string" && v) saved[k] = v;
     }
+    if (saved.nkeySeed) saved.nkeySeed = mapLegacyPath(saved.nkeySeed, home);
     return saved.agentId || saved.natsUrl ? saved : null;
   } catch {
     return null;
@@ -25490,11 +25568,11 @@ function createLogger(name, options = {}) {
 }
 
 // ../../packages/common/src/paths.ts
-import { homedir as homedir2 } from "node:os";
-import { join as join2 } from "node:path";
-function expandHome(path2, home = homedir2()) {
+import { homedir as homedir3 } from "node:os";
+import { join as join3 } from "node:path";
+function expandHome(path2, home = homedir3()) {
   if (path2 === "~") return home;
-  return /^~[\\/]/.test(path2) ? join2(home, path2.slice(2)) : path2;
+  return /^~[\\/]/.test(path2) ? join3(home, path2.slice(2)) : path2;
 }
 
 // ../../packages/common/src/version.ts
@@ -48173,9 +48251,9 @@ var StdioServerTransport = class {
 };
 
 // src/config.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join3 } from "node:path";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { join as join4 } from "node:path";
 
 // src/agent-id.ts
 function usable(value) {
@@ -48203,8 +48281,8 @@ var FileConfig = external_exports.object({
   nkeySeed: external_exports.string().optional(),
   prefix: external_exports.string().optional()
 });
-var DEFAULT_CONFIG_FILE = join3(homedir3(), ".cosmicwave", "agent.json");
-function resolveConfig(env = process.env, file2 = DEFAULT_CONFIG_FILE) {
+var defaultConfigFile = (home) => join4(meshHome(home), "agent.json");
+function resolveConfig(env = process.env, file2 = defaultConfigFile()) {
   const saved = readFileConfig(file2);
   const options = { agentId: env.COSMICWAVE_AGENT_ID, natsUrl: env.COSMICWAVE_NATS_URL };
   const fromFile = fileApplies(options, saved) ? saved : {};
@@ -48249,10 +48327,12 @@ function configProblems(agentId, urls, prefix, heartbeat) {
   return problems;
 }
 function readFileConfig(file2) {
-  if (!existsSync2(file2)) return {};
+  if (!existsSync3(file2)) return {};
   try {
-    const parsed = FileConfig.safeParse(JSON.parse(readFileSync2(file2, "utf8")));
-    return parsed.success ? parsed.data : {};
+    const parsed = FileConfig.safeParse(JSON.parse(readFileSync3(file2, "utf8")));
+    if (!parsed.success) return {};
+    const { nkeySeed } = parsed.data;
+    return nkeySeed ? { ...parsed.data, nkeySeed: mapLegacyPath(nkeySeed, homedir4()) } : parsed.data;
   } catch {
     return {};
   }
@@ -48261,15 +48341,15 @@ function readFileConfig(file2) {
 // src/pull/watcher.ts
 import { rmSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
-import { join as join6 } from "node:path";
+import { join as join7 } from "node:path";
 
 // src/relay/local-session.ts
-import { readFileSync as readFileSync4 } from "node:fs";
-import { join as join5 } from "node:path";
+import { readFileSync as readFileSync5 } from "node:fs";
+import { join as join6 } from "node:path";
 
 // src/pull/state.ts
-import { readdirSync, readFileSync as readFileSync3 } from "node:fs";
-import { join as join4 } from "node:path";
+import { readdirSync, readFileSync as readFileSync4 } from "node:fs";
+import { join as join5 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
@@ -48277,7 +48357,7 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
   return age >= 0 && age <= maxAge;
 }
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join4(home, ".cosmicwave", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join5(meshHome(home), "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 function readJsonFiles(dir, filter) {
@@ -48289,7 +48369,7 @@ function readJsonFiles(dir, filter) {
   }
   return names.map((name) => {
     try {
-      return JSON.parse(readFileSync3(join4(dir, name), "utf8"));
+      return JSON.parse(readFileSync4(join5(dir, name), "utf8"));
     } catch {
       return null;
     }
@@ -48343,7 +48423,7 @@ function readLocalSession(dir, prefix, agentId, hubSessionId, now) {
   if (!name) return null;
   let value;
   try {
-    value = JSON.parse(readFileSync4(join5(dir, name), "utf8"));
+    value = JSON.parse(readFileSync5(join6(dir, name), "utf8"));
   } catch {
     return null;
   }
@@ -48417,7 +48497,7 @@ var PullWatcher = class {
       uds: meshWindow ? uds : null,
       updatedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    await this.#writeFile(join6(dir, heartbeatFile(prefix, agentId, sessionId)), beat);
+    await this.#writeFile(join7(dir, heartbeatFile(prefix, agentId, sessionId)), beat);
   }
   /** An inactive private session's record, with the threads it started that have unread replies. */
   async #record(hubSessionId) {
@@ -48429,7 +48509,7 @@ var PullWatcher = class {
     if (hub2.sessionId !== hubSessionId) return;
     const base = { ...this.#deps, hubSessionId, claudeSessionId: this.#deps.claudeSessionId() };
     const record2 = localSessionRecord(base, peek, (/* @__PURE__ */ new Date()).toISOString());
-    await this.#writeFile(join6(dir, name), record2);
+    await this.#writeFile(join7(dir, name), record2);
   }
   stop() {
     if (this.#timer) clearInterval(this.#timer);
@@ -48471,7 +48551,7 @@ var PullWatcher = class {
         external: peek.external,
         updatedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
-      await this.#writeFile(join6(dir, pullStateFile(prefix, agentId, sessionId)), state);
+      await this.#writeFile(join7(dir, pullStateFile(prefix, agentId, sessionId)), state);
     } catch (err) {
       logger.warn({ err }, "could not refresh the pull state");
     }
@@ -48655,31 +48735,31 @@ function clip(text3, budget, meshWindow = false) {
 }
 
 // src/join/cli.ts
-import { homedir as homedir5 } from "node:os";
+import { homedir as homedir6 } from "node:os";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 
 // src/join/files.ts
 import {
   chmodSync,
-  existsSync as existsSync3,
+  existsSync as existsSync4,
   mkdirSync,
-  readFileSync as readFileSync5,
-  renameSync,
+  readFileSync as readFileSync6,
+  renameSync as renameSync2,
   rmSync as rmSync2,
-  writeFileSync
+  writeFileSync as writeFileSync2
 } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import { join as join7 } from "node:path";
-var defaultInviteFile = (home = homedir4()) => join7(cosmicwaveDir(home), "invite.txt");
+import { homedir as homedir5 } from "node:os";
+import { join as join8 } from "node:path";
+var defaultInviteFile = (home = homedir5()) => join8(meshHome(home), "invite.txt");
 function readInviteFile(path2) {
-  if (!existsSync3(path2)) {
+  if (!existsSync4(path2)) {
     throw new MeshError(
       "not_found",
       `No invite file at ${path2}. Save the invite code from your Discord DM there first.`
     );
   }
-  return readFileSync5(path2, "utf8");
+  return readFileSync6(path2, "utf8");
 }
 function deleteInviteFile(path2) {
   rmSync2(path2, { force: true });
@@ -48694,29 +48774,29 @@ function assertCanJoin(home, replace) {
   }
 }
 function writePrivate(path2, content) {
-  writeFileSync(path2, content, { mode: 384 });
+  writeFileSync2(path2, content, { mode: 384 });
   try {
     chmodSync(path2, 384);
   } catch {
   }
 }
 function stageSeed(home, agentId, seed) {
-  const dir = cosmicwaveDir(home);
+  const dir = meshHome(home);
   mkdirSync(dir, { recursive: true, mode: 448 });
-  const seedFile = join7(dir, `${agentId}.nk`);
+  const seedFile = join8(dir, `${agentId}.nk`);
   const staged = `${seedFile}.joining`;
   writePrivate(staged, `${seed}
 `);
   return {
     commit: () => {
-      renameSync(staged, seedFile);
+      renameSync2(staged, seedFile);
       return seedFile;
     },
     discard: () => rmSync2(staged, { force: true })
   };
 }
 function saveConfig(home, payload, seedFile) {
-  const configFile = join7(cosmicwaveDir(home), "agent.json");
+  const configFile = join8(meshHome(home), "agent.json");
   const config2 = {
     agentId: payload.agentId,
     natsUrl: payload.natsUrl,
@@ -48732,13 +48812,13 @@ function saveConfig(home, payload, seedFile) {
 var import_jetstream2 = __toESM(require_mod4(), 1);
 
 // ../../packages/bus/src/connect.ts
-import { readFileSync as readFileSync6 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 var import_transport_node = __toESM(require_transport_node(), 1);
 var SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 function resolveSeed(seedOrPath) {
   const value = seedOrPath.trim();
   if (SEED_PATTERN.test(value)) return value;
-  const fromFile = readFileSync6(expandHome(value), "utf8").trim();
+  const fromFile = readFileSync7(expandHome(value), "utf8").trim();
   if (!SEED_PATTERN.test(fromFile))
     throw new Error(`File ${value} does not contain an nkey user seed`);
   return fromFile;
@@ -49013,7 +49093,7 @@ ${USAGE}
   try {
     const file2 = args.file ? expandHome(args.file) : null;
     const code = file2 ? readInviteFile(file2) : await rl.question("Paste your invite code: ");
-    const request = { code, home: homedir5(), clientVersion, replace: args.replace ?? false };
+    const request = { code, home: homedir6(), clientVersion, replace: args.replace ?? false };
     const first = await runJoin(request);
     process.stdout.write(`${confirmationText(first.summary)}
 `);
@@ -49177,17 +49257,17 @@ function fyiLine(m) {
 // src/relay/forward-record.ts
 import {
   closeSync,
-  existsSync as existsSync4,
+  existsSync as existsSync5,
   mkdirSync as mkdirSync2,
   openSync,
   readdirSync as readdirSync2,
-  readFileSync as readFileSync7,
-  renameSync as renameSync2,
+  readFileSync as readFileSync8,
+  renameSync as renameSync3,
   rmSync as rmSync3,
   statSync,
-  writeFileSync as writeFileSync2
+  writeFileSync as writeFileSync3
 } from "node:fs";
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 
 // src/relay/pointer.ts
 var THREAD_ID = /^thr-[1-9]\d{0,11}$/;
@@ -49211,15 +49291,15 @@ function writeForward(dir, hex3, fields, expiresAt) {
   if (!name || !pointerText(fields)) throw new Error("refusing to write an invalid forward record");
   mkdirSync2(dir, { recursive: true, mode: 448 });
   pruneClaimed(dir, Date.now());
-  const file2 = join8(dir, name);
+  const file2 = join9(dir, name);
   const { from, threadId, messageId } = fields;
   const staged = `${file2}.${process.pid}.tmp`;
-  writeFileSync2(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
-  renameSync2(staged, file2);
+  writeFileSync3(staged, JSON.stringify({ from, threadId, messageId, expiresAt }), { mode: 384 });
+  renameSync3(staged, file2);
 }
 function candidate(dir, name, hex3, now) {
   try {
-    const v = JSON.parse(readFileSync7(join8(dir, name), "utf8"));
+    const v = JSON.parse(readFileSync8(join9(dir, name), "utf8"));
     const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
     const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
     v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex3, fields.messageId) === name;
@@ -49241,16 +49321,16 @@ function readForwards(dir, hex3, now) {
 var CLAIMED = ".claimed";
 function claimForward(dir, name) {
   try {
-    closeSync(openSync(join8(dir, `${name}${CLAIMED}`), "wx", 384));
+    closeSync(openSync(join9(dir, `${name}${CLAIMED}`), "wx", 384));
   } catch {
     return false;
   }
-  if (!existsSync4(join8(dir, name))) return false;
+  if (!existsSync5(join9(dir, name))) return false;
   removeForward(dir, name);
   return true;
 }
 function forwardedBefore(dir, hex3, name, now) {
-  if (existsSync4(join8(dir, `${name}${CLAIMED}`))) return true;
+  if (existsSync5(join9(dir, `${name}${CLAIMED}`))) return true;
   return readForwards(dir, hex3, now).some((c) => c.name === name);
 }
 function pruneClaimed(dir, now) {
@@ -49262,14 +49342,14 @@ function pruneClaimed(dir, now) {
   }
   for (const n of names.filter((f) => f.startsWith("fwd-") && f.endsWith(CLAIMED))) {
     try {
-      if (now - statSync(join8(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
+      if (now - statSync(join9(dir, n)).mtimeMs > FORWARD_TTL_MS) removeForward(dir, n);
     } catch {
     }
   }
 }
 function removeForward(dir, name) {
   try {
-    rmSync3(join8(dir, name), { force: true });
+    rmSync3(join9(dir, name), { force: true });
   } catch {
   }
 }
@@ -49283,7 +49363,7 @@ function sweepExpired(dir, now) {
   const swept = [];
   for (const name of names.filter((n) => n.startsWith("fwd-") && n.endsWith(".json"))) {
     try {
-      const v = JSON.parse(readFileSync7(join8(dir, name), "utf8"));
+      const v = JSON.parse(readFileSync8(join9(dir, name), "utf8"));
       const fields = {
         from: v.from,
         threadId: v.threadId,
@@ -49900,23 +49980,23 @@ var planningTools = [
 ];
 
 // ../../packages/common/src/window.ts
-import { readFileSync as readFileSync8 } from "node:fs";
-import { posix, win32 } from "node:path";
+import { readFileSync as readFileSync9 } from "node:fs";
+import { posix as posix2, win32 as win322 } from "node:path";
 var MESH_WINDOW_ENV = "COSMICWAVE_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform2) => platform2 === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
 function windowFiles(home, platform2) {
-  const { join: join14 } = platform2 === "win32" ? win32 : posix;
-  const dir = join14(home, ".cosmicwave");
+  const { join: join15 } = platform2 === "win32" ? win322 : posix2;
+  const dir = join15(home, homeDirName(home));
   return {
     dir,
-    policy: join14(dir, "mesh-window.json"),
-    settings: join14(dir, "mesh-window.settings.json"),
-    launcher: join14(dir, launcherName(platform2)),
-    emptyHooks: join14(dir, "empty-git-hooks"),
-    bin: join14(dir, "bin")
+    policy: join15(dir, "mesh-window.json"),
+    settings: join15(dir, "mesh-window.settings.json"),
+    launcher: join15(dir, launcherName(platform2)),
+    emptyHooks: join15(dir, "empty-git-hooks"),
+    bin: join15(dir, "bin")
   };
 }
 var WINDOW_MODES = ["auto", "manual"];
@@ -49963,7 +50043,7 @@ function parseWindowPolicy(text3) {
 }
 function readWindowPolicy(home, platform2) {
   try {
-    return parseWindowPolicy(readFileSync8(windowFiles(home, platform2).policy, "utf8"));
+    return parseWindowPolicy(readFileSync9(windowFiles(home, platform2).policy, "utf8"));
   } catch {
     return null;
   }
@@ -49978,13 +50058,13 @@ function markerState(env, policy, agentId) {
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync9, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
-import { join as join9 } from "node:path";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync10, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join10 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 var GUARD_STAMP_MAX_AGE_MS = 12e4;
 function readStamp(dir) {
   try {
-    const value = JSON.parse(readFileSync9(join9(dir, GUARD_STAMP), "utf8"));
+    const value = JSON.parse(readFileSync10(join10(dir, GUARD_STAMP), "utf8"));
     return typeof value === "object" && value !== null ? value : {};
   } catch {
     return {};
@@ -50238,8 +50318,8 @@ ${windowRules(window.policy)}${full}`;
 ];
 
 // src/window/checkouts.ts
-import { lstatSync, readdirSync as readdirSync3, readFileSync as readFileSync10 } from "node:fs";
-import path, { join as join10, sep } from "node:path";
+import { lstatSync, readdirSync as readdirSync3, readFileSync as readFileSync11 } from "node:fs";
+import path, { join as join11, sep } from "node:path";
 
 // src/git.ts
 import { execFile } from "node:child_process";
@@ -50329,11 +50409,11 @@ function worktreeCommonDir(dir, target, platform2) {
   return p.basename(worktrees) === "worktrees" && p.basename(common2) === ".git" ? common2 : null;
 }
 function gitDir(dir, followWorktree) {
-  const dotGit = join10(dir, ".git");
+  const dotGit = join11(dir, ".git");
   const stat = lstatSync(dotGit);
   if (stat.isDirectory()) return dotGit;
   if (!followWorktree || !stat.isFile() || stat.size > MAX_GIT_FILE) return null;
-  const line = readFileSync10(dotGit, "utf8").replace(/[\r\n]+$/, "");
+  const line = readFileSync11(dotGit, "utf8").replace(/[\r\n]+$/, "");
   const target = /^gitdir: (.+)$/.exec(line)?.[1];
   const common2 = target ? worktreeCommonDir(dir, target, process.platform) : null;
   return common2 && lstatSync(common2).isDirectory() ? common2 : null;
@@ -50342,10 +50422,10 @@ function originRepo(dir, followWorktree = false) {
   try {
     const dotGit = gitDir(dir, followWorktree);
     if (!dotGit) return null;
-    const config2 = join10(dotGit, "config");
+    const config2 = join11(dotGit, "config");
     const stat = lstatSync(config2);
     if (!stat.isFile() || stat.size > MAX_CONFIG) return null;
-    const url2 = originUrl(readFileSync10(config2, "utf8"));
+    const url2 = originUrl(readFileSync11(config2, "utf8"));
     return url2 && parseRemote(url2) || null;
   } catch {
     return null;
@@ -50357,7 +50437,7 @@ function findCheckout(repo, folder) {
   let dirs = [folder];
   try {
     dirs = dirs.concat(
-      readdirSync3(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join10(folder, e.name))
+      readdirSync3(folder, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join11(folder, e.name))
     );
   } catch {
   }
@@ -50678,10 +50758,10 @@ function text(value, isError2 = false) {
 }
 
 // src/join/tool.ts
-import { homedir as homedir6 } from "node:os";
-import { join as join11 } from "node:path";
+import { homedir as homedir7 } from "node:os";
+import { join as join12 } from "node:path";
 var JOIN_TOOL = "join";
-var CLI = join11(import.meta.dirname, "cli.js").replaceAll("\\", "/");
+var CLI = join12(import.meta.dirname, "cli.js").replaceAll("\\", "/");
 var AUTOUPDATE_OFFER = `Then ask your human whether to turn on automatic updates for the Cosmicwave plugin. Only if they say yes, run \`node "${CLI}" autoupdate\` and show what it printed.`;
 var JoinInput = external_exports.object({
   invite_file: external_exports.string().optional().describe(
@@ -50702,7 +50782,7 @@ var joinToolListing = listTools([
 async function callJoinTool(rawArgs, deps) {
   const parsed = JoinInput.safeParse(rawArgs ?? {});
   if (!parsed.success) return text2(`Invalid arguments for join: ${parsed.error.message}`, true);
-  const home = deps.home ?? homedir6();
+  const home = deps.home ?? homedir7();
   const file2 = parsed.data.invite_file ? expandHome(parsed.data.invite_file) : defaultInviteFile(home);
   try {
     const outcome = await runJoin({
@@ -52512,7 +52592,7 @@ function pushEvent(server, event2) {
 }
 
 // src/session.ts
-import { homedir as homedir7, platform } from "node:os";
+import { homedir as homedir8, platform } from "node:os";
 
 // src/hub.ts
 import { setTimeout as sleep2 } from "node:timers/promises";
@@ -52861,13 +52941,13 @@ async function forwardRelay(relay, deps) {
 import {
   mkdirSync as mkdirSync4,
   readdirSync as readdirSync4,
-  readFileSync as readFileSync11,
-  renameSync as renameSync4,
+  readFileSync as readFileSync12,
+  renameSync as renameSync5,
   rmSync as rmSync4,
   statSync as statSync2,
-  writeFileSync as writeFileSync4
+  writeFileSync as writeFileSync5
 } from "node:fs";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var CLAUDE_SESSION_SLACK_MS = 6e4;
 var RECORD_MAX_AGE_MS = 24 * 36e5;
@@ -52878,7 +52958,7 @@ function claudeSessionFile(pid) {
 }
 function readRecord(file2) {
   try {
-    return JSON.parse(readFileSync11(file2, "utf8"));
+    return JSON.parse(readFileSync12(file2, "utf8"));
   } catch {
     return null;
   }
@@ -52886,7 +52966,7 @@ function readRecord(file2) {
 function readClaudeSession(dir, ppid, startedAt) {
   const name = claudeSessionFile(ppid);
   if (!name) return null;
-  const value = readRecord(join12(dir, name));
+  const value = readRecord(join13(dir, name));
   const id = value?.session_id;
   const at = typeof value?.at === "string" ? Date.parse(value.at) : Number.NaN;
   if (typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return null;
@@ -53033,11 +53113,11 @@ import {
   appendFileSync,
   mkdirSync as mkdirSync5,
   readdirSync as readdirSync5,
-  readFileSync as readFileSync12,
+  readFileSync as readFileSync13,
   statSync as statSync3,
   unlinkSync
 } from "node:fs";
-import { join as join13 } from "node:path";
+import { join as join14 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
 var UNNAMED = /^events-\d+\.jsonl$/;
 var PID_FILE = /^\d+\.jsonl$/;
@@ -53057,8 +53137,8 @@ function collectEventFiles(dataDir, agentId, unnamed) {
   const values = [];
   for (const name of names) {
     try {
-      const file2 = join13(dataDir, name);
-      const text3 = readFileSync12(file2, "utf8");
+      const file2 = join14(dataDir, name);
+      const text3 = readFileSync13(file2, "utf8");
       unlinkSync(file2);
       for (const line of text3.split("\n")) if (line) values.push(parseLine(line));
     } catch {
@@ -53218,7 +53298,7 @@ async function openSession(config2, logger) {
   const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
   const presence = new Presence(hub2, logger, projectDir);
   const activation = newActivationState();
-  const window = meshWindowContext(process.env, homedir7(), platform(), projectDir, config2.agentId);
+  const window = meshWindowContext(process.env, homedir8(), platform(), projectDir, config2.agentId);
   const uds = ownAddress(process.env.CLAUDE_CODE_MESSAGING_SOCKET);
   hub2.connect();
   await presence.refreshGit();
@@ -53404,6 +53484,7 @@ function once(fn) {
 var CHANNEL_READY_MS = 2e3;
 var cleanup = async () => void 0;
 async function main() {
+  const moved = moveLegacyHome();
   if (process.argv[2] === "join") {
     process.exit(await runJoinCli(process.argv.slice(3), VERSION));
   }
@@ -53412,6 +53493,7 @@ async function main() {
   const logger = createLogger("cosmicwave-plugin", {
     destination: logFile ? { file: logFile } : "stderr"
   });
+  logMove(logger, moved);
   watchLifecycle(logger);
   if (resolved.ok) {
     for (const warning of resolved.warnings ?? []) logger.warn(warning);
@@ -53505,6 +53587,11 @@ function toolDeps(session, agentId) {
     closedAskerMinutes: () => session.hello?.policy.closedAskerEscalationMinutes ?? CLOSED_ASKER_DEFAULT_MINUTES,
     recorder: session.recorder
   };
+}
+function logMove(logger, moved) {
+  if (moved === "moved") logger.info("moved ~/.agentmesh to ~/.cosmicwave");
+  if (moved === "failed") logger.warn("could not move ~/.agentmesh yet; using it in place");
+  if (moved === "both") logger.warn(BOTH_FOLDERS);
 }
 function watchLifecycle(logger) {
   const shutdown = once((reason) => {

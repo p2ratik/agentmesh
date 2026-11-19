@@ -150,12 +150,16 @@ describe('refuses', () => {
     expect(editTarget(join(wt, 'sub', '.GIT', 'config'), o)).toEqual(DOT_GIT);
   });
 
-  it('refuses ~/.cosmicwave', () => {
-    put(join(o.home, '.cosmicwave', 'agent.json'));
-    expect(meshWorktreeOf(join(o.home, '.cosmicwave', 'agent.json'), o)).toEqual(OUTSIDE);
-    expect(editTarget(join(o.home, '.cosmicwave', 'agent.json'), o)).toEqual(COSMICWAVE);
-    expect(editTarget(join(o.home, '.cosmicwave', 'new.json'), o)).toEqual(COSMICWAVE);
+  it('refuses ~/.cosmicwave, and the old ~/.agentmesh', () => {
+    for (const folder of ['.cosmicwave', '.agentmesh']) {
+      put(join(o.home, folder, 'agent.json'));
+      expect(meshWorktreeOf(join(o.home, folder, 'agent.json'), o)).toEqual(OUTSIDE);
+      expect(editTarget(join(o.home, folder, 'agent.json'), o)).toEqual(COSMICWAVE);
+      expect(editTarget(join(o.home, folder, 'new.json'), o)).toEqual(COSMICWAVE);
+    }
+    expect(editTarget(join(base, 'home2', '.agentmesh', 'agent.json'), o)).toEqual(OUTSIDE);
     if (folds) expect(editTarget(join(o.home, '.Cosmicwave', 'x'), o)).toEqual(COSMICWAVE);
+    if (folds) expect(editTarget(join(o.home, '.AgentMesh', 'x'), o)).toEqual(COSMICWAVE);
 
     const wt = mesh(repo, 'mesh-a', 'agent/pratik/task-1-a');
     const home = join(base, 'linked-home');

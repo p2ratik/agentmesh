@@ -55,7 +55,7 @@ export interface AgentEnv {
   natsUrl: string;
   prefix: string;
   nkeySeed?: string;
-  /** Home directory holding `.cosmicwave` (agent.json, keys, invite.txt). */
+  /** Home directory holding `.cosmicwave` (agent.json, keys, invite.txt); default `dataDir`. */
   home?: string;
   /** Set last, e.g. the mesh window marker or a CLAUDE_PLUGIN_DATA of the test's own. */
   extraEnv?: Record<string, string>;
@@ -83,7 +83,9 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
     args: [PLUGIN],
     env: {
       ...inherited,
-      ...(env.home ? { HOME: env.home, USERPROFILE: env.home } : {}),
+      // Never the real home: the plugin moves ~/.agentmesh to ~/.cosmicwave when it starts.
+      HOME: env.home ?? dataDir,
+      USERPROFILE: env.home ?? dataDir,
       COSMICWAVE_AGENT_ID: env.agentId,
       COSMICWAVE_NATS_URL: env.natsUrl,
       COSMICWAVE_PREFIX: env.prefix,

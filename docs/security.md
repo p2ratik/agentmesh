@@ -494,7 +494,9 @@ Bash(gh pr create --base <integration branch> *)
   `~/.aws/**`, `~/.azure/**`, `~/.config/gcloud/**`, `~/.config/gh/**`, `~/.kube/**`,
   `~/.docker/config.json`, `~/.gnupg/**`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`,
   `~/.pypirc`, the shell histories (`~/.bash_history`, `~/.zsh_history`, PowerShell's
-  `ConsoleHost_history.txt`), `~/.cosmicwave/**`, `~/.claude/.credentials.json`, `~/.claude.json`,
+  `ConsoleHost_history.txt`), `~/.cosmicwave/**`, `~/.agentmesh/**` (its old name; see
+  [The laptop folder after the rename](#the-laptop-folder-after-the-rename)),
+  `~/.claude/.credentials.json`, `~/.claude.json`,
   and the Chrome, Edge and Firefox profiles on Windows, macOS and Linux. With `CLAUDE_CONFIG_DIR`
   set, also that account's `.credentials.json` and `.claude.json`, as absolute `//` POSIX paths. A
   deny rule blocks in every mode; a `Read` rule also covers Grep and Glob (best effort) and stops
@@ -519,13 +521,13 @@ its input for at most a second and exits 0, whatever happens. With the marker se
   - an edit, unless every path it names (`file_path`, `notebook_path`) is inside a registered
     `.claude/worktrees/mesh-*` worktree, below its root. Registered means the worktree's `.git`
     file points at a git folder whose back-pointer leads to that same file.
-    - Paths are resolved through links, segment by segment. The `.git` and `~/.cosmicwave`
-      refusals ignore case and invisible format characters (`\p{Cf}`, as HFS+ does) on every
-      platform.
+    - Paths are resolved through links, segment by segment. The `.git`, `~/.cosmicwave` and
+      `~/.agentmesh` refusals ignore case and invisible format characters (`\p{Cf}`, as HFS+ does)
+      on every platform.
     - Refused outright: relative paths, `.` and `..` segments, untrimmed paths, `\\?\`, `\\.\`,
       UNC, alternate data streams, DOS device names, Windows names ending in a dot or space, a last
       segment that is a link, a file with more than one hard link, any `.git` segment, and anything
-      in the real `~/.cosmicwave`.
+      in the real `~/.cosmicwave` or the old `~/.agentmesh`.
     - The reason reads `mesh window: work only inside a task worktree (<why>)`.
   - `EnterWorktree`: it would load a reviewed branch's project settings and hooks.
   - an `Agent` call with any `isolation` key. A remote agent runs outside every local hook, and a
@@ -1338,7 +1340,7 @@ the guard and hook bundles stay built-ins only).
 | `path.outside_worktree` | Not inside a `.claude/worktrees/mesh-*` worktree, or the worktree's root itself. |
 | `path.not_registered_worktree` | The `mesh-*` folder isn't a registered git worktree. |
 | `path.git_dir` | A `.git` path inside the worktree. |
-| `path.agentmesh_dir` | Inside the real `~/.cosmicwave`. |
+| `path.agentmesh_dir` | Inside the real `~/.cosmicwave`, or the old `~/.agentmesh`. |
 | `path.link` | The last segment is a link, or the file has other hard links. |
 | `command.not_listed` | A Bash command that isn't one of the guard's forms (asks, outside auto mode). |
 | `command.needs_approval` | A test on a branch the window didn't write or outside a worktree; outside auto mode, every PowerShell and Monitor command; in auto mode, any unlisted command that runs in or names a worktree that isn't on the window's own branch (asks). |
@@ -1458,6 +1460,36 @@ identity.
 - The invite's `agentId` and `prefix` are hints for the client, which needs them before the first
   connect. The hub never trusts them: it enrolls the agent id it stored with the invite.
 - `wss://` invites are refused by the plugin for now: the Node transport has no websocket support.
+
+### The laptop folder after the rename
+
+When Cosmicwave was called AgentMesh, the laptop folder was `~/.agentmesh`. It holds the member's
+agent key, `agent.json` (which points at the key by absolute path) and whatever else they keep
+there, such as the off-site backup key. It becomes `~/.cosmicwave` the first time the plugin's MCP
+server or the `cmw` CLI starts (`packages/common/src/mesh-home.ts`), so nobody is invited again.
+
+- **Threat: a key lost in the move.** **Mitigation:** the move is one `rename` of the whole
+  folder, only when `~/.cosmicwave` is missing. On one volume it happens completely or not at all;
+  nothing is copied and nothing is deleted. If the rename fails (Windows refuses while a file inside
+  is open), nothing changed: the session reads `~/.agentmesh` in place and the next start tries
+  again. When both folders exist nothing moves, and the plugin's log and the CLI say so; the member
+  moves what they need by hand. After a move, the seed path in `agent.json` is pointed into the new
+  folder (a temp file beside it, then a rename, mode 600). The readers also map a seed path under
+  `~/.agentmesh` once the old file is gone, so a crash between the two steps strands no key. The
+  log says only that the folder moved, never a file's content.
+- **Threat: an unmoved or leftover folder read from the mesh window.** It still holds keys.
+  **Mitigation:** both folders are denied in every mode: `Read(~/.cosmicwave/**)` and
+  `Read(~/.agentmesh/**)` in the window's settings, `secret.path` for a command that names either,
+  and the edit refusal (`path.agentmesh_dir`) for a write into either.
+- **Threat: a mesh window baked into the old folder.** Its launcher and settings hold absolute
+  paths that a later move would break. **Mitigation:** `cmw window init` refuses, writing nothing,
+  while `~/.agentmesh` exists.
+- **Threat: files moving under a running session.** **Mitigation:** only the MCP server and the
+  CLI move, once each at start. The hook and the guard never move anything; they only read. When
+  two processes race, one rename wins and the other finds the new folder.
+- **Residual risk:** a second Claude account on the laptop (`CLAUDE_CONFIG_DIR`) still on the old
+  plugin finds no `~/.agentmesh` once the folder moved, and shows as not joined until it is
+  switched too. Switch both accounts together.
 
 ## The hub in the authentication path (auth-callout mode)
 

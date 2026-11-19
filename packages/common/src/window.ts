@@ -2,6 +2,7 @@
 // guard bundles import this and must stay free of zod and other dependencies.
 import { readFileSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
+import { homeDirName } from './mesh-home';
 
 export const MESH_WINDOW_ENV = 'COSMICWAVE_MESH_WINDOW';
 export const MESH_WINDOW_HINT_ENV = 'COSMICWAVE_MESH_WINDOW_HINT';
@@ -34,7 +35,8 @@ export interface WindowFiles {
 export function windowFiles(home: string, platform: NodeJS.Platform): WindowFiles {
   // The given platform's separator, not the host's: a win32 launcher can be rendered on Linux (CI).
   const { join } = platform === 'win32' ? win32 : posix;
-  const dir = join(home, '.cosmicwave');
+  // ~/.agentmesh until it is moved; window init refuses to write there (its launcher bakes paths).
+  const dir = join(home, homeDirName(home));
   return {
     dir,
     policy: join(dir, 'mesh-window.json'),

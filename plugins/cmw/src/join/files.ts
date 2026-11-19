@@ -9,12 +9,11 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { cosmicwaveDir, existingMesh, MeshError } from '@cosmicwave/common';
+import { existingMesh, MeshError, meshHome } from '@cosmicwave/common';
 import type { InvitePayload } from '@cosmicwave/protocol';
 
 /** Where the human saves the invite from the Discord DM, so the code never enters the chat. */
-export const defaultInviteFile = (home = homedir()): string =>
-  join(cosmicwaveDir(home), 'invite.txt');
+export const defaultInviteFile = (home = homedir()): string => join(meshHome(home), 'invite.txt');
 
 export function readInviteFile(path: string): string {
   if (!existsSync(path)) {
@@ -67,7 +66,7 @@ export function stageSeed(
   agentId: string,
   seed: string,
 ): { commit(): string; discard(): void } {
-  const dir = cosmicwaveDir(home);
+  const dir = meshHome(home);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const seedFile = join(dir, `${agentId}.nk`);
   const staged = `${seedFile}.joining`;
@@ -83,7 +82,7 @@ export function stageSeed(
 
 /** The connection settings the plugin reads at start; agent.json only points at the seed file. */
 export function saveConfig(home: string, payload: InvitePayload, seedFile: string): string {
-  const configFile = join(cosmicwaveDir(home), 'agent.json');
+  const configFile = join(meshHome(home), 'agent.json');
   const config = {
     agentId: payload.agentId,
     natsUrl: payload.natsUrl,

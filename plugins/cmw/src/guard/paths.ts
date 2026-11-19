@@ -2,6 +2,7 @@
 // directly and never spawns git. Nothing throws: a git file that is missing or wrong is a refusal.
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { HOME_DIR, LEGACY_HOME_DIR } from '@cosmicwave/common/mesh-home';
 import type { ReasonCode } from '@cosmicwave/protocol/observe-codes';
 
 export interface PathOptions {
@@ -193,15 +194,17 @@ export function meshWorktreeOf(file: string, o: PathOptions): MeshWorktree | Ref
 }
 
 /** Whether the mesh window may write `file`: strictly inside a registered mesh worktree, never a
- * `.git` path below its root (in any case), never inside the real `~/.cosmicwave`, never a link or
- * a hard-linked file. */
+ * `.git` path below its root (in any case), never inside the real `~/.cosmicwave` or the old
+ * `~/.agentmesh` (not moved yet, or left over), never a link or a hard-linked file. */
 export function editTarget(file: string, o: PathOptions): { ok: true } | Refusal {
   const resolved = located(file, o);
   if (typeof resolved !== 'string') return resolved;
   if (typeof o.home !== 'string') return NOT_ABSOLUTE;
   const p = lib(o);
-  const cosmicwave = p.isAbsolute(o.home) ? resolve(p.join(o.home, '.cosmicwave'), o) : null;
-  if (cosmicwave === null || within(resolved, cosmicwave, o)) return COSMICWAVE;
+  const folders = p.isAbsolute(o.home)
+    ? [HOME_DIR, LEGACY_HOME_DIR].map((d) => resolve(p.join(o.home, d), o))
+    : [null];
+  if (folders.some((f) => f === null || within(resolved, f, o))) return COSMICWAVE;
   const found = registered(resolved, o);
   if ('refused' in found) return found;
   if (found.below.length === 0) return OUTSIDE;

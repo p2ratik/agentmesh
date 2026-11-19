@@ -2035,7 +2035,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join20 } = __require("path");
+    var { join: join21 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -2086,7 +2086,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join20(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join21(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         name: opts.workerOpts?.name || "thread-stream",
@@ -2552,9 +2552,9 @@ var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@10.4.0/node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync: existsSync14 } = __require("node:fs");
+    var { existsSync: existsSync15 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join20, isAbsolute: isAbsolute4, sep } = __require("node:path");
+    var { join: join21, isAbsolute: isAbsolute4, sep } = __require("node:path");
     var { fileURLToPath: fileURLToPath2 } = __require("node:url");
     var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -2627,7 +2627,7 @@ var require_transport = __commonJS({
           return false;
         }
       }
-      return isAbsolute4(path) && !existsSync14(path);
+      return isAbsolute4(path) && !existsSync15(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -2709,7 +2709,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join21(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2730,7 +2730,7 @@ var require_transport = __commonJS({
         const pipelinesHaveLevel = options.pipelines.some((p) => p.some((t) => t.level != null));
         usesMultistream = options.targets.length + options.pipelines.length > 1 || targetsHaveLevel || pipelinesHaveLevel;
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join20(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join21(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2757,7 +2757,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join20(__dirname, "..", "file.js");
+          return join21(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3738,7 +3738,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join20 = ",";
+            let join21 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3752,7 +3752,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join20 = `,
+                join21 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3760,13 +3760,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join20;
+                res += join21;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3787,7 +3787,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join20 = `,
+              join21 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3801,13 +3801,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join20;
+                separator = join21;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join20;
+              separator = join21;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3848,7 +3848,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join20 = ",";
+            let join21 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3861,7 +3861,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join20 = `,
+                join21 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3869,13 +3869,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join20;
+                res += join21;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join20}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3888,7 +3888,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join20 = `,
+              join21 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3897,7 +3897,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join20;
+                separator = join21;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3955,20 +3955,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join21 = `,
+              const join22 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join21;
+                res2 += join22;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join21}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join22}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3984,16 +3984,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join20 = `,
+            const join21 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join20, maximumBreadth);
+              res += stringifyTypedArray(value, join21, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join20;
+              separator = join21;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -4004,13 +4004,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join20;
+                separator = join21;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join20;
+              separator = join21;
             }
             if (separator !== "") {
               res = `
@@ -25553,21 +25553,99 @@ function configPathFrom(ctx, flag) {
 }
 
 // ../../packages/common/src/agent-files.ts
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join2 } from "node:path";
+
+// ../../packages/common/src/mesh-home.ts
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { join } from "node:path";
-var cosmicwaveDir = (home = homedir2()) => join(home, ".cosmicwave");
-var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
-function existingMesh(home = homedir2()) {
-  const file2 = join(cosmicwaveDir(home), "agent.json");
-  if (!existsSync(file2)) return null;
+import { join, posix, win32 } from "node:path";
+var HOME_DIR = ".cosmicwave";
+var LEGACY_HOME_DIR = ".agentmesh";
+var BOTH_FOLDERS = "Both ~/.cosmicwave and ~/.agentmesh exist. Move what you need into ~/.cosmicwave, then delete ~/.agentmesh.";
+var AGENT_FILE = "agent.json";
+var nodeFs = {
+  existsSync,
+  renameSync,
+  readFileSync,
+  // agent.json is the user's alone, like every file join writes there.
+  writeFileSync: (path, text) => writeFileSync(path, text, { mode: 384 })
+};
+function homeDirName(home, exists = existsSync) {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) return HOME_DIR;
+  if (exists(join(home, LEGACY_HOME_DIR, AGENT_FILE))) return LEGACY_HOME_DIR;
+  const onlyLegacy = exists(join(home, LEGACY_HOME_DIR)) && !exists(join(home, HOME_DIR));
+  return onlyLegacy ? LEGACY_HOME_DIR : HOME_DIR;
+}
+function meshHome(home = homedir2(), exists) {
+  return join(home, homeDirName(home, exists));
+}
+function moveLegacyHome(home = homedir2(), fs = nodeFs) {
+  const from = join(home, LEGACY_HOME_DIR);
+  const to = join(home, HOME_DIR);
+  const hasLegacy = fs.existsSync(from);
+  if (hasLegacy && fs.existsSync(to)) return "both";
+  if (!hasLegacy) return "nothing";
   try {
-    const value = JSON.parse(readFileSync(file2, "utf8"));
+    fs.renameSync(from, to);
+  } catch {
+    return fs.existsSync(to) ? "moved" : "failed";
+  }
+  rewriteSeed(home, fs);
+  return "moved";
+}
+function rewriteSeed(home, fs) {
+  const file2 = join(home, HOME_DIR, AGENT_FILE);
+  try {
+    if (!fs.existsSync(file2)) return;
+    const saved = JSON.parse(fs.readFileSync(file2, "utf8"));
+    if (typeof saved !== "object" || saved === null || Array.isArray(saved)) return;
+    const seed = saved.nkeySeed;
+    if (typeof seed !== "string") return;
+    const mapped = mapLegacyPath(seed, home, fs.existsSync);
+    if (mapped === seed) return;
+    const temp = `${file2}.tmp`;
+    fs.writeFileSync(temp, `${JSON.stringify({ ...saved, nkeySeed: mapped }, null, 2)}
+`);
+    fs.renameSync(temp, file2);
+  } catch {
+  }
+}
+function mapLegacyPath(file2, home, exists = existsSync, platform = process.platform) {
+  try {
+    const fold = (s) => {
+      const slashed = s.replaceAll("\\", "/");
+      return platform === "win32" ? slashed.toLowerCase() : slashed;
+    };
+    const top = home.replaceAll("\\", "/").replace(/\/+$/, "");
+    const base = [`${top}/${LEGACY_HOME_DIR}/`, `~/${LEGACY_HOME_DIR}/`].find(
+      (b) => fold(file2.slice(0, b.length)) === fold(b)
+    );
+    if (!base) return file2;
+    const rest = file2.slice(base.length).replaceAll("\\", "/").split("/");
+    if (rest.includes("..")) return file2;
+    const lib = platform === "win32" ? win32 : posix;
+    if (exists(lib.join(home, LEGACY_HOME_DIR, ...rest))) return file2;
+    return lib.join(home, HOME_DIR, ...rest);
+  } catch {
+    return file2;
+  }
+}
+
+// ../../packages/common/src/agent-files.ts
+var FIELDS = ["agentId", "natsUrl", "nkeySeed", "prefix"];
+function existingMesh(home = homedir3()) {
+  const file2 = join2(meshHome(home), "agent.json");
+  if (!existsSync2(file2)) return null;
+  try {
+    const value = JSON.parse(readFileSync2(file2, "utf8"));
     const saved = {};
     for (const k of FIELDS) {
       const v = value[k];
       if (typeof v === "string" && v) saved[k] = v;
     }
+    if (saved.nkeySeed) saved.nkeySeed = mapLegacyPath(saved.nkeySeed, home);
     return saved.agentId || saved.natsUrl ? saved : null;
   } catch {
     return null;
@@ -25610,11 +25688,11 @@ var SECRET_FIELDS = ["invite", "inviteCode", "secret", "token", "auth_token"];
 var REDACTED_LOG_PATHS = SECRET_FIELDS.flatMap((f) => [f, `*.${f}`]);
 
 // ../../packages/common/src/paths.ts
-import { homedir as homedir3 } from "node:os";
-import { join as join2 } from "node:path";
-function expandHome(path, home = homedir3()) {
+import { homedir as homedir4 } from "node:os";
+import { join as join3 } from "node:path";
+function expandHome(path, home = homedir4()) {
   if (path === "~") return home;
-  return /^~[\\/]/.test(path) ? join2(home, path.slice(2)) : path;
+  return /^~[\\/]/.test(path) ? join3(home, path.slice(2)) : path;
 }
 
 // ../../packages/common/src/redact.ts
@@ -25702,8 +25780,8 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 var VERSION = "0.8.0";
 
 // ../../apps/cli/src/commands/agent-setup.ts
-import { existsSync as existsSync5 } from "node:fs";
-import { join as join6 } from "node:path";
+import { existsSync as existsSync6 } from "node:fs";
+import { join as join7 } from "node:path";
 
 // ../../packages/config/src/defaults/planning.ts
 var STANDARD_PLANNING_TEMPLATE = {
@@ -25896,8 +25974,8 @@ function interpolateEnv(tree, env = process.env) {
 
 // ../../packages/config/src/load.ts
 var import_yaml = __toESM(require_dist(), 1);
-import { existsSync as existsSync2, readdirSync, readFileSync as readFileSync2, statSync } from "node:fs";
-import { dirname, join as join3, resolve as resolve2 } from "node:path";
+import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync3, statSync } from "node:fs";
+import { dirname, join as join4, resolve as resolve2 } from "node:path";
 
 // ../../node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -47555,19 +47633,19 @@ function configFromObject(tree, location = {}) {
 }
 function resolveConfigFile(path) {
   const absolute = resolve2(path);
-  if (existsSync2(absolute) && statSync(absolute).isDirectory()) {
+  if (existsSync3(absolute) && statSync(absolute).isDirectory()) {
     for (const name of ["mesh.yaml", "mesh.yml"]) {
-      const candidate = join3(absolute, name);
-      if (existsSync2(candidate)) return candidate;
+      const candidate = join4(absolute, name);
+      if (existsSync3(candidate)) return candidate;
     }
     throw new Error(`No mesh.yaml found in ${absolute}`);
   }
-  if (!existsSync2(absolute)) throw new Error(`Config file not found: ${absolute}`);
+  if (!existsSync3(absolute)) throw new Error(`Config file not found: ${absolute}`);
   return absolute;
 }
 function readYaml(file2) {
   try {
-    return (0, import_yaml.parse)(readFileSync2(file2, "utf8"));
+    return (0, import_yaml.parse)(readFileSync3(file2, "utf8"));
   } catch (error62) {
     throw new ConfigError(file2, [
       { path: "", message: `YAML parse error: ${error62.message}` }
@@ -47585,8 +47663,8 @@ function readDefinitions(dir, folders, key, options) {
   return { definitions, missing };
 }
 function yamlFilesIn(folder) {
-  if (!existsSync2(folder) || !statSync(folder).isDirectory()) return [];
-  return readdirSync(folder).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml")).sort().map((f) => join3(folder, f));
+  if (!existsSync3(folder) || !statSync(folder).isDirectory()) return [];
+  return readdirSync(folder).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml")).sort().map((f) => join4(folder, f));
 }
 function definitionsOf(value, key) {
   if (Array.isArray(value)) return value;
@@ -47609,12 +47687,12 @@ function buildPolicyText(config2, dir) {
   const parts = [DEFAULT_AGENT_POLICY];
   if (config2.policy.instructionsFile) {
     const policyFile = resolve2(dir, config2.policy.instructionsFile);
-    if (!existsSync2(policyFile)) {
+    if (!existsSync3(policyFile)) {
       throw new ConfigError(policyFile, [
         { path: "policy.instructionsFile", message: "file not found" }
       ]);
     }
-    parts.push(readFileSync2(policyFile, "utf8").trim());
+    parts.push(readFileSync3(policyFile, "utf8").trim());
   }
   if (config2.policy.instructions) parts.push(config2.policy.instructions.trim());
   return parts.join("\n\n");
@@ -47711,18 +47789,18 @@ function parseCommandArgs(args, options, positionals) {
 }
 
 // ../../apps/cli/src/lib/config-files.ts
-import { existsSync as existsSync3, readdirSync as readdirSync2, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
-import { dirname as dirname2, join as join4 } from "node:path";
+import { existsSync as existsSync4, readdirSync as readdirSync2, readFileSync as readFileSync4, statSync as statSync2 } from "node:fs";
+import { dirname as dirname2, join as join5 } from "node:path";
 var SECRET_PLACEHOLDER = "cosmicwave-cli-placeholder-not-a-secret";
 function meshFilePath(path) {
-  if (existsSync3(path) && statSync2(path).isDirectory()) {
+  if (existsSync4(path) && statSync2(path).isDirectory()) {
     for (const name of ["mesh.yaml", "mesh.yml"]) {
-      const candidate = join4(path, name);
-      if (existsSync3(candidate)) return candidate;
+      const candidate = join5(path, name);
+      if (existsSync4(candidate)) return candidate;
     }
     throw new MeshError("not_found", `No mesh.yaml in ${path} (pass --config <dir>)`);
   }
-  if (!existsSync3(path)) throw new MeshError("not_found", `Config not found: ${path}`);
+  if (!existsSync4(path)) throw new MeshError("not_found", `Config not found: ${path}`);
   return path;
 }
 function requiredEnvNames(configDir) {
@@ -47731,7 +47809,7 @@ function requiredEnvNames(configDir) {
     (f) => (f.endsWith(".yaml") || f.endsWith(".yml")) && !f.includes("node_modules")
   );
   for (const file2 of files) {
-    const text = readFileSync3(join4(configDir, file2), "utf8");
+    const text = readFileSync4(join5(configDir, file2), "utf8");
     for (const match of text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-)?\}/g)) {
       if (match[1]) names.add(match[1]);
     }
@@ -47749,11 +47827,11 @@ function loadTopology(configPath, env) {
 }
 
 // ../../apps/cli/src/lib/files.ts
-import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, renameSync as renameSync2, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname3 } from "node:path";
 function writePrivateFile(path, content, overwrite) {
   mkdirSync(dirname3(path), { recursive: true, mode: 448 });
-  writeFileSync(path, content, { mode: 384, flag: overwrite ? "w" : "wx" });
+  writeFileSync2(path, content, { mode: 384, flag: overwrite ? "w" : "wx" });
   try {
     chmodSync(path, 384);
   } catch {
@@ -47762,14 +47840,14 @@ function writePrivateFile(path, content, overwrite) {
 function writeFileAtomic(path, content, mode) {
   const temp = `${path}.${process.pid}.tmp`;
   try {
-    writeFileSync(temp, content, { mode });
+    writeFileSync2(temp, content, { mode });
     if (mode !== void 0) {
       try {
         chmodSync(temp, mode);
       } catch {
       }
     }
-    renameSync(temp, path);
+    renameSync2(temp, path);
   } catch (error62) {
     rmSync(temp, { force: true });
     throw error62;
@@ -47777,17 +47855,17 @@ function writeFileAtomic(path, content, mode) {
 }
 function writeFileWithDirs(path, content) {
   mkdirSync(dirname3(path), { recursive: true });
-  writeFileSync(path, content);
+  writeFileSync2(path, content);
 }
 
 // ../../apps/cli/src/lib/repo-paths.ts
-import { existsSync as existsSync4 } from "node:fs";
-import { dirname as dirname4, join as join5 } from "node:path";
+import { existsSync as existsSync5 } from "node:fs";
+import { dirname as dirname4, join as join6 } from "node:path";
 import { fileURLToPath } from "node:url";
 function findRepoRoot(moduleUrl = import.meta.url) {
   let dir = dirname4(fileURLToPath(moduleUrl));
   for (; ; ) {
-    if (existsSync4(join5(dir, "config", "examples", "mesh.yaml"))) return dir;
+    if (existsSync5(join6(dir, "config", "examples", "mesh.yaml"))) return dir;
     const parent = dirname4(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -47801,7 +47879,7 @@ function findExamplesDir(moduleUrl = import.meta.url) {
       "Could not find config/examples next to the cmw CLI. Run it from a Cosmicwave checkout."
     );
   }
-  return join5(root, "config", "examples");
+  return join6(root, "config", "examples");
 }
 
 // ../../apps/cli/src/render/agent-setup.ts
@@ -47899,13 +47977,13 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
       owner: agent.owner,
       natsUrl: values["nats-url"] ?? config2.nats.servers[0] ?? "nats://localhost:4222",
       seedFile,
-      seedFound: existsSync5(expandHome(seedFile, ctx.homeDir)),
+      seedFound: existsSync6(expandHome(seedFile, ctx.homeDir)),
       prefix: config2.mesh.prefix,
       marketplace: values.marketplace ?? findRepoRoot() ?? "<path or GitHub repo of Cosmicwave>",
       wroteConfig: null
     };
     if (values.write) {
-      const file2 = join6(ctx.homeDir, ".cosmicwave", "agent.json");
+      const file2 = join7(meshHome(ctx.homeDir), "agent.json");
       writePrivateFile(file2, agentJson(input2), true);
       input2.wroteConfig = file2;
     }
@@ -47915,8 +47993,8 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
 };
 
 // ../../apps/cli/src/commands/autoupdate.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync4, statSync as statSync3 } from "node:fs";
-import { join as join7 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, statSync as statSync3 } from "node:fs";
+import { join as join8 } from "node:path";
 
 // ../../apps/cli/src/lib/claude-settings.ts
 import { isDeepStrictEqual } from "node:util";
@@ -47974,11 +48052,11 @@ function setAutoUpdate(settingsText, name, source, autoUpdate) {
 // ../../apps/cli/src/commands/autoupdate.ts
 function claudeConfigDir(ctx) {
   const dir = ctx.env.CLAUDE_CONFIG_DIR;
-  return dir ? resolveFrom(ctx, dir) : join7(ctx.homeDir, ".claude");
+  return dir ? resolveFrom(ctx, dir) : join8(ctx.homeDir, ".claude");
 }
 function readIfPresent(path) {
   try {
-    return readFileSync4(path, "utf8");
+    return readFileSync5(path, "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") return void 0;
     throw error62;
@@ -47986,7 +48064,7 @@ function readIfPresent(path) {
 }
 function readKnownMarketplaces(configDir) {
   try {
-    return readFileSync4(join7(configDir, "plugins", "known_marketplaces.json"), "utf8");
+    return readFileSync5(join8(configDir, "plugins", "known_marketplaces.json"), "utf8");
   } catch {
     return void 0;
   }
@@ -48015,7 +48093,7 @@ downloads new plugin versions in the background; /reload-plugins or a restart lo
     const name = values.marketplace;
     const on = !values.off;
     const configDir = claudeConfigDir(ctx);
-    const file2 = join7(configDir, "settings.json");
+    const file2 = join8(configDir, "settings.json");
     const current = readIfPresent(file2);
     const source = marketplaceSource(readKnownMarketplaces(configDir), name);
     const { text, changed } = setAutoUpdate(current, name, source, on);
@@ -48162,13 +48240,13 @@ var everyone = (a) => [
 var import_jetstream2 = __toESM(require_mod4(), 1);
 
 // ../../packages/bus/src/connect.ts
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync6 } from "node:fs";
 var import_transport_node = __toESM(require_transport_node(), 1);
 var SEED_PATTERN = /^SU[A-Z2-7]{56}$/;
 function resolveSeed(seedOrPath) {
   const value = seedOrPath.trim();
   if (SEED_PATTERN.test(value)) return value;
-  const fromFile = readFileSync5(expandHome(value), "utf8").trim();
+  const fromFile = readFileSync6(expandHome(value), "utf8").trim();
   if (!SEED_PATTERN.test(fromFile))
     throw new Error(`File ${value} does not contain an nkey user seed`);
   return fromFile;
@@ -48653,7 +48731,7 @@ function checkNatsTls(host, port, now, timeoutMs = 5e3) {
 }
 
 // ../../apps/cli/src/setup/env-file.ts
-import { readFileSync as readFileSync6, renameSync as renameSync2, rmSync as rmSync2 } from "node:fs";
+import { readFileSync as readFileSync7, renameSync as renameSync3, rmSync as rmSync2 } from "node:fs";
 function splitLine(line) {
   const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/s.exec(line);
   return match ? [match[1], match[2].trim()] : void 0;
@@ -48690,14 +48768,14 @@ function setEnvValues(text, values) {
 `;
 }
 function readEnvFile(path) {
-  return parseEnv(readFileSync6(path, "utf8"));
+  return parseEnv(readFileSync7(path, "utf8"));
 }
 function updateEnvFile(path, values) {
-  const text = setEnvValues(readFileSync6(path, "utf8"), values);
+  const text = setEnvValues(readFileSync7(path, "utf8"), values);
   const temp = `${path}.${process.pid}.tmp`;
   try {
     writePrivateFile(temp, text, true);
-    renameSync2(temp, path);
+    renameSync3(temp, path);
   } catch (error62) {
     rmSync2(temp, { force: true });
     throw error62;
@@ -48705,8 +48783,8 @@ function updateEnvFile(path, values) {
 }
 
 // ../../apps/cli/src/setup/remote.ts
-import { existsSync as existsSync6 } from "node:fs";
-import { join as join8 } from "node:path";
+import { existsSync as existsSync7 } from "node:fs";
+import { join as join9 } from "node:path";
 var SSH_OPTIONS = [
   "-o",
   "BatchMode=yes",
@@ -48720,8 +48798,8 @@ var SSH_OPTIONS = [
 function sshProgram(name, ctx) {
   const root = ctx.env.SystemRoot;
   if (ctx.platform !== "win32" || !root) return name;
-  const system = join8(root, "System32", "OpenSSH", `${name}.exe`);
-  return existsSync6(system) ? system : name;
+  const system = join9(root, "System32", "OpenSSH", `${name}.exe`);
+  return existsSync7(system) ? system : name;
 }
 function sshUser(target) {
   return target.slice(0, target.indexOf("@"));
@@ -48748,34 +48826,34 @@ function renderChecklist(team, results) {
 }
 
 // ../../apps/cli/src/setup/workspace.ts
-import { existsSync as existsSync7, readFileSync as readFileSync7 } from "node:fs";
-import { join as join9 } from "node:path";
+import { existsSync as existsSync8, readFileSync as readFileSync8 } from "node:fs";
+import { join as join10 } from "node:path";
 function workspaceFrom(ctx, dir) {
   if (!dir) throw usageError("Missing --dir <workspace>");
   return workspacePaths(resolveFrom(ctx, dir));
 }
 function workspacePaths(root) {
-  const configDir = join9(root, "config");
-  const deployDir = join9(root, "deploy");
+  const configDir = join10(root, "config");
+  const deployDir = join10(root, "deploy");
   return {
     root,
-    answers: join9(root, "setup-answers.json"),
-    state: join9(root, ".cosmicwave-setup.json"),
+    answers: join10(root, "setup-answers.json"),
+    state: join10(root, ".cosmicwave-setup.json"),
     configDir,
-    meshFile: join9(configDir, "mesh.yaml"),
-    policyFile: join9(configDir, "policy", "team-policy.md"),
+    meshFile: join10(configDir, "mesh.yaml"),
+    policyFile: join10(configDir, "policy", "team-policy.md"),
     deployDir,
-    compose: join9(deployDir, "docker-compose.yml"),
-    envFile: join9(deployDir, ".env"),
-    natsConf: join9(deployDir, "nats", "nats.conf"),
-    secretsDir: join9(deployDir, "secrets"),
-    gitignore: join9(root, ".gitignore"),
-    claudeSettings: join9(root, ".claude", "settings.json"),
-    claudeMd: join9(root, "CLAUDE.md")
+    compose: join10(deployDir, "docker-compose.yml"),
+    envFile: join10(deployDir, ".env"),
+    natsConf: join10(deployDir, "nats", "nats.conf"),
+    secretsDir: join10(deployDir, "secrets"),
+    gitignore: join10(root, ".gitignore"),
+    claudeSettings: join10(root, ".claude", "settings.json"),
+    claudeMd: join10(root, "CLAUDE.md")
   };
 }
 function agentSeedFile(homeDir, meshName, agentId) {
-  return join9(cosmicwaveDir(homeDir), `${meshName}-${agentId}.nk`);
+  return join10(meshHome(homeDir), `${meshName}-${agentId}.nk`);
 }
 var STEPS = ["render", "discord", "host", "deploy", "admin"];
 var HUB_STEPS = ["host", "deploy", "admin"];
@@ -48789,7 +48867,7 @@ var SetupState = external_exports.object({
 });
 function readJson(path) {
   try {
-    return JSON.parse(readFileSync7(path, "utf8"));
+    return JSON.parse(readFileSync8(path, "utf8"));
   } catch (error62) {
     if (error62 instanceof SyntaxError) {
       throw new MeshError("invalid_request", `${path} is not valid JSON: ${error62.message}`);
@@ -48798,7 +48876,7 @@ function readJson(path) {
   }
 }
 function readState(p) {
-  if (!existsSync7(p.state)) return { version: 1, done: {} };
+  if (!existsSync8(p.state)) return { version: 1, done: {} };
   const parsed = SetupState.safeParse(readJson(p.state));
   if (parsed.success) return parsed.data;
   throw new MeshError("invalid_request", `Invalid ${p.state}:
@@ -48828,14 +48906,14 @@ function markRendered(p, mode, now) {
 `);
 }
 function loadAnswers(p) {
-  if (!existsSync7(p.answers)) {
+  if (!existsSync8(p.answers)) {
     throw new MeshError("not_found", `No setup answers at ${p.answers}`);
   }
   return parseAnswers(readJson(p.answers));
 }
 function writeRendered(path, content, force) {
-  const exists = existsSync7(path);
-  if (exists && readFileSync7(path, "utf8") === content) return "unchanged";
+  const exists = existsSync8(path);
+  if (exists && readFileSync8(path, "utf8") === content) return "unchanged";
   if (exists && !force) return "differs";
   writeFileWithDirs(path, content);
   return exists ? "replaced" : "created";
@@ -48911,14 +48989,14 @@ fails. It changes nothing.`,
 };
 
 // ../../apps/cli/src/lib/scaffold.ts
-import { copyFileSync, existsSync as existsSync8, mkdirSync as mkdirSync3, readdirSync as readdirSync3, statSync as statSync4 } from "node:fs";
-import { dirname as dirname5, join as join10 } from "node:path";
+import { copyFileSync, existsSync as existsSync9, mkdirSync as mkdirSync3, readdirSync as readdirSync3, statSync as statSync4 } from "node:fs";
+import { dirname as dirname5, join as join11 } from "node:path";
 function listFiles(dir) {
-  return readdirSync3(dir, { recursive: true, encoding: "utf8" }).filter((rel) => statSync4(join10(dir, rel)).isFile()).map((rel) => rel.split("\\").join("/")).sort();
+  return readdirSync3(dir, { recursive: true, encoding: "utf8" }).filter((rel) => statSync4(join11(dir, rel)).isFile()).map((rel) => rel.split("\\").join("/")).sort();
 }
 function scaffold(from, to, force) {
   const files = listFiles(from);
-  const existing = files.filter((rel) => existsSync8(join10(to, rel)));
+  const existing = files.filter((rel) => existsSync9(join11(to, rel)));
   if (existing.length > 0 && !force) {
     throw new MeshError(
       "conflict",
@@ -48927,9 +49005,9 @@ function scaffold(from, to, force) {
     );
   }
   for (const rel of files) {
-    const target = join10(to, rel);
+    const target = join11(to, rel);
     mkdirSync3(dirname5(target), { recursive: true });
-    copyFileSync(join10(from, rel), target);
+    copyFileSync(join11(from, rel), target);
   }
   return files;
 }
@@ -48967,11 +49045,11 @@ Copies config/examples (mesh.yaml, workflows/, rules/, policy/) into <dir>
 };
 
 // ../../apps/cli/src/commands/keys.ts
-import { existsSync as existsSync9, readFileSync as readFileSync9 } from "node:fs";
-import { join as join11 } from "node:path";
+import { existsSync as existsSync10, readFileSync as readFileSync10 } from "node:fs";
+import { join as join12 } from "node:path";
 
 // ../../apps/cli/src/lib/keys.ts
-import { readFileSync as readFileSync8 } from "node:fs";
+import { readFileSync as readFileSync9 } from "node:fs";
 import { dirname as dirname6 } from "node:path";
 var import_nkeys = __toESM(require_mod2(), 1);
 
@@ -49100,7 +49178,7 @@ function createKey(holder) {
   return (0, import_nkeys.createUser)();
 }
 function addKey(meshFile, seedFile, id, opts) {
-  const text = readFileSync8(meshFile, "utf8");
+  const text = readFileSync9(meshFile, "utf8");
   const holder = findKeyHolder(text, id);
   if (holder.nkey && !opts.force) {
     throw new MeshError(
@@ -49190,7 +49268,7 @@ and hub-sys for the keys \`nats-config --auth-callout\` needs. --force rotates a
     });
     const meshFile = meshFilePath(configPathFrom(ctx, values.config));
     const id = positionals[0] ?? "";
-    const added = addKey(meshFile, join11(secretsDir(ctx, values.secrets), `${id}.nk`), id, {
+    const added = addKey(meshFile, join12(secretsDir(ctx, values.secrets), `${id}.nk`), id, {
       force: values.force ?? false,
       cli: cliOf(ctx)
     });
@@ -49206,9 +49284,9 @@ var keysListCommand = {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: "" });
     const meshFile = meshFilePath(configPathFrom(ctx, values.config));
     const dir = secretsDir(ctx, values.secrets);
-    const rows = listKeyHolders(readFileSync9(meshFile, "utf8")).map((holder) => ({
+    const rows = listKeyHolders(readFileSync10(meshFile, "utf8")).map((holder) => ({
       holder,
-      seedFound: existsSync9(join11(dir, `${holder.id}.nk`))
+      seedFound: existsSync10(join12(dir, `${holder.id}.nk`))
     }));
     ctx.stdout(renderKeyTable(rows, dir));
     return 0;
@@ -49479,8 +49557,8 @@ development.`,
 };
 
 // ../../apps/cli/src/commands/setup/admin.ts
-import { existsSync as existsSync10 } from "node:fs";
-import { join as join12 } from "node:path";
+import { existsSync as existsSync11 } from "node:fs";
+import { join as join13 } from "node:path";
 var setupAdminCommand = {
   name: "setup admin",
   summary: "Save the admin's agent settings to ~/.cosmicwave/agent.json on this machine",
@@ -49498,9 +49576,9 @@ refuses to replace settings for another agent or hub unless --replace.`,
     const p = workspaceFrom(ctx, values.dir);
     const a = loadAnswers(p);
     const agentId = agentIdOf(a.admin.id);
-    const dir = cosmicwaveDir(ctx.homeDir);
+    const dir = meshHome(ctx.homeDir);
     const seedFile = agentSeedFile(ctx.homeDir, a.team.meshName, agentId);
-    if (!existsSync10(seedFile)) {
+    if (!existsSync11(seedFile)) {
       throw new MeshError("not_found", `No seed at ${seedFile}. Run setup render first.`);
     }
     const natsUrl = a.hosting.mode === "server" ? `tls://${a.hosting.publicHost}:${NATS_PORT}` : `nats://127.0.0.1:${NATS_PORT}`;
@@ -49513,7 +49591,7 @@ refuses to replace settings for another agent or hub unless --replace.`,
       );
     }
     const { prefix } = loadTopology(p.configDir, ctx.env).config.mesh;
-    const file2 = join12(dir, "agent.json");
+    const file2 = join13(dir, "agent.json");
     writePrivateFile(file2, agentJson({ agentId, natsUrl, seedFile, prefix }), true);
     const options = "If the plugin's agent_id, nats_url or nkey_seed options are set, clear them in /plugin and restart Claude Code: while they name another agent, the plugin ignores this file.";
     const lines = [
@@ -49541,8 +49619,8 @@ refuses to replace settings for another agent or hub unless --replace.`,
 };
 
 // ../../apps/cli/src/setup/deploy.ts
-import { existsSync as existsSync11, readdirSync as readdirSync4 } from "node:fs";
-import { join as join13 } from "node:path";
+import { existsSync as existsSync12, readdirSync as readdirSync4 } from "node:fs";
+import { join as join14 } from "node:path";
 var UP = ["up", "-d", "--force-recreate"];
 function remoteCommands(dir) {
   const seeds = `${dir}/deploy/secrets/*.nk`;
@@ -49560,7 +49638,7 @@ function requireDone(p, steps) {
 function requireSeeds(p, mode) {
   const seeds = ["hub.nk", "discord-bridge.nk"];
   if (mode === "server") seeds.push("hub-issuer.nk", "hub-xkey.nk", "hub-sys.nk");
-  const missing = seeds.find((name) => !existsSync11(join13(p.secretsDir, name)));
+  const missing = seeds.find((name) => !existsSync12(join14(p.secretsDir, name)));
   if (missing) {
     throw new MeshError("not_found", `Missing deploy/secrets/${missing}; run setup render again.`);
   }
@@ -49667,7 +49745,7 @@ On a trial it runs them in deploy/. The hub version is the workspace's pin, whic
 };
 
 // ../../apps/cli/src/commands/setup/discord.ts
-import { readFileSync as readFileSync10 } from "node:fs";
+import { readFileSync as readFileSync11 } from "node:fs";
 var OPTIONS3 = {
   dir: { type: "string" },
   guild: { type: "string" },
@@ -49743,7 +49821,7 @@ bot is in several servers, pick one with --guild. The token is never printed.`,
     }
     const guild = await api.guild(chosen.id);
     const admin = await api.user(given ?? guild.owner_id);
-    const mesh = setHumanDiscordId(readFileSync10(p.meshFile, "utf8"), adminId, admin.id);
+    const mesh = setHumanDiscordId(readFileSync11(p.meshFile, "utf8"), adminId, admin.id);
     updateEnvFile(p.envFile, { DISCORD_GUILD_ID: guild.id });
     writeFileAtomic(p.meshFile, mesh);
     markDone(p, "discord", /* @__PURE__ */ new Date());
@@ -50031,8 +50109,8 @@ var setupInvitesCommand = {
 };
 
 // ../../apps/cli/src/commands/setup/render.ts
-import { existsSync as existsSync12, readFileSync as readFileSync11 } from "node:fs";
-import { join as join14, relative } from "node:path";
+import { existsSync as existsSync13, readFileSync as readFileSync12 } from "node:fs";
+import { join as join15, relative } from "node:path";
 
 // ../../apps/cli/src/setup/render/deploy-files.ts
 function renderCompose() {
@@ -50393,7 +50471,7 @@ var ENV_SET_LATER = [...DISCORD_ENV, "COSMICWAVE_VERSION"];
 var ENV_OF_MODE = ["NATS_BIND", "NATS_PUBLIC_HOST"];
 var CALLOUT_KEYS = ["hub-issuer", "hub-xkey", "hub-sys"];
 function writeEnv(p, a, force, registryFlag) {
-  const kept = existsSync12(p.envFile) ? readEnvFile(p.envFile) : null;
+  const kept = existsSync13(p.envFile) ? readEnvFile(p.envFile) : null;
   const registry2 = registryFlag || kept?.get("COSMICWAVE_IMAGE_REGISTRY") || DEFAULT_IMAGE_REGISTRY;
   const text = renderEnv({ hosting: a.hosting, version: VERSION, registry: registry2 });
   const file2 = relative(p.root, p.envFile);
@@ -50422,7 +50500,7 @@ function keyTargets(meshText, a, p, home) {
   return [
     ...[...services, ...server].map((id) => ({
       id,
-      seedFile: join14(p.secretsDir, `${id}.nk`),
+      seedFile: join15(p.secretsDir, `${id}.nk`),
       shared: false
     })),
     ...agents.map((id) => ({
@@ -50507,10 +50585,10 @@ trial's containers first. Your agents' seeds go to ~/.cosmicwave/<meshName>-<age
     }
     const fresh = renderMeshYaml(a);
     const targets = keyTargets(fresh, a, p, ctx.homeDir);
-    const previous = existsSync12(p.meshFile) ? readFileSync11(p.meshFile, "utf8") : null;
+    const previous = existsSync13(p.meshFile) ? readFileSync12(p.meshFile, "utf8") : null;
     const policy = renderPolicy(a);
     for (const warning of policy.warnings) ctx.stderr(`warning: ${warning}`);
-    const gitignore = existsSync12(p.gitignore) ? readFileSync11(p.gitignore, "utf8") : "";
+    const gitignore = existsSync13(p.gitignore) ? readFileSync12(p.gitignore, "utf8") : "";
     const report = writeFiles(p, state, force, [
       [p.meshFile, previous ? carryOver(fresh, previous, targets, a.admin.id) : fresh],
       [p.policyFile, policy.text],
@@ -50521,7 +50599,7 @@ trial's containers first. Your agents' seeds go to ~/.cosmicwave/<meshName>-<age
     ]);
     report.push(writeEnv(p, a, force || !renderedAt, values.registry));
     for (const { id, seedFile: file2, shared } of targets) {
-      if (findKeyHolder(readFileSync11(p.meshFile, "utf8"), id).nkey) continue;
+      if (findKeyHolder(readFileSync12(p.meshFile, "utf8"), id).nkey) continue;
       const { seedFile } = addKey(p.meshFile, file2, id, { force: false, cli: cliOf(ctx), shared });
       report.push(`  ${"key".padEnd(10)}${id} (seed ${seedFile})`);
     }
@@ -50772,11 +50850,11 @@ Risky but valid settings print as warnings and still exit 0.`,
 
 // ../../apps/cli/src/commands/window.ts
 import { randomBytes } from "node:crypto";
-import { existsSync as existsSync13, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync14, statSync as statSync7 } from "node:fs";
-import { isAbsolute as isAbsolute3, join as join19 } from "node:path";
+import { existsSync as existsSync14, lstatSync as lstatSync2, mkdirSync as mkdirSync5, readdirSync as readdirSync5, readFileSync as readFileSync15, statSync as statSync7 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join20 } from "node:path";
 
 // ../../packages/common/src/window.ts
-import { posix, win32 } from "node:path";
+import { posix as posix2, win32 as win322 } from "node:path";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var LAUNCH_PROMPT = "/cmw:activate mesh window";
@@ -50785,15 +50863,15 @@ var START_COMMAND = "claude-mesh";
 var launcherDisplay = (platform) => `~/.cosmicwave/${launcherName(platform)}`;
 var LAUNCHER_CMD = '"%USERPROFILE%\\.cosmicwave\\mesh-window.cmd"';
 function windowFiles(home, platform) {
-  const { join: join20 } = platform === "win32" ? win32 : posix;
-  const dir = join20(home, ".cosmicwave");
+  const { join: join21 } = platform === "win32" ? win322 : posix2;
+  const dir = join21(home, homeDirName(home));
   return {
     dir,
-    policy: join20(dir, "mesh-window.json"),
-    settings: join20(dir, "mesh-window.settings.json"),
-    launcher: join20(dir, launcherName(platform)),
-    emptyHooks: join20(dir, "empty-git-hooks"),
-    bin: join20(dir, "bin")
+    policy: join21(dir, "mesh-window.json"),
+    settings: join21(dir, "mesh-window.settings.json"),
+    launcher: join21(dir, launcherName(platform)),
+    emptyHooks: join21(dir, "empty-git-hooks"),
+    bin: join21(dir, "bin")
   };
 }
 var WINDOW_MODES = ["auto", "manual"];
@@ -50848,7 +50926,7 @@ function ownBranchPrefix(template, owner, agent) {
 
 // ../../apps/cli/src/lib/path-lookup.ts
 import { statSync as statSync5 } from "node:fs";
-import { join as join15, posix as posix2, win32 as win322 } from "node:path";
+import { join as join16, posix as posix3, win32 as win323 } from "node:path";
 var isRegularFile = (p) => {
   try {
     return statSync5(p).isFile();
@@ -50861,22 +50939,22 @@ function findOnPath(name, env, platform, isFile) {
   const exts = win ? (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean).map((e) => e.toLowerCase()) : [""];
   for (const dir of pathDirs(env.PATH ?? "", win)) {
     for (const ext of exts) {
-      const candidate = join15(dir, name + ext);
+      const candidate = join16(dir, name + ext);
       if (isFile(candidate)) return candidate;
     }
   }
   return null;
 }
 function pathDirs(path, win) {
-  const absolute = win ? win322.isAbsolute : posix2.isAbsolute;
+  const absolute = win ? win323.isAbsolute : posix3.isAbsolute;
   return path.split(win ? ";" : ":").map((d) => win ? d.trim().replace(/^"(.*)"$/, "$1") : d).filter((d) => d !== "" && absolute(d));
 }
 
 // ../../apps/cli/src/lib/shell-shadow-scan.ts
-import { readFileSync as readFileSync12, statSync as statSync6 } from "node:fs";
+import { readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
 
 // ../../apps/cli/src/lib/shell-shadow.ts
-import { join as join16 } from "node:path";
+import { join as join17 } from "node:path";
 var NAME = START_COMMAND;
 var END = "(?![\\w-])";
 var QUOTE = `['"]?`;
@@ -50912,20 +50990,20 @@ var POWERSHELL_PROFILES = [
 function startupFiles(platform, home, env, isFolder3) {
   const files = [];
   if (platform === "win32") {
-    const docs = /* @__PURE__ */ new Set([join16(env.USERPROFILE || home, "Documents")]);
+    const docs = /* @__PURE__ */ new Set([join17(env.USERPROFILE || home, "Documents")]);
     for (const root of [env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial]) {
-      if (root && isFolder3(join16(root, "Documents"))) docs.add(join16(root, "Documents"));
+      if (root && isFolder3(join17(root, "Documents"))) docs.add(join17(root, "Documents"));
     }
-    for (const d of docs) for (const p of POWERSHELL_PROFILES) files.push(join16(d, ...p));
+    for (const d of docs) for (const p of POWERSHELL_PROFILES) files.push(join17(d, ...p));
   }
   for (const p of [".bashrc", ".bash_profile", ".profile", ".bash_aliases", ".zshrc"]) {
-    files.push(join16(home, p));
+    files.push(join17(home, p));
   }
-  files.push(join16(home, ".config", "fish", "config.fish"));
+  files.push(join17(home, ".config", "fish", "config.fish"));
   return files;
 }
 var definingFiles = (home) => [
-  join16(home, ".config", "fish", "functions", `${START_COMMAND}.fish`)
+  join17(home, ".config", "fish", "functions", `${START_COMMAND}.fish`)
 ];
 var shadowWarning = (file2, line) => `Warning: ${file2}:${line} defines ${START_COMMAND}, which runs instead of the launcher in that shell. Remove or rename it, then open a new terminal.`;
 
@@ -50939,7 +51017,7 @@ var isFolder = (p) => {
 };
 function readText(file2) {
   try {
-    const buf = readFileSync12(file2);
+    const buf = readFileSync13(file2);
     return buf[0] === 255 && buf[1] === 254 ? buf.toString("utf16le") : buf.toString("utf8");
   } catch {
     return null;
@@ -50961,8 +51039,8 @@ function shellShadowWarnings(ctx, platform) {
 }
 
 // ../../apps/cli/src/lib/shim.ts
-import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync13, realpathSync } from "node:fs";
-import { dirname as dirname7, join as join17, posix as posix3, win32 as win323 } from "node:path";
+import { lstatSync, mkdirSync as mkdirSync4, readFileSync as readFileSync14, realpathSync } from "node:fs";
+import { dirname as dirname7, join as join18, posix as posix4, win32 as win324 } from "node:path";
 
 // ../../packages/common/src/secret-paths.ts
 var SECRET_NAMES = [
@@ -50997,6 +51075,8 @@ var SECRET_HOME_PATHS = [
   ".zsh_history",
   "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
   ".cosmicwave/**",
+  // The folder's old name, until it is moved (or a leftover beside the new one).
+  ".agentmesh/**",
   ".claude/.credentials.json",
   ".claude.json",
   "AppData/Local/Google/Chrome/**",
@@ -51131,7 +51211,7 @@ function shimScripts(launcher, platform, userProfile = null) {
 
 // ../../apps/cli/src/lib/shim.ts
 function isBelow(dir, home, platform) {
-  const path = platform === "win32" ? win323 : posix3;
+  const path = platform === "win32" ? win324 : posix4;
   const fold = (p) => platform === "win32" || platform === "darwin" ? p.toLowerCase() : p;
   if (path.dirname(fold(home)) === fold(home)) return false;
   const rel = path.relative(fold(home), fold(dir));
@@ -51139,7 +51219,7 @@ function isBelow(dir, home, platform) {
 }
 var isOwnShim = (p) => {
   try {
-    return isOurShim(readFileSync13(p, "utf8"));
+    return isOurShim(readFileSync14(p, "utf8"));
   } catch {
     return false;
   }
@@ -51160,12 +51240,12 @@ var realPath = (p) => {
 };
 function installShim(scripts, i) {
   const write = (dir2) => {
-    for (const s of scripts) writeFileAtomic(join17(dir2, s.name), s.content, 493);
+    for (const s of scripts) writeFileAtomic(join18(dir2, s.name), s.content, 493);
   };
   const dir = dirname7(i.claude);
   const [realDir, realHome] = [realPath(dir), realPath(i.home)];
   const below = realDir !== null && realHome !== null && isBelow(realDir, realHome, i.platform);
-  const foreign = below ? scripts.map((s) => join17(dir, s.name)).filter(foreignAt) : [];
+  const foreign = below ? scripts.map((s) => join18(dir, s.name)).filter(foreignAt) : [];
   if (below && foreign.length === 0) {
     try {
       write(dir);
@@ -51179,7 +51259,7 @@ function installShim(scripts, i) {
 }
 
 // ../../apps/cli/src/commands/window-start.ts
-import { isAbsolute as isAbsolute2, join as join18, relative as relative2 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join19, relative as relative2 } from "node:path";
 function gitBashCommand(dir, home) {
   const rel = relative2(home, dir);
   const inHome = rel !== "" && !rel.startsWith("..") && !isAbsolute2(rel);
@@ -51196,7 +51276,7 @@ function printStart(ctx, s) {
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`
   );
   if (s.reachesOurs) return;
-  const ours = join18(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
+  const ours = join19(s.shim.dir, `${START_COMMAND}${s.platform === "win32" ? ".cmd" : ""}`);
   ctx.stdout(
     s.reached ? `Warning: ${START_COMMAND} runs ${s.reached}, which comes first on PATH, not ${ours}.` : `${s.shim.dir} is not on your PATH: add it to use ${START_COMMAND} (window init never changes PATH).`
   );
@@ -51228,25 +51308,25 @@ function windowMode(value) {
 var IGNORES = /* @__PURE__ */ new Set([".claude/worktrees/", ".claude/worktrees", ".claude/", ".claude"]);
 var read = (path) => {
   try {
-    return readFileSync14(path, "utf8");
+    return readFileSync15(path, "utf8");
   } catch {
     return null;
   }
 };
 function checkouts(dir) {
-  const found = existsSync13(join19(dir, ".git")) ? [dir] : [];
+  const found = existsSync14(join20(dir, ".git")) ? [dir] : [];
   let names = [];
   try {
     names = readdirSync5(dir).sort();
   } catch {
   }
   for (const n of names) {
-    const sub = join19(dir, n);
-    if (existsSync13(join19(sub, ".git")) && statSync7(sub).isDirectory()) found.push(sub);
+    const sub = join20(dir, n);
+    if (existsSync14(join20(sub, ".git")) && statSync7(sub).isDirectory()) found.push(sub);
   }
   return found;
 }
-var ignoresWorktrees = (checkout) => (read(join19(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
+var ignoresWorktrees = (checkout) => (read(join20(checkout, ".gitignore")) ?? "").split(/\r?\n/).some((l) => IGNORES.has(l.trim()));
 var isFolder2 = (p) => {
   try {
     return statSync7(p).isDirectory();
@@ -51282,6 +51362,11 @@ var present = (p) => {
     return false;
   }
 };
+var NOT_MOVED = "~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder, then run this again.";
+function assertMoved(home) {
+  if (!present(join20(home, LEGACY_HOME_DIR))) return;
+  throw new MeshError("invalid_request", present(join20(home, HOME_DIR)) ? BOTH_FOLDERS : NOT_MOVED);
+}
 function printNotes(ctx, platform, n) {
   ctx.stdout(MODE_LINES[n.mode]);
   if (n.rerun) {
@@ -51345,6 +51430,7 @@ that Claude account.
     const agentId = values.agent;
     if (!agentId) throw usageError("Missing --agent <id>");
     const mode = windowMode(values.mode);
+    assertMoved(ctx.homeDir);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values["branch-template"], values.owner ?? agentId, agentId);
@@ -51465,6 +51551,9 @@ function matchCommand(argv) {
   }
   return null;
 }
+function moveHome(ctx) {
+  if (moveLegacyHome(ctx.homeDir) === "both") ctx.stderr(BOTH_FOLDERS);
+}
 async function runCli(argv, ctx) {
   if (argv.length === 0 || argv[0] === "help" || argv[0] === "--help" || argv[0] === "-h") {
     ctx.stdout(usage());
@@ -51481,6 +51570,7 @@ ${usage()}`);
     ctx.stdout(match.command.help);
     return 0;
   }
+  moveHome(ctx);
   try {
     return await match.command.run(match.rest, ctx);
   } catch (error62) {

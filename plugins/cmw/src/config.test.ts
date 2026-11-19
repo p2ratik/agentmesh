@@ -1,8 +1,8 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { resolveConfig } from './config';
+import { defaultConfigFile, resolveConfig } from './config';
 import { parseRemote } from './git';
 
 const missingFile = join(tmpdir(), 'cosmicwave-does-not-exist.json');
@@ -168,6 +168,24 @@ describe('resolveConfig', () => {
       file,
     );
     expect(result.ok && result.config.nkeySeed).toBe('/keys/frank.nk');
+  });
+
+  // A temp home, never the real one: the folder could not be moved yet, or both folders exist.
+  it('finds the agent in ~/.agentmesh when that folder holds it', () => {
+    const home = mkdtempSync(join(tmpdir(), 'cosmicwave-home-'));
+    const seed = join(home, '.agentmesh', 'bob-agent.nk');
+    mkdirSync(join(home, '.agentmesh'));
+    writeFileSync(seed, 'fake');
+    writeFileSync(
+      join(home, '.agentmesh', 'agent.json'),
+      JSON.stringify({ agentId: 'bob-agent', natsUrl: 'tls://hub:4222', nkeySeed: seed }),
+    );
+    const expected = { agentId: 'bob-agent', servers: ['tls://hub:4222'], nkeySeed: seed };
+    const notMoved = resolveConfig({}, defaultConfigFile(home));
+    expect(notMoved.ok && notMoved.config).toMatchObject(expected);
+    mkdirSync(join(home, '.cosmicwave', 'run'), { recursive: true });
+    const both = resolveConfig({}, defaultConfigFile(home));
+    expect(both.ok && both.config).toMatchObject(expected);
   });
 
   it('keeps the log file for an unenrolled plugin', () => {

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { meshHome } from '@cosmicwave/common/mesh-home';
 import { hookAgentId } from './agent-id';
 import { type PromptLine, promptContext, unreadInput } from './hook/prompt';
 import {
@@ -78,8 +79,7 @@ function sessionStart(source: unknown): {
     source: typeof source === 'string' ? source : undefined,
     marked: !!env.COSMICWAVE_MESH_WINDOW,
     policy,
-    enrolled:
-      existsSync(join(home, '.cosmicwave', 'agent.json')) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
+    enrolled: existsSync(join(meshHome(home), 'agent.json')) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.COSMICWAVE_MESH_WINDOW_HINT === 'off',
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
     setUp,

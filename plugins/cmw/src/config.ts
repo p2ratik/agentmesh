@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { isValidParticipantId } from '@cosmicwave/common';
+import { isValidParticipantId, mapLegacyPath, meshHome } from '@cosmicwave/common';
 import { PREFIX_PATTERN } from '@cosmicwave/protocol';
 import { z } from 'zod';
 import { fileApplies, resolveAgentId, usable } from './agent-id';
@@ -32,7 +32,8 @@ const FileConfig = z.object({
 type FileConfig = z.infer<typeof FileConfig>;
 type Env = Record<string, string | undefined>;
 
-export const DEFAULT_CONFIG_FILE = join(homedir(), '.cosmicwave', 'agent.json');
+/** agent.json in `meshHome`: ~/.cosmicwave, or ~/.agentmesh on a laptop not moved yet. */
+export const defaultConfigFile = (home?: string): string => join(meshHome(home), 'agent.json');
 
 /**
  * Plugin `userConfig` values arrive as env vars. Unset values may show up as
@@ -40,7 +41,7 @@ export const DEFAULT_CONFIG_FILE = join(homedir(), '.cosmicwave', 'agent.json');
  * count as unset and fall back to ~/.cosmicwave/agent.json, if that file is
  * for this agent (`fileApplies`). Its prefix wins over the option (`resolvePrefix`).
  */
-export function resolveConfig(env: Env = process.env, file = DEFAULT_CONFIG_FILE): ConfigResult {
+export function resolveConfig(env: Env = process.env, file = defaultConfigFile()): ConfigResult {
   const saved = readFileConfig(file);
   const options = { agentId: env.COSMICWAVE_AGENT_ID, natsUrl: env.COSMICWAVE_NATS_URL };
   const fromFile = fileApplies(options, saved) ? saved : {};
@@ -113,7 +114,12 @@ function readFileConfig(file: string): FileConfig {
   if (!existsSync(file)) return {};
   try {
     const parsed = FileConfig.safeParse(JSON.parse(readFileSync(file, 'utf8')));
-    return parsed.success ? parsed.data : {};
+    if (!parsed.success) return {};
+    const { nkeySeed } = parsed.data;
+    // A seed path into ~/.agentmesh that the move could not rewrite.
+    return nkeySeed
+      ? { ...parsed.data, nkeySeed: mapLegacyPath(nkeySeed, homedir()) }
+      : parsed.data;
   } catch {
     return {};
   }

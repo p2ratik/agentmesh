@@ -1,28 +1,47 @@
 import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);
 
 // src/guard.ts
-import { homedir as homedir2 } from "node:os";
+import { homedir as homedir3 } from "node:os";
 
 // ../../packages/common/src/version.ts
 var VERSION = "0.8.0";
 
 // ../../packages/common/src/window.ts
-import { readFileSync } from "node:fs";
-import { posix, win32 } from "node:path";
+import { readFileSync as readFileSync2 } from "node:fs";
+import { posix as posix2, win32 as win322 } from "node:path";
+
+// ../../packages/common/src/mesh-home.ts
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, posix, win32 } from "node:path";
+var HOME_DIR = ".cosmicwave";
+var LEGACY_HOME_DIR = ".agentmesh";
+var AGENT_FILE = "agent.json";
+function homeDirName(home, exists = existsSync) {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) return HOME_DIR;
+  if (exists(join(home, LEGACY_HOME_DIR, AGENT_FILE))) return LEGACY_HOME_DIR;
+  const onlyLegacy = exists(join(home, LEGACY_HOME_DIR)) && !exists(join(home, HOME_DIR));
+  return onlyLegacy ? LEGACY_HOME_DIR : HOME_DIR;
+}
+function meshHome(home = homedir(), exists) {
+  return join(home, homeDirName(home, exists));
+}
+
+// ../../packages/common/src/window.ts
 var MESH_WINDOW_ENV = "COSMICWAVE_MESH_WINDOW";
 var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
-  const { join: join6 } = platform === "win32" ? win32 : posix;
-  const dir = join6(home, ".cosmicwave");
+  const { join: join7 } = platform === "win32" ? win322 : posix2;
+  const dir = join7(home, homeDirName(home));
   return {
     dir,
-    policy: join6(dir, "mesh-window.json"),
-    settings: join6(dir, "mesh-window.settings.json"),
-    launcher: join6(dir, launcherName(platform)),
-    emptyHooks: join6(dir, "empty-git-hooks"),
-    bin: join6(dir, "bin")
+    policy: join7(dir, "mesh-window.json"),
+    settings: join7(dir, "mesh-window.settings.json"),
+    launcher: join7(dir, launcherName(platform)),
+    emptyHooks: join7(dir, "empty-git-hooks"),
+    bin: join7(dir, "bin")
   };
 }
 var WINDOW_MODES = ["auto", "manual"];
@@ -69,7 +88,7 @@ function parseWindowPolicy(text) {
 }
 function readWindowPolicy(home, platform) {
   try {
-    return parseWindowPolicy(readFileSync(windowFiles(home, platform).policy, "utf8"));
+    return parseWindowPolicy(readFileSync2(windowFiles(home, platform).policy, "utf8"));
   } catch {
     return null;
   }
@@ -88,11 +107,11 @@ function readMarker(env, home, platform, agentId) {
 }
 
 // src/guard/checkout.ts
-import { lstatSync as lstatSync2, readdirSync, readFileSync as readFileSync3 } from "node:fs";
+import { lstatSync as lstatSync2, readdirSync, readFileSync as readFileSync4 } from "node:fs";
 import path2 from "node:path";
 
 // src/guard/paths.ts
-import { lstatSync, readFileSync as readFileSync2, realpathSync } from "node:fs";
+import { lstatSync, readFileSync as readFileSync3, realpathSync } from "node:fs";
 import path from "node:path";
 var OUTSIDE_TEXT = "not inside .claude/worktrees/mesh-*";
 var NOT_ABSOLUTE = { refused: "the path is not absolute", code: "path.not_absolute" };
@@ -181,7 +200,7 @@ function escapes(file, resolved, o) {
 function realFile(file, o) {
   return badInput(file, o) ? void 0 : attempt(() => realpathSync.native(file));
 }
-var readLine = (file) => attempt(() => readFileSync2(file, "utf8"))?.replace(/[\r\n]+$/, "");
+var readLine = (file) => attempt(() => readFileSync3(file, "utf8"))?.replace(/[\r\n]+$/, "");
 function registered(resolved, o) {
   const p = lib(o);
   const { top, segments: segments2 } = split(resolved, o);
@@ -223,8 +242,8 @@ function editTarget(file, o) {
   if (typeof resolved !== "string") return resolved;
   if (typeof o.home !== "string") return NOT_ABSOLUTE;
   const p = lib(o);
-  const cosmicwave = p.isAbsolute(o.home) ? resolve(p.join(o.home, ".cosmicwave"), o) : null;
-  if (cosmicwave === null || within(resolved, cosmicwave, o)) return COSMICWAVE;
+  const folders = p.isAbsolute(o.home) ? [HOME_DIR, LEGACY_HOME_DIR].map((d) => resolve(p.join(o.home, d), o)) : [null];
+  if (folders.some((f) => f === null || within(resolved, f, o))) return COSMICWAVE;
   const found = registered(resolved, o);
   if ("refused" in found) return found;
   if (found.below.length === 0) return OUTSIDE;
@@ -260,7 +279,7 @@ var PACKED = new RegExp(`^${OID} (.+)$`);
 var plain = (s) => s !== "" && !s.startsWith(".") && !s.endsWith(".") && !s.endsWith(".lock");
 function read(file) {
   try {
-    return readFileSync3(file, "utf8");
+    return readFileSync4(file, "utf8");
   } catch {
     return null;
   }
@@ -442,6 +461,8 @@ var SECRET_HOME_PATHS = [
   ".zsh_history",
   "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
   ".cosmicwave/**",
+  // The folder's old name, until it is moved (or a leftover beside the new one).
+  ".agentmesh/**",
   ".claude/.credentials.json",
   ".claude.json",
   "AppData/Local/Google/Chrome/**",
@@ -624,24 +645,24 @@ function udsHex(address, platform) {
 // src/relay/forward-record.ts
 import {
   closeSync,
-  existsSync,
+  existsSync as existsSync2,
   mkdirSync,
   openSync,
   readdirSync as readdirSync2,
-  readFileSync as readFileSync4,
-  renameSync,
+  readFileSync as readFileSync5,
+  renameSync as renameSync2,
   rmSync,
   statSync,
-  writeFileSync
+  writeFileSync as writeFileSync2
 } from "node:fs";
-import { join as join2 } from "node:path";
+import { join as join3 } from "node:path";
 
 // src/pull/state.ts
-import { join } from "node:path";
+import { join as join2 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function pullStateDirs(env, home) {
-  const dirs = [env.CLAUDE_PLUGIN_DATA, join(home, ".cosmicwave", "run")];
+  const dirs = [env.CLAUDE_PLUGIN_DATA, join2(meshHome(home), "run")];
   return [...new Set(dirs.filter((d) => !!d))];
 }
 
@@ -664,7 +685,7 @@ function forwardFile(hex, messageId) {
 }
 function candidate(dir, name, hex, now) {
   try {
-    const v = JSON.parse(readFileSync4(join2(dir, name), "utf8"));
+    const v = JSON.parse(readFileSync5(join3(dir, name), "utf8"));
     const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
     const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
     v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex, fields.messageId) === name;
@@ -686,17 +707,17 @@ function readForwards(dir, hex, now) {
 var CLAIMED = ".claimed";
 function claimForward(dir, name) {
   try {
-    closeSync(openSync(join2(dir, `${name}${CLAIMED}`), "wx", 384));
+    closeSync(openSync(join3(dir, `${name}${CLAIMED}`), "wx", 384));
   } catch {
     return false;
   }
-  if (!existsSync(join2(dir, name))) return false;
+  if (!existsSync2(join3(dir, name))) return false;
   removeForward(dir, name);
   return true;
 }
 function removeForward(dir, name) {
   try {
-    rmSync(join2(dir, name), { force: true });
+    rmSync(join3(dir, name), { force: true });
   } catch {
   }
 }
@@ -889,16 +910,16 @@ import {
   appendFileSync,
   mkdirSync as mkdirSync2,
   readdirSync as readdirSync3,
-  readFileSync as readFileSync6,
+  readFileSync as readFileSync7,
   statSync as statSync2,
   unlinkSync
 } from "node:fs";
-import { homedir } from "node:os";
-import { join as join4 } from "node:path";
+import { homedir as homedir2 } from "node:os";
+import { join as join5 } from "node:path";
 
 // src/agent-id.ts
-import { readFileSync as readFileSync5 } from "node:fs";
-import { join as join3 } from "node:path";
+import { readFileSync as readFileSync6 } from "node:fs";
+import { join as join4 } from "node:path";
 function usable(value) {
   const trimmed = value?.trim();
   if (!trimmed || trimmed.startsWith("${")) return void 0;
@@ -932,9 +953,7 @@ function parseSavedAgent(value) {
 function hookAgentId(env, home) {
   let saved = null;
   try {
-    saved = parseSavedAgent(
-      JSON.parse(readFileSync5(join3(home, ".cosmicwave", "agent.json"), "utf8"))
-    );
+    saved = parseSavedAgent(JSON.parse(readFileSync6(join4(meshHome(home), "agent.json"), "utf8")));
   } catch {
   }
   return resolveAgentId(
@@ -964,7 +983,7 @@ function appendEvent(dataDir, event, agent = null) {
   try {
     if (agent !== null && !PARTICIPANT_ID.test(agent)) return;
     const name = agent === null ? `${process.pid}` : `${agent}-${process.pid}`;
-    const file = join4(dataDir, `events-${name}.jsonl`);
+    const file = join5(dataDir, `events-${name}.jsonl`);
     const size = statSync2(file, { throwIfNoEntry: false })?.size;
     const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
     if (full) return;
@@ -979,7 +998,7 @@ function leaveEvent(source, session, fields) {
     const event = fields();
     if (!event) return;
     const env = process.env;
-    const home = homedir();
+    const home = homedir2();
     const dir = pullStateDirs(env, home)[0];
     const id = hookAgentId(env, home);
     const agent = id !== null && PARTICIPANT_ID.test(id) ? id : null;
@@ -991,15 +1010,15 @@ function leaveEvent(source, session, fields) {
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync7, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join5 } from "node:path";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync8, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { join as join6 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 function writeGuardStamp(dir, now, version) {
   mkdirSync3(dir, { recursive: true, mode: 448 });
-  const file = join5(dir, GUARD_STAMP);
+  const file = join6(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
-  writeFileSync2(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
-  renameSync2(staged, file);
+  writeFileSync3(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });
+  renameSync3(staged, file);
 }
 
 // src/guard.ts
@@ -1018,7 +1037,7 @@ async function main(marked2) {
   process.stdin.destroy();
   if (!marked2) return 0;
   const env = process.env;
-  const home = homedir2();
+  const home = homedir3();
   const platform = process.platform;
   const { policy } = readMarker(env, home, platform);
   const dir = pullStateDirs(env, home)[0] ?? ".";

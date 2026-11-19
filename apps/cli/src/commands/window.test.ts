@@ -8,7 +8,9 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { BOTH_FOLDERS } from '@cosmicwave/common/mesh-home';
 import { describe, expect, it } from 'vitest';
+import { windowInitCommand } from './window';
 import { platform, setup } from './window.fixture';
 
 const mode = (p: string) => statSync(p).mode & 0o777;
@@ -207,6 +209,35 @@ describe('cmw window init', () => {
     expect(await run('--agent', 'bob-agent')).toBe(1);
     expect(err).toEqual(['error: claude is not on PATH. Install Claude Code first.']);
     expect(() => statSync(files.dir)).toThrow();
+  });
+
+  // Called directly, so the CLI's move never ran: a window is never written into ~/.agentmesh.
+  it('refuses, writing nothing, while ~/.agentmesh is still there', async () => {
+    const t = setup();
+    mkdirSync(join(t.home, '.agentmesh'));
+    writeFileSync(join(t.home, '.agentmesh', 'agent.json'), '{}');
+    const init = () => windowInitCommand.run(['--agent', 'bob-agent'], t.ctx);
+    expect(init).toThrow(
+      '~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder, then run this again.',
+    );
+    expect(readdirSync(t.home)).toEqual(['.agentmesh']);
+    mkdirSync(join(t.home, '.cosmicwave'));
+    expect(init).toThrow(BOTH_FOLDERS);
+    // From the CLI the move finds both folders too, says so, and the command refuses.
+    expect(await t.run('--agent', 'bob-agent')).toBe(2);
+    expect(t.err).toEqual([BOTH_FOLDERS, `error: ${BOTH_FOLDERS}`]);
+    expect(readdirSync(join(t.home, '.agentmesh'))).toEqual(['agent.json']);
+    expect(readdirSync(join(t.home, '.cosmicwave'))).toEqual([]);
+  });
+
+  it('moves ~/.agentmesh first when run from the CLI, then writes the window', async () => {
+    const t = setup();
+    mkdirSync(join(t.home, '.agentmesh'));
+    writeFileSync(join(t.home, '.agentmesh', 'agent.json'), '{}');
+    expect(await t.run('--agent', 'bob-agent')).toBe(0);
+    expect(readdirSync(t.home)).not.toContain('.agentmesh');
+    expect(readFileSync(join(t.home, '.cosmicwave', 'agent.json'), 'utf8')).toBe('{}');
+    expect(t.policy()?.agentId).toBe('bob-agent');
   });
 
   it('warns about a checkout that does not ignore its worktrees', async () => {

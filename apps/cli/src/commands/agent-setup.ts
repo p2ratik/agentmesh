@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { expandHome, MeshError } from '@cosmicwave/common';
+import { expandHome, MeshError, meshHome } from '@cosmicwave/common';
 import { ConfigIndex } from '@cosmicwave/config';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom, resolveFrom } from '../context';
@@ -58,7 +58,7 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
       wroteConfig: null,
     };
     if (values.write) {
-      const file = join(ctx.homeDir, '.cosmicwave', 'agent.json');
+      const file = join(meshHome(ctx.homeDir), 'agent.json');
       writePrivateFile(file, agentJson(input), true);
       input.wroteConfig = file;
     }
