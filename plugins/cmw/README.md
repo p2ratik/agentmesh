@@ -148,7 +148,8 @@ really under your home folder (links resolved) and holds nothing named `claude-m
 didn't write. On Windows that is `claude-mesh.cmd` plus a `claude-mesh` sh script for Git Bash,
 which enters the folder itself. Otherwise it writes it to `~/.cosmicwave/bin` and prints a line
 telling you to add that folder to your PATH; it never changes PATH itself. It also warns, naming
-the file, when someone else's `claude-mesh` comes first on PATH. Until typing `claude-mesh`
+the file, when someone else's `claude-mesh` comes first on PATH, or one written before the rename.
+Until typing `claude-mesh`
 reaches one of its own, use the line it prints:
 
 ```bash

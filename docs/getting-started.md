@@ -251,7 +251,8 @@ shell profile.
 When it can't put `claude-mesh` there (`claude` is outside your home folder, as with Homebrew; the
 folder can't be written; or it holds something else named `claude-mesh`), it writes it to
 `~/.cosmicwave/bin` and prints a line telling you to add that folder to your PATH. It also warns,
-naming the file, when someone else's `claude-mesh` comes first on PATH, and when a shell startup
+naming the file, when someone else's `claude-mesh` comes first on PATH (or one written before the
+rename, which starts a window that is no longer there), and when a shell startup
 file (a PowerShell profile, `.bashrc`, `.zshrc`, fish's config and the like) defines a
 `claude-mesh` function or alias, which would run instead in that shell. Until typing `claude-mesh`
 reaches one of its own, start the window with the line it prints instead:
@@ -497,6 +498,9 @@ grep -c nkeySeed ~/.agentmesh/agent.json
 Select-String -Quiet nkeySeed ~/.agentmesh/agent.json
 ```
 
+When the line is missing, `grep` prints `0` and PowerShell prints nothing at all: no output is a
+missing line, not a pass.
+
 If another Claude account on this laptop switched first, the folder is already
 `~/.cosmicwave`: check `~/.cosmicwave/agent.json` instead. Members who joined with an invite have
 the file. If the file or the line is missing, your settings are in the plugin's options, and the
@@ -524,21 +528,45 @@ your own, so you can enter them again after the install.
 4. In `~/.claude/settings.json` (`$CLAUDE_CONFIG_DIR/settings.json` for a second account), replace
    the allow rule `mcp__plugin_agentmesh_mesh__*` with `mcp__plugin_cmw_mesh__*`. If you turned on
    automatic updates, delete the `agentmesh` entry under `extraKnownMarketplaces` too, and after
-   step 5 run `/cmw:autoupdate` ([Keep Cosmicwave updated](#keep-cosmicwave-updated)).
+   step 5 run `/cmw:autoupdate` ([Keep Cosmicwave updated](#keep-cosmicwave-updated)). If its
+   `env` sets `AGENTMESH_MESH_WINDOW_HINT` or `AGENTMESH_RELAY`, rename them
+   `COSMICWAVE_MESH_WINDOW_HINT` and `COSMICWAVE_RELAY`: the old names are not read.
 5. Start Claude Code with the channel flag
    (`claude --dangerously-load-development-channels plugin:cmw@cosmicwave`), run `/cmw:window`
    once, then start your mesh window with `claude-mesh` as before.
 
-**What happens on the first start.** The plugin's MCP server, or the `cmw` CLI if it starts first,
-renames `~/.agentmesh` to `~/.cosmicwave`. It is one rename of the whole folder: your key,
+**Also, where they apply:**
+- **Your PATH.** If you added `~/.agentmesh/bin` to it (the old `/agentmesh:window` put
+  `claude-mesh` there when it could not write it beside `claude`), replace it with
+  `~/.cosmicwave/bin`. `/cmw:window` says when the folder it wrote `claude-mesh` to is not on
+  your PATH.
+- **A team repo's `.claude/settings.json`** that names the old plugin: rename an `agentmesh` entry
+  under `extraKnownMarketplaces` to `cosmicwave` with `"repo": "p2ratik/cosmicwave"`,
+  `agentmesh@agentmesh` under `enabledPlugins` to `cmw@cosmicwave`, and an allow rule
+  `mcp__plugin_agentmesh_mesh__*` to `mcp__plugin_cmw_mesh__*`, then commit it.
+
+**When the folder moves.** The plugin's MCP server renames `~/.agentmesh` to `~/.cosmicwave` when
+it starts, and `/cmw:window` (`cmw window init`) does just before it writes the window. No other
+`cmw` command moves it: they read and write `~/.agentmesh` where it is, so a plugin from before
+the rename keeps its folder until you switch. It is one rename of the whole folder: your key,
 `agent.json` and anything else you keep there (an off-site backup key, say) move together, and
 nothing is copied or deleted. Then the seed path in `agent.json` is pointed into the new folder.
 - If Windows refuses the rename because a file in the folder is open, nothing changes: the plugin
   uses `~/.agentmesh` where it is and tries again at its next start. `/cmw:window` will not set up
   a window in the old folder; it asks you to close every Claude Code session and any terminal
-  inside that folder, and to run it again.
-- If both `~/.agentmesh` and `~/.cosmicwave` exist, nothing moves, and the CLI and `/cmw:window`
-  say so. Move what you need into `~/.cosmicwave`, then delete `~/.agentmesh`.
+  inside that folder. It runs inside a session itself, so then run window init from a plain
+  terminal, as its message says: `node <plugin dir>/dist/cli.js window init` with the options
+  `/cmw:window` used (`--agent <your agent id>` and any others).
+- If both `~/.agentmesh` and `~/.cosmicwave` exist, nothing moves. The plugin's log and
+  `/cmw:window` say what to do, which depends on where `agent.json` is:
+  - **`~/.cosmicwave` has no `agent.json`:** your key is still in `~/.agentmesh`, so keep that
+    folder and change nothing in it. Move whatever you put in `~/.cosmicwave` into `~/.agentmesh`,
+    remove the then-empty `~/.cosmicwave`, and start Claude Code again (or run `/cmw:window`
+    again): the one rename then moves everything.
+  - **`~/.cosmicwave` holds `agent.json`:** the folder has already moved, and `~/.agentmesh` is a
+    leftover (a session still on the old plugin can make it again). Look inside it first and move
+    anything you still need into `~/.cosmicwave`: key files ending in `.nk`, an `agent.json`, a
+    backup key. Only then remove `~/.agentmesh`.
 - `/cmw:window` writes the launcher, its settings and `claude-mesh` again under the new names, and
   replaces the `claude-mesh` the old plugin wrote. Until you run it, a new session says at startup
   that this laptop's mesh window was set up under the old name and `claude-mesh` no longer starts
@@ -554,6 +582,54 @@ shows as not joined until you do steps 2 to 4 there as well.
 - **Lost:** the plugin's local session records, which live in its data folder. A reply pointer, or
   a `claude --resume`, for a conversation started under the old plugin does not find its session.
   Read the thread with `thread` or `inbox` instead.
+
+**Going back to 0.7.2.** The default branch no longer offers `agentmesh@agentmesh`, so the old
+plugin comes from the tag `v0.7.2`:
+
+1. In each Claude account, close every Claude Code session, your mesh window included, and any
+   terminal open inside `~/.cosmicwave`. Then remove the new marketplace, which also uninstalls
+   the plugin:
+
+   ```bash
+   claude plugin marketplace remove cosmicwave
+   ```
+
+2. Once per laptop, rename the folder back. Do it only while no `~/.agentmesh` exists; if one
+   does, sort that out first as described under **When the folder moves**.
+
+   ```bash
+   [ -e ~/.agentmesh ] || mv ~/.cosmicwave ~/.agentmesh
+   ```
+
+   ```powershell
+   Rename-Item ~/.cosmicwave .agentmesh   # refuses when ~/.agentmesh exists
+   ```
+
+   Then open `~/.agentmesh/agent.json` in an editor and, in the `nkeySeed` path, change
+   `.cosmicwave` to `.agentmesh`: the move pointed it into the new folder, and 0.7.2 does not look
+   there. A seed written as the key itself (it starts with `SU`) stays as it is.
+3. In each Claude account, add the old marketplace at its tag and install the old plugin, leaving
+   its options empty:
+
+   ```bash
+   claude plugin marketplace add p2ratik/cosmicwave#v0.7.2
+   claude plugin install agentmesh@agentmesh
+   ```
+
+4. Undo step 4 of the move in each `settings.json`: the allow rule back to
+   `mcp__plugin_agentmesh_mesh__*`, `COSMICWAVE_MESH_WINDOW_HINT` and `COSMICWAVE_RELAY` back to
+   their `AGENTMESH_` names, and the `cosmicwave` entry under `extraKnownMarketplaces` deleted if
+   you turned on automatic updates. Undo the PATH and team repo changes too.
+5. Delete the `claude-mesh` files that `/cmw:window` wrote beside `claude` (`claude-mesh`, and
+   `claude-mesh.cmd` on Windows; their second line is `# cosmicwave claude-mesh` or
+   `rem cosmicwave claude-mesh`): they start the new window, and the old `/agentmesh:window`
+   leaves alone a file it did not write. Then start Claude Code with
+   `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`, run
+   `/agentmesh:window` once, and start the window with `claude-mesh`.
+
+Going back cannot restore either plugin's session records or options: each uninstall deleted its
+own, so a conversation started under 0.8.0 does not find its session either. Your key, agent id,
+roles and messages are unaffected.
 
 ## 4. First run
 

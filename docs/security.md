@@ -1468,15 +1468,21 @@ identity.
 When Cosmicwave was called AgentMesh, the laptop folder was `~/.agentmesh`. It holds the member's
 agent key, `agent.json` (which points at the key by absolute path) and whatever else they keep
 there, such as the off-site backup key. It becomes `~/.cosmicwave` the first time the plugin's MCP
-server or the `cmw` CLI starts (`packages/common/src/mesh-home.ts`), so nobody is invited again.
+server starts or `cmw window init` runs (`packages/common/src/mesh-home.ts`), so nobody is invited
+again.
 
 - **Threat: a key lost in the move.** **Mitigation:** the move is one `rename` of the whole
   folder, only when `~/.cosmicwave` is missing. On one volume it happens completely or not at all;
   nothing is copied and nothing is deleted. If the rename fails (Windows refuses while a file inside
   is open), nothing changed: the session reads `~/.agentmesh` in place and the next start tries
-  again. When both folders exist nothing moves, and the plugin's log and the CLI say so; the member
-  moves what they need by hand. After a move, the seed path in `agent.json` is pointed into the new
-  folder (a temp file beside it, then a rename, mode 600). The readers also map a seed path under
+  again. When both folders exist nothing moves, and the plugin's log and `cmw window init` say what
+  to do, by where `agent.json` is: while `~/.cosmicwave` has none, the keys are in `~/.agentmesh`,
+  so the member moves the new folder's contents into the old one and changes nothing there, and the
+  rename runs again; once `~/.cosmicwave` has it, `~/.agentmesh` is a leftover that they look
+  through (key files, `agent.json`, a backup key) before removing it. No message tells anyone to
+  remove the folder that holds `agent.json` or a key. After a move, the seed path in `agent.json`
+  is pointed into the new folder (a temp file beside it, then a rename, mode 600; a failed rename
+  removes the temp file). The readers also map a seed path under
   `~/.agentmesh` once the old file is gone, from `agent.json` or the `nkey_seed` option, so a crash
   between the two steps strands no key; a seed given as the key text itself passes unchanged. The
   log says only that the folder moved, never a file's content.
@@ -1487,8 +1493,11 @@ server or the `cmw` CLI starts (`packages/common/src/mesh-home.ts`), so nobody i
 - **Threat: a mesh window baked into the old folder.** Its launcher and settings hold absolute
   paths that a later move would break. **Mitigation:** `cmw window init` refuses, writing nothing,
   while `~/.agentmesh` exists.
-- **Threat: files moving under a running session.** **Mitigation:** only the MCP server and the
-  CLI move, once each at start. The hook and the guard never move anything; they only read. When
+- **Threat: files moving under a running session.** **Mitigation:** only the MCP server, once at
+  start, and `cmw window init`, which a member runs while switching, move the folder. Every other
+  `cmw` command reads and writes it where it is, so a command run from a newer checkout never takes
+  the folder from under a plugin from before the rename. The hook and the guard never move
+  anything; they only read. When
   two processes race, one rename wins and the other finds the new folder. A state file whose
   fallback folder, `~/.agentmesh/run`, was chosen just before the move is never written: that
   folder is made only inside a `~/.agentmesh` that is still there, so the old folder never comes

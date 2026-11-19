@@ -190,9 +190,10 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
   - Channel `meta` keys must be identifiers.
   - Never declare `claude/channel/permission`: the mesh never relays tool-approval prompts.
 - **Users need an allow rule:** `mcp__plugin_cmw_mesh__*`.
-- **Required plugin options:** Claude Code does not start the plugin's MCP server until the
-  required options (`agent_id`, `nats_url`) are set; they are stored in `settings.json` under
-  `pluginConfigs`. `~/.cosmicwave/agent.json` fills in options left empty, such as the seed. Its
+- **Plugin options:** the manifest marks none of them required, so Claude Code starts the plugin's
+  MCP server with them empty, and the plugin offers `join` and `connect` until it has settings.
+  They are stored in `settings.json` under `pluginConfigs`. `~/.cosmicwave/agent.json` fills in
+  options left empty, such as the seed. Its
   prefix wins over the `prefix` option (Claude Code may store a stale value there). The file
   applies only when the `agent_id` and `nats_url` options are empty or match it; otherwise it is
   ignored, because one file serves every Claude account on the laptop.
@@ -238,7 +239,7 @@ Run `pnpm check` before calling anything done.
 
 ## Status (as of 2026-11-19)
 
-**Built (v1, release 0.7.0):**
+**Built (v1; released up to 0.7.2, with the 0.8.0 rename built and not yet released):**
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
@@ -356,23 +357,28 @@ Run `pnpm check` before calling anything done.
     the `cosmicwave-*` images and server scripts, `/opt/cosmicwave`, `~/.cosmicwave`. No subject,
     RPC, schema, migration, tool name or invite format changed; the reason code
     `path.agentmesh_dir` keeps its name, since the hub validates it.
-  - The laptop folder (`packages/common/src/mesh-home.ts`): the plugin's MCP server and the CLI
-    rename `~/.agentmesh` to `~/.cosmicwave` at start (one rename, nothing copied or deleted), then
-    point `agent.json`'s seed path into it; readers use the old folder until it moves and map an old
-    seed path from either source. Both folders are refused to the window; with both present nothing
-    moves, and `window init` never writes into the old one.
+  - The laptop folder (`packages/common/src/mesh-home.ts`): the plugin's MCP server at start, and
+    `cmw window init` before it writes the window, rename `~/.agentmesh` to `~/.cosmicwave` (one
+    rename, nothing copied or deleted), then point `agent.json`'s seed path into it. No other CLI
+    command moves it, so a 0.7.2 plugin keeps its folder until its member switches; readers use the
+    old folder until it moves and map an old seed path from either source. Both folders are refused
+    to the window; with both present nothing moves, the advice (`bothFoldersAdvice`) depends on
+    which one holds `agent.json`, and `window init` never writes into the old one.
   - The mesh window: `window init` replaces a `claude-mesh` the old plugin wrote, and a session on a
     laptop whose launcher lacks the new channel is told once to run `/cmw:window`.
   - The bridge reuses webhooks named `AgentMesh` and, for the default category, `Agent Mesh`.
   - Servers: `COMPOSE_PROJECT_NAME=agentmesh` keeps a server on its `agentmesh_*` volumes, and
     `cosmicwave-deploy` and `cmw setup deploy` refuse to start without it (the volume guard). Every
     setup command, `upgrade` and `doctor` convert a workspace made as AgentMesh
-    (`apps/cli/src/setup/legacy-workspace.ts`). The
-    installers take an old install over (`deploy/legacy-names.sh`) with one deploy-key line left;
-    `setup host` replaces the old firewall unit after the new one starts, and the certbot hook.
+    (`apps/cli/src/setup/legacy-workspace.ts`), keeping the old compose file as
+    `deploy/docker-compose.agentmesh.yml`; `setup deploy` refuses a pin below 0.8.0 until `upgrade`
+    moves it. The installers take an old install over (`deploy/legacy-names.sh`) with one
+    deploy-key line left; `setup host` replaces the old firewall unit after the new one starts, and
+    the certbot hook.
   - `pnpm check:name` keeps the old name out of every tracked file but a named list.
   - Docs: ADR 0014, [getting-started.md](docs/getting-started.md#moving-from-agentmesh) for members
-    and [deploy.md](docs/deploy.md#moving-a-server-from-agentmesh) for servers.
+    and [deploy.md](docs/deploy.md#moving-a-server-from-agentmesh) for servers (setup, automatic
+    and by-hand deploys), each with the way back to 0.7.2.
 
 **Tested and passing:**
 - **Unit tests (about 1,750):** workflow engine, transitions, routing, leases overlap, planning rounds

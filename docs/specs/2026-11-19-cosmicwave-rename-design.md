@@ -118,7 +118,9 @@ decrypts the off-site backups (`backup-age-key.txt`).
   `config.ts`, `hook.ts`, `pull/state.ts`, `guard/paths.ts`, `window.ts`, `agent-setup.ts`); they
   all change to call it.
 - **The move** happens at two entry points only: when the plugin's MCP server starts and when the
-  CLI starts. If `~/.cosmicwave` is missing and `~/.agentmesh` exists, rename it.
+  CLI starts. If `~/.cosmicwave` is missing and `~/.agentmesh` exists, rename it. (Changed in the
+  final review: on the CLI side only `cmw window init` moves it, since any other command run from
+  a newer checkout would take the folder from under a 0.7.2 plugin; see ADR 0014.)
   - If the rename fails (Windows refuses while a file in the folder is open), nothing changed:
     the session uses `~/.agentmesh` and the next start tries again.
   - If two processes race, one wins and the other finds the new folder.

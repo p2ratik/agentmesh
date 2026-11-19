@@ -2,7 +2,8 @@ name: Deploy
 
 # Deploys a released version to the team's hub server (docs/deploy.md#automatic-deploys). The
 # release workflow calls it after publishing a new version's images; a repository admin runs it by
-# hand to redeploy, or to roll back to an older version. It deploys only images whose signed
+# hand to redeploy, or to roll back to an older version from 0.8.0 on (older images have other
+# names; docs/deploy.md#going-back). It deploys only images whose signed
 # provenance says release.yml built them on main, and hands the server their digests. On the server
 # the deploy key is a forced command: this job can ask for `cosmicwave-deploy deploy …` or `status`,
 # never a shell.
@@ -16,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: The released version to deploy, such as 0.5.1 (an older one rolls back)
+        description: The released version to deploy, such as 0.8.1 (an older one, down to 0.8.0, rolls back)
         type: string
         required: true
 

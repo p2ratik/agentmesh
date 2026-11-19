@@ -28,15 +28,20 @@ The old name was more than a label. It held state in three places:
   default server folder `/opt/cosmicwave`, the compose project `cosmicwave` and the laptop folder
   `~/.cosmicwave`. No NATS subject, stream, RPC method, schema, migration, tool name or invite
   format changes. `claude-mesh`, the MCP server key `mesh`, `hub.sqlite` and "mesh" as the
-  everyday word stay. So a 0.7.2 plugin works with a 0.8.0 hub, and the reverse. The old
-  `AGENTMESH_*` variables are not read as a fallback.
-- **The laptop folder is renamed, not copied.** The plugin's MCP server and the `cmw` CLI rename
-  `~/.agentmesh` to `~/.cosmicwave` when they start (`packages/common/src/mesh-home.ts`), in one
-  call, only when `~/.cosmicwave` does not exist. Nothing is copied or deleted, so no key can be
-  lost, and everything in the folder comes along. Then the seed path in `agent.json` is pointed
-  into the new folder; readers map an old seed path too, so a crash between the two steps strands
-  nothing. Until the rename succeeds the old folder is used in place. When both folders exist,
-  nothing moves and the member decides. The hook and the guard never move anything.
+  everyday word stay. The design intends a 0.7.2 plugin to work with a 0.8.0 hub, and the reverse;
+  the staging gate before the release proves it. The old `AGENTMESH_*` variables are not read as a
+  fallback.
+- **The laptop folder is renamed, not copied.** The plugin's MCP server, when it starts, and
+  `cmw window init`, just before it writes the window, rename `~/.agentmesh` to `~/.cosmicwave`
+  (`packages/common/src/mesh-home.ts`), in one call, only when `~/.cosmicwave` does not exist. No
+  other CLI command moves it: one run from a 0.8.0 checkout must not take the folder from under a
+  0.7.2 plugin, whose guard would lose its policy and which would then show as not joined. Nothing
+  is copied or deleted, so no key can be lost, and everything in the folder comes along. Then the
+  seed path in `agent.json` is pointed into the new folder; readers map an old seed path too, so a
+  crash between the two steps strands nothing. Until the rename succeeds the old folder is used in
+  place. When both folders exist, nothing moves, and the advice depends on which one holds
+  `agent.json`; no message tells anyone to remove the folder that holds the keys. The hook and the
+  guard never move anything.
 - **One wire value keeps the old name:** the reason code `path.agentmesh_dir`. It is in a zod enum
   the hub validates, so renaming it would be a protocol change; keeping it also keeps stored events
   and older viewers matching.
@@ -46,7 +51,9 @@ The old name was more than a label. It held state in three places:
   the stack when `agentmesh_hub-data` exists and the project would not be `agentmesh`, so a missed
   step cannot start the hub on empty volumes.
 - **Old installs are taken over, not left beside the new ones.** Every `cmw setup …` command,
-  `cmw upgrade` and `cmw doctor` convert a setup workspace made before the rename. The server
+  `cmw upgrade` and `cmw doctor` convert a setup workspace made before the rename, keeping its old
+  compose file beside the new one for the way back; `cmw setup deploy` then refuses its 0.7.2 pin
+  until `cmw upgrade` moves it. The server
   installers carry the old settings, keys and state across, remove the old units and scripts, and
   leave exactly one deploy-key line. `cmw setup host` replaces the old firewall unit (after the new
   one has started) and the old certbot hook. `cmw window init` replaces a `claude-mesh` the old
@@ -85,7 +92,8 @@ The old name was more than a label. It held state in three places:
   script for automatic deploys runs again.
 - Images under the old names stop at 0.7.2, so a deploy by version (`cmw upgrade --to`,
   `cosmicwave-deploy deploy`) cannot go back past 0.8.0. The deploy script's own rollback, which
-  restores the previous checkout and images, still can.
+  restores the previous checkout and images, still can, and so can the steps in "Going back" in
+  each guide, by hand.
 - The old name stays in the files `pnpm check:name` allows, and nowhere else.
 
 The steps are in [getting-started.md](../getting-started.md#moving-from-agentmesh) for members and

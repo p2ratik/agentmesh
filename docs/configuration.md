@@ -295,5 +295,5 @@ Cosmicwave was called AgentMesh until 0.8.0 ([ADR 0014](adr/0014-rename-to-cosmi
   is `COSMICWAVE_DIR`. The installers move them and keep their values.
 - **`discord.provision.category`** defaults to `Cosmicwave` instead of `Agent Mesh` (see
   [`discord`](#discord)).
-- **The laptop folder** `~/.agentmesh` is `~/.cosmicwave`; the plugin and the CLI move it
-  ([getting-started.md](getting-started.md#moving-from-agentmesh)).
+- **The laptop folder** `~/.agentmesh` is `~/.cosmicwave`; the plugin and `cmw window init` move
+  it ([getting-started.md](getting-started.md#moving-from-agentmesh)).
