@@ -6,6 +6,7 @@ import { usageError } from '../args';
 import { type CliContext, resolveFrom } from '../context';
 import { writeFileAtomic, writeFileWithDirs } from '../lib/files';
 import { type Hosting, parseAnswers, type SetupAnswers } from './answers';
+import { convertLegacyWorkspace } from './legacy-workspace';
 
 /** Where everything lives in a setup workspace (§5.2 of the setup design). */
 export interface WorkspacePaths {
@@ -28,7 +29,9 @@ export interface WorkspacePaths {
 /** `--dir` is required, so setup never writes into the current directory by accident. */
 export function workspaceFrom(ctx: CliContext, dir: string | undefined): WorkspacePaths {
   if (!dir) throw usageError('Missing --dir <workspace>');
-  return workspacePaths(resolveFrom(ctx, dir));
+  const root = resolveFrom(ctx, dir);
+  for (const line of convertLegacyWorkspace(root)) ctx.stdout(line);
+  return workspacePaths(root);
 }
 
 export function workspacePaths(root: string): WorkspacePaths {
