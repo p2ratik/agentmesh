@@ -9,9 +9,11 @@ setup_server_and_github() {
   local remote host_key
   echo "== server: deploy endpoint and key"
   ssh-keygen -q -t ed25519 -N '' -C cosmicwave-github-deploy -f "$TMP/deploy_key"
-  printf -v remote 'd=$(mktemp -d) && tar -xf - -C "$d" && sudo MESH_USER=%q DEPLOY_PUBKEY=%q bash "$d/install.sh"; rc=$?; rm -rf "$d"; exit $rc' \
+  printf -v remote 'd=$(mktemp -d) && tar -xf - -C "$d" && sudo MESH_USER=%q DEPLOY_PUBKEY=%q bash "$d/auto-deploy/install.sh"; rc=$?; rm -rf "$d"; exit $rc' \
     "$DEPLOY_USER" "$(cat "$TMP/deploy_key.pub")"
-  tar -cf - -C deploy/auto-deploy cosmicwave-deploy.sh install.sh | "${SSH_CMD[@]}" "$TARGET" "$remote"
+  # install.sh sources ../legacy-names.sh, so the copy keeps the repo's layout.
+  tar -cf - -C deploy legacy-names.sh auto-deploy/cosmicwave-deploy.sh auto-deploy/install.sh |
+    "${SSH_CMD[@]}" "$TARGET" "$remote"
   # Read over the SSH session just authenticated, so the host key is the one this laptop trusts.
   host_key=$("${SSH_CMD[@]}" "$TARGET" cat /etc/ssh/ssh_host_ed25519_key.pub | cut -d' ' -f1,2)
 

@@ -97,6 +97,27 @@ iptables -I DOCKER-USER 1 -i "$EXT_IF" -p tcp -m conntrack --ctstate NEW \\
 echo "cosmicwave-firewall: limits on new connections to port $NATS_PORT via $EXT_IF"
 `;
 
+/**
+ * `setup host` only: a server prepared before the rename runs agentmesh-firewall.service and its
+ * AGENTMESH-NATS chain. They are removed after the new unit has started, so NATS is never without
+ * a limit (for a moment both apply the same one) and a failed start leaves the old one in place.
+ * Only jumps to that chain leave DOCKER-USER, and no other chain is touched.
+ */
+export const OLD_FIREWALL = `if [ -e /etc/systemd/system/agentmesh-firewall.service ]; then
+  echo "== the firewall unit from before the rename"
+  iptables -S DOCKER-USER | sed -n 's/^-A \\(.* -j AGENTMESH-NATS\\)$/-D \\1/p' | while read -r rule; do
+    eval "iptables $rule"
+  done
+  if iptables -n -L AGENTMESH-NATS >/dev/null 2>&1; then
+    iptables -F AGENTMESH-NATS
+    iptables -X AGENTMESH-NATS
+  fi
+  systemctl disable --now agentmesh-firewall.service
+  rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall
+  systemctl daemon-reload
+fi
+`;
+
 /** Runs the script after Docker starts, at boot and after every Docker restart. */
 export const FIREWALL_UNIT = `[Unit]
 Description=Cosmicwave: per-IP limits on new connections to NATS (DOCKER-USER)

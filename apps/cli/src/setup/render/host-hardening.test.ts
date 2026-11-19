@@ -10,6 +10,7 @@ import {
   FIREWALL_SCRIPT_PATH,
   FIREWALL_UNIT,
   FIREWALL_UNIT_PATH,
+  OLD_FIREWALL,
   SSH_CHECK,
   WARNING,
 } from './host-hardening';
@@ -51,6 +52,74 @@ describe('host hardening', () => {
       at('certbot certonly'),
     );
     expect(AUTO_UPDATES).toContain('APT::Periodic::Unattended-Upgrade "1";');
+  });
+
+  it('setup host takes over a server prepared before the rename', () => {
+    const at = (text: string) => script.indexOf(text);
+    const restart = at('systemctl restart cosmicwave-firewall.service');
+    // The old settings apply from the new script's first run.
+    expect(
+      at('mv /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall'),
+    ).toBeGreaterThan(-1);
+    expect(at('mv /etc/default/agentmesh-firewall')).toBeLessThan(restart);
+    // The old unit and chain go once the new limits are in place, never before.
+    expect(script).toContain(OLD_FIREWALL);
+    for (const step of [
+      'systemctl disable --now agentmesh-firewall.service',
+      'iptables -F AGENTMESH-NATS',
+      'iptables -X AGENTMESH-NATS',
+    ]) {
+      expect(at(step)).toBeGreaterThan(restart);
+    }
+    // The old hook and apt files go once the new ones are written.
+    expect(at('rm -f /etc/letsencrypt/renewal-hooks/deploy/agentmesh-nats.sh')).toBeGreaterThan(
+      at(' >"$HOOK"'),
+    );
+    expect(at('rm -f /etc/apt/apt.conf.d/90agentmesh-auto-upgrades')).toBeGreaterThan(
+      at('>/etc/apt/apt.conf.d/90cosmicwave-auto-upgrades'),
+    );
+  });
+
+  it.skipIf(!hasBash)('removes only the old chain and the jumps to it', async () => {
+    const jump = '-p tcp -m conntrack --ctstate NEW --ctorigdstport 4222 --ctdir ORIGINAL';
+    const fakes = `iptables() {
+  echo "CALL iptables $*"
+  case "$1" in
+    -S) printf '%s\\n' '-N DOCKER-USER' \\
+      '-A DOCKER-USER -i eth0 ${jump} -j COSMICWAVE-NATS' \\
+      '-A DOCKER-USER -i eth0 ${jump} -j AGENTMESH-NATS' \\
+      '-A DOCKER-USER -m comment --comment "not -j AGENTMESH-NATS" -j ACCEPT' \\
+      '-A DOCKER-USER -i old0 ${jump} -j AGENTMESH-NATS' \\
+      '-A DOCKER-USER -j RETURN' ;;
+  esac
+}
+systemctl() { echo "CALL systemctl $*"; }
+rm() { echo "CALL rm $*"; }
+`;
+    const runBlock = async (installed: boolean) => {
+      const block = OLD_FIREWALL.replace(
+        '[ -e /etc/systemd/system/agentmesh-firewall.service ]',
+        String(installed),
+      );
+      const r = await runProcess('bash', ['-s'], {
+        input: `set -euo pipefail\n${fakes}${block}`,
+      });
+      const calls = r.stdout.split('\n').filter((l) => l.startsWith('CALL '));
+      return { code: r.code, calls: calls.map((l) => l.slice(5)) };
+    };
+    expect(await runBlock(true)).toEqual({
+      code: 0,
+      calls: [
+        `iptables -D DOCKER-USER -i eth0 ${jump} -j AGENTMESH-NATS`,
+        `iptables -D DOCKER-USER -i old0 ${jump} -j AGENTMESH-NATS`,
+        'iptables -F AGENTMESH-NATS',
+        'iptables -X AGENTMESH-NATS',
+        'systemctl disable --now agentmesh-firewall.service',
+        'rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall',
+        'systemctl daemon-reload',
+      ],
+    });
+    expect(await runBlock(false)).toEqual({ code: 0, calls: [] });
   });
 
   it.skipIf(!hasBash)('setup host writes the firewall script and unit byte for byte', async () => {

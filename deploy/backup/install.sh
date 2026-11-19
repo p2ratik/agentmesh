@@ -10,7 +10,9 @@
 #        AGE_RECIPIENT=age1… ./deploy/backup/install.sh
 #
 # Safe to re-run: it replaces the script and the units, keeps the settings and the key, and prints
-# the key's public line to add to the backup repository as a deploy key with write access.
+# the key's public line to add to the backup repository as a deploy key with write access. On a
+# server set up before the rename it takes the old install over: its units and script are removed,
+# and its settings, key and state carry across.
 set -euo pipefail
 
 : "${MESH_USER:=${SUDO_USER:-}}"
@@ -23,6 +25,7 @@ set -euo pipefail
 [ -z "$AGE_RECIPIENT" ] || [[ $AGE_RECIPIENT =~ ^age1[0-9a-z]{58}$ ]] ||
   { echo "AGE_RECIPIENT must be an age public key (age1…)" >&2; exit 1; }
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/../legacy-names.sh"
 GROUP=$(id -gn "$MESH_USER")
 HOME_DIR=$(getent passwd "$MESH_USER" | cut -d: -f6)
 KEY=$HOME_DIR/.ssh/cosmicwave-backup
@@ -33,6 +36,18 @@ command -v age >/dev/null && command -v git >/dev/null ||
 
 echo "== backup script"
 install -o root -g root -m 755 "$HERE/cosmicwave-backup.sh" /usr/local/sbin/cosmicwave-backup
+# An install from before the rename: stop its timer and any run, then carry its settings, key and
+# state across, so the deploy key already added to the backup repository keeps working.
+for unit in agentmesh-backup.timer agentmesh-backup.service; do
+  if [ -e "/etc/systemd/system/$unit" ]; then
+    systemctl disable --now "$unit"
+    rm -f "/etc/systemd/system/$unit"
+  fi
+done
+carry_settings /etc/default/agentmesh-backup /etc/default/cosmicwave-backup
+for f in "" .pub .known_hosts; do carry_path "$HOME_DIR/.ssh/agentmesh-backup$f" "$KEY$f"; done
+carry_path /var/lib/agentmesh-backup /var/lib/cosmicwave-backup
+rm -f /usr/local/sbin/agentmesh-backup
 
 echo "== settings"
 if [ ! -e /etc/default/cosmicwave-backup ]; then

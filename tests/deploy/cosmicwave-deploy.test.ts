@@ -13,6 +13,8 @@ const SCRIPTS = [
   'deploy/auto-deploy/github-setup.sh',
   'deploy/azure/github-deploy-setup.sh',
   'deploy/aws/github-deploy-setup.sh',
+  'deploy/legacy-names.sh',
+  'deploy/backup/install.sh',
 ];
 // A bash that receives our environment (WSL's bash.exe on Windows does not pass it through).
 const hasBash =

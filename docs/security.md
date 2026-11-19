@@ -1561,7 +1561,9 @@ follows is set by the compose files, `cmw nats-config`, `setup host` and
     Docker's `DOCKER-USER` chain, since ufw and the INPUT chain never see Docker-published ports.
     Only new connections arriving on the default-route interface are checked, so the hub's own
     containers are never limited. A systemd unit re-applies the rules at boot and whenever Docker
-    starts;
+    starts. On a server prepared before the rename, `setup host` removes the old unit and its
+    `AGENTMESH-NATS` chain only after the new unit has started, so the port is never without a
+    limit, and it deletes from `DOCKER-USER` only the jumps to that chain;
   - `max_connections: 1024`, `max_subscriptions: 100` per connection and `max_payload: 1MB` in
     `nats.conf`, and a memory cap on the NATS container.
 
@@ -1608,6 +1610,17 @@ identity (Azure or AWS), and a moment when SSH is open to an address other than 
   The script is root-owned, outside the checkout, so a change merged to the repo's copy takes
   effect only when an admin reinstalls it. **Residual risk:** it runs as the SSH user, who is in
   the `docker` group (root-equivalent), so a bug in the script is a bug on the host.
+- **Threat: a second deploy key on a server set up before the rename.** There the key's line forces
+  `/usr/local/sbin/agentmesh-deploy` and ends in the marker `agentmesh-github-deploy`; an installer
+  that replaced only lines with the new marker would leave the old key valid next to the new one.
+  **Mitigation:** `deploy/auto-deploy/install.sh` removes every line that ends in either marker
+  before it adds its own, so the server keeps exactly one deploy key. Every other line (the
+  admin's keys, comments, blank lines) is kept as it was, in order; a file it cannot read stops it
+  and stays as it was. It deletes the old forced-command script first, so until that line
+  is gone, the old key runs nothing. **Residual risk:** until an admin re-runs the installer, the
+  old line and script stay. The old script asks for images under the old name, which releases from
+  0.8.0 on do not publish, so a new release fails there before changing anything. A deploy key
+  added by hand under another comment is not recognised.
 - **Threat: someone deploys code that was never reviewed.** On an open-source project, many people
   may get write access. **Mitigation:**
   - only jobs in the `production` environment can read the key, and that environment deploys only

@@ -50145,6 +50145,20 @@ iptables -I DOCKER-USER 1 -i "$EXT_IF" -p tcp -m conntrack --ctstate NEW \\
   --ctorigdstport "$NATS_PORT" --ctdir ORIGINAL -j "$CHAIN"
 echo "cosmicwave-firewall: limits on new connections to port $NATS_PORT via $EXT_IF"
 `;
+var OLD_FIREWALL = `if [ -e /etc/systemd/system/agentmesh-firewall.service ]; then
+  echo "== the firewall unit from before the rename"
+  iptables -S DOCKER-USER | sed -n 's/^-A \\(.* -j AGENTMESH-NATS\\)$/-D \\1/p' | while read -r rule; do
+    eval "iptables $rule"
+  done
+  if iptables -n -L AGENTMESH-NATS >/dev/null 2>&1; then
+    iptables -F AGENTMESH-NATS
+    iptables -X AGENTMESH-NATS
+  fi
+  systemctl disable --now agentmesh-firewall.service
+  rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall
+  systemctl daemon-reload
+fi
+`;
 var FIREWALL_UNIT = `[Unit]
 Description=Cosmicwave: per-IP limits on new connections to NATS (DOCKER-USER)
 After=docker.service
@@ -50202,15 +50216,19 @@ docker compose version >/dev/null 2>&1 || {
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null
 usermod -aG docker "$MESH_USER"
 
-${AUTO_UPDATES}
+${AUTO_UPDATES}rm -f /etc/apt/apt.conf.d/90agentmesh-auto-upgrades /etc/apt/apt.conf.d/90agentmesh-lock-timeout
+
 echo "== NATS connection limits"
+if [ -e /etc/default/agentmesh-firewall ] && [ ! -e /etc/default/cosmicwave-firewall ]; then
+  mv /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall
+fi
 printf '%s' ${quote2(FIREWALL_SCRIPT)} >${FIREWALL_SCRIPT_PATH}
 chmod 755 ${FIREWALL_SCRIPT_PATH}
 printf '%s' ${quote2(FIREWALL_UNIT)} >${FIREWALL_UNIT_PATH}
 systemctl daemon-reload
 systemctl enable -q cosmicwave-firewall.service
 systemctl restart cosmicwave-firewall.service
-
+${OLD_FIREWALL}
 echo "== $COSMICWAVE_DIR"
 mkdir -p "$COSMICWAVE_DIR/deploy/nats" "$COSMICWAVE_DIR/deploy/secrets" "$COSMICWAVE_DIR/config"
 chown "$MESH_USER:" "$COSMICWAVE_DIR" "$COSMICWAVE_DIR/deploy" "$COSMICWAVE_DIR/deploy/nats" \\
@@ -50221,6 +50239,7 @@ HOOK=/etc/letsencrypt/renewal-hooks/deploy/cosmicwave-nats.sh
 mkdir -p "$(dirname "$HOOK")"
 printf '%s' ${quote2(renewalHook(i.publicHost, i.remoteDir))} >"$HOOK"
 chmod 755 "$HOOK"
+rm -f /etc/letsencrypt/renewal-hooks/deploy/agentmesh-nats.sh
 
 echo "== certificate for $PUBLIC_HOST"
 if [ ! -d "/etc/letsencrypt/live/$PUBLIC_HOST" ]; then
