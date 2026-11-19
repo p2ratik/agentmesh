@@ -10,6 +10,10 @@ export const HINT_SETUP =
 export const HINT_MANUAL =
   'This mesh window was set up before auto mode, so it starts in manual mode. Run /cmw:window again to start it in auto mode (or keep manual: cmw window init --mode manual).';
 
+/** A window set up under the old name: its launcher still loads the old channel. */
+export const HINT_RENAMED =
+  "This laptop's mesh window was set up when Cosmicwave was called AgentMesh, so claude-mesh no longer starts it. Run /cmw:window once to set it up again.";
+
 export interface SessionStartInput {
   source: string | undefined;
   marked: boolean;
@@ -18,6 +22,7 @@ export interface SessionStartInput {
   hintOff: boolean;
   listening: boolean;
   setUp: boolean;
+  stale: boolean;
 }
 
 /** The mesh window gets its rules every start (and, set up before auto mode, says so); other
@@ -31,8 +36,6 @@ export function sessionStartOutput(i: SessionStartInput): {
     return { additionalContext: windowRules(i.policy), systemMessage: old ? HINT_MANUAL : null };
   }
   const hint = i.source === 'startup' && i.enrolled && !i.hintOff && !i.listening;
-  return {
-    additionalContext: null,
-    systemMessage: hint ? (i.setUp ? HINT_START : HINT_SETUP) : null,
-  };
+  const message = i.stale ? HINT_RENAMED : i.setUp ? HINT_START : HINT_SETUP;
+  return { additionalContext: null, systemMessage: hint ? message : null };
 }

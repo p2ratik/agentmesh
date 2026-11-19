@@ -49991,7 +49991,8 @@ var planningTools = [
 import { readFileSync as readFileSync9 } from "node:fs";
 import { posix as posix2, win32 as win322 } from "node:path";
 var MESH_WINDOW_ENV = "COSMICWAVE_MESH_WINDOW";
-var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
+var PLUGIN_CHANNEL = "plugin:cmw@cosmicwave";
+var CHANNEL_FLAG = `--dangerously-load-development-channels ${PLUGIN_CHANNEL}`;
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform2) => platform2 === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";

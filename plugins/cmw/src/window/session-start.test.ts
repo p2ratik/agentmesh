@@ -2,6 +2,7 @@ import type { WindowPolicy } from '@cosmicwave/common/window';
 import { describe, expect, it } from 'vitest';
 import { windowRules } from './rules';
 import {
+  HINT_RENAMED,
   HINT_SETUP,
   HINT_START,
   type SessionStartInput,
@@ -24,6 +25,7 @@ const base: SessionStartInput = {
   hintOff: false,
   listening: false,
   setUp: true,
+  stale: false,
 };
 
 describe('sessionStartOutput', () => {
@@ -60,6 +62,28 @@ describe('sessionStartOutput', () => {
       systemMessage: HINT_START,
     });
     expect(sessionStartOutput({ ...base, setUp: false }).systemMessage).toBe(HINT_SETUP);
+  });
+
+  it('tells a laptop with a stale window to run /cmw:window', () => {
+    expect(sessionStartOutput({ ...base, stale: true })).toEqual({
+      additionalContext: null,
+      systemMessage: HINT_RENAMED,
+    });
+    expect(HINT_RENAMED).toBe(
+      "This laptop's mesh window was set up when Cosmicwave was called AgentMesh, so claude-mesh no longer starts it. Run /cmw:window once to set it up again.",
+    );
+  });
+
+  it('says nothing about the rename when no window was ever set up', () => {
+    expect(sessionStartOutput({ ...base, setUp: false, stale: false }).systemMessage).toBe(
+      HINT_SETUP,
+    );
+  });
+
+  it('says nothing about the rename when the hint is off', () => {
+    const quiet = { additionalContext: null, systemMessage: null };
+    expect(sessionStartOutput({ ...base, stale: true, hintOff: true })).toEqual(quiet);
+    expect(sessionStartOutput({ ...base, stale: true, source: 'resume' })).toEqual(quiet);
   });
 
   it('names claude-mesh, the same start command on every platform', () => {

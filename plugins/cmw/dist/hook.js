@@ -376,7 +376,8 @@ function windowAddresses(values, prefix, agentId, now) {
 import { readFileSync as readFileSync6 } from "node:fs";
 import { posix as posix2, win32 as win322 } from "node:path";
 var MESH_WINDOW_ENV = "COSMICWAVE_MESH_WINDOW";
-var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
+var PLUGIN_CHANNEL = "plugin:cmw@cosmicwave";
+var CHANNEL_FLAG = `--dangerously-load-development-channels ${PLUGIN_CHANNEL}`;
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 var START_COMMAND = "claude-mesh";
@@ -517,23 +518,32 @@ function windowRules(policy) {
 var HINT_START = `No Cosmicwave mesh window is running for this account, so teammates' requests will wait. Start it with ${START_COMMAND} in your team's folder. (COSMICWAVE_MESH_WINDOW_HINT=off in settings.json env hides this line.)`;
 var HINT_SETUP = "No Cosmicwave mesh window is running for this account, so teammates' requests will wait. Run /cmw:window to set one up. (COSMICWAVE_MESH_WINDOW_HINT=off in settings.json env hides this line.)";
 var HINT_MANUAL = "This mesh window was set up before auto mode, so it starts in manual mode. Run /cmw:window again to start it in auto mode (or keep manual: cmw window init --mode manual).";
+var HINT_RENAMED = "This laptop's mesh window was set up when Cosmicwave was called AgentMesh, so claude-mesh no longer starts it. Run /cmw:window once to set it up again.";
 function sessionStartOutput(i) {
   if (i.marked) {
     const old = i.policy !== null && i.policy.mode === void 0;
     return { additionalContext: windowRules(i.policy), systemMessage: old ? HINT_MANUAL : null };
   }
   const hint = i.source === "startup" && i.enrolled && !i.hintOff && !i.listening;
-  return {
-    additionalContext: null,
-    systemMessage: hint ? i.setUp ? HINT_START : HINT_SETUP : null
-  };
+  const message = i.stale ? HINT_RENAMED : i.setUp ? HINT_START : HINT_SETUP;
+  return { additionalContext: null, systemMessage: hint ? message : null };
 }
 
 // src/window/start-state.ts
-function windowStartState(env, agentId, home, platform, readPolicy = readWindowPolicy) {
+import { readFileSync as readFileSync7 } from "node:fs";
+var readLauncherFile = (home, platform) => {
+  try {
+    return readFileSync7(windowFiles(home, platform).launcher, "utf8");
+  } catch {
+    return null;
+  }
+};
+function windowStartState(env, agentId, home, platform, readPolicy = readWindowPolicy, readLauncher = readLauncherFile) {
   const file = readPolicy(home, platform);
   const { policy } = markerState(env, file);
-  return { policy, setUp: !!agentId && file?.agentId === agentId };
+  const setUp = !!agentId && file?.agentId === agentId;
+  const stale = setUp && !(readLauncher(home, platform) ?? "").includes(PLUGIN_CHANNEL);
+  return { policy, setUp, stale };
 }
 
 // src/hook.ts
@@ -568,7 +578,12 @@ function parse(text) {
 function sessionStart(source) {
   const env = process.env;
   const home = homedir3();
-  const { policy, setUp } = windowStartState(env, hookAgentId(env, home), home, process.platform);
+  const { policy, setUp, stale } = windowStartState(
+    env,
+    hookAgentId(env, home),
+    home,
+    process.platform
+  );
   const dir = pullStateDirs(env, home)[0];
   return sessionStartOutput({
     source: typeof source === "string" ? source : void 0,
@@ -577,7 +592,8 @@ function sessionStart(source) {
     enrolled: existsSync2(join6(meshHome(home), "agent.json")) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID,
     hintOff: env.COSMICWAVE_MESH_WINDOW_HINT === "off",
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
-    setUp
+    setUp,
+    stale
   });
 }
 function ownSession(dirs, now) {

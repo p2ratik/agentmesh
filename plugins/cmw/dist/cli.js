@@ -50855,7 +50855,8 @@ import { isAbsolute as isAbsolute3, join as join20 } from "node:path";
 
 // ../../packages/common/src/window.ts
 import { posix as posix2, win32 as win322 } from "node:path";
-var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
+var PLUGIN_CHANNEL = "plugin:cmw@cosmicwave";
+var CHANNEL_FLAG = `--dangerously-load-development-channels ${PLUGIN_CHANNEL}`;
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var LAUNCH_PROMPT = "/cmw:activate mesh window";
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
@@ -51184,7 +51185,8 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
   return `${lines.join(win ? "\r\n" : "\n")}${win ? "\r\n" : "\n"}`;
 }
 var SHIM_MARK = `cosmicwave ${START_COMMAND}`;
-var isOurShim = (text) => text.split(/\r?\n/).some((l) => l === `rem ${SHIM_MARK}` || l === `# ${SHIM_MARK}`);
+var LEGACY_SHIM_MARK = `agentmesh ${START_COMMAND}`;
+var isOurShim = (text) => text.split(/\r?\n/).some((l) => [SHIM_MARK, LEGACY_SHIM_MARK].some((m) => l === `rem ${m}` || l === `# ${m}`));
 function shimScripts(launcher, platform, userProfile = null) {
   const head = ["#!/bin/sh", `# ${SHIM_MARK}`];
   if (platform !== "win32") {

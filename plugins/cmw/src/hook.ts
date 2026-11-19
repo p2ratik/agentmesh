@@ -73,7 +73,12 @@ function sessionStart(source: unknown): {
 } {
   const env = process.env;
   const home = homedir();
-  const { policy, setUp } = windowStartState(env, hookAgentId(env, home), home, process.platform);
+  const { policy, setUp, stale } = windowStartState(
+    env,
+    hookAgentId(env, home),
+    home,
+    process.platform,
+  );
   const dir = pullStateDirs(env, home)[0];
   return sessionStartOutput({
     source: typeof source === 'string' ? source : undefined,
@@ -83,6 +88,7 @@ function sessionStart(source: unknown): {
     hintOff: env.COSMICWAVE_MESH_WINDOW_HINT === 'off',
     listening: !!dir && anyFresh(readJsonFiles(dir, isHeartbeatFile), Date.now()),
     setUp,
+    stale,
   });
 }
 

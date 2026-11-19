@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { WindowPolicy } from '@cosmicwave/common/window';
+import { PLUGIN_CHANNEL, type WindowPolicy } from '@cosmicwave/common/window';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hookAgentId, parseSavedAgent, resolveAgentId } from './agent-id';
 import { resolveConfig } from './config';
@@ -119,5 +119,27 @@ describe('windowStartState', () => {
       expect(windowStartState(env, null, '/h', 'linux', readPolicy).setUp).toBe(false);
       expect(windowStartState(env, 'alice-agent', '/h', 'linux', () => null).setUp).toBe(false);
     }
+  });
+
+  it('is stale when the launcher lacks the new channel', () => {
+    const stale = (agent: string | null, launcher: string | null) =>
+      windowStartState(
+        {},
+        agent,
+        '/h',
+        'linux',
+        () => policy,
+        () => launcher,
+      ).stale;
+    expect(
+      stale(
+        'alice-agent',
+        'claude --dangerously-load-development-channels plugin:agentmesh@agentmesh',
+      ),
+    ).toBe(true);
+    expect(stale('alice-agent', `claude ${PLUGIN_CHANNEL}`)).toBe(false);
+    // never set up: whatever the launcher says
+    expect(stale('bob-agent', 'plugin:agentmesh@agentmesh')).toBe(false);
+    expect(stale(null, null)).toBe(false);
   });
 });

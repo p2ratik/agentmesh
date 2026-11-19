@@ -169,6 +169,21 @@ describe('window init writes claude-mesh', () => {
     expect(files(s.bin)).toEqual([CLAUDE, ...SHIMS].sort());
   });
 
+  it('overwrites a claude-mesh written under the old name', async () => {
+    const s = setup(true, 'home', HOME_BIN);
+    for (const name of SHIMS) {
+      const mark = name.endsWith('.cmd') ? 'rem' : '#';
+      writeFileSync(join(s.bin, name), `${mark} agentmesh claude-mesh\nexec /old/launcher "$@"\n`);
+    }
+    expect(await s.run('--agent', 'bob-agent')).toBe(0);
+    for (const name of SHIMS) {
+      const text = readFileSync(join(s.bin, name), 'utf8');
+      expect(text).toBe(shimOf(s, name));
+      expect(text).toContain('cosmicwave claude-mesh');
+    }
+    absent(s.files.bin);
+  });
+
   it('writes nothing outside the home folder and the folder of claude', async () => {
     for (const s of [setup(), setup(true, 'home', HOME_BIN)]) {
       expect(await s.run('--agent', 'bob-agent', '--dir', s.work)).toBe(0);

@@ -6,7 +6,8 @@ import { homeDirName } from './mesh-home';
 
 export const MESH_WINDOW_ENV = 'COSMICWAVE_MESH_WINDOW';
 export const MESH_WINDOW_HINT_ENV = 'COSMICWAVE_MESH_WINDOW_HINT';
-export const CHANNEL_FLAG = '--dangerously-load-development-channels plugin:cmw@cosmicwave';
+export const PLUGIN_CHANNEL = 'plugin:cmw@cosmicwave';
+export const CHANNEL_FLAG = `--dangerously-load-development-channels ${PLUGIN_CHANNEL}`;
 export const RESTART = `claude ${CHANNEL_FLAG}`;
 export const LAUNCH_PROMPT: string | null = '/cmw:activate mesh window';
 const launcherName = (platform: NodeJS.Platform) =>

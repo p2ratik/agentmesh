@@ -12,12 +12,12 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { windowFiles } from '@cosmicwave/common/window';
+import { PLUGIN_CHANNEL, windowFiles } from '@cosmicwave/common/window';
 import { ReportedEvent } from '@cosmicwave/protocol';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { NOT_MESH, WINDOW_LABEL } from './hook/prompt';
 import { replyNote } from './relay/local-session';
-import { HINT_SETUP, HINT_START } from './window/session-start';
+import { HINT_RENAMED, HINT_SETUP, HINT_START } from './window/session-start';
 
 // The prompt hook as Claude Code runs it: a process with the event on stdin. tsx stands in for the
 // bundle; home and plugin data are temp folders, never the real ones.
@@ -222,6 +222,14 @@ describe('dist/hook.js (from source)', () => {
       );
     expect(await hint()).toBe(HINT_SETUP);
     write('alice-agent');
+    // set up under the old name: the launcher still loads the old channel
+    const launcher = windowFiles(join(base, 'home'), process.platform).launcher;
+    writeFileSync(
+      launcher,
+      'claude --dangerously-load-development-channels plugin:agentmesh@agentmesh',
+    );
+    expect(await hint()).toBe(HINT_RENAMED);
+    writeFileSync(launcher, `claude ${PLUGIN_CHANNEL}`);
     expect(await hint()).toBe(HINT_START);
     write('bob-agent');
     expect(await hint()).toBe(HINT_SETUP);
@@ -243,6 +251,7 @@ describe('dist/hook.js (from source)', () => {
         testCommands: [],
       }),
     );
+    writeFileSync(windowFiles(home, process.platform).launcher, `claude ${PLUGIN_CHANNEL}`);
     const saved = (text: string) => writeFileSync(join(home, '.cosmicwave', 'agent.json'), text);
     mkdirSync(join(home, '.cosmicwave'), { recursive: true });
     const start = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' });

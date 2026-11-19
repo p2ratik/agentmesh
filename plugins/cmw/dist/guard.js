@@ -29,7 +29,8 @@ function meshHome(home = homedir(), exists) {
 
 // ../../packages/common/src/window.ts
 var MESH_WINDOW_ENV = "COSMICWAVE_MESH_WINDOW";
-var CHANNEL_FLAG = "--dangerously-load-development-channels plugin:cmw@cosmicwave";
+var PLUGIN_CHANNEL = "plugin:cmw@cosmicwave";
+var CHANNEL_FLAG = `--dangerously-load-development-channels ${PLUGIN_CHANNEL}`;
 var RESTART = `claude ${CHANNEL_FLAG}`;
 var launcherName = (platform) => platform === "win32" ? "mesh-window.cmd" : "mesh-window";
 function windowFiles(home, platform) {
