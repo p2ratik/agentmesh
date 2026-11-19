@@ -209,11 +209,14 @@ rollback() {
 # Before the rename the compose project was called agentmesh, so a server that has run since then
 # keeps its data in the volume agentmesh_hub-data. The new compose file names the project cosmicwave:
 # without COMPOSE_PROJECT_NAME=agentmesh in deploy/.env the hub would start on new, empty volumes.
-# Refuse before anything is pulled or started. A failed or empty answer from compose also refuses.
-# This only reads: it never creates, renames or removes a volume.
+# Refuse before anything is checked out, pulled or started. It judges the compose file of the
+# release being deployed (read from the tag, not the checkout, which still holds the old release);
+# compose reads deploy/.env from here and honours COMPOSE_PROJECT_NAME as `up` would. A failed or
+# empty answer refuses too. This only reads: it never creates, renames or removes a volume.
 refuse_orphaned_volumes() {
   if docker volume inspect agentmesh_hub-data >/dev/null 2>&1 &&
-     [ "$(docker compose config 2>/dev/null | sed -n "s/^name: //p" | head -n 1)" != agentmesh ]; then
+     [ "$(git_ show "v$VERSION:deploy/docker-compose.yml" 2>/dev/null |
+          docker compose -f - config 2>/dev/null | sed -n "s/^name: //p" | head -n 1)" != agentmesh ]; then
     echo "cosmicwave-deploy: This server keeps its data in Docker volumes named agentmesh_*. Add COMPOSE_PROJECT_NAME=agentmesh to deploy/.env and deploy again. Nothing was started." >&2
     exit 1
   fi
