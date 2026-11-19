@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { expandHome, MeshError, meshHome } from '@cosmicwave/common';
+import { expandHome, homeDirName, MeshError, meshHome } from '@cosmicwave/common';
 import { ConfigIndex } from '@cosmicwave/config';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom, resolveFrom } from '../context';
@@ -43,8 +43,9 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
           .join(', ')}`,
       );
     }
-    // `~/…` stays as written: the steps are often for a teammate's machine, not this one.
-    const given = values['seed-file'] ?? `~/.cosmicwave/${agentId}.nk`;
+    // `~/…` stays as written: the steps are often for a teammate's machine, not this one. The
+    // folder is this laptop's (~/.agentmesh until it moves), so --write points into it.
+    const given = values['seed-file'] ?? `~/${homeDirName(ctx.homeDir)}/${agentId}.nk`;
     const seedFile = given.startsWith('~') ? given : resolveFrom(ctx, given);
     const input: AgentSetupInput = {
       agentId,

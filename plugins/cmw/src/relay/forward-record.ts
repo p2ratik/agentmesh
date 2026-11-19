@@ -3,7 +3,6 @@
 import {
   closeSync,
   existsSync,
-  mkdirSync,
   openSync,
   readdirSync,
   readFileSync,
@@ -13,6 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { makeStateDir } from '../pull/state';
 import { MESSAGE_ID, type PointerFields, pointerText } from './pointer';
 
 /**
@@ -42,7 +42,8 @@ export function writeForward(
 ): void {
   const name = forwardFile(hex, fields.messageId);
   if (!name || !pointerText(fields)) throw new Error('refusing to write an invalid forward record');
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // The relay reports this as a failed write: the guard would refuse a pointer with no record.
+  if (!makeStateDir(dir)) throw new Error('the window data folder is gone');
   pruneClaimed(dir, Date.now());
   const file = join(dir, name);
   const { from, threadId, messageId } = fields;

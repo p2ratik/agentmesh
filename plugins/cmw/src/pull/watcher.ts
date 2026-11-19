@@ -1,12 +1,12 @@
 import { rmSync } from 'node:fs';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@cosmicwave/common';
 import type { HubClient } from '../hub';
 import { type LocalSession, localSessionFile, localSessionRecord } from '../relay/local-session';
 import type { ActivationState } from '../tools/activation';
 import { type Heartbeat, heartbeatFile } from '../window/heartbeat';
-import { type PullState, pullStateFile } from './state';
+import { makeStateDir, type PullState, pullStateFile } from './state';
 
 /** How often an active pull session refreshes its state file (the hook ignores files past 2 min). */
 export const POLL_MS = 30_000;
@@ -97,7 +97,7 @@ export class PullWatcher {
   /** Writes this process's one file, removing the previous one when the name changes. */
   async #writeFile(file: string, value: PullState | Heartbeat | LocalSession): Promise<void> {
     if (this.#file !== file) this.clear();
-    await mkdir(this.#deps.dir, { recursive: true, mode: 0o700 });
+    if (!makeStateDir(this.#deps.dir)) return;
     // Write then rename, so the hook never reads half a file.
     await writeFile(`${file}.tmp`, JSON.stringify(value), { mode: 0o600 });
     await rename(`${file}.tmp`, file);

@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { announce, type PullState, pullStateDirs, selectStates } from './state';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { announce, makeStateDir, type PullState, pullStateDirs, selectStates } from './state';
 
 const NOW = Date.parse('2026-10-30T10:00:00.000Z');
 const at = (msAgo: number) => new Date(NOW - msAgo).toISOString();
@@ -86,5 +89,33 @@ describe('pullStateDirs', () => {
     expect(pullStateDirs({ CLAUDE_PLUGIN_DATA: '/data' }, '/home/a')[0]).toBe('/data');
     expect(pullStateDirs({}, '/home/a')).toHaveLength(1);
     expect(pullStateDirs({}, '/home/a')[0]).toMatch(/\.cosmicwave[\\/]run$/);
+  });
+});
+
+describe('makeStateDir', () => {
+  let base: string;
+  beforeEach(() => {
+    base = mkdtempSync(join(tmpdir(), 'am-state-'));
+  });
+  afterEach(() => rmSync(base, { recursive: true, force: true }));
+
+  it('makes the plugin data folder, or the fallback under ~/.cosmicwave, with its parents', () => {
+    for (const dir of [join(base, 'data', 'cmw'), join(base, 'home', '.cosmicwave', 'run')]) {
+      expect(makeStateDir(dir)).toBe(true);
+      expect(statSync(dir).isDirectory()).toBe(true);
+    }
+  });
+
+  // A hook or guard that resolved ~/.agentmesh/run just before the MCP server moved the folder.
+  it('never brings back a ~/.agentmesh that is gone, and makes run/ inside one that is there', () => {
+    const home = join(base, 'home');
+    const run = join(home, '.agentmesh', 'run');
+    mkdirSync(home);
+    expect(makeStateDir(run)).toBe(false);
+    expect(readdirSync(home)).toEqual([]);
+    mkdirSync(join(home, '.agentmesh'));
+    expect(makeStateDir(run)).toBe(true);
+    expect(makeStateDir(run)).toBe(true);
+    expect(readdirSync(join(home, '.agentmesh'))).toEqual(['run']);
   });
 });

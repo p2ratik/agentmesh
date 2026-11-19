@@ -1,16 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import {
-  appendFileSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  unlinkSync,
-} from 'node:fs';
+import { appendFileSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hookAgentId } from '../agent-id';
-import { PARTICIPANT_ID, pullStateDirs } from '../pull/state';
+import { makeStateDir, PARTICIPANT_ID, pullStateDirs } from '../pull/state';
 
 /**
  * The guard and hook run as short processes, so they leave their timeline events in
@@ -62,8 +55,7 @@ export function appendEvent(dataDir: string, event: object, agent: string | null
       size === undefined
         ? waiting(dataDir, agent) >= MAX_EVENT_FILES
         : size >= MAX_EVENTS_FILE_BYTES;
-    if (full) return;
-    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+    if (full || !makeStateDir(dataDir)) return;
     appendFileSync(file, `${JSON.stringify(event)}\n`, { mode: 0o600 });
   } catch {
     // An event lost is better than a guard that fails.

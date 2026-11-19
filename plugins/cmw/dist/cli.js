@@ -47969,7 +47969,7 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
         `No agent "${agentId}". Agents: ${index.agents().map((a) => a.id).join(", ")}`
       );
     }
-    const given = values["seed-file"] ?? `~/.cosmicwave/${agentId}.nk`;
+    const given = values["seed-file"] ?? `~/${homeDirName(ctx.homeDir)}/${agentId}.nk`;
     const seedFile = given.startsWith("~") ? given : resolveFrom(ctx, given);
     const input2 = {
       agentId,

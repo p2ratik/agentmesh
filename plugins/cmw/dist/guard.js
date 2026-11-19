@@ -646,10 +646,9 @@ function udsHex(address, platform) {
 import {
   closeSync,
   existsSync as existsSync2,
-  mkdirSync,
   openSync,
-  readdirSync as readdirSync2,
-  readFileSync as readFileSync5,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync6,
   renameSync as renameSync2,
   rmSync,
   statSync,
@@ -658,12 +657,23 @@ import {
 import { join as join3 } from "node:path";
 
 // src/pull/state.ts
-import { join as join2 } from "node:path";
+import { mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync5 } from "node:fs";
+import { basename, dirname, join as join2 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function pullStateDirs(env, home) {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join2(meshHome(home), "run")];
   return [...new Set(dirs.filter((d) => !!d))];
+}
+function makeStateDir(dir) {
+  const legacy = basename(dir) === "run" && basename(dirname(dir)) === LEGACY_HOME_DIR;
+  try {
+    mkdirSync(dir, { recursive: !legacy, mode: 448 });
+  } catch (error) {
+    if (!legacy) throw error;
+    return error.code === "EEXIST";
+  }
+  return true;
 }
 
 // src/relay/pointer.ts
@@ -685,7 +695,7 @@ function forwardFile(hex, messageId) {
 }
 function candidate(dir, name, hex, now) {
   try {
-    const v = JSON.parse(readFileSync5(join3(dir, name), "utf8"));
+    const v = JSON.parse(readFileSync6(join3(dir, name), "utf8"));
     const fields = { from: v.from, threadId: v.threadId, messageId: v.messageId };
     const ok = typeof v.expiresAt === "number" && now <= v.expiresAt && // Nothing in the file is trusted: a hand-written far-future expiry must not live forever.
     v.expiresAt - now <= FORWARD_TTL_MS && pointerText(fields) !== null && forwardFile(hex, fields.messageId) === name;
@@ -698,7 +708,7 @@ function readForwards(dir, hex, now) {
   if (!HEX.test(hex)) return [];
   let names;
   try {
-    names = readdirSync2(dir);
+    names = readdirSync3(dir);
   } catch {
     return [];
   }
@@ -906,19 +916,12 @@ function hookOutput(d) {
 
 // src/telemetry/events-file.ts
 import { randomUUID } from "node:crypto";
-import {
-  appendFileSync,
-  mkdirSync as mkdirSync2,
-  readdirSync as readdirSync3,
-  readFileSync as readFileSync7,
-  statSync as statSync2,
-  unlinkSync
-} from "node:fs";
+import { appendFileSync, readdirSync as readdirSync4, readFileSync as readFileSync8, statSync as statSync2, unlinkSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join5 } from "node:path";
 
 // src/agent-id.ts
-import { readFileSync as readFileSync6 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 import { join as join4 } from "node:path";
 function usable(value) {
   const trimmed = value?.trim();
@@ -953,7 +956,7 @@ function parseSavedAgent(value) {
 function hookAgentId(env, home) {
   let saved = null;
   try {
-    saved = parseSavedAgent(JSON.parse(readFileSync6(join4(meshHome(home), "agent.json"), "utf8")));
+    saved = parseSavedAgent(JSON.parse(readFileSync7(join4(meshHome(home), "agent.json"), "utf8")));
   } catch {
   }
   return resolveAgentId(
@@ -974,7 +977,7 @@ function isFileOf(name, agent) {
 }
 function waiting(dir, agent) {
   try {
-    return readdirSync3(dir).filter((name) => isFileOf(name, agent)).length;
+    return readdirSync4(dir).filter((name) => isFileOf(name, agent)).length;
   } catch {
     return 0;
   }
@@ -986,8 +989,7 @@ function appendEvent(dataDir, event, agent = null) {
     const file = join5(dataDir, `events-${name}.jsonl`);
     const size = statSync2(file, { throwIfNoEntry: false })?.size;
     const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
-    if (full) return;
-    mkdirSync2(dataDir, { recursive: true, mode: 448 });
+    if (full || !makeStateDir(dataDir)) return;
     appendFileSync(file, `${JSON.stringify(event)}
 `, { mode: 384 });
   } catch {
@@ -1010,11 +1012,11 @@ function leaveEvent(source, session, fields) {
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync8, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { readFileSync as readFileSync9, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
 import { join as join6 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 function writeGuardStamp(dir, now, version) {
-  mkdirSync3(dir, { recursive: true, mode: 448 });
+  if (!makeStateDir(dir)) return;
   const file = join6(dir, GUARD_STAMP);
   const staged = `${file}.${process.pid}.tmp`;
   writeFileSync3(staged, JSON.stringify({ at: now.toISOString(), version }), { mode: 384 });

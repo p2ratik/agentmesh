@@ -1,8 +1,9 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '@cosmicwave/config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { agentSetupCommand } from './commands/agent-setup';
 import { type CliContext, cliCommand } from './context';
 import { findExamplesDir } from './lib/repo-paths';
 import { EXIT_GRACE_MS, runCli, runMain } from './main';
@@ -144,9 +145,23 @@ describe('cmw CLI', () => {
     expect(written).toMatchObject({
       agentId: 'bob-agent',
       natsUrl: 'nats://hub.tail:4222',
+      nkeySeed: '~/.cosmicwave/bob-agent.nk',
       prefix: 'mesh',
     });
     expect(await h.run('agent-setup', 'nobody', '--config', 'mesh')).toBe(1);
+  });
+
+  // Called directly, so the CLI's move never ran: a laptop whose ~/.agentmesh could not move yet.
+  it('points agent-setup --write at the folder this laptop uses, before it moves', async () => {
+    const h = harness(SECRETS);
+    await h.run('init', 'mesh');
+    const legacy = join(h.ctx.homeDir, '.agentmesh');
+    mkdirSync(legacy, { recursive: true });
+    const args = ['bob-agent', '--config', 'mesh', '--nats-url', 'nats://hub.tail:4222', '--write'];
+    expect(agentSetupCommand.run(args, h.ctx)).toBe(0);
+    const written = JSON.parse(readFileSync(join(legacy, 'agent.json'), 'utf8'));
+    expect(written.nkeySeed).toBe('~/.agentmesh/bob-agent.nk');
+    expect(existsSync(join(h.ctx.homeDir, '.cosmicwave'))).toBe(false);
   });
 
   it('reports config problems with paths and usage errors with exit 2', async () => {

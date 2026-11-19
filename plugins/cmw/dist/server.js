@@ -1298,7 +1298,7 @@ var require_sonic_boom = __commonJS({
       if (!(this instanceof SonicBoom)) {
         return new SonicBoom(opts);
       }
-      let { fd, dest, minLength, maxLength, maxWrite, periodicFlush, sync, append = true, mkdir: mkdir2, retryEAGAIN, fsync, contentMode, mode } = opts || {};
+      let { fd, dest, minLength, maxLength, maxWrite, periodicFlush, sync, append = true, mkdir, retryEAGAIN, fsync, contentMode, mode } = opts || {};
       fd = fd || dest;
       this._len = 0;
       this.fd = -1;
@@ -1323,7 +1323,7 @@ var require_sonic_boom = __commonJS({
       this.append = append || false;
       this.mode = mode;
       this.retryEAGAIN = retryEAGAIN || (() => true);
-      this.mkdir = mkdir2 || false;
+      this.mkdir = mkdir || false;
       let fsWriteSync;
       let fsWrite;
       if (contentMode === kContentModeBuffer) {
@@ -48282,7 +48282,7 @@ var FileConfig = external_exports.object({
   prefix: external_exports.string().optional()
 });
 var defaultConfigFile = (home) => join4(meshHome(home), "agent.json");
-function resolveConfig(env = process.env, file2 = defaultConfigFile()) {
+function resolveConfig(env = process.env, file2 = defaultConfigFile(), home = homedir4()) {
   const saved = readFileConfig(file2);
   const options = { agentId: env.COSMICWAVE_AGENT_ID, natsUrl: env.COSMICWAVE_NATS_URL };
   const fromFile = fileApplies(options, saved) ? saved : {};
@@ -48290,7 +48290,8 @@ function resolveConfig(env = process.env, file2 = defaultConfigFile()) {
   const agentId = resolveAgentId(options, saved) ?? void 0;
   const urls = pick2("COSMICWAVE_NATS_URL", fromFile.natsUrl);
   const { prefix, warnings } = resolvePrefix(env, fromFile);
-  const seed = pick2("COSMICWAVE_NKEY_SEED", fromFile.nkeySeed);
+  const picked = pick2("COSMICWAVE_NKEY_SEED", fromFile.nkeySeed);
+  const seed = picked && mapLegacyPath(picked, home);
   const heartbeat = Number(usable(env.COSMICWAVE_HEARTBEAT_SECONDS) ?? 20);
   const logFile = usable(env.COSMICWAVE_LOG_FILE);
   const problems = configProblems(agentId, urls, prefix, heartbeat);
@@ -48330,9 +48331,7 @@ function readFileConfig(file2) {
   if (!existsSync3(file2)) return {};
   try {
     const parsed = FileConfig.safeParse(JSON.parse(readFileSync3(file2, "utf8")));
-    if (!parsed.success) return {};
-    const { nkeySeed } = parsed.data;
-    return nkeySeed ? { ...parsed.data, nkeySeed: mapLegacyPath(nkeySeed, homedir4()) } : parsed.data;
+    return parsed.success ? parsed.data : {};
   } catch {
     return {};
   }
@@ -48340,7 +48339,7 @@ function readFileConfig(file2) {
 
 // src/pull/watcher.ts
 import { rmSync } from "node:fs";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { rename, writeFile } from "node:fs/promises";
 import { join as join7 } from "node:path";
 
 // src/relay/local-session.ts
@@ -48348,8 +48347,8 @@ import { readFileSync as readFileSync5 } from "node:fs";
 import { join as join6 } from "node:path";
 
 // src/pull/state.ts
-import { readdirSync, readFileSync as readFileSync4 } from "node:fs";
-import { join as join5 } from "node:path";
+import { mkdirSync, readdirSync, readFileSync as readFileSync4 } from "node:fs";
+import { basename, dirname, join as join5 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
@@ -48359,6 +48358,16 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
 function pullStateDirs(env, home) {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join5(meshHome(home), "run")];
   return [...new Set(dirs.filter((d) => !!d))];
+}
+function makeStateDir(dir) {
+  const legacy = basename(dir) === "run" && basename(dirname(dir)) === LEGACY_HOME_DIR;
+  try {
+    mkdirSync(dir, { recursive: !legacy, mode: 448 });
+  } catch (error63) {
+    if (!legacy) throw error63;
+    return error63.code === "EEXIST";
+  }
+  return true;
 }
 function readJsonFiles(dir, filter) {
   let names;
@@ -48482,7 +48491,7 @@ var PullWatcher = class {
   /** Writes this process's one file, removing the previous one when the name changes. */
   async #writeFile(file2, value) {
     if (this.#file !== file2) this.clear();
-    await mkdir(this.#deps.dir, { recursive: true, mode: 448 });
+    if (!makeStateDir(this.#deps.dir)) return;
     await writeFile(`${file2}.tmp`, JSON.stringify(value), { mode: 384 });
     await rename(`${file2}.tmp`, file2);
     this.#file = file2;
@@ -48743,7 +48752,7 @@ import { parseArgs } from "node:util";
 import {
   chmodSync,
   existsSync as existsSync4,
-  mkdirSync,
+  mkdirSync as mkdirSync2,
   readFileSync as readFileSync6,
   renameSync as renameSync2,
   rmSync as rmSync2,
@@ -48782,7 +48791,7 @@ function writePrivate(path2, content) {
 }
 function stageSeed(home, agentId, seed) {
   const dir = meshHome(home);
-  mkdirSync(dir, { recursive: true, mode: 448 });
+  mkdirSync2(dir, { recursive: true, mode: 448 });
   const seedFile = join8(dir, `${agentId}.nk`);
   const staged = `${seedFile}.joining`;
   writePrivate(staged, `${seed}
@@ -49258,7 +49267,6 @@ function fyiLine(m) {
 import {
   closeSync,
   existsSync as existsSync5,
-  mkdirSync as mkdirSync2,
   openSync,
   readdirSync as readdirSync2,
   readFileSync as readFileSync8,
@@ -49289,7 +49297,7 @@ function forwardFile(hex3, messageId) {
 function writeForward(dir, hex3, fields, expiresAt) {
   const name = forwardFile(hex3, fields.messageId);
   if (!name || !pointerText(fields)) throw new Error("refusing to write an invalid forward record");
-  mkdirSync2(dir, { recursive: true, mode: 448 });
+  if (!makeStateDir(dir)) throw new Error("the window data folder is gone");
   pruneClaimed(dir, Date.now());
   const file2 = join9(dir, name);
   const { from, threadId, messageId } = fields;
@@ -50058,7 +50066,7 @@ function markerState(env, policy, agentId) {
 }
 
 // src/window/guard-stamp.ts
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync10, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { readFileSync as readFileSync10, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join10 } from "node:path";
 var GUARD_STAMP = "guard-alive.json";
 var GUARD_STAMP_MAX_AGE_MS = 12e4;
@@ -52938,15 +52946,7 @@ async function forwardRelay(relay, deps) {
 }
 
 // src/resume/claude-session.ts
-import {
-  mkdirSync as mkdirSync4,
-  readdirSync as readdirSync4,
-  readFileSync as readFileSync12,
-  renameSync as renameSync5,
-  rmSync as rmSync4,
-  statSync as statSync2,
-  writeFileSync as writeFileSync5
-} from "node:fs";
+import { readdirSync as readdirSync4, readFileSync as readFileSync12, renameSync as renameSync5, rmSync as rmSync4, statSync as statSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { join as join13 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var CLAUDE_SESSION_SLACK_MS = 6e4;
@@ -53109,14 +53109,7 @@ function connectedEvent(session, server) {
 }
 
 // src/telemetry/events-file.ts
-import {
-  appendFileSync,
-  mkdirSync as mkdirSync5,
-  readdirSync as readdirSync5,
-  readFileSync as readFileSync13,
-  statSync as statSync3,
-  unlinkSync
-} from "node:fs";
+import { appendFileSync, readdirSync as readdirSync5, readFileSync as readFileSync13, statSync as statSync3, unlinkSync } from "node:fs";
 import { join as join14 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
 var UNNAMED = /^events-\d+\.jsonl$/;

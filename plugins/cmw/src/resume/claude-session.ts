@@ -1,14 +1,7 @@
 // Built-ins only (the hook bundle imports this).
-import {
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeStateDir } from '../pull/state';
 
 /**
  * Claude Code's conversation id, by process: the SessionStart hook writes `cc-{CLAUDE_PID}.json`
@@ -48,7 +41,7 @@ export function writeClaudeSession(
   if (!name || typeof id !== 'string' || !CLAUDE_SESSION_ID.test(id)) return;
   const source = typeof input.source === 'string' ? input.source.slice(0, 32) : null;
   const file = join(dir, name);
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (!makeStateDir(dir)) return;
   writeFileSync(`${file}.tmp`, JSON.stringify({ session_id: id, source, at: now.toISOString() }), {
     mode: 0o600,
   });

@@ -1,7 +1,7 @@
 // Built-ins only: dist/guard.js writes the stamp, and the MCP server's activate reads it.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isFresh } from '../pull/state';
+import { isFresh, makeStateDir } from '../pull/state';
 
 /** Written by the worktree guard on the activate call, in the plugin's data folder. */
 export const GUARD_STAMP = 'guard-alive.json';
@@ -9,7 +9,7 @@ export const GUARD_STAMP_MAX_AGE_MS = 120_000;
 
 /** Stamps the time and the guard's version (the window relays only behind a 0.6.0 guard). */
 export function writeGuardStamp(dir: string, now: Date, version: string): void {
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (!makeStateDir(dir)) return;
   const file = join(dir, GUARD_STAMP);
   // Write then rename, so activate never reads half a file; per process, so two never collide.
   const staged = `${file}.${process.pid}.tmp`;

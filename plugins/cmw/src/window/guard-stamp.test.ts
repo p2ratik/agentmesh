@@ -31,6 +31,11 @@ describe('the guard stamp', () => {
     expect(freshGuardStamp(dir, now.getTime() - 1_000)).toBeNull();
   });
 
+  it('writes nothing, and never throws, when the ~/.agentmesh it resolved has moved away', () => {
+    writeGuardStamp(join(base, 'home', '.agentmesh', 'run'), now, '0.6.0');
+    expect(readdirSync(base)).toEqual([]);
+  });
+
   it('is dead with no file or a corrupt one', () => {
     expect(freshGuardStamp(dir, now.getTime())).toBeNull();
     writeGuardStamp(dir, now, '0.6.0');

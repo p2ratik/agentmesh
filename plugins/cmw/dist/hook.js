@@ -68,8 +68,8 @@ function hookAgentId(env, home) {
 }
 
 // src/pull/state.ts
-import { readdirSync, readFileSync as readFileSync3 } from "node:fs";
-import { join as join3 } from "node:path";
+import { mkdirSync, readdirSync, readFileSync as readFileSync3 } from "node:fs";
+import { basename, dirname, join as join3 } from "node:path";
 var STATE_MAX_AGE_MS = 2 * 6e4;
 var PARTICIPANT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
@@ -79,6 +79,16 @@ function isFresh(at, now, maxAge = STATE_MAX_AGE_MS) {
 function pullStateDirs(env, home) {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join3(meshHome(home), "run")];
   return [...new Set(dirs.filter((d) => !!d))];
+}
+function makeStateDir(dir) {
+  const legacy = basename(dir) === "run" && basename(dirname(dir)) === LEGACY_HOME_DIR;
+  try {
+    mkdirSync(dir, { recursive: !legacy, mode: 448 });
+  } catch (error) {
+    if (!legacy) throw error;
+    return error.code === "EEXIST";
+  }
+  return true;
 }
 function readJsonFiles(dir, filter) {
   let names;
@@ -248,15 +258,7 @@ function promptContext({
 }
 
 // src/resume/claude-session.ts
-import {
-  mkdirSync,
-  readdirSync as readdirSync2,
-  readFileSync as readFileSync4,
-  renameSync as renameSync2,
-  rmSync,
-  statSync,
-  writeFileSync as writeFileSync2
-} from "node:fs";
+import { readdirSync as readdirSync2, readFileSync as readFileSync4, renameSync as renameSync2, rmSync, statSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join4 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var RECORD_MAX_AGE_MS = 24 * 36e5;
@@ -272,7 +274,7 @@ function writeClaudeSession(dir, pid, input, now) {
   if (!name || typeof id !== "string" || !CLAUDE_SESSION_ID.test(id)) return;
   const source = typeof input.source === "string" ? input.source.slice(0, 32) : null;
   const file = join4(dir, name);
-  mkdirSync(dir, { recursive: true, mode: 448 });
+  if (!makeStateDir(dir)) return;
   writeFileSync2(`${file}.tmp`, JSON.stringify({ session_id: id, source, at: now.toISOString() }), {
     mode: 384
   });
@@ -309,14 +311,7 @@ function pruneClaudeSessions(dir, now) {
 
 // src/telemetry/events-file.ts
 import { randomUUID } from "node:crypto";
-import {
-  appendFileSync,
-  mkdirSync as mkdirSync2,
-  readdirSync as readdirSync3,
-  readFileSync as readFileSync5,
-  statSync as statSync2,
-  unlinkSync
-} from "node:fs";
+import { appendFileSync, readdirSync as readdirSync3, readFileSync as readFileSync5, statSync as statSync2, unlinkSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join5 } from "node:path";
 var MAX_EVENTS_FILE_BYTES = 256 * 1024;
@@ -342,8 +337,7 @@ function appendEvent(dataDir, event, agent = null) {
     const file = join5(dataDir, `events-${name}.jsonl`);
     const size = statSync2(file, { throwIfNoEntry: false })?.size;
     const full = size === void 0 ? waiting(dataDir, agent) >= MAX_EVENT_FILES : size >= MAX_EVENTS_FILE_BYTES;
-    if (full) return;
-    mkdirSync2(dataDir, { recursive: true, mode: 448 });
+    if (full || !makeStateDir(dataDir)) return;
     appendFileSync(file, `${JSON.stringify(event)}
 `, { mode: 384 });
   } catch {

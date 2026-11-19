@@ -40,8 +40,13 @@ export const defaultConfigFile = (home?: string): string => join(meshHome(home),
  * empty strings or as the literal `${user_config.x}` placeholder, so both
  * count as unset and fall back to ~/.cosmicwave/agent.json, if that file is
  * for this agent (`fileApplies`). Its prefix wins over the option (`resolvePrefix`).
+ * A seed path under ~/.agentmesh, from either source, is mapped into the moved folder.
  */
-export function resolveConfig(env: Env = process.env, file = defaultConfigFile()): ConfigResult {
+export function resolveConfig(
+  env: Env = process.env,
+  file = defaultConfigFile(),
+  home = homedir(),
+): ConfigResult {
   const saved = readFileConfig(file);
   const options = { agentId: env.COSMICWAVE_AGENT_ID, natsUrl: env.COSMICWAVE_NATS_URL };
   const fromFile = fileApplies(options, saved) ? saved : {};
@@ -49,7 +54,8 @@ export function resolveConfig(env: Env = process.env, file = defaultConfigFile()
   const agentId = resolveAgentId(options, saved) ?? undefined;
   const urls = pick('COSMICWAVE_NATS_URL', fromFile.natsUrl);
   const { prefix, warnings } = resolvePrefix(env, fromFile);
-  const seed = pick('COSMICWAVE_NKEY_SEED', fromFile.nkeySeed);
+  const picked = pick('COSMICWAVE_NKEY_SEED', fromFile.nkeySeed);
+  const seed = picked && mapLegacyPath(picked, home);
   const heartbeat = Number(usable(env.COSMICWAVE_HEARTBEAT_SECONDS) ?? 20);
   const logFile = usable(env.COSMICWAVE_LOG_FILE);
 
@@ -114,12 +120,7 @@ function readFileConfig(file: string): FileConfig {
   if (!existsSync(file)) return {};
   try {
     const parsed = FileConfig.safeParse(JSON.parse(readFileSync(file, 'utf8')));
-    if (!parsed.success) return {};
-    const { nkeySeed } = parsed.data;
-    // A seed path into ~/.agentmesh that the move could not rewrite.
-    return nkeySeed
-      ? { ...parsed.data, nkeySeed: mapLegacyPath(nkeySeed, homedir()) }
-      : parsed.data;
+    return parsed.success ? parsed.data : {};
   } catch {
     return {};
   }

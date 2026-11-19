@@ -1,6 +1,6 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { meshHome } from '@cosmicwave/common/mesh-home';
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { LEGACY_HOME_DIR, meshHome } from '@cosmicwave/common/mesh-home';
 
 /**
  * The pull-mode state file (ADR 0008): what an active pull session's MCP server
@@ -36,6 +36,23 @@ export function isFresh(at: unknown, now: number, maxAge = STATE_MAX_AGE_MS): bo
 export function pullStateDirs(env: NodeJS.ProcessEnv, home: string): string[] {
   const dirs = [env.CLAUDE_PLUGIN_DATA, join(meshHome(home), 'run')];
   return [...new Set(dirs.filter((d): d is string => !!d))];
+}
+
+/**
+ * Makes `dir` for a state file (0700); false when it must stay missing. The fallback under the
+ * old folder, `~/.agentmesh/run`, is made only inside a `~/.agentmesh` that is still there: a hook
+ * or guard that resolved it just before the MCP server moved the folder must not bring it back.
+ * Any other folder (the plugin data folder, `~/.cosmicwave/run`) is made with its parents.
+ */
+export function makeStateDir(dir: string): boolean {
+  const legacy = basename(dir) === 'run' && basename(dirname(dir)) === LEGACY_HOME_DIR;
+  try {
+    mkdirSync(dir, { recursive: !legacy, mode: 0o700 });
+  } catch (error) {
+    if (!legacy) throw error;
+    return (error as NodeJS.ErrnoException).code === 'EEXIST';
+  }
+  return true;
 }
 
 /** Every matching file in a folder, parsed; a missing folder or a bad file is skipped (null). */

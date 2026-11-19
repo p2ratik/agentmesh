@@ -181,11 +181,37 @@ describe('resolveConfig', () => {
       JSON.stringify({ agentId: 'bob-agent', natsUrl: 'tls://hub:4222', nkeySeed: seed }),
     );
     const expected = { agentId: 'bob-agent', servers: ['tls://hub:4222'], nkeySeed: seed };
-    const notMoved = resolveConfig({}, defaultConfigFile(home));
+    const notMoved = resolveConfig({}, defaultConfigFile(home), home);
     expect(notMoved.ok && notMoved.config).toMatchObject(expected);
     mkdirSync(join(home, '.cosmicwave', 'run'), { recursive: true });
-    const both = resolveConfig({}, defaultConfigFile(home));
+    const both = resolveConfig({}, defaultConfigFile(home), home);
     expect(both.ok && both.config).toMatchObject(expected);
+  });
+
+  // The safety net for a crash between the move and agent.json's rewrite, and for the option.
+  it('maps a seed path under ~/.agentmesh into the moved folder, from either source', () => {
+    const home = mkdtempSync(join(tmpdir(), 'cosmicwave-home-'));
+    const moved = join(home, '.cosmicwave', 'bob-agent.nk');
+    mkdirSync(join(home, '.cosmicwave'));
+    writeFileSync(moved, 'fake');
+    const file = defaultConfigFile(home);
+    const save = (nkeySeed: string) =>
+      writeFileSync(
+        file,
+        JSON.stringify({ agentId: 'bob-agent', natsUrl: 'tls://hub:4222', nkeySeed }),
+      );
+    const seedOf = (env: Record<string, string> = {}) => {
+      const result = resolveConfig(env, file, home);
+      return result.ok ? result.config.nkeySeed : null;
+    };
+    save(join(home, '.agentmesh', 'bob-agent.nk'));
+    expect(seedOf()).toBe(moved);
+    expect(seedOf({ COSMICWAVE_NKEY_SEED: '~/.agentmesh/bob-agent.nk' })).toBe(moved);
+    // A seed literal (the key text itself) passes through from either source.
+    const literal = 'SUFAKESEEDNOTAREALONE';
+    save(literal);
+    expect(seedOf()).toBe(literal);
+    expect(seedOf({ COSMICWAVE_NKEY_SEED: literal })).toBe(literal);
   });
 
   it('keeps the log file for an unenrolled plugin', () => {

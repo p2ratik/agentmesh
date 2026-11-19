@@ -1475,7 +1475,8 @@ server or the `cmw` CLI starts (`packages/common/src/mesh-home.ts`), so nobody i
   again. When both folders exist nothing moves, and the plugin's log and the CLI say so; the member
   moves what they need by hand. After a move, the seed path in `agent.json` is pointed into the new
   folder (a temp file beside it, then a rename, mode 600). The readers also map a seed path under
-  `~/.agentmesh` once the old file is gone, so a crash between the two steps strands no key. The
+  `~/.agentmesh` once the old file is gone, from `agent.json` or the `nkey_seed` option, so a crash
+  between the two steps strands no key; a seed given as the key text itself passes unchanged. The
   log says only that the folder moved, never a file's content.
 - **Threat: an unmoved or leftover folder read from the mesh window.** It still holds keys.
   **Mitigation:** both folders are denied in every mode: `Read(~/.cosmicwave/**)` and
@@ -1486,7 +1487,10 @@ server or the `cmw` CLI starts (`packages/common/src/mesh-home.ts`), so nobody i
   while `~/.agentmesh` exists.
 - **Threat: files moving under a running session.** **Mitigation:** only the MCP server and the
   CLI move, once each at start. The hook and the guard never move anything; they only read. When
-  two processes race, one rename wins and the other finds the new folder.
+  two processes race, one rename wins and the other finds the new folder. A state file whose
+  fallback folder, `~/.agentmesh/run`, was chosen just before the move is never written: that
+  folder is made only inside a `~/.agentmesh` that is still there, so the old folder never comes
+  back.
 - **Residual risk:** a second Claude account on the laptop (`CLAUDE_CONFIG_DIR`) still on the old
   plugin finds no `~/.agentmesh` once the folder moved, and shows as not joined until it is
   switched too. Switch both accounts together.

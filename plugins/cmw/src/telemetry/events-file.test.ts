@@ -50,6 +50,12 @@ describe('the events file', () => {
     expect(collectEventFiles(join(dir, 'missing'), 'bob-agent', true)).toEqual([]);
   });
 
+  // The fallback resolved to ~/.agentmesh/run just before the MCP server moved the folder.
+  it('creates nothing when the ~/.agentmesh of its fallback folder is gone', () => {
+    expect(() => appendEvent(join(dir, '.agentmesh', 'run'), event, 'alice-agent')).not.toThrow();
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
   /** A waiting file of `agent` (unnamed for null), numbered past any real pid. */
   const waiting = (agent: string | null, i: number) =>
     join(dir, `events-${agent === null ? '' : `${agent}-`}${9e9 + i}.jsonl`);
