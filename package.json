@@ -17,7 +17,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "check:size": "node scripts/check-file-size.mjs",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:size && pnpm test",
+    "check:name": "node scripts/check-legacy-name.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:size && pnpm check:name && pnpm test",
     "dev:hub": "pnpm --filter @cosmicwave/hub dev",
     "dev:bridge": "pnpm --filter @cosmicwave/discord-bridge dev",
     "mesh": "pnpm --filter @cosmicwave/cli start"

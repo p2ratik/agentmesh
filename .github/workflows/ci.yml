@@ -27,6 +27,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm check:size
+      - run: pnpm check:name
       - run: pnpm test
 
   # Real NATS + hub + the bundled plugin over MCP, with and without nkey auth.
