@@ -45,7 +45,7 @@ humans:
     displayName: Carol
     discordUserId: "100000000000000003"
 
-# One Claude Code session per person, each running the cosmicwave plugin.
+# One Claude Code session per person, each running the Cosmicwave plugin.
 # In Discord each agent posts under its own name and picture: displayName defaults to
 # "<owner>'s agent", and without avatarUrl every agent gets a distinct built-in avatar.
 agents:

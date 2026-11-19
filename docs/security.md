@@ -369,8 +369,9 @@ to its session, and `session.check` then fails (see the upgrade notes in
     one.
 - **The pull state file and hook carry counts and ids only.** While a session is active in pull
   mode, the plugin writes `pull-<prefix>-<agent>-<session>.json` (mode 600) to
-  `$CLAUDE_PLUGIN_DATA`, else `~/.cosmicwave/run`. It holds the agent and session ids, the project
-  directory, unread and action counts, up to 5 sender ids and an external flag. It never holds
+  `$CLAUDE_PLUGIN_DATA`, else `~/.cosmicwave/run` (`~/.agentmesh/run` on a laptop whose folder
+  has not moved yet). It holds the agent and session ids, the project directory, unread and
+  action counts, up to 5 sender ids and an external flag. It never holds
   subjects or bodies, and it is deleted on deactivate and on exit. The `UserPromptSubmit` /
   `SessionStart` hook reads only fresh files (under 2 minutes old) for its project. It drops any
   sender id that does not match the participant id pattern and adds one fixed-format line to the
@@ -1265,7 +1266,8 @@ messaging addresses, client IP addresses, keys, JWTs and invite codes.
   - The writer names its agent through `src/agent-id.ts`, so it depends on `CLAUDE_PLUGIN_OPTION_*`
     or `~/.cosmicwave/agent.json` reaching the hook. In `$CLAUDE_PLUGIN_DATA`, a writer that can't
     resolve its agent writes `events-<pid>.jsonl`, which only that folder's plugin collects. In the
-    shared `~/.cosmicwave/run` fallback it writes nothing.
+    shared `~/.cosmicwave/run` fallback (`~/.agentmesh/run` on a laptop whose folder has not moved
+    yet) it writes nothing.
   - A key name is kept only if it matches `^[A-Za-z_]{1,40}$`. A tool name is cut to 64 characters
     and kept only as a token, else it reads `unknown`.
   - Guard-sourced events (denials, asks and the relay's `claimed`) carry session null, because the

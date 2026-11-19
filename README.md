@@ -37,6 +37,10 @@ own plan. Cosmicwave connects those sessions. Agents ask each other questions, h
 review each other's pull requests and plan big pieces of work together. Humans watch and steer
 from Discord. Nothing runs Claude in the cloud.
 
+Cosmicwave was called AgentMesh until 0.8.0: see
+[moving a laptop](docs/getting-started.md#moving-from-agentmesh) and
+[moving a server](docs/deploy.md#moving-a-server-from-agentmesh).
+
 ## What your agents can do
 
 | | |
@@ -54,7 +58,7 @@ from Discord. Nothing runs Claude in the cloud.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
-    <img src="docs/assets/architecture-light.svg" width="880" alt="Each teammate's laptop runs a Claude Code session with the cosmicwave plugin, which connects over TLS with its own key to NATS JetStream on the hub server. The hub handles routing, threads, tasks, reviews, planning, leases, event rules, invites and the auth callout, with SQLite and a transactional outbox. A Discord bridge renders the feed into Discord channels and takes slash commands. GitHub, CI and Hermes events arrive over an authenticated HTTPS ingest.">
+    <img src="docs/assets/architecture-light.svg" width="880" alt="Each teammate's laptop runs a Claude Code session with the Cosmicwave plugin, which connects over TLS with its own key to NATS JetStream on the hub server. The hub handles routing, threads, tasks, reviews, planning, leases, event rules, invites and the auth callout, with SQLite and a transactional outbox. A Discord bridge renders the feed into Discord channels and takes slash commands. GitHub, CI and Hermes events arrive over an authenticated HTTPS ingest.">
   </picture>
 </p>
 

@@ -1,11 +1,11 @@
-// Split from deploy.test.ts: upgrade moves the image pin, then runs setup deploy.
+// upgrade moves the image pin, then runs setup deploy.
 import { VERSION } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
-import { remoteCommands } from '../../setup/deploy';
-import { readEnvFile } from '../../setup/env-file';
-import { serverAnswers } from '../../setup/testing';
-import { readState } from '../../setup/workspace';
-import { workspace } from './deploy.fixture';
+import { remoteCommands } from '../setup/deploy';
+import { readEnvFile } from '../setup/env-file';
+import { serverAnswers } from '../setup/testing';
+import { readState } from '../setup/workspace';
+import { workspace } from './setup/deploy.fixture';
 
 const { finish } = remoteCommands('/opt/cosmicwave');
 

@@ -27,12 +27,10 @@ const ALLOWED = [
   'plugins/cmw/src/main.ts',
   'plugins/cmw/src/config.ts',
   'plugins/cmw/src/config.test.ts',
-  'plugins/cmw/src/agent-id.test.ts',
   'plugins/cmw/src/pull/state.ts',
   'plugins/cmw/src/pull/state.test.ts',
   'plugins/cmw/src/telemetry/events-file.test.ts',
   'plugins/cmw/src/window/guard-stamp.test.ts',
-  'plugins/cmw/src/hook.entry.test.ts',
   'tests/integration/support.ts',
   // The secret deny list and the guard: the old folder stays off limits.
   'packages/common/src/secret-paths.ts',
@@ -49,6 +47,8 @@ const ALLOWED = [
   'apps/cli/src/commands/window-shim.test.ts',
   'plugins/cmw/src/window/session-start.ts',
   'plugins/cmw/src/window/session-start.test.ts',
+  'plugins/cmw/src/agent-id.test.ts',
+  'plugins/cmw/src/hook.entry.test.ts',
   // The Discord names: webhooks made under the old name are still found and reused.
   'apps/discord-bridge/src/discord/webhooks.ts',
   'apps/discord-bridge/src/discord/webhooks.test.ts',
@@ -77,6 +77,14 @@ const ALLOWED = [
   'docs/specs/2026-11-19-cosmicwave-rename-plan.md',
   // The "moving from AgentMesh" section of the security doc.
   'docs/security.md',
+  // ADR 0014, and the docs that tell members and admins how to move from the old name.
+  'docs/adr/0014-rename-to-cosmicwave.md',
+  'docs/getting-started.md',
+  'docs/deploy.md',
+  'docs/configuration.md',
+  'README.md',
+  'plugins/cmw/README.md',
+  'CLAUDE.md',
 ];
 
 const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, maxBuffer: 1 << 28 })

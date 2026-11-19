@@ -153,7 +153,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | --- | --- | --- |
 | `enabled` | `false` | Requires `token`, `applicationId`, `guildId`. |
 | `serviceId` | `discord-bridge` | Must be a service with `canActAsHumans: true`. |
-| `provision.enabled` / `category` | `true` / `Cosmicwave` | Create missing channels in this category. |
+| `provision.enabled` / `category` | `true` / `Cosmicwave` | Create missing channels in this category. Before 0.8.0 the default was `Agent Mesh`: while `category` is the default and the server has no `Cosmicwave` category, the bridge uses an existing `Agent Mesh` one as it is. |
 | `channels` | see below | Purpose → `{ name, type: text|forum, topic? }`. |
 
 Default channels: `council` (mesh-council), `tasks` (mesh-tasks), `reviews` (mesh-reviews),
@@ -186,6 +186,7 @@ references and the compose settings. Never commit it or paste its values into a 
 | `NATS_PUBLIC_HOST` | the server's DNS name; empty on a trial | The TLS certificate's name. Inside compose the hub and bridge reach NATS by it (a network alias), so hostname verification passes. |
 | `HUB_HTTP_BIND` | `127.0.0.1` | Where compose publishes the hub's ingest endpoint (8787). Keep it private. |
 | `COSMICWAVE_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`, for the hub and the bridge. |
+| `COMPOSE_PROJECT_NAME` | not written; `agentmesh` when a workspace made before 0.8.0 is converted | Wins over the compose file's `name: cosmicwave`. A server set up before the rename keeps `agentmesh`, so the stack stays on its `agentmesh_*` volumes ([deploy.md](deploy.md#moving-a-server-from-agentmesh)). |
 | `NATS_MEM_LIMIT`, `HUB_MEM_LIMIT`, `BRIDGE_MEM_LIMIT` | `256m`, `512m`, `384m` | Memory caps of the three containers, in Docker units (`256m`, `1g`), sized for a 1–2 GB server. A container that reaches its cap is restarted. Both compose files use the same defaults when a key is missing ([deploy.md](deploy.md#containers)). |
 | `PIDS_LIMIT` | `256` | The most processes and threads each container may run. |
 | `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |
@@ -277,3 +278,22 @@ template with `{owner}` and `{agent}` filled in, cut at the first other placehol
 agent and ends in `/`, `_` or `.`. Otherwise the window can't tell its own branches, so every test
 run asks, and so do task worktree adds, commits, pushes and PRs
 ([security.md](security.md#the-mesh-window)).
+
+## Renamed in 0.8.0
+
+Cosmicwave was called AgentMesh until 0.8.0 ([ADR 0014](adr/0014-rename-to-cosmicwave.md)).
+`mesh.yaml` did not change, except one default. The rest moved to the new name:
+- **Environment variables:** every `AGENTMESH_*` variable is now `COSMICWAVE_*` with the same
+  suffix: the process settings (`_CONFIG`, `_DATA_DIR`, `_NATS_URL`, `_NKEY_SEED`, `_SECRETS_DIR`,
+  `_NATS_USER`, `_NATS_PASS`, `_NATS_TOKEN`, `_LOG_LEVEL`, `_LOG_FILE`), the laptop's (`_AGENT_ID`,
+  `_PREFIX`, `_HEARTBEAT_SECONDS`, `_MESH_WINDOW`, `_MESH_WINDOW_HINT`, `_RELAY`) and the compose
+  keys in `deploy/.env` (`_CONFIG_DIR`, `_IMAGE_REGISTRY`, `_VERSION`). The old names are not read.
+  A setup workspace gets the new `deploy/.env` keys when it is converted; a server you deploy
+  yourself adds them ([deploy.md](deploy.md#moving-a-server-from-agentmesh)).
+- **Server settings:** `/etc/default/agentmesh-deploy` and `/etc/default/agentmesh-backup` are
+  `/etc/default/cosmicwave-deploy` and `/etc/default/cosmicwave-backup`, and their `AGENTMESH_DIR`
+  is `COSMICWAVE_DIR`. The installers move them and keep their values.
+- **`discord.provision.category`** defaults to `Cosmicwave` instead of `Agent Mesh` (see
+  [`discord`](#discord)).
+- **The laptop folder** `~/.agentmesh` is `~/.cosmicwave`; the plugin and the CLI move it
+  ([getting-started.md](getting-started.md#moving-from-agentmesh)).

@@ -476,6 +476,85 @@ in that repo, only after each teammate trusts the folder, and `enabledPlugins` t
 install the plugin from this marketplace by itself, so each teammate still runs
 `claude plugin install cmw@cosmicwave`. The per-user setting above is the reliable path.
 
+### Moving from AgentMesh
+
+Cosmicwave was called AgentMesh until 0.8.0 ([ADR 0014](adr/0014-rename-to-cosmicwave.md)). Your
+key, your agent id and your roles carry over, so nobody is invited again. Claude Code treats the
+renamed plugin as a new one, though: its tools, its saved options, its data folder and its
+auto-update setting start fresh, so each member reinstalls it once. Nothing changed on the wire,
+so you can switch before or after your hub moves to 0.8.0. Admins move the server with
+[deploy.md → Moving a server from AgentMesh](deploy.md#moving-a-server-from-agentmesh).
+
+**First, check that your key is in a file.** Before you uninstall, check that
+`~/.agentmesh/agent.json` exists and has an `nkeySeed` line. These print only a count or
+`True`, never the key:
+
+```bash
+grep -c nkeySeed ~/.agentmesh/agent.json
+```
+
+```powershell
+Select-String -Quiet nkeySeed ~/.agentmesh/agent.json
+```
+
+If another Claude account on this laptop switched first, the folder is already
+`~/.cosmicwave`: check `~/.cosmicwave/agent.json` instead. Members who joined with an invite have
+the file. If the file or the line is missing, your settings are in the plugin's options, and the
+uninstall deletes them: note your agent id, hub URL and prefix, and keep your seed in a file of
+your own, so you can enter them again after the install.
+
+**Then, in each Claude account on this laptop:**
+
+1. Close every Claude Code session, your mesh window included, and any terminal open inside
+   `~/.agentmesh`.
+2. Remove the old marketplace. This also uninstalls the old plugin:
+
+   ```bash
+   claude plugin marketplace remove agentmesh
+   ```
+
+3. Add the new marketplace and install the plugin. Leave the plugin options empty when Claude Code
+   asks; `agent.json` fills them in.
+
+   ```bash
+   claude plugin marketplace add p2ratik/cosmicwave
+   claude plugin install cmw@cosmicwave
+   ```
+
+4. In `~/.claude/settings.json` (`$CLAUDE_CONFIG_DIR/settings.json` for a second account), replace
+   the allow rule `mcp__plugin_agentmesh_mesh__*` with `mcp__plugin_cmw_mesh__*`. If you turned on
+   automatic updates, delete the `agentmesh` entry under `extraKnownMarketplaces` too, and after
+   step 5 run `/cmw:autoupdate` ([Keep Cosmicwave updated](#keep-cosmicwave-updated)).
+5. Start Claude Code with the channel flag
+   (`claude --dangerously-load-development-channels plugin:cmw@cosmicwave`), run `/cmw:window`
+   once, then start your mesh window with `claude-mesh` as before.
+
+**What happens on the first start.** The plugin's MCP server, or the `cmw` CLI if it starts first,
+renames `~/.agentmesh` to `~/.cosmicwave`. It is one rename of the whole folder: your key,
+`agent.json` and anything else you keep there (an off-site backup key, say) move together, and
+nothing is copied or deleted. Then the seed path in `agent.json` is pointed into the new folder.
+- If Windows refuses the rename because a file in the folder is open, nothing changes: the plugin
+  uses `~/.agentmesh` where it is and tries again at its next start. `/cmw:window` will not set up
+  a window in the old folder; it asks you to close every Claude Code session and any terminal
+  inside that folder, and to run it again.
+- If both `~/.agentmesh` and `~/.cosmicwave` exist, nothing moves, and the CLI and `/cmw:window`
+  say so. Move what you need into `~/.cosmicwave`, then delete `~/.agentmesh`.
+- `/cmw:window` writes the launcher, its settings and `claude-mesh` again under the new names, and
+  replaces the `claude-mesh` the old plugin wrote. Until you run it, a new session says at startup
+  that this laptop's mesh window was set up under the old name and `claude-mesh` no longer starts
+  it (the line `COSMICWAVE_MESH_WINDOW_HINT=off` hides).
+
+**Two Claude accounts on one laptop** (`CLAUDE_CONFIG_DIR`) share the folder, so switch them
+together. Once one account has moved it, the old plugin in the other finds no `~/.agentmesh` and
+shows as not joined until you do steps 2 to 4 there as well.
+
+**What carries over, and what does not.**
+- **Kept:** your key and agent id, your roles and skills (the hub holds them), and every message.
+  The hub's inbox still holds them, and your mesh window reads them as before.
+- **Lost:** the plugin's local session records, which live in its data folder. A reply pointer, or
+  a `claude --resume`, for a conversation started under the old plugin does not find its session.
+  Read the thread with `thread` or `inbox` instead.
+
 ## 4. First run
 
 - In Discord: `/ask agent:bob-agent question:What's left on the render queue?`
@@ -502,7 +581,7 @@ that keep NATS on a private network such as Tailscale. Plan about an hour.
 ### Create the config
 
 ```bash
-git clone <your Cosmicwave fork> && cd Cosmicwave
+git clone <your Cosmicwave fork> && cd cosmicwave
 pnpm install && pnpm build
 pnpm mesh init config            # copies config/examples → config/
 ```

@@ -85,7 +85,7 @@ file is gitignored and is never committed.
  Laptop (each teammate)                    Hub VM (docker compose)                 Discord
 ┌───────────────────────────┐   TLS     ┌──────────────────────────────┐        ┌───────────┐
 │ Claude Code                │  nkey    │ NATS JetStream (:4222)       │        │ #council  │
-│  └ cosmicwave plugin (MCP   │◄────────►│  {p}.session.{agent}.{id}    │        │ #tasks    │
+│  └ Cosmicwave plugin (MCP  │◄────────►│  {p}.session.{agent}.{id}    │        │ #tasks    │
 │    stdio + claude/channel) │          │  {P}_EVENTS    feed-{svc}    │        │ #reviews  │
 │    26 tools, session push, │          │  {P}_INGEST    hub-ingest    │        │ #planning │
 │    presence heartbeat      │          │  {p}.rpc.{caller}.{method}   │        │ #escalate │
@@ -159,7 +159,7 @@ packages/common     errors, ids, clock, logger, retry, paths
 apps/hub            hub service (src/modules/<module>/{repo,service,handlers,index}.ts, db, rpc, runtime)
 apps/discord-bridge render/ (pure), feed/, discord/, commands/, inbound/
 apps/cli            commands/ (incl. setup/), render/, lib/, setup/ (answers, renderers, checks, deploy)
-plugins/cmw   Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull,telemetry}/,
+plugins/cmw         Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull,telemetry}/,
                     skills/ (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js
                     (MCP server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
@@ -214,7 +214,7 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
     `src/relay/{pointer,address,local-session,forward-record}.ts`, `src/resume/claude-session.ts`,
     `src/agent-id.ts`, `src/window/{rules,heartbeat,session-start,guard-stamp,start-state}.ts`,
     `src/pull/state.ts`, `src/telemetry/events-file.ts` (all under `plugins/cmw`),
-    `packages/common/src/{window,version}.ts` and `packages/protocol/src/observe-codes.ts`.
+    `packages/common/src/{window,version,mesh-home}.ts` and `packages/protocol/src/observe-codes.ts`.
   - Cross-session messaging (the relay) needs Claude Code 2.1.234+ on native Windows. That is
     older than the plugin's own 2.1.295 minimum, so every supported install has it.
 
@@ -222,7 +222,7 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
 
 ```
 pnpm install
-pnpm check              # typecheck + lint + file-size + unit tests (what CI runs)
+pnpm check              # typecheck + lint + file-size + name check + unit tests (what CI runs)
 pnpm test:integration   # needs nats-server on PATH; CI downloads 2.15.1
 pnpm build              # hub, bridge, cli, plugin bundles
 pnpm --filter @cosmicwave/plugin build   # rebuild plugins/cmw/dist/{server,cli,hook,guard}.js (commit them)
@@ -236,7 +236,7 @@ node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plu
 
 Run `pnpm check` before calling anything done.
 
-## Status (as of 2026-11-08)
+## Status (as of 2026-11-19)
 
 **Built (v1, release 0.7.0):**
 - **Packages:** protocol, config, bus, common.
@@ -252,7 +252,7 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0013, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0014, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
 - **Automatic deploys (ADR 0010):** after publishing, the release workflow runs `deploy.yml`. It
@@ -351,9 +351,31 @@ Run `pnpm check` before calling anything done.
     worktree included) or runs in or names a teammate's worktree (any `cd` target or mesh path).
   - The window's rules follow `policy.mode`; every mode, and the `mesh-collaboration` skill, get the
     hard rule on secrets; a window set up before auto mode says at session start that it is manual.
+- **Renamed to Cosmicwave (0.8.0)** (ADR 0014): built and tested; the release gates below are next.
+  - Names only: the plugin `cmw` (`cmw@cosmicwave`), the CLI `cmw`, `@cosmicwave/*`, `COSMICWAVE_*`,
+    the `cosmicwave-*` images and server scripts, `/opt/cosmicwave`, `~/.cosmicwave`. No subject,
+    RPC, schema, migration, tool name or invite format changed; the reason code
+    `path.agentmesh_dir` keeps its name, since the hub validates it.
+  - The laptop folder (`packages/common/src/mesh-home.ts`): the plugin's MCP server and the CLI
+    rename `~/.agentmesh` to `~/.cosmicwave` at start (one rename, nothing copied or deleted), then
+    point `agent.json`'s seed path into it; readers use the old folder until it moves and map an old
+    seed path from either source. Both folders are refused to the window; with both present nothing
+    moves, and `window init` never writes into the old one.
+  - The mesh window: `window init` replaces a `claude-mesh` the old plugin wrote, and a session on a
+    laptop whose launcher lacks the new channel is told once to run `/cmw:window`.
+  - The bridge reuses webhooks named `AgentMesh` and, for the default category, `Agent Mesh`.
+  - Servers: `COMPOSE_PROJECT_NAME=agentmesh` keeps a server on its `agentmesh_*` volumes, and
+    `cosmicwave-deploy` and `cmw setup deploy` refuse to start without it (the volume guard). Every
+    setup command, `upgrade` and `doctor` convert a workspace made as AgentMesh
+    (`apps/cli/src/setup/legacy-workspace.ts`). The
+    installers take an old install over (`deploy/legacy-names.sh`) with one deploy-key line left;
+    `setup host` replaces the old firewall unit after the new one starts, and the certbot hook.
+  - `pnpm check:name` keeps the old name out of every tracked file but a named list.
+  - Docs: ADR 0014, [getting-started.md](docs/getting-started.md#moving-from-agentmesh) for members
+    and [deploy.md](docs/deploy.md#moving-a-server-from-agentmesh) for servers.
 
 **Tested and passing:**
-- **Unit tests (about 1,610):** workflow engine, transitions, routing, leases overlap, planning rounds
+- **Unit tests (about 1,750):** workflow engine, transitions, routing, leases overlap, planning rounds
   and quorum, ingest rules and templates (including a prototype-lookup guard), HMAC/bearer auth,
   secret redaction, rate limits and dedup, renderers, addressing, bridge executor, CLI, config
   validation, `expandHome`, enrollment and invites, callout decisions, plugin config precedence,
@@ -366,7 +388,10 @@ Run `pnpm check` before calling anything done.
   sessionless router set. Auto mode: the secret deny and environment dumps in every mode (and no
   false positives on `Cosmicwave` or words with `env`), the risky floor inside compound commands,
   a teammate's worktree, both launcher modes and the deny list, and the rules in both modes run
-  through the guard.
+  through the guard. The rename: the folder move (a failed rename, two racing callers, the seed
+  mapping), both folders refused, the old shim replaced and a foreign one left alone, the
+  stale-window line, webhook and category reuse, the volume guard, the workspace conversion, both
+  installers on an old install (settings carried, one deploy-key line), and the name check.
 - **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
   - nkey auth rendered by the CLI.
   - Impersonation is refused.
@@ -436,6 +461,15 @@ Run `pnpm check` before calling anything done.
   - pull mode's `pull_shown` in a real session;
   - `CLAUDE_PLUGIN_OPTION_*` reaching hooks (the guard and hook name their events files by agent
     through it, or through `agent.json`).
+- The rename (0.8.0), before the release, with Pratik:
+  - staging: a 0.7.2 plugin against the 0.8.0 hub, and a 0.8.0 plugin against a 0.7.2 hub (ask,
+    reply, a task, a review);
+  - Windows: a real uninstall and reinstall on Pratik's laptop: the folder moves, the agent
+    connects with the same key, and `/cmw:window` then `claude-mesh` starts the window;
+  - a scratch marketplace: what a 0.7.2 install does when its marketplace becomes the renamed one,
+    with auto-update on and off. If it stops working or its guard blocks, stop and decide;
+  - then the rollout (section 7 of `docs/specs/2026-11-19-cosmicwave-rename-design.md`), including
+    the server steps in `docs/deploy.md`, which have not run on a live server.
 
 **Known limits:** Claude Code keeps only the first 4096 characters of MCP instructions, so a long
 team policy is cut off (agents see "policy truncated"). The mesh window's `activate` result now

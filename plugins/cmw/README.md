@@ -11,6 +11,10 @@ events. It ships as bundled files run with `node`, so there is nothing else to i
 It needs Claude Code 2.1.295 or later and `node` on PATH: Claude Code runs the hooks with plain
 `node`.
 
+Cosmicwave was called AgentMesh until 0.8.0: see
+[moving a laptop](../../docs/getting-started.md#moving-from-agentmesh) and
+[moving a server](../../docs/deploy.md#moving-a-server-from-agentmesh).
+
 ## Install
 
 ```bash

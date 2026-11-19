@@ -23,6 +23,7 @@ function envLiteral(value: string): string {
   if (!/^["']|^\s|\s$|\s#/.test(value)) return value;
   if (!value.includes('"')) return `"${value}"`;
   if (!value.includes("'")) return `'${value}'`;
+  // Both quote kinds: no quoting reads back identical, so it is written bare.
   return value;
 }
 

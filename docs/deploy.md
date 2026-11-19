@@ -291,6 +291,9 @@ sessions, so the window runs the 0.6.0 guard and the sessions write their local 
 runs on Windows only; elsewhere a private session learns of an answer from the Cosmicwave line on
 its next prompt.
 
+**To 0.8.0 (the rename).** A workspace made as AgentMesh is converted first; see
+[Moving a server from AgentMesh](#moving-a-server-from-agentmesh).
+
 ## Checking and changing a setup deploy
 
 - **`cmw doctor --dir <workspace>`** prints a ✓ or ✗ line per check, with what to do for
@@ -583,6 +586,145 @@ put the files into the checkout, start the stack once so the volume exists, and 
 as in [Restoring a backup](#restoring-a-backup) (the `.sqlite.gz` steps, with `cat` in place of
 `gunzip -c`). Then point the DNS name at the new server.
 
+## Moving a server from AgentMesh
+
+Cosmicwave was called AgentMesh until 0.8.0 ([ADR 0014](adr/0014-rename-to-cosmicwave.md)). A
+server set up then has its files in `/opt/agentmesh`, and Docker Compose named its volumes after
+the project `agentmesh`: the hub's data is in `agentmesh_hub-data`, the JetStream store in
+`agentmesh_nats-data`. The move keeps all three. The folder stays where it is, and the stack keeps
+the project name `agentmesh`, so 0.8.0 starts on the same volumes. Nothing changed on the wire, so
+members switch at their own pace, before or after the server
+([getting-started.md](getting-started.md#moving-from-agentmesh)).
+
+### A setup deploy
+
+With the 0.8.0 plugin, run `upgrade` on the workspace (by default it was `~/agentmesh/<team>`):
+
+```bash
+cmw upgrade --dir <workspace>
+```
+
+Every `cmw setup …` command, `cmw upgrade` and `cmw doctor` first convert a workspace made as
+AgentMesh, in place, and print one line per change:
+- `setup-answers.json` gets `hosting.remoteDir: /opt/agentmesh` when it names no folder, since the
+  default is now `/opt/cosmicwave` and the server's files are in the old one;
+- `deploy/docker-compose.yml` is rendered again;
+- `deploy/.env` gets `COMPOSE_PROJECT_NAME=agentmesh`, and a `COSMICWAVE_*` copy of each of
+  `AGENTMESH_CONFIG_DIR`, `_LOG_LEVEL`, `_IMAGE_REGISTRY` and `_VERSION` that it has. The old keys
+  stay, for a rollback;
+- `.agentmesh-setup.json` becomes `.cosmicwave-setup.json`.
+
+The renamed state file and `COSMICWAVE_VERSION` are written last, so a conversion that stops part
+way finishes on the next run. `upgrade` then moves the pin to 0.8.0 and runs `setup deploy`, which
+copies the files and starts 0.8.0 on the same volumes. If you pull images you built yourself
+(`setup render --registry`), push 0.8.0 as `cosmicwave-hub` and `cosmicwave-discord-bridge` first.
+
+### A deploy with automatic deploys
+
+The server runs from a checkout in `/opt/agentmesh`, and the deploy key's forced command is the old
+`agentmesh-deploy`. In this order:
+
+1. **On the server, add the new keys to `deploy/.env`:** `COMPOSE_PROJECT_NAME=agentmesh`, and for
+   each `AGENTMESH_*` key the file sets, the same value under `COSMICWAVE_*` (usually
+   `COSMICWAVE_CONFIG_DIR` and `COSMICWAVE_LOG_LEVEL`). Keep the old keys until 0.8.0 runs well: a
+   rollback to the 0.7.2 checkout reads them. Neither change affects the running stack, whose
+   compose file already names the project `agentmesh`.
+2. **Rename the repository, if you do, and run the cloud setup script again** from a 0.8.0
+   checkout on your laptop. GitHub redirects the old address, so the server's checkout keeps
+   fetching (`git remote set-url origin <new address>` there points it at the new one). But the
+   subject of GitHub's OIDC tokens names the repository, so after a rename the cloud refuses the
+   deploy job's sign-in, which changes nothing on the server, until the script runs again. Give it
+   the names the first run created, since the defaults now carry the new name:
+
+   ```bash
+   # AWS (add AWS_AUTH=key if you set it up that way)
+   AWS_PROFILE=<profile> AWS_REGION=<the instance's region> REPO=<owner>/<repo> \
+   INSTANCE=<instance id> DEPLOY_USER=ubuntu DEPLOY_HOST=<the server's DNS name> \
+   IAM_NAME=agentmesh-github-deploy SG_NAME=agentmesh-github-deploy \
+   ./deploy/aws/github-deploy-setup.sh
+
+   # Azure (<old repo> is the repository's name before the rename)
+   REPO=<owner>/<repo> RG=<resource group> NSG=<the VM's NSG> DEPLOY_USER=mesh \
+   DEPLOY_HOST=<the VM's DNS name> APP_NAME=agentmesh-deploy-<owner>-<old repo> \
+   ROLE_NAME="AgentMesh deploy NSG rules (<resource group>)" ./deploy/azure/github-deploy-setup.sh
+   ```
+
+   It points the existing role's (or app registration's) trust at the new subject. It also does
+   step 4 on the server and rotates the deploy key, so run it even if you keep the name. Without
+   the old names it creates a second role and security group (or app registration and role), and
+   leaves the first ones in place.
+3. **Make the two new packages public.** The release workflow publishes `cosmicwave-hub` and
+   `cosmicwave-discord-bridge` as new GHCR packages, and GHCR creates them private, so the server
+   cannot pull them. After 0.8.0 reaches `main` and the release has run, change each package's
+   visibility to public in its settings on GitHub.
+4. **Install the new deploy script on the server.** On Azure and AWS, step 2 did it. Elsewhere,
+   copy `deploy/legacy-names.sh`, `deploy/auto-deploy/cosmicwave-deploy.sh` and
+   `deploy/auto-deploy/install.sh` from a 0.8.0 checkout to the server, keeping their layout, and
+   run `install.sh` there as in [Other providers](#other-providers). On a server set up as
+   AgentMesh, `install.sh` takes the old install over:
+   - it installs `/usr/local/sbin/cosmicwave-deploy` and deletes `/usr/local/sbin/agentmesh-deploy`;
+   - it moves `/etc/default/agentmesh-deploy` to `/etc/default/cosmicwave-deploy`, with
+     `AGENTMESH_DIR` renamed `COSMICWAVE_DIR`, so the checkout stays `/opt/agentmesh` (if it warns
+     that there is no checkout at `/opt/cosmicwave`, set `COSMICWAVE_DIR=/opt/agentmesh` there);
+   - it moves `~/.local/state/agentmesh-deploy` to `~/.local/state/cosmicwave-deploy`;
+   - in `authorized_keys` it removes every line marked `agentmesh-github-deploy` or
+     `cosmicwave-github-deploy` and adds the new one, so the server keeps exactly one deploy key.
+     Every other line stays byte for byte.
+5. **Deploy:** `gh workflow run deploy.yml -f version=0.8.0` (a repository admin). Until steps 1
+   to 4 are all done, the release's own deploy job, and this one, fail before changing anything on
+   the server. `cosmicwave-deploy` then checks the [volume guard](#the-volume-guard), pulls the
+   0.8.0 images, backs up, and starts them under the project `agentmesh` on the same volumes. If
+   0.8.0 is not ready, it rolls back to the 0.7.2 checkout and images, which read the
+   `AGENTMESH_*` keys you kept. After it, `docker volume ls` shows no `cosmicwave_*` volumes.
+
+Once 0.8.0 runs well, you may delete the `AGENTMESH_*` keys from `deploy/.env`. Keep
+`COMPOSE_PROJECT_NAME=agentmesh` for as long as the data is in those volumes.
+
+**Off-site backups set up as AgentMesh.** After the deploy, run
+`sudo MESH_USER=<the user who runs docker compose> ./deploy/backup/install.sh` in the checkout. It
+stops and removes `agentmesh-backup.service` and `.timer` and the old script, and moves the old
+settings (`AGENTMESH_DIR` and the key's path renamed), the key `~/.ssh/agentmesh-backup` with its
+`.pub` and `.known_hosts`, and `/var/lib/agentmesh-backup` to the new names. The key is the same,
+so the deploy key on the backup repository keeps working.
+
+### The volume guard
+
+The new compose file says `name: cosmicwave`, and Docker Compose names volumes after the project,
+so without an override the hub would start on new, empty `cosmicwave_*` volumes and leave its data
+behind. `COMPOSE_PROJECT_NAME=agentmesh` in `deploy/.env` wins over the file's `name:`.
+`cosmicwave-deploy` and `cmw setup deploy` both check it before they start anything: when a volume
+`agentmesh_hub-data` exists and the project would not be `agentmesh`, they stop with
+
+```
+This server keeps its data in Docker volumes named agentmesh_*. Add COMPOSE_PROJECT_NAME=agentmesh to deploy/.env and deploy again. Nothing was started.
+```
+
+(`cosmicwave-deploy` prefixes its name.) It judges the compose file of the release being deployed:
+`cosmicwave-deploy` reads it from the release's tag before it pulls or checks out anything, and
+`cmw setup deploy` checks on the server after it has copied the new files, before it pulls. A
+failed or empty answer refuses too. Neither creates, renames or removes a volume.
+
+### What keeps its old name
+
+- **The folder, the volumes and the compose project**, as above.
+- **The host's firewall and certificate renewal.** `agentmesh-firewall.service`, its
+  `AGENTMESH-NATS` chain, `/etc/default/agentmesh-firewall` and the certbot hook
+  `/etc/letsencrypt/renewal-hooks/deploy/agentmesh-nats.sh` keep their names and keep working: the
+  hook reloads NATS through the compose file in `/opt/agentmesh`, which reads the project name from
+  `deploy/.env`. `cmw setup host --dir <workspace>` replaces them on a setup deploy. It starts
+  `cosmicwave-firewall.service` first and only then removes the old unit, its chain and the jumps
+  to it, so NATS is never without a per-IP limit. It moves `/etc/default/agentmesh-firewall` to the
+  new name, installs `cosmicwave-nats.sh` and removes the old hook and the old apt settings.
+  `deploy/azure/vm-setup.sh` removes nothing: on such a server run it only with
+  `COSMICWAVE_DIR=/opt/agentmesh`, and it adds the new unit and hook beside the old ones.
+- **Discord.** The bridge reuses its webhooks named `AgentMesh` and, while the configured category
+  is the default, an existing `Agent Mesh` category, so no channel gets a duplicate. The bot keeps
+  its name until you change it in Discord's developer portal.
+
+**Rolling back past 0.8.0.** The images under the old names stop at 0.7.2. The deploy script's own
+rollback restores them, but a deploy by version (`cosmicwave-deploy deploy 0.7.2`, the workflow,
+`cmw upgrade --to 0.7.2`) looks for `cosmicwave-hub:0.7.2`, which does not exist.
+
 ## Deploying by hand
 
 The rest of this page is the manual path with the repo's own `deploy/docker-compose.yml`, which
@@ -700,7 +842,9 @@ version through its workspace instead ([above](#checking-and-changing-a-setup-de
 - **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
 - **Backups**: for copies that leave the server every hour, set up
   [off-site backups](#off-site-backups). For a one-off copy of the two volumes, stop the hub for
-  a consistent copy (`docker compose stop hub`, then start it again):
+  a consistent copy (`docker compose stop hub`, then start it again). On a server set up before
+  the rename they are `agentmesh_hub-data` and `agentmesh_nats-data`
+  ([Moving a server from AgentMesh](#moving-a-server-from-agentmesh)):
 
   ```bash
   docker run --rm -v cosmicwave_hub-data:/data -v $PWD:/backup alpine \
@@ -768,7 +912,8 @@ In this compose setup:
 - The hub reads the three seeds from `COSMICWAVE_SECRETS_DIR` (compose sets it to `/secrets`, which
   is `deploy/secrets`).
 - The hub refuses to start if a seed is missing or does not match `hub.authCallout`.
-- The JetStream store is in the `cosmicwave_nats-data` volume.
+- The JetStream store is in the `cosmicwave_nats-data` volume (`agentmesh_nats-data` on a server
+  set up before the rename).
 
 While the hub is down, no agent can connect or reconnect; see
 [security.md](security.md#the-hub-in-the-authentication-path-auth-callout-mode).
