@@ -512,6 +512,77 @@ The workflow's Azure steps run only when `AZURE_NSG` is set, and its AWS steps o
    add steps for your provider's API next to the Azure and AWS ones.
 3. Create the environment, the secrets and the variables by hand.
 
+## Off-site backups
+
+A server can disappear with its disk: a free trial ends, a bill goes unpaid, an account is closed.
+Off-site backups push an encrypted copy of everything needed to rebuild the hub to a private git
+repository you own, every hour ([ADR 0013](adr/0013-offsite-backups.md)).
+
+**What each copy holds:** one file, `hub-backup.tar.gz.age`, encrypted with
+[age](https://age-encryption.org) to your public key:
+- `hub.sqlite`, a `VACUUM INTO` snapshot taken while the hub keeps serving. It includes everything
+  committed to the WAL. It must pass `PRAGMA quick_check` before it leaves, so a broken snapshot
+  never replaces a good copy;
+- `config/`, `deploy/.env`, `deploy/secrets/`, `deploy/nats/nats.conf` and
+  `deploy/docker-compose.override.yml` (`BACKUP_PATHS`).
+
+It leaves out the TLS certificates (certbot issues new ones) and the NATS volume (it holds only
+the feed to the bridge; the hub's outbox in SQLite is the source of truth).
+
+**In the backup repository:**
+- `hourly`: a single commit, replaced every hour. At most an hour of work is lost.
+- `main`: one commit per UTC day (`daily YYYY-MM-DD`), never rewritten. Old days stay in its
+  history (about 1 MB a day today).
+
+The server can encrypt but never decrypt: only your private key, which never goes to the server,
+opens a copy. The plaintext lives only in a tmpfs folder for the length of the run.
+
+### Setting it up
+
+1. **Create a private repository** on GitHub for the backups. It can be empty.
+2. **Make the key pair on your own machine** (`winget install FiloSottile.age`, `brew install age`
+   or `apt install age`):
+   ```bash
+   age-keygen -o ~/.agentmesh/backup-age-key.txt   # prints the public key: age1…
+   ```
+   Keep the file in your password manager as well. Without it no backup can be opened.
+3. **On the server**, from the checkout:
+   ```bash
+   sudo MESH_USER=<the user who runs docker compose> \
+     BACKUP_REMOTE=git@github.com:<owner>/<backups repo>.git AGE_RECIPIENT=age1… \
+     ./deploy/backup/install.sh
+   ```
+   It installs `age` and `git` if missing, `/usr/local/sbin/agentmesh-backup`, its settings
+   (`/etc/default/agentmesh-backup`, [configuration.md](configuration.md#off-site-backups)) and an
+   hourly systemd timer. It creates an SSH key for the repository and pins GitHub's host keys as
+   published at `api.github.com/meta`. It prints the key's public line.
+4. **Add that line to the backup repository** as a deploy key with **write access** (Settings →
+   Deploy keys). It can reach only that repository.
+5. **Run the first backup** and check it: `sudo systemctl start agentmesh-backup`, then
+   `agentmesh-backup status`. Errors are in `journalctl -u agentmesh-backup`.
+6. **Watch it:** copy `deploy/backup/backup-watch.yml` into the backup repository as
+   `.github/workflows/backup-watch.yml` on `main`. Every 2 hours it checks that the hourly copy is
+   at most 3 hours old. When it is not, the run fails and GitHub emails you, whether the backup
+   broke or the server is gone.
+7. **Optional:** if your plan allows rulesets on private repositories, forbid force-pushes and
+   deletion on `main`. A hacked server can then damage only the hourly copy.
+
+Then prove a restore once (below), on your own machine.
+
+### Restoring from the backup repository
+
+```bash
+git clone git@github.com:<owner>/<backups repo>.git backups && cd backups
+git show origin/hourly:hub-backup.tar.gz.age > copy.age   # the latest copy
+# or an older day: git log --format='%h %s' origin/main, then git show <commit>:hub-backup.tar.gz.age
+mkdir restore && age -d -i ~/.agentmesh/backup-age-key.txt copy.age | tar -xz -C restore
+```
+
+`restore/` then holds `hub.sqlite` and the files at their paths in the checkout. On a new server:
+put the files into the checkout, start the stack once so the volume exists, and load `hub.sqlite`
+as in [Restoring a backup](#restoring-a-backup) (the `.sqlite.gz` steps, with `cat` in place of
+`gunzip -c`). Then point the DNS name at the new server.
+
 ## Deploying by hand
 
 The rest of this page is the manual path with the repo's own `deploy/docker-compose.yml`, which
@@ -627,8 +698,9 @@ version through its workspace instead ([above](#checking-and-changing-a-setup-de
     already connected lasts until its NATS credentials expire (`enrollment.userJwtTtlMinutes`).
   - Invited members are removed with `/mesh remove` instead.
 - **Kill switch**: `/mesh pause` in Discord holds every delivery; `/mesh resume` releases them.
-- **Backups**: the state is in two volumes. Stop the hub for a consistent copy
-  (`docker compose stop hub`, then start it again):
+- **Backups**: for copies that leave the server every hour, set up
+  [off-site backups](#off-site-backups). For a one-off copy of the two volumes, stop the hub for
+  a consistent copy (`docker compose stop hub`, then start it again):
 
   ```bash
   docker run --rm -v agentmesh_hub-data:/data -v $PWD:/backup alpine \

@@ -1656,6 +1656,41 @@ identity (Azure or AWS), and a moment when SSH is open to an address other than 
   never authenticates. It uses Node's full
   certificate verification (chain and host name), so it fails exactly where an agent would.
 
+## Off-site backups
+
+[Off-site backups](deploy.md#off-site-backups) ([ADR 0013](adr/0013-offsite-backups.md)) copy
+every secret of the deploy off the server every hour: `deploy/.env` (the bot token, ingest
+tokens), the nkey seeds in `deploy/secrets/`, and the database (messages, tasks, the team
+registry).
+
+- **Threat: the backup repository is read** (a leaked GitHub token, a mistaken collaborator, a
+  repository made public by accident). **Mitigation:** every copy is encrypted with age (X25519,
+  ChaCha20-Poly1305) to the admin's public key before it leaves the server, so the repository
+  holds only ciphertext. GitHub sees the size and the time of each copy, nothing else.
+- **Threat: the server is compromised and reads old backups.** **Mitigation:** the server holds
+  only the public key, so it cannot decrypt any copy, past or present. **Residual risk:** an
+  attacker on the server already has the live secrets, so the backups add nothing to what they
+  can read.
+- **Threat: plaintext left on the server.** **Mitigation:** the snapshot and the bundle exist only
+  in the service's `RuntimeDirectory` (tmpfs, mode 700, owned by the service user, removed when the
+  run ends) and in the hub container's `/data` for the moment between `VACUUM INTO` and the read.
+  The script runs with `umask 077` and is root-owned, outside the checkout, so a change merged to
+  the repo's copy takes effect only when an admin reinstalls it.
+- **Threat: the backups are deleted or replaced** by someone holding the server's deploy key.
+  **Mitigation:** the key is a GitHub deploy key, so it reaches only the backup repository. `main`
+  only ever gets fast-forward pushes, and a ruleset (where the plan allows it) can forbid
+  force-pushes and deletion there; then only the hourly copy can be damaged. The admin's own clone
+  is a further copy. **Residual risk:** without that ruleset, the key can rewrite `main` too.
+- **Threat: pushing to an impostor.** **Mitigation:** the host keys of `github.com` come from
+  GitHub's API over HTTPS at install time and are pinned (`StrictHostKeyChecking=yes`); the first
+  push trusts nothing unseen.
+- **Threat: backups stop silently.** **Mitigation:** the backup repository's watch workflow fails,
+  and GitHub emails the admin, when the hourly copy is more than 3 hours old. It needs nothing on
+  the server, so it also fires when the server is gone.
+- **Threat: losing the private key.** Every backup is then useless. **Mitigation:** the key is made
+  on the admin's machine and kept in a password manager as well; the docs ask for one restore test
+  after setup.
+
 ## Setup and the admin workspace
 
 `/agentmesh:setup` ([ADR 0007](adr/0007-claude-run-setup.md)) has Claude interview the admin and
