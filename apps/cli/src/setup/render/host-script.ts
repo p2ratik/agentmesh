@@ -75,7 +75,7 @@ ${AUTO_UPDATES}rm -f /etc/apt/apt.conf.d/90agentmesh-auto-upgrades /etc/apt/apt.
 
 echo "== NATS connection limits"
 if [ -e /etc/default/agentmesh-firewall ] && [ ! -e /etc/default/cosmicwave-firewall ]; then
-  mv /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall
+  cp -p /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall
 fi
 printf '%s' ${quote(FIREWALL_SCRIPT)} >${FIREWALL_SCRIPT_PATH}
 chmod 755 ${FIREWALL_SCRIPT_PATH}

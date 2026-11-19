@@ -1,4 +1,11 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  constants,
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { MeshError } from '@cosmicwave/common';
 import { writeFileWithDirs } from '../lib/files';
@@ -7,11 +14,13 @@ import { renderCompose } from './render/deploy-files';
 
 /**
  * The old names this file keeps on purpose, so a workspace made before the rename still works:
- * the state file, the `AGENTMESH_` keys, the compose project and the server folder.
+ * the state file, the `AGENTMESH_` keys, the compose project and the server folder. The old
+ * compose file is kept under its own name, for the way back (docs/deploy.md, "Going back").
  *
  * This file must not import `workspace.ts` (which calls it).
  */
 const OLD_STATE = '.agentmesh-setup.json';
+const KEPT_COMPOSE = 'docker-compose.agentmesh.yml';
 const NEW_STATE = '.cosmicwave-setup.json';
 const OLD_PREFIX = 'AGENTMESH_';
 const OLD_PROJECT = 'agentmesh';
@@ -42,6 +51,15 @@ function addToEnv(envFile: string, add: Record<string, string>, lines: string[])
   if (keys.length === 0) return;
   updateEnvFile(envFile, add);
   lines.push(`Added ${keys.join(', ')} to deploy/.env`);
+}
+
+/** Copies the old compose file beside it, never over a copy already there (a re-run's). */
+function keepCompose(compose: string, kept: string): void {
+  try {
+    copyFileSync(compose, kept, constants.COPYFILE_EXCL);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
 }
 
 /** Pins a server's remoteDir to the folder it already uses; returns the line, if it changed. */
@@ -88,8 +106,11 @@ export function convertLegacyWorkspace(root: string): string[] {
   if (existsSync(compose)) {
     const next = renderCompose();
     if (readFileSync(compose, 'utf8') !== next) {
+      keepCompose(compose, join(root, 'deploy', KEPT_COMPOSE));
       writeFileWithDirs(compose, next);
-      lines.push('Rendered deploy/docker-compose.yml again');
+      lines.push(
+        `Rendered deploy/docker-compose.yml again; the old one is kept as deploy/${KEPT_COMPOSE}`,
+      );
     }
   }
   if (existsSync(envFile)) {

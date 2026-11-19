@@ -1,5 +1,5 @@
 import type { Logger } from '@cosmicwave/common';
-import { DEFAULT_CATEGORY, type DiscordConfig } from '@cosmicwave/config';
+import { DEFAULT_CATEGORY, type DiscordConfig, LEGACY_CATEGORY } from '@cosmicwave/config';
 import { type CategoryChannel, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import { ChannelDirectory } from './directory';
 
@@ -48,10 +48,10 @@ export async function provisionChannels(
   return new ChannelDirectory(byPurpose);
 }
 
-/** The default category name before the rename. */
-export const LEGACY_CATEGORY = 'Agent Mesh';
-
-/** The category to reuse: the wanted name, else (default name only) the old default. */
+/**
+ * The category to reuse: the wanted name, else (default name only) the old default. `cmw doctor`
+ * applies the same rule (apps/cli/src/setup/checks/discord.ts).
+ */
 export function pickCategory<T extends { name: string }>(
   categories: Iterable<T>,
   wanted: string,

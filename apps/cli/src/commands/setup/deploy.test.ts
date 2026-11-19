@@ -163,6 +163,23 @@ describe('setup deploy', () => {
     expect([...t.out, ...t.err].join('\n')).not.toContain(DISCORD_TOKEN);
   });
 
+  // A converted workspace keeps its 0.7.2 pin; no image of that version has the new names.
+  it('refuses a version from before the new image names, before anything runs', async () => {
+    const t = await workspace(serverAnswers(), ['discord', 'host']);
+    for (const old of ['0.7.2', '0.7.2-rc.1']) {
+      updateEnvFile(t.p.envFile, { COSMICWAVE_VERSION: old });
+      expect(await t.deploy()).toBe(1);
+      expect(t.err.at(-1)).toBe(
+        `error: COSMICWAVE_VERSION in deploy/.env is ${old}, but images under the new names start at 0.8.0. Run \`cmw upgrade --dir <workspace>\` first: it moves the pin to ${VERSION} and deploys. Nothing was copied or started.`,
+      );
+    }
+    expect(t.calls).toEqual([]);
+    expect(readState(t.p).done.deploy).toBeUndefined();
+    // A tag it cannot order (one an admin built and pushed) is left to the registry.
+    updateEnvFile(t.p.envFile, { COSMICWAVE_VERSION: 'my-build' });
+    expect(await t.deploy()).toBe(0);
+  });
+
   it('on Windows, runs the system OpenSSH, which can use the Windows ssh-agent', async () => {
     const t = await workspace(serverAnswers(), ['discord', 'host']);
     const root = mkdtempSync(join(tmpdir(), 'cosmicwave-windows-'));

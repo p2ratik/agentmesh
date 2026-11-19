@@ -2,7 +2,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, posix, win32 } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type HomeFs, homeDirName, mapLegacyPath, meshHome, moveLegacyHome } from './mesh-home';
+import {
+  bothFoldersAdvice,
+  type HomeFs,
+  homeDirName,
+  mapLegacyPath,
+  meshHome,
+  moveLegacyHome,
+} from './mesh-home';
 
 // Every test works in a temp home (or a fake fs), never the real ~ and its keys. Key files hold
 // fake text.
@@ -117,6 +124,9 @@ describe('moveLegacyHome', () => {
       writeFileSync: (p) => {
         calls.push(`write ${p}`);
       },
+      rmSync: (p) => {
+        calls.push(`rm ${p}`);
+      },
     };
     return { fs, calls };
   }
@@ -131,6 +141,53 @@ describe('moveLegacyHome', () => {
     const { fs, calls } = fakeFs(true);
     expect(moveLegacyHome('/h', fs)).toBe('moved');
     expect(calls).toHaveLength(1);
+  });
+
+  it('removes its temp file when agent.json cannot be replaced, and leaves agent.json alone', () => {
+    const file = join('/h', '.cosmicwave', 'agent.json');
+    const calls: string[] = [];
+    let moved = false;
+    const fs: HomeFs = {
+      existsSync: (p) =>
+        moved ? p === join('/h', '.cosmicwave') || p === file : p === join('/h', '.agentmesh'),
+      renameSync: (from, to) => {
+        calls.push(`rename ${from} -> ${to}`);
+        if (from === `${file}.tmp`) throw Object.assign(new Error('busy'), { code: 'EPERM' });
+        moved = true;
+      },
+      readFileSync: () => agentJson('/h/.agentmesh/a.nk'),
+      writeFileSync: (p) => {
+        calls.push(`write ${p}`);
+      },
+      rmSync: (p) => {
+        calls.push(`rm ${p}`);
+      },
+    };
+    expect(moveLegacyHome('/h', fs)).toBe('moved');
+    expect(calls.slice(1)).toEqual([
+      `write ${file}.tmp`,
+      `rename ${file}.tmp -> ${file}`,
+      `rm ${file}.tmp`,
+    ]);
+  });
+});
+
+describe('bothFoldersAdvice', () => {
+  it('keeps ~/.agentmesh when ~/.cosmicwave has no agent.json: the new folder moves into it', () => {
+    put(legacy('agent.json'), agentJson(legacy('a.nk')));
+    put(legacy('a.nk'));
+    mkdirSync(current('run'), { recursive: true });
+    expect(bothFoldersAdvice(home)).toBe(
+      'Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave has no agent.json, so ~/.agentmesh is the folder to keep. Move what you put in ~/.cosmicwave into ~/.agentmesh, remove the then-empty ~/.cosmicwave, and start Claude Code again (or run cmw window init again): ~/.agentmesh is then renamed to ~/.cosmicwave with everything in it. Change nothing in ~/.agentmesh by hand.',
+    );
+  });
+
+  it('calls ~/.agentmesh a leftover once ~/.cosmicwave holds agent.json', () => {
+    put(current('agent.json'), agentJson(current('a.nk')));
+    put(legacy('a.nk'));
+    expect(bothFoldersAdvice(home)).toBe(
+      'Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave holds your agent.json, so ~/.agentmesh is a leftover. Look inside it first and move anything you still need into ~/.cosmicwave (key files ending in .nk, an agent.json, a backup key); only then remove ~/.agentmesh.',
+    );
   });
 });
 

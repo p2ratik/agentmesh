@@ -19,7 +19,6 @@ const ALLOWED = [
   'packages/common/src/mesh-home.test.ts',
   'packages/common/src/window.ts',
   'packages/common/src/agent-files.test.ts',
-  'apps/cli/src/main.ts',
   'apps/cli/src/commands/agent-setup.ts',
   'apps/cli/src/commands/window.ts',
   'apps/cli/src/commands/window.test.ts',
@@ -56,9 +55,11 @@ const ALLOWED = [
   'apps/cli/src/setup/deploy.ts',
   'apps/cli/src/commands/setup/deploy.test.ts',
   'tests/deploy/volume-guard.test.ts',
+  'deploy/.env.example',
   // The workspace conversion: a workspace made as AgentMesh is converted in place.
   'apps/cli/src/setup/legacy-workspace.ts',
   'apps/cli/src/setup/legacy-workspace.test.ts',
+  'apps/cli/src/commands/upgrade.test.ts',
   // The server installers and host script, with their tests and fixtures.
   'deploy/legacy-names.sh',
   'deploy/auto-deploy/cosmicwave-deploy.sh',

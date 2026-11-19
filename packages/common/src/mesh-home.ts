@@ -1,7 +1,7 @@
 // Built-ins only (node:*): the plugin's hook and guard bundles import this on every call. Which
 // folder holds this laptop's identity (agent.json, the seeds), and the one move from the folder's
 // old name. The move renames the folder in one call and never copies or deletes anything.
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, posix, win32 } from 'node:path';
 
@@ -15,10 +15,8 @@ export interface HomeFs {
   renameSync(from: string, to: string): void;
   readFileSync(path: string, encoding: 'utf8'): string;
   writeFileSync(path: string, text: string): void;
+  rmSync(path: string): void;
 }
-
-export const BOTH_FOLDERS =
-  'Both ~/.cosmicwave and ~/.agentmesh exist. Move what you need into ~/.cosmicwave, then delete ~/.agentmesh.';
 
 const AGENT_FILE = 'agent.json';
 
@@ -28,7 +26,23 @@ const nodeFs: HomeFs = {
   readFileSync,
   // agent.json is the user's alone, like every file join writes there.
   writeFileSync: (path, text) => writeFileSync(path, text, { mode: 0o600 }),
+  rmSync: (path) => rmSync(path, { force: true }),
 };
+
+/**
+ * What a member does when both folders exist, which depends on where agent.json is. Never tells
+ * anyone to remove the folder that holds it: while `~/.cosmicwave` has none, the keys are in
+ * `~/.agentmesh`, so the new folder goes into the old one and the one rename runs again.
+ */
+export function bothFoldersAdvice(
+  home = homedir(),
+  exists: (p: string) => boolean = existsSync,
+): string {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) {
+    return 'Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave holds your agent.json, so ~/.agentmesh is a leftover. Look inside it first and move anything you still need into ~/.cosmicwave (key files ending in .nk, an agent.json, a backup key); only then remove ~/.agentmesh.';
+  }
+  return 'Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave has no agent.json, so ~/.agentmesh is the folder to keep. Move what you put in ~/.cosmicwave into ~/.agentmesh, remove the then-empty ~/.cosmicwave, and start Claude Code again (or run cmw window init again): ~/.agentmesh is then renamed to ~/.cosmicwave with everything in it. Change nothing in ~/.agentmesh by hand.';
+}
 
 /**
  * The folder that holds this laptop's identity: `.cosmicwave` when it has agent.json, else
@@ -51,10 +65,10 @@ export function meshHome(home = homedir(), exists?: (p: string) => boolean): str
 }
 
 /**
- * Renames `~/.agentmesh` to `~/.cosmicwave` (the plugin's MCP server and the CLI, at start; the
- * hook and guard never call it). `both` and `nothing` change nothing; a rename that throws
- * changed nothing either, unless another process won the race (`moved`). After its own move it
- * points agent.json's seed path at the new folder.
+ * Renames `~/.agentmesh` to `~/.cosmicwave`. Only the plugin's MCP server (at start) and `cmw
+ * window init` call it; no other CLI command, and never the hook or guard. `both` and `nothing`
+ * change nothing; a rename that throws changed nothing either, unless another process won the
+ * race (`moved`). After its own move it points agent.json's seed path at the new folder.
  */
 export function moveLegacyHome(home = homedir(), fs: HomeFs = nodeFs): MoveResult {
   const from = join(home, LEGACY_HOME_DIR);
@@ -72,9 +86,11 @@ export function moveLegacyHome(home = homedir(), fs: HomeFs = nodeFs): MoveResul
 }
 
 /** agent.json's seed path, mapped into the moved folder: a temp file beside it, then a rename.
- * Any failure leaves the file as it was; the readers map the path too. */
+ * Any failure leaves the file as it was (the readers map the path too) and removes the temp file. */
 function rewriteSeed(home: string, fs: HomeFs): void {
   const file = join(home, HOME_DIR, AGENT_FILE);
+  const temp = `${file}.tmp`;
+  let wrote = false;
   try {
     if (!fs.existsSync(file)) return;
     const saved: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -83,11 +99,15 @@ function rewriteSeed(home: string, fs: HomeFs): void {
     if (typeof seed !== 'string') return;
     const mapped = mapLegacyPath(seed, home, fs.existsSync);
     if (mapped === seed) return;
-    const temp = `${file}.tmp`;
+    wrote = true;
     fs.writeFileSync(temp, `${JSON.stringify({ ...saved, nkeySeed: mapped }, null, 2)}\n`);
     fs.renameSync(temp, file);
   } catch {
-    // left as it was: the readers map the path
+    try {
+      if (wrote) fs.rmSync(temp);
+    } catch {
+      // best effort: a temp file left behind holds agent.json's settings, never a key
+    }
   }
 }
 

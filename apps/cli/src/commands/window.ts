@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { MeshError } from '@cosmicwave/common';
-import { BOTH_FOLDERS, HOME_DIR, LEGACY_HOME_DIR } from '@cosmicwave/common/mesh-home';
+import {
+  bothFoldersAdvice,
+  HOME_DIR,
+  LEGACY_HOME_DIR,
+  moveLegacyHome,
+} from '@cosmicwave/common/mesh-home';
 import {
   ownBranchPrefix,
   parseWindowPolicy,
@@ -13,7 +18,7 @@ import {
   windowFiles,
 } from '@cosmicwave/common/window';
 import { parseCommandArgs, usageError } from '../args';
-import { type CliContext, type Command, resolveFrom } from '../context';
+import { type CliContext, type Command, cliOf, resolveFrom } from '../context';
 import { writeFileAtomic } from '../lib/files';
 import { findOnPath, isRegularFile } from '../lib/path-lookup';
 import { shellShadowWarnings } from '../lib/shell-shadow-scan';
@@ -117,14 +122,21 @@ const present = (p: string): boolean => {
   }
 };
 
-const NOT_MOVED =
-  '~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder, then run this again.';
+/** /cmw:window runs inside a session, which may hold a file in the folder open. */
+const notMoved = (ctx: CliContext): string =>
+  `~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder. /cmw:window runs inside a session, so run window init from a plain terminal instead: ${cliOf(ctx)} window init, with the same options.`;
 
-/** A window is never written into ~/.agentmesh: its launcher and settings bake the folder's path,
- * which the move would break. The CLI tried the move before this command ran. */
-function assertMoved(home: string): void {
+/**
+ * The one CLI command that moves the laptop folder: ~/.agentmesh becomes ~/.cosmicwave (one
+ * rename), then a window is never written into ~/.agentmesh, since its launcher and settings bake
+ * the folder's path, which a later move would break.
+ */
+function moveHome(ctx: CliContext): void {
+  const home = ctx.homeDir;
+  moveLegacyHome(home);
   if (!present(join(home, LEGACY_HOME_DIR))) return;
-  throw new MeshError('invalid_request', present(join(home, HOME_DIR)) ? BOTH_FOLDERS : NOT_MOVED);
+  const both = present(join(home, HOME_DIR));
+  throw new MeshError('invalid_request', both ? bothFoldersAdvice(home) : notMoved(ctx));
 }
 
 /** What follows the start line: the mode, a re-run note, then the warnings. */
@@ -169,7 +181,8 @@ empty empty-git-hooks/ folder. It also writes claude-mesh, which runs the launch
 when that folder is under your home folder and holds no claude-mesh of someone else's, else in
 ~/.cosmicwave/bin, which you add to PATH. Start the window each day with claude-mesh in your team's
 folder. Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in
-that Claude account.
+that Claude account. On a laptop set up before the rename it first renames ~/.agentmesh to
+~/.cosmicwave (the one cmw command that moves it).
 
 --agent               your agent id (required)
 --owner               your id in branch names (default: the agent id)
@@ -196,7 +209,7 @@ that Claude account.
     const agentId = values.agent;
     if (!agentId) throw usageError('Missing --agent <id>');
     const mode = windowMode(values.mode);
-    assertMoved(ctx.homeDir);
+    moveHome(ctx);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values['branch-template'], values.owner ?? agentId, agentId);
@@ -263,7 +276,8 @@ that Claude account.
     ctx.stdout(
       `Wrote your mesh window for ${agentId}: ${files.launcher}, ${files.settings} and ${files.policy}.`,
     );
-    // What typing claude-mesh runs now, on the PATH this command was started with.
+    // What typing claude-mesh runs now, on the PATH this command was started with. One written
+    // before the rename runs the launcher in ~/.agentmesh, which has just moved: not ours here.
     const reached = findOnPath(START_COMMAND, ctx.env, platform, isRegularFile);
     printStart(ctx, {
       platform,
@@ -272,7 +286,7 @@ that Claude account.
       configDir,
       shim,
       reached,
-      reachesOurs: reached !== null && isOwnShim(reached),
+      reachesOurs: reached !== null && isOwnShim(reached, false),
     });
     const notes = { mode, rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks };
     printNotes(ctx, platform, notes);

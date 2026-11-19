@@ -116,6 +116,21 @@ describe('window init writes claude-mesh', () => {
     expect(s.out.join('\n')).not.toMatch(/Warning|not on your PATH|Until then/);
   });
 
+  // It runs the launcher in ~/.agentmesh, which window init has just moved.
+  it('warns when the claude-mesh that comes first on PATH was written under the old name', async () => {
+    const s = setup(true, 'home', HOME_BIN);
+    const early = join(s.root, 'early');
+    mkdirSync(early);
+    const old = join(early, SHIMS[0] as string);
+    const mark = old.endsWith('.cmd') ? 'rem' : '#';
+    writeFileSync(old, `${mark} agentmesh claude-mesh\nexec /old/launcher "$@"\n`);
+    s.ctx.env.PATH = [early, s.bin].join(delimiter);
+    expect(await s.run('--agent', 'bob-agent')).toBe(0);
+    expect(s.out).toContain(
+      `Warning: claude-mesh runs ${old}, which comes first on PATH, not ${join(s.bin, SHIMS[0] as string)}.`,
+    );
+  });
+
   it('treats a link or folder named claude-mesh as foreign, dangling links too', async () => {
     for (const name of SHIMS) {
       const s = setup(true, 'home', HOME_BIN);

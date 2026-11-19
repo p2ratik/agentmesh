@@ -5,6 +5,8 @@ export const IMAGE_REGISTRY =
   /^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
 /** A Docker image tag, which is what the version becomes in the image name. */
 export const IMAGE_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
+/** The first version published as `cosmicwave-hub` and `cosmicwave-discord-bridge`. */
+export const FIRST_RENAMED_VERSION = '0.8.0';
 /** The plugin marketplace teammates install from (`/plugin marketplace add <this>`). */
 export const DEFAULT_MARKETPLACE = 'p2ratik/cosmicwave';
 /** The name Claude Code knows that marketplace by (`name` in its marketplace.json). */

@@ -99,9 +99,20 @@ describe('convertLegacyWorkspace', () => {
     expect(JSON.parse(b.read('setup-answers.json')).hosting.remoteDir).toBeUndefined();
   });
 
-  it('renders the compose file again', () => {
+  it('renders the compose file again, keeping the old one beside it for a way back', () => {
     const w = legacy();
+    expect(convertLegacyWorkspace(w.root)).toContain(
+      'Rendered deploy/docker-compose.yml again; the old one is kept as deploy/docker-compose.agentmesh.yml',
+    );
+    expect(w.read('deploy/docker-compose.yml')).toContain('name: cosmicwave');
+    expect(w.read('deploy/docker-compose.agentmesh.yml')).toBe('name: agentmesh\n');
+  });
+
+  it('never replaces a kept compose file', () => {
+    const w = legacy();
+    writeFileSync(join(w.root, 'deploy', 'docker-compose.agentmesh.yml'), 'mine\n');
     convertLegacyWorkspace(w.root);
+    expect(w.read('deploy/docker-compose.agentmesh.yml')).toBe('mine\n');
     expect(w.read('deploy/docker-compose.yml')).toContain('name: cosmicwave');
   });
 

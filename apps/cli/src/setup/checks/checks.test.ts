@@ -179,6 +179,15 @@ describe('classifyChannels', () => {
     expect(result.label).not.toContain('mesh-council');
   });
 
+  // The bridge's rule: while the configured category is the default, it reuses the old one.
+  it('the old default category passes while the configured one is the default', () => {
+    const old = all.map((c) => (c.type === 4 ? { ...c, name: 'Agent Mesh' } : c));
+    expect(classifyChannels(old, discord.provision.category, discord.channels).ok).toBe(true);
+    const other = classifyChannels(old, 'Robots', discord.channels);
+    expect(other.ok).toBe(false);
+    expect(other.label).toBe('Discord is missing the category "Robots"');
+  });
+
   it('a planning channel that is not a forum is missing', () => {
     const textPlanning = all.map((c) => (c.name === 'mesh-planning' ? { ...c, type: 0 } : c));
     const result = classifyChannels(textPlanning, discord.provision.category, discord.channels);

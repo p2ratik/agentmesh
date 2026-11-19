@@ -58,6 +58,8 @@ export const DiscordChannel = z.object({
 });
 
 export const DEFAULT_CATEGORY = 'Cosmicwave';
+/** The default category name before the rename: reused while the category is the default. */
+export const LEGACY_CATEGORY = 'Agent Mesh';
 
 export const DiscordConfig = z.object({
   enabled: z.boolean().default(false),

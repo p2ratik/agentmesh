@@ -1,4 +1,4 @@
-import { BOTH_FOLDERS, isMeshError, moveLegacyHome } from '@cosmicwave/common';
+import { isMeshError } from '@cosmicwave/common';
 import { agentSetupCommand } from './commands/agent-setup';
 import { autoupdateCommand } from './commands/autoupdate';
 import { doctorCommand } from './commands/doctor';
@@ -61,12 +61,10 @@ export function matchCommand(argv: readonly string[]): { command: Command; rest:
   return null;
 }
 
-/** Before a command reads the laptop folder: ~/.agentmesh becomes ~/.cosmicwave (one rename). */
-function moveHome(ctx: CliContext): void {
-  if (moveLegacyHome(ctx.homeDir) === 'both') ctx.stderr(BOTH_FOLDERS);
-}
-
-/** Runs the CLI; returns the exit code (0 ok, 1 failure, 2 usage error). */
+/**
+ * Runs the CLI; returns the exit code (0 ok, 1 failure, 2 usage error). It never moves the laptop
+ * folder: only `window init` does, so a plugin from before the rename keeps its folder.
+ */
 export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
   if (argv.length === 0 || argv[0] === 'help' || argv[0] === '--help' || argv[0] === '-h') {
     ctx.stdout(usage());
@@ -81,7 +79,6 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
     ctx.stdout(match.command.help);
     return 0;
   }
-  moveHome(ctx);
   try {
     return await match.command.run(match.rest, ctx);
   } catch (error) {

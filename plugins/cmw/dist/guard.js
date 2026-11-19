@@ -11,7 +11,7 @@ import { readFileSync as readFileSync2 } from "node:fs";
 import { posix as posix2, win32 as win322 } from "node:path";
 
 // ../../packages/common/src/mesh-home.ts
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, posix, win32 } from "node:path";
 var HOME_DIR = ".cosmicwave";
@@ -651,7 +651,7 @@ import {
   readdirSync as readdirSync3,
   readFileSync as readFileSync6,
   renameSync as renameSync2,
-  rmSync,
+  rmSync as rmSync2,
   statSync,
   writeFileSync as writeFileSync2
 } from "node:fs";
@@ -728,7 +728,7 @@ function claimForward(dir, name) {
 }
 function removeForward(dir, name) {
   try {
-    rmSync(join3(dir, name), { force: true });
+    rmSync2(join3(dir, name), { force: true });
   } catch {
   }
 }

@@ -57,11 +57,14 @@ describe('host hardening', () => {
   it('setup host takes over a server prepared before the rename', () => {
     const at = (text: string) => script.indexOf(text);
     const restart = at('systemctl restart cosmicwave-firewall.service');
-    // The old settings apply from the new script's first run.
+    // The old settings apply from the new script's first run, and stay for the old unit until
+    // the new one has started: a failed start leaves the old unit as it was.
     expect(
-      at('mv /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall'),
+      at('cp -p /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall'),
     ).toBeGreaterThan(-1);
-    expect(at('mv /etc/default/agentmesh-firewall')).toBeLessThan(restart);
+    expect(at('cp -p /etc/default/agentmesh-firewall')).toBeLessThan(restart);
+    expect(script).not.toContain('mv /etc/default/agentmesh-firewall');
+    expect(at('/etc/default/agentmesh-firewall\n')).toBeGreaterThan(restart);
     // The old unit and chain go once the new limits are in place, never before.
     expect(script).toContain(OLD_FIREWALL);
     for (const step of [
@@ -115,7 +118,7 @@ rm() { echo "CALL rm $*"; }
         'iptables -F AGENTMESH-NATS',
         'iptables -X AGENTMESH-NATS',
         'systemctl disable --now agentmesh-firewall.service',
-        'rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall',
+        'rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall /etc/default/agentmesh-firewall',
         'systemctl daemon-reload',
       ],
     });

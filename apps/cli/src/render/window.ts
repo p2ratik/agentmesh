@@ -169,10 +169,11 @@ const SHIM_MARK = `cosmicwave ${START_COMMAND}`;
 /** The marker before the rename: a shim written then is still ours to overwrite. */
 const LEGACY_SHIM_MARK = `agentmesh ${START_COMMAND}`;
 
-export const isOurShim = (text: string): boolean =>
-  text
-    .split(/\r?\n/)
-    .some((l) => [SHIM_MARK, LEGACY_SHIM_MARK].some((m) => l === `rem ${m}` || l === `# ${m}`));
+/** Whether `text` carries the marker; with `legacy` false, only this version's (not the old one). */
+export const isOurShim = (text: string, legacy = true): boolean => {
+  const marks = legacy ? [SHIM_MARK, LEGACY_SHIM_MARK] : [SHIM_MARK];
+  return text.split(/\r?\n/).some((l) => marks.some((m) => l === `rem ${m}` || l === `# ${m}`));
+};
 
 /**
  * `claude-mesh`, which only forwards to the launcher, so the launcher's checks all still hold.

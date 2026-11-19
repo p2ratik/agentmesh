@@ -25558,20 +25558,26 @@ import { homedir as homedir3 } from "node:os";
 import { join as join2 } from "node:path";
 
 // ../../packages/common/src/mesh-home.ts
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join, posix, win32 } from "node:path";
 var HOME_DIR = ".cosmicwave";
 var LEGACY_HOME_DIR = ".agentmesh";
-var BOTH_FOLDERS = "Both ~/.cosmicwave and ~/.agentmesh exist. Move what you need into ~/.cosmicwave, then delete ~/.agentmesh.";
 var AGENT_FILE = "agent.json";
 var nodeFs = {
   existsSync,
   renameSync,
   readFileSync,
   // agent.json is the user's alone, like every file join writes there.
-  writeFileSync: (path, text) => writeFileSync(path, text, { mode: 384 })
+  writeFileSync: (path, text) => writeFileSync(path, text, { mode: 384 }),
+  rmSync: (path) => rmSync(path, { force: true })
 };
+function bothFoldersAdvice(home = homedir2(), exists = existsSync) {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) {
+    return "Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave holds your agent.json, so ~/.agentmesh is a leftover. Look inside it first and move anything you still need into ~/.cosmicwave (key files ending in .nk, an agent.json, a backup key); only then remove ~/.agentmesh.";
+  }
+  return "Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave has no agent.json, so ~/.agentmesh is the folder to keep. Move what you put in ~/.cosmicwave into ~/.agentmesh, remove the then-empty ~/.cosmicwave, and start Claude Code again (or run cmw window init again): ~/.agentmesh is then renamed to ~/.cosmicwave with everything in it. Change nothing in ~/.agentmesh by hand.";
+}
 function homeDirName(home, exists = existsSync) {
   if (exists(join(home, HOME_DIR, AGENT_FILE))) return HOME_DIR;
   if (exists(join(home, LEGACY_HOME_DIR, AGENT_FILE))) return LEGACY_HOME_DIR;
@@ -25597,6 +25603,8 @@ function moveLegacyHome(home = homedir2(), fs = nodeFs) {
 }
 function rewriteSeed(home, fs) {
   const file2 = join(home, HOME_DIR, AGENT_FILE);
+  const temp = `${file2}.tmp`;
+  let wrote = false;
   try {
     if (!fs.existsSync(file2)) return;
     const saved = JSON.parse(fs.readFileSync(file2, "utf8"));
@@ -25605,11 +25613,15 @@ function rewriteSeed(home, fs) {
     if (typeof seed !== "string") return;
     const mapped = mapLegacyPath(seed, home, fs.existsSync);
     if (mapped === seed) return;
-    const temp = `${file2}.tmp`;
+    wrote = true;
     fs.writeFileSync(temp, `${JSON.stringify({ ...saved, nkeySeed: mapped }, null, 2)}
 `);
     fs.renameSync(temp, file2);
   } catch {
+    try {
+      if (wrote) fs.rmSync(temp);
+    } catch {
+    }
   }
 }
 function mapLegacyPath(file2, home, exists = existsSync, platform = process.platform) {
@@ -25778,6 +25790,17 @@ var sleep = (ms, signal) => new Promise((resolve3, reject) => {
 
 // ../../packages/common/src/version.ts
 var VERSION = "0.8.0";
+var DOTTED = /^\d+(\.\d+)*$/;
+function isAtLeast(version2, min) {
+  if (!DOTTED.test(version2) || !DOTTED.test(min)) return false;
+  const a = version2.split(".").map(Number);
+  const b = min.split(".").map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return true;
+}
 
 // ../../apps/cli/src/commands/agent-setup.ts
 import { existsSync as existsSync6 } from "node:fs";
@@ -47053,6 +47076,7 @@ var DiscordChannel = external_exports.object({
   topic: external_exports.string().optional()
 });
 var DEFAULT_CATEGORY = "Cosmicwave";
+var LEGACY_CATEGORY = "Agent Mesh";
 var DiscordConfig = external_exports.object({
   enabled: external_exports.boolean().default(false),
   token: external_exports.string().default(""),
@@ -47828,7 +47852,7 @@ function loadTopology(configPath, env) {
 }
 
 // ../../apps/cli/src/lib/files.ts
-import { chmodSync, mkdirSync, renameSync as renameSync2, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { chmodSync, mkdirSync, renameSync as renameSync2, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname3 } from "node:path";
 function writePrivateFile(path, content, overwrite) {
   mkdirSync(dirname3(path), { recursive: true, mode: 448 });
@@ -47850,7 +47874,7 @@ function writeFileAtomic(path, content, mode) {
     }
     renameSync2(temp, path);
   } catch (error62) {
-    rmSync(temp, { force: true });
+    rmSync2(temp, { force: true });
     throw error62;
   }
 }
@@ -48004,6 +48028,7 @@ import { isDeepStrictEqual } from "node:util";
 var DEFAULT_IMAGE_REGISTRY = "ghcr.io/p2ratik";
 var IMAGE_REGISTRY = /^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-][a-z0-9]+)*)*$/;
 var IMAGE_TAG = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
+var FIRST_RENAMED_VERSION = "0.8.0";
 var DEFAULT_MARKETPLACE = "p2ratik/cosmicwave";
 var DEFAULT_MARKETPLACE_NAME = "cosmicwave";
 var DEFAULT_REMOTE_DIR = "/opt/cosmicwave";
@@ -48579,8 +48604,9 @@ var CATEGORY = 4;
 var FORUM = 15;
 function classifyChannels(channels, category, expected) {
   const has = (name, type) => channels.some((c) => c.name === name && c.type === type);
+  const hasCategory = has(category, CATEGORY) || category === DEFAULT_CATEGORY && has(LEGACY_CATEGORY, CATEGORY);
   const missing = [
-    ...has(category, CATEGORY) ? [] : [`the category "${category}"`],
+    ...hasCategory ? [] : [`the category "${category}"`],
     ...Object.values(expected).filter((c) => !has(c.name, c.type === "forum" ? FORUM : TEXT)).map((c) => `#${c.name}${c.type === "forum" ? " (a forum)" : ""}`)
   ];
   if (missing.length > 0) {
@@ -48732,7 +48758,7 @@ function checkNatsTls(host, port, now, timeoutMs = 5e3) {
 }
 
 // ../../apps/cli/src/setup/env-file.ts
-import { readFileSync as readFileSync7, renameSync as renameSync3, rmSync as rmSync2 } from "node:fs";
+import { readFileSync as readFileSync7, renameSync as renameSync3, rmSync as rmSync3 } from "node:fs";
 function splitLine(line) {
   const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/s.exec(line);
   return match ? [match[1], match[2].trim()] : void 0;
@@ -48778,7 +48804,7 @@ function updateEnvFile(path, values) {
     writePrivateFile(temp, text, true);
     renameSync3(temp, path);
   } catch (error62) {
-    rmSync2(temp, { force: true });
+    rmSync3(temp, { force: true });
     throw error62;
   }
 }
@@ -48831,7 +48857,7 @@ import { existsSync as existsSync9, readFileSync as readFileSync9 } from "node:f
 import { join as join11 } from "node:path";
 
 // ../../apps/cli/src/setup/legacy-workspace.ts
-import { existsSync as existsSync8, readFileSync as readFileSync8, renameSync as renameSync4, writeFileSync as writeFileSync3 } from "node:fs";
+import { constants, copyFileSync, existsSync as existsSync8, readFileSync as readFileSync8, renameSync as renameSync4, writeFileSync as writeFileSync3 } from "node:fs";
 import { join as join10 } from "node:path";
 
 // ../../apps/cli/src/setup/render/deploy-files.ts
@@ -48994,6 +49020,7 @@ function renderClaudeSettings() {
 
 // ../../apps/cli/src/setup/legacy-workspace.ts
 var OLD_STATE = ".agentmesh-setup.json";
+var KEPT_COMPOSE = "docker-compose.agentmesh.yml";
 var NEW_STATE = ".cosmicwave-setup.json";
 var OLD_PREFIX = "AGENTMESH_";
 var OLD_PROJECT = "agentmesh";
@@ -49018,6 +49045,13 @@ function addToEnv(envFile, add, lines) {
   if (keys.length === 0) return;
   updateEnvFile(envFile, add);
   lines.push(`Added ${keys.join(", ")} to deploy/.env`);
+}
+function keepCompose(compose, kept) {
+  try {
+    copyFileSync(compose, kept, constants.COPYFILE_EXCL);
+  } catch (error62) {
+    if (error62.code !== "EEXIST") throw error62;
+  }
 }
 function pinRemoteDir(path) {
   let raw;
@@ -49052,8 +49086,11 @@ function convertLegacyWorkspace(root) {
   if (existsSync8(compose)) {
     const next = renderCompose();
     if (readFileSync8(compose, "utf8") !== next) {
+      keepCompose(compose, join10(root, "deploy", KEPT_COMPOSE));
       writeFileWithDirs(compose, next);
-      lines.push("Rendered deploy/docker-compose.yml again");
+      lines.push(
+        `Rendered deploy/docker-compose.yml again; the old one is kept as deploy/${KEPT_COMPOSE}`
+      );
     }
   }
   if (existsSync8(envFile)) {
@@ -49233,7 +49270,7 @@ fails. It changes nothing.`,
 };
 
 // ../../apps/cli/src/lib/scaffold.ts
-import { copyFileSync, existsSync as existsSync10, mkdirSync as mkdirSync3, readdirSync as readdirSync3, statSync as statSync4 } from "node:fs";
+import { copyFileSync as copyFileSync2, existsSync as existsSync10, mkdirSync as mkdirSync3, readdirSync as readdirSync3, statSync as statSync4 } from "node:fs";
 import { dirname as dirname5, join as join12 } from "node:path";
 function listFiles(dir) {
   return readdirSync3(dir, { recursive: true, encoding: "utf8" }).filter((rel) => statSync4(join12(dir, rel)).isFile()).map((rel) => rel.split("\\").join("/")).sort();
@@ -49251,7 +49288,7 @@ function scaffold(from, to, force) {
   for (const rel of files) {
     const target = join12(to, rel);
     mkdirSync3(dirname5(target), { recursive: true });
-    copyFileSync(join12(from, rel), target);
+    copyFileSync2(join12(from, rel), target);
   }
   return files;
 }
@@ -49889,6 +49926,10 @@ function requireSeeds(p, mode) {
   }
 }
 var isImageVersion = (value) => IMAGE_TAG.test(value) && redactSecrets(value) === value;
+var beforeRename = (version2) => {
+  const dotted = /^\d+(\.\d+)*/.exec(version2)?.[0];
+  return dotted !== void 0 && !isAtLeast(dotted, FIRST_RENAMED_VERSION);
+};
 function imageOf(ctx, env) {
   const registry2 = env.get("COSMICWAVE_IMAGE_REGISTRY") ?? "";
   const version2 = env.get("COSMICWAVE_VERSION") ?? "";
@@ -49902,6 +49943,12 @@ function imageOf(ctx, env) {
     throw new MeshError(
       "conflict",
       `COSMICWAVE_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it with \`${cliOf(ctx)} upgrade --dir <workspace> --to <version>\`.`
+    );
+  }
+  if (beforeRename(version2)) {
+    throw new MeshError(
+      "invalid_transition",
+      `COSMICWAVE_VERSION in deploy/.env is ${version2}, but images under the new names start at ${FIRST_RENAMED_VERSION}. Run \`${cliOf(ctx)} upgrade --dir <workspace>\` first: it moves the pin to ${VERSION} and deploys. Nothing was copied or started.`
     );
   }
   return { registry: registry2, version: version2, image: `${registry2}/cosmicwave-hub:${version2}` };
@@ -50155,7 +50202,7 @@ var OLD_FIREWALL = `if [ -e /etc/systemd/system/agentmesh-firewall.service ]; th
     iptables -X AGENTMESH-NATS
   fi
   systemctl disable --now agentmesh-firewall.service
-  rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall
+  rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall /etc/default/agentmesh-firewall
   systemctl daemon-reload
 fi
 `;
@@ -50220,7 +50267,7 @@ ${AUTO_UPDATES}rm -f /etc/apt/apt.conf.d/90agentmesh-auto-upgrades /etc/apt/apt.
 
 echo "== NATS connection limits"
 if [ -e /etc/default/agentmesh-firewall ] && [ ! -e /etc/default/cosmicwave-firewall ]; then
-  mv /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall
+  cp -p /etc/default/agentmesh-firewall /etc/default/cosmicwave-firewall
 fi
 printf '%s' ${quote2(FIREWALL_SCRIPT)} >${FIREWALL_SCRIPT_PATH}
 chmod 755 ${FIREWALL_SCRIPT_PATH}
@@ -51292,7 +51339,10 @@ function launcherScript(i, platform, prompt = LAUNCH_PROMPT) {
 }
 var SHIM_MARK = `cosmicwave ${START_COMMAND}`;
 var LEGACY_SHIM_MARK = `agentmesh ${START_COMMAND}`;
-var isOurShim = (text) => text.split(/\r?\n/).some((l) => [SHIM_MARK, LEGACY_SHIM_MARK].some((m) => l === `rem ${m}` || l === `# ${m}`));
+var isOurShim = (text, legacy = true) => {
+  const marks = legacy ? [SHIM_MARK, LEGACY_SHIM_MARK] : [SHIM_MARK];
+  return text.split(/\r?\n/).some((l) => marks.some((m) => l === `rem ${m}` || l === `# ${m}`));
+};
 function shimScripts(launcher, platform, userProfile = null) {
   const head = ["#!/bin/sh", `# ${SHIM_MARK}`];
   if (platform !== "win32") {
@@ -51325,9 +51375,9 @@ function isBelow(dir, home, platform) {
   const rel = path.relative(fold(home), fold(dir));
   return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
-var isOwnShim = (p) => {
+var isOwnShim = (p, legacy = true) => {
   try {
-    return isOurShim(readFileSync15(p, "utf8"));
+    return isOurShim(readFileSync15(p, "utf8"), legacy);
   } catch {
     return false;
   }
@@ -51470,10 +51520,13 @@ var present = (p) => {
     return false;
   }
 };
-var NOT_MOVED = "~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder, then run this again.";
-function assertMoved(home) {
+var notMoved = (ctx) => `~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder. /cmw:window runs inside a session, so run window init from a plain terminal instead: ${cliOf(ctx)} window init, with the same options.`;
+function moveHome(ctx) {
+  const home = ctx.homeDir;
+  moveLegacyHome(home);
   if (!present(join21(home, LEGACY_HOME_DIR))) return;
-  throw new MeshError("invalid_request", present(join21(home, HOME_DIR)) ? BOTH_FOLDERS : NOT_MOVED);
+  const both = present(join21(home, HOME_DIR));
+  throw new MeshError("invalid_request", both ? bothFoldersAdvice(home) : notMoved(ctx));
 }
 function printNotes(ctx, platform, n) {
   ctx.stdout(MODE_LINES[n.mode]);
@@ -51511,7 +51564,8 @@ empty empty-git-hooks/ folder. It also writes claude-mesh, which runs the launch
 when that folder is under your home folder and holds no claude-mesh of someone else's, else in
 ~/.cosmicwave/bin, which you add to PATH. Start the window each day with claude-mesh in your team's
 folder. Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in
-that Claude account.
+that Claude account. On a laptop set up before the rename it first renames ~/.agentmesh to
+~/.cosmicwave (the one cmw command that moves it).
 
 --agent               your agent id (required)
 --owner               your id in branch names (default: the agent id)
@@ -51538,7 +51592,7 @@ that Claude account.
     const agentId = values.agent;
     if (!agentId) throw usageError("Missing --agent <id>");
     const mode = windowMode(values.mode);
-    assertMoved(ctx.homeDir);
+    moveHome(ctx);
     const platform = ctx.platform ?? process.platform;
     const files = windowFiles(ctx.homeDir, platform);
     const prefix = ownBranchPrefix(values["branch-template"], values.owner ?? agentId, agentId);
@@ -51611,7 +51665,7 @@ that Claude account.
       configDir,
       shim,
       reached,
-      reachesOurs: reached !== null && isOwnShim(reached)
+      reachesOurs: reached !== null && isOwnShim(reached, false)
     });
     const notes = { mode, rerun: kept !== null, prefix, dir, emptyHooks: files.emptyHooks };
     printNotes(ctx, platform, notes);
@@ -51659,9 +51713,6 @@ function matchCommand(argv) {
   }
   return null;
 }
-function moveHome(ctx) {
-  if (moveLegacyHome(ctx.homeDir) === "both") ctx.stderr(BOTH_FOLDERS);
-}
 async function runCli(argv, ctx) {
   if (argv.length === 0 || argv[0] === "help" || argv[0] === "--help" || argv[0] === "-h") {
     ctx.stdout(usage());
@@ -51678,7 +51729,6 @@ ${usage()}`);
     ctx.stdout(match.command.help);
     return 0;
   }
-  moveHome(ctx);
   try {
     return await match.command.run(match.rest, ctx);
   } catch (error62) {

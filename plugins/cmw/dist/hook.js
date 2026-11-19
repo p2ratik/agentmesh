@@ -6,7 +6,7 @@ import { homedir as homedir3 } from "node:os";
 import { join as join6 } from "node:path";
 
 // ../../packages/common/src/mesh-home.ts
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, posix, win32 } from "node:path";
 var HOME_DIR = ".cosmicwave";
@@ -258,7 +258,7 @@ function promptContext({
 }
 
 // src/resume/claude-session.ts
-import { readdirSync as readdirSync2, readFileSync as readFileSync4, renameSync as renameSync2, rmSync, statSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { readdirSync as readdirSync2, readFileSync as readFileSync4, renameSync as renameSync2, rmSync as rmSync2, statSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join4 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var RECORD_MAX_AGE_MS = 24 * 36e5;
@@ -291,7 +291,7 @@ function deleteClaudeSession(dir, pid, sessionId) {
   const name = claudeSessionFile(pid);
   if (!name || typeof sessionId !== "string" || !CLAUDE_SESSION_ID.test(sessionId)) return;
   const file = join4(dir, name);
-  if (readRecord(file)?.session_id === sessionId) rmSync(file, { force: true });
+  if (readRecord(file)?.session_id === sessionId) rmSync2(file, { force: true });
 }
 function pruneClaudeSessions(dir, now) {
   let names;
@@ -303,7 +303,7 @@ function pruneClaudeSessions(dir, now) {
   for (const name of names) {
     try {
       const file = join4(dir, name);
-      if (now - statSync(file).mtimeMs > RECORD_MAX_AGE_MS) rmSync(file, { force: true });
+      if (now - statSync(file).mtimeMs > RECORD_MAX_AGE_MS) rmSync2(file, { force: true });
     } catch {
     }
   }

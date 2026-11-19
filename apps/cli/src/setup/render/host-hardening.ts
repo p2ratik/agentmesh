@@ -100,8 +100,9 @@ echo "cosmicwave-firewall: limits on new connections to port $NATS_PORT via $EXT
 /**
  * `setup host` only: a server prepared before the rename runs agentmesh-firewall.service and its
  * AGENTMESH-NATS chain. They are removed after the new unit has started, so NATS is never without
- * a limit (for a moment both apply the same one) and a failed start leaves the old one in place.
- * Only jumps to that chain leave DOCKER-USER, and no other chain is touched.
+ * a limit (for a moment both apply the same one) and a failed start leaves the old one in place,
+ * with its settings file, which the new unit got as a copy. Only jumps to that chain leave
+ * DOCKER-USER, and no other chain is touched.
  */
 export const OLD_FIREWALL = `if [ -e /etc/systemd/system/agentmesh-firewall.service ]; then
   echo "== the firewall unit from before the rename"
@@ -113,7 +114,7 @@ export const OLD_FIREWALL = `if [ -e /etc/systemd/system/agentmesh-firewall.serv
     iptables -X AGENTMESH-NATS
   fi
   systemctl disable --now agentmesh-firewall.service
-  rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall
+  rm -f /etc/systemd/system/agentmesh-firewall.service /usr/local/sbin/agentmesh-firewall /etc/default/agentmesh-firewall
   systemctl daemon-reload
 fi
 `;

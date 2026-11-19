@@ -1,5 +1,5 @@
 import {
-  BOTH_FOLDERS,
+  bothFoldersAdvice,
   createLogger,
   type Logger,
   type MoveResult,
@@ -159,7 +159,7 @@ function toolDeps(session: Session, agentId: string): ToolDeps {
 function logMove(logger: Logger, moved: MoveResult): void {
   if (moved === 'moved') logger.info('moved ~/.agentmesh to ~/.cosmicwave');
   if (moved === 'failed') logger.warn('could not move ~/.agentmesh yet; using it in place');
-  if (moved === 'both') logger.warn(BOTH_FOLDERS);
+  if (moved === 'both') logger.warn(bothFoldersAdvice());
 }
 
 /** Exits when Claude Code closes stdin, on signals, or if orphaned. */

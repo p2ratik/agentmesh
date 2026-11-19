@@ -1,4 +1,9 @@
-import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@cosmicwave/common/window';
+import {
+  CHANNEL_FLAG,
+  LAUNCH_PROMPT,
+  PLUGIN_CHANNEL,
+  windowFiles,
+} from '@cosmicwave/common/window';
 import { describe, expect, it } from 'vitest';
 import {
   bakeable,
@@ -84,6 +89,19 @@ describe('launcherScript', () => {
         '',
       ].join('\r\n'),
     );
+  });
+
+  // The plugin calls a window stale when its launcher lacks PLUGIN_CHANNEL (start-state.ts).
+  it('names the plugin channel on both platforms, so a fresh window never reads as stale', () => {
+    for (const [platform, claude, home] of [
+      ['win32', 'C:\\c.cmd', 'C:\\h'],
+      ['linux', '/c', '/h'],
+    ] as const) {
+      for (const prompt of [LAUNCH_PROMPT, null]) {
+        const text = launcherScript(inputs(platform, claude, home), platform, prompt);
+        expect(text).toContain(PLUGIN_CHANNEL);
+      }
+    }
   });
 
   it('leaves out the prompt when there is none', () => {

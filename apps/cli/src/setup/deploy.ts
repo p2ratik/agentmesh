@@ -1,11 +1,16 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError, redactSecrets, VERSION } from '@cosmicwave/common';
+import { isAtLeast, MeshError, redactSecrets, VERSION } from '@cosmicwave/common';
 import { loadConfig } from '@cosmicwave/config';
 import { type CliContext, cliOf } from '../context';
 import { runProcess } from '../lib/process';
 import type { SetupAnswers } from './answers';
-import { DEFAULT_IMAGE_REGISTRY, IMAGE_REGISTRY, IMAGE_TAG } from './defaults';
+import {
+  DEFAULT_IMAGE_REGISTRY,
+  FIRST_RENAMED_VERSION,
+  IMAGE_REGISTRY,
+  IMAGE_TAG,
+} from './defaults';
 import { readEnvFile } from './env-file';
 import { runChecked, SSH_OPTIONS, sshProgram } from './remote';
 import { markDone, readState, type StepName, type WorkspacePaths } from './workspace';
@@ -84,6 +89,13 @@ function requireSeeds(p: WorkspacePaths, mode: SetupAnswers['hosting']['mode']):
 export const isImageVersion = (value: string): boolean =>
   IMAGE_TAG.test(value) && redactSecrets(value) === value;
 
+/** A version below the first under the new image names (`0.7.2`, `0.7.2-rc.1`); a tag it cannot
+ * order, such as one an admin built and pushed, is left to the registry. */
+const beforeRename = (version: string): boolean => {
+  const dotted = /^\d+(\.\d+)*/.exec(version)?.[0];
+  return dotted !== undefined && !isAtLeast(dotted, FIRST_RENAMED_VERSION);
+};
+
 /**
  * The image settings from .env, checked before they are used or printed. An error names the
  * setting, never its value: that may be the bot token, pasted on the wrong line.
@@ -103,6 +115,15 @@ function imageOf(ctx: CliContext, env: Map<string, string>) {
       'conflict',
       `COSMICWAVE_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it ` +
         `with \`${cliOf(ctx)} upgrade --dir <workspace> --to <version>\`.`,
+    );
+  }
+  // A workspace converted from before the rename keeps its old pin until `upgrade` moves it.
+  if (beforeRename(version)) {
+    throw new MeshError(
+      'invalid_transition',
+      `COSMICWAVE_VERSION in deploy/.env is ${version}, but images under the new names start at ` +
+        `${FIRST_RENAMED_VERSION}. Run \`${cliOf(ctx)} upgrade --dir <workspace>\` first: it moves ` +
+        `the pin to ${VERSION} and deploys. Nothing was copied or started.`,
     );
   }
   return { registry, version, image: `${registry}/cosmicwave-hub:${version}` };

@@ -25421,20 +25421,26 @@ import { homedir as homedir2 } from "node:os";
 import { join as join2 } from "node:path";
 
 // ../../packages/common/src/mesh-home.ts
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, posix, win32 } from "node:path";
 var HOME_DIR = ".cosmicwave";
 var LEGACY_HOME_DIR = ".agentmesh";
-var BOTH_FOLDERS = "Both ~/.cosmicwave and ~/.agentmesh exist. Move what you need into ~/.cosmicwave, then delete ~/.agentmesh.";
 var AGENT_FILE = "agent.json";
 var nodeFs = {
   existsSync,
   renameSync,
   readFileSync,
   // agent.json is the user's alone, like every file join writes there.
-  writeFileSync: (path2, text3) => writeFileSync(path2, text3, { mode: 384 })
+  writeFileSync: (path2, text3) => writeFileSync(path2, text3, { mode: 384 }),
+  rmSync: (path2) => rmSync(path2, { force: true })
 };
+function bothFoldersAdvice(home = homedir(), exists = existsSync) {
+  if (exists(join(home, HOME_DIR, AGENT_FILE))) {
+    return "Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave holds your agent.json, so ~/.agentmesh is a leftover. Look inside it first and move anything you still need into ~/.cosmicwave (key files ending in .nk, an agent.json, a backup key); only then remove ~/.agentmesh.";
+  }
+  return "Both ~/.cosmicwave and ~/.agentmesh exist, and ~/.cosmicwave has no agent.json, so ~/.agentmesh is the folder to keep. Move what you put in ~/.cosmicwave into ~/.agentmesh, remove the then-empty ~/.cosmicwave, and start Claude Code again (or run cmw window init again): ~/.agentmesh is then renamed to ~/.cosmicwave with everything in it. Change nothing in ~/.agentmesh by hand.";
+}
 function homeDirName(home, exists = existsSync) {
   if (exists(join(home, HOME_DIR, AGENT_FILE))) return HOME_DIR;
   if (exists(join(home, LEGACY_HOME_DIR, AGENT_FILE))) return LEGACY_HOME_DIR;
@@ -25460,6 +25466,8 @@ function moveLegacyHome(home = homedir(), fs = nodeFs) {
 }
 function rewriteSeed(home, fs) {
   const file2 = join(home, HOME_DIR, AGENT_FILE);
+  const temp = `${file2}.tmp`;
+  let wrote = false;
   try {
     if (!fs.existsSync(file2)) return;
     const saved = JSON.parse(fs.readFileSync(file2, "utf8"));
@@ -25468,11 +25476,15 @@ function rewriteSeed(home, fs) {
     if (typeof seed !== "string") return;
     const mapped = mapLegacyPath(seed, home, fs.existsSync);
     if (mapped === seed) return;
-    const temp = `${file2}.tmp`;
+    wrote = true;
     fs.writeFileSync(temp, `${JSON.stringify({ ...saved, nkeySeed: mapped }, null, 2)}
 `);
     fs.renameSync(temp, file2);
   } catch {
+    try {
+      if (wrote) fs.rmSync(temp);
+    } catch {
+    }
   }
 }
 function mapLegacyPath(file2, home, exists = existsSync, platform2 = process.platform) {
@@ -48338,7 +48350,7 @@ function readFileConfig(file2) {
 }
 
 // src/pull/watcher.ts
-import { rmSync } from "node:fs";
+import { rmSync as rmSync2 } from "node:fs";
 import { rename, writeFile } from "node:fs/promises";
 import { join as join7 } from "node:path";
 
@@ -48481,7 +48493,7 @@ var PullWatcher = class {
   clear() {
     if (this.#file) {
       try {
-        rmSync(this.#file, { force: true });
+        rmSync2(this.#file, { force: true });
       } catch (err) {
         this.#deps.logger.warn({ err }, "could not remove a state file");
       }
@@ -48755,7 +48767,7 @@ import {
   mkdirSync as mkdirSync2,
   readFileSync as readFileSync6,
   renameSync as renameSync2,
-  rmSync as rmSync2,
+  rmSync as rmSync3,
   writeFileSync as writeFileSync2
 } from "node:fs";
 import { homedir as homedir5 } from "node:os";
@@ -48771,7 +48783,7 @@ function readInviteFile(path2) {
   return readFileSync6(path2, "utf8");
 }
 function deleteInviteFile(path2) {
-  rmSync2(path2, { force: true });
+  rmSync3(path2, { force: true });
 }
 function assertCanJoin(home, replace) {
   const current = existingMesh(home);
@@ -48801,7 +48813,7 @@ function stageSeed(home, agentId, seed) {
       renameSync2(staged, seedFile);
       return seedFile;
     },
-    discard: () => rmSync2(staged, { force: true })
+    discard: () => rmSync3(staged, { force: true })
   };
 }
 function saveConfig(home, payload, seedFile) {
@@ -49271,7 +49283,7 @@ import {
   readdirSync as readdirSync2,
   readFileSync as readFileSync8,
   renameSync as renameSync3,
-  rmSync as rmSync3,
+  rmSync as rmSync4,
   statSync,
   writeFileSync as writeFileSync3
 } from "node:fs";
@@ -49357,7 +49369,7 @@ function pruneClaimed(dir, now) {
 }
 function removeForward(dir, name) {
   try {
-    rmSync3(join9(dir, name), { force: true });
+    rmSync4(join9(dir, name), { force: true });
   } catch {
   }
 }
@@ -52947,7 +52959,7 @@ async function forwardRelay(relay, deps) {
 }
 
 // src/resume/claude-session.ts
-import { readdirSync as readdirSync4, readFileSync as readFileSync12, renameSync as renameSync5, rmSync as rmSync4, statSync as statSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { readdirSync as readdirSync4, readFileSync as readFileSync12, renameSync as renameSync5, rmSync as rmSync5, statSync as statSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { join as join13 } from "node:path";
 var CLAUDE_SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var CLAUDE_SESSION_SLACK_MS = 6e4;
@@ -53585,7 +53597,7 @@ function toolDeps(session, agentId) {
 function logMove(logger, moved) {
   if (moved === "moved") logger.info("moved ~/.agentmesh to ~/.cosmicwave");
   if (moved === "failed") logger.warn("could not move ~/.agentmesh yet; using it in place");
-  if (moved === "both") logger.warn(BOTH_FOLDERS);
+  if (moved === "both") logger.warn(bothFoldersAdvice());
 }
 function watchLifecycle(logger) {
   const shutdown = once((reason) => {
