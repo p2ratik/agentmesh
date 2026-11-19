@@ -23,7 +23,7 @@ const hasBash =
 const STUBS = {
   // `docker compose exec -T hub node …`: the snapshot is the day's name, or a failure.
   docker:
-    '[ -z "$STUB_SNAPSHOT_FAIL" ] || { echo boom >&2; exit 1; }\nprintf "SQLITE-%s" "$STUB_DAY"',
+    '[ -z "$STUB_SNAPSHOT_FAIL" ] || { echo boom >&2; exit 1; }\nprintf "SQLITE-%s" "$STUB_DAY$STUB_HOUR"',
   // `age -r <recipient>`: a readable header, then the plaintext, so the test can open it.
   age: '[ "$1" = -r ] || exit 9\nprintf "AGE(%s)\\n" "$2"\ncat',
   date: 'if [ "$*" = "-u +%F" ]; then echo "$STUB_DAY"; else exec /usr/bin/date "$@"; fi',
@@ -115,11 +115,13 @@ describe.skipIf(!hasBash)('agentmesh-backup run', () => {
 
   it('replaces the hourly copy on later runs and adds one daily commit per day', () => {
     expect(run().status).toBe(0);
-    const first = git('rev-parse', 'hourly').out;
-    expect(run().status).toBe(0);
+    // A later snapshot, told apart by its content: two runs in one second with the same content
+    // make the same commit hash (the age stub, unlike age, adds no randomness).
+    expect(run({ STUB_HOUR: 'T01' }).status).toBe(0);
     expect(git('rev-list', '--count', 'hourly').out).toBe('1');
-    expect(git('rev-parse', 'hourly').out).not.toBe(first);
+    expect(opened('hourly').db).toBe('SQLITE-2026-11-13T01');
     expect(git('log', '--format=%s', 'main').out).toBe('daily 2026-11-13');
+    expect(opened('main').db).toBe('SQLITE-2026-11-13');
 
     expect(run({ STUB_DAY: '2026-11-14' }).status).toBe(0);
     expect(git('log', '--format=%s', 'main').out.split('\n')).toEqual([

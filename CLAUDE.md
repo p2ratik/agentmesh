@@ -252,7 +252,7 @@ Run `pnpm check` before calling anything done.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
   published images.
-- **Docs, ADRs 0001–0012, CI**, and a release workflow that publishes the hub and bridge images
+- **Docs, ADRs 0001–0013, CI**, and a release workflow that publishes the hub and bridge images
   to GHCR and tags each version bump on `main`. 0.4.0 was the first public release; the repo and
   the images are public, and the images pull anonymously.
 - **Automatic deploys (ADR 0010):** after publishing, the release workflow runs `deploy.yml`. It
