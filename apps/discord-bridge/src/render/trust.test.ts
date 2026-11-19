@@ -33,6 +33,15 @@ describe('notices', () => {
     }
   });
 
+  it('post a markdown notice as the hub wrote it, marked on a small last line', () => {
+    const text = '**Backend 5xx** · firing\n[Metrics](<https://x.grafana.net/d/1>)';
+    const [intent] = renderNotice({ ...notice(text, 'external'), format: 'markdown' });
+    expect(intent?.content).toBe(`🔴 ${text}\n-# 🌐 external content`);
+    expect(intent?.content).not.toContain('```');
+    const [team] = renderNotice({ ...notice(text, 'team'), format: 'markdown' });
+    expect(team?.content).toBe(`🔴 ${text}`);
+  });
+
   it('post team text as written', () => {
     expect(renderNotice(notice('✅ task-3 resolved', 'team'))[0]?.content).toBe(
       '🔴 ✅ task-3 resolved',

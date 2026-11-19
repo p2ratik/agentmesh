@@ -51,6 +51,11 @@ export const DomainEvent = z.discriminatedUnion('type', [
       severity: Severity,
       /** `external` when the text holds event content. Older hubs send none: read it as external. */
       trust: Trust.default('external'),
+      /**
+       * `markdown`: the hub escaped every event value in `text` and checked its links, so it is
+       * posted as written. Absent (older hubs, team notices): plain text.
+       */
+      format: z.enum(['text', 'markdown']).optional(),
     }),
   ),
   event('mesh.paused', z.object({ by: z.string(), reason: z.string().nullable() })),

@@ -32,6 +32,7 @@ export function setup(overrides: Record<string, unknown> = {}) {
           auth: { type: 'hmac-sha256', secret: GITHUB_SECRET },
         },
       ],
+      linkHosts: ['example.com'],
     },
     rules: [
       {
@@ -51,6 +52,19 @@ export function setup(overrides: Record<string, unknown> = {}) {
         id: 'quiet-fyi',
         match: { source: 'hermes', type: 'fyi.*' },
         actions: [{ notify: { to: ['bob-agent'], text: 'FYI {{summary}}', class: 'status' } }],
+      },
+      {
+        id: 'alarm-card',
+        match: { source: 'hermes', type: 'alarm.*' },
+        actions: [
+          {
+            notice: {
+              channel: 'alerts',
+              format: 'markdown',
+              text: '**{{payload.title}}**\n[Graph]({{url}}) · [Logs]({{payload.logs}})',
+            },
+          },
+        ],
       },
       {
         id: 'plain-notify',

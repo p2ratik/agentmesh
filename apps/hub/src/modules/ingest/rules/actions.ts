@@ -4,6 +4,7 @@ import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
 import { systemActor } from '../../../rpc/actor';
 import { clipBody } from '../../messaging/limits';
+import { renderMarkdown } from './markdown';
 import type { RuleContext } from './match';
 import { areaRecipients } from './recipients';
 import { maskHead, renderTemplate } from './template';
@@ -34,11 +35,14 @@ export function runAction(deps: ActionDeps, action: RuleAction, event: RuleConte
   const heading = (template: string | undefined) =>
     maskHead(render(template) || `[${event.source}] ${event.type}`, MAX_TITLE);
   if ('notice' in action) {
+    const { channel, text, format } = action.notice;
+    const linkHosts = deps.ctx.loaded.config.ingest.linkHosts;
     deps.ctx.outbox.enqueueEvent('notice.posted', {
-      channel: action.notice.channel,
-      text: render(action.notice.text),
+      channel,
+      text: format === 'markdown' ? renderMarkdown(text, event, linkHosts) : render(text),
       severity: event.severity,
       trust: 'external',
+      format,
     });
     return;
   }
