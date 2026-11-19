@@ -24,7 +24,7 @@ const FAKE_IPTABLES = `iptables() {
   case "$1" in
     -N) return 1 ;;
     -S) printf '%s\\n' '-N DOCKER-USER' \\
-      '-A DOCKER-USER -i old0 -p tcp -m conntrack --ctstate NEW --ctorigdstport 4222 --ctdir ORIGINAL -j AGENTMESH-NATS' \\
+      '-A DOCKER-USER -i old0 -p tcp -m conntrack --ctstate NEW --ctorigdstport 4222 --ctdir ORIGINAL -j COSMICWAVE-NATS' \\
       '-A DOCKER-USER -j RETURN' ;;
   esac
 }
@@ -44,8 +44,12 @@ describe('host hardening', () => {
     expect(script).toContain(SSH_CHECK);
     expect(at('apt-get install -y -qq unattended-upgrades')).toBeGreaterThan(at('get.docker.com'));
     expect(at(`>${FIREWALL_SCRIPT_PATH}`)).toBeGreaterThan(at('get.docker.com'));
-    expect(at(`>${FIREWALL_UNIT_PATH}`)).toBeLessThan(at('systemctl enable -q agentmesh-firewall'));
-    expect(at('systemctl restart agentmesh-firewall.service')).toBeLessThan(at('certbot certonly'));
+    expect(at(`>${FIREWALL_UNIT_PATH}`)).toBeLessThan(
+      at('systemctl enable -q cosmicwave-firewall'),
+    );
+    expect(at('systemctl restart cosmicwave-firewall.service')).toBeLessThan(
+      at('certbot certonly'),
+    );
     expect(AUTO_UPDATES).toContain('APT::Periodic::Unattended-Upgrade "1";');
   });
 
@@ -69,7 +73,7 @@ describe('host hardening', () => {
     expect(vmSetup).toContain(SSH_CHECK);
     expect(vmSetup).toContain(`cat >${FIREWALL_SCRIPT_PATH} <<'EOF'\n${FIREWALL_SCRIPT}EOF\n`);
     expect(vmSetup).toContain(`cat >${FIREWALL_UNIT_PATH} <<'EOF'\n${FIREWALL_UNIT}EOF\n`);
-    expect(vmSetup).toContain('systemctl restart agentmesh-firewall.service');
+    expect(vmSetup).toContain('systemctl restart cosmicwave-firewall.service');
   });
 
   it('runs the firewall after every Docker start', () => {
@@ -88,13 +92,13 @@ describe('host hardening', () => {
       expect(code).toBe(0);
       const jump = '-p tcp -m conntrack --ctstate NEW --ctorigdstport 4222 --ctdir ORIGINAL';
       expect(calls).toEqual([
-        'iptables -N AGENTMESH-NATS',
-        'iptables -F AGENTMESH-NATS',
-        'iptables -A AGENTMESH-NATS -p tcp -m connlimit --connlimit-above 128 --connlimit-mask 32 -j REJECT --reject-with tcp-reset',
-        'iptables -A AGENTMESH-NATS -m hashlimit --hashlimit-above 10/sec --hashlimit-burst 100 --hashlimit-mode srcip --hashlimit-name agentmesh-nats -j DROP',
-        'iptables -A AGENTMESH-NATS -j RETURN',
-        `iptables -D DOCKER-USER -i old0 ${jump} -j AGENTMESH-NATS`,
-        `iptables -I DOCKER-USER 1 -i eth0 ${jump} -j AGENTMESH-NATS`,
+        'iptables -N COSMICWAVE-NATS',
+        'iptables -F COSMICWAVE-NATS',
+        'iptables -A COSMICWAVE-NATS -p tcp -m connlimit --connlimit-above 128 --connlimit-mask 32 -j REJECT --reject-with tcp-reset',
+        'iptables -A COSMICWAVE-NATS -m hashlimit --hashlimit-above 10/sec --hashlimit-burst 100 --hashlimit-mode srcip --hashlimit-name cosmicwave-nats -j DROP',
+        'iptables -A COSMICWAVE-NATS -j RETURN',
+        `iptables -D DOCKER-USER -i old0 ${jump} -j COSMICWAVE-NATS`,
+        `iptables -I DOCKER-USER 1 -i eth0 ${jump} -j COSMICWAVE-NATS`,
       ]);
     },
   );

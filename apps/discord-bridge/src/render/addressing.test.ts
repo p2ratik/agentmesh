@@ -1,5 +1,5 @@
-import { ConfigIndex, configFromObject } from '@agentmesh/config';
-import type { MeshMessage, ThreadSummary } from '@agentmesh/protocol';
+import { ConfigIndex, configFromObject } from '@cosmicwave/config';
+import type { MeshMessage, ThreadSummary } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { avatarFor, discordDefaultAvatar } from './avatars';
 import { addressee, renderMessageCreated } from './message';

@@ -1,11 +1,11 @@
 {
-  "name": "@agentmesh/hub",
-  "version": "0.7.2",
+  "name": "@cosmicwave/hub",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "description": "AgentMesh coordinator: routing, threads, tasks, workflows, planning, leases, event rules.",
+  "description": "Cosmicwave coordinator: routing, threads, tasks, workflows, planning, leases, event rules.",
   "bin": {
-    "agentmesh-hub": "./dist/main.js"
+    "cosmicwave-hub": "./dist/main.js"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
@@ -13,10 +13,10 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@agentmesh/bus": "workspace:*",
-    "@agentmesh/common": "workspace:*",
-    "@agentmesh/config": "workspace:*",
-    "@agentmesh/protocol": "workspace:*",
+    "@cosmicwave/bus": "workspace:*",
+    "@cosmicwave/common": "workspace:*",
+    "@cosmicwave/config": "workspace:*",
+    "@cosmicwave/protocol": "workspace:*",
     "@nats-io/nkeys": "2.0.3",
     "zod": "4.6.7"
   },

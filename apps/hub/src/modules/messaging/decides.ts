@@ -1,4 +1,4 @@
-import type { ConfigIndex } from '@agentmesh/config';
+import type { ConfigIndex } from '@cosmicwave/config';
 
 /**
  * The recipient agents whose owner sent this message: a human's word is a decision only for their

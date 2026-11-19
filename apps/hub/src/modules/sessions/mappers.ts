@@ -1,4 +1,4 @@
-import type { SessionSummary, SessionView } from '@agentmesh/protocol';
+import type { SessionSummary, SessionView } from '@cosmicwave/protocol';
 import type { SessionRecord } from '../../contracts';
 import type { RouteSession } from './routing';
 import type { SessionRow } from './sessions.repo';

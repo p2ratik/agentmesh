@@ -1,4 +1,4 @@
-import { RPC_METHODS, type RpcMethodName } from '@agentmesh/protocol';
+import { RPC_METHODS, type RpcMethodName } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { claimsWhenInactive, claimTargets, isClaiming } from './claims';
 

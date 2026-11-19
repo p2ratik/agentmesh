@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { connectOnce } from '@agentmesh/bus';
-import { MeshError } from '@agentmesh/common';
+import { connectOnce } from '@cosmicwave/bus';
+import { MeshError } from '@cosmicwave/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { CliContext } from '../context';
 import { runCli } from '../main';
@@ -15,17 +15,17 @@ const SETTINGS = {
   prefix: 'mesh',
 };
 
-vi.mock('@agentmesh/bus', async (original) => ({
-  ...(await original<typeof import('@agentmesh/bus')>()),
+vi.mock('@cosmicwave/bus', async (original) => ({
+  ...(await original<typeof import('@cosmicwave/bus')>()),
   connectOnce: vi.fn(),
 }));
 
 function setup(opts: { agentJson?: boolean; call?: CliContext['observeCall'] } = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'agentmesh-timeline-'));
+  const home = mkdtempSync(join(tmpdir(), 'cosmicwave-timeline-'));
   if (opts.agentJson !== false) {
-    mkdirSync(join(home, '.agentmesh'));
+    mkdirSync(join(home, '.cosmicwave'));
     writeFileSync(
-      join(home, '.agentmesh', 'agent.json'),
+      join(home, '.cosmicwave', 'agent.json'),
       JSON.stringify({
         agentId: 'pratik-agent',
         natsUrl: 'nats://x:4222',
@@ -60,7 +60,7 @@ function setup(opts: { agentJson?: boolean; call?: CliContext['observeCall'] } =
   return { out, err, calls, run: (...argv: string[]) => runCli(['timeline', ...argv], ctx) };
 }
 
-describe('agentmesh timeline', () => {
+describe('cmw timeline', () => {
   it('prints text, passing the flags and the saved settings', async () => {
     const t = setup();
     expect(
@@ -128,7 +128,7 @@ describe('agentmesh timeline', () => {
   it('asks to join first when agent.json is missing', async () => {
     const t = setup({ agentJson: false });
     expect(await t.run()).toBe(1);
-    expect(t.err.join('')).toContain('agentmesh agent-setup --write');
+    expect(t.err.join('')).toContain('cmw agent-setup --write');
     expect(t.calls).toEqual([]);
   });
 
@@ -149,10 +149,10 @@ describe('agentmesh timeline', () => {
     expect(t.err.join('')).toContain('truncated: only the newest events are shown');
   });
 
-  it('the help says AGENTMESH_* overrides are ignored', async () => {
+  it('the help says COSMICWAVE_* overrides are ignored', async () => {
     const t = setup();
     expect(await t.run('--help')).toBe(0);
-    expect(t.out.join('')).toContain('AGENTMESH_* environment overrides are ignored');
+    expect(t.out.join('')).toContain('COSMICWAVE_* environment overrides are ignored');
   });
 
   // On Windows a refused key can show as a reset; neither shows the server's own text.

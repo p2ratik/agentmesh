@@ -1,6 +1,6 @@
-import { MeshError } from '@agentmesh/common';
-import type { ConfigIndex, WorkflowConfig, WorkflowRole } from '@agentmesh/config';
-import type { Task, TaskDetail } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import type { ConfigIndex, WorkflowConfig, WorkflowRole } from '@cosmicwave/config';
+import type { Task, TaskDetail } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { Actor } from '../../contracts';
 import { taskKey } from '../../core/ids';

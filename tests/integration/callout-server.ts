@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { natsUsersFromConfig } from '@agentmesh/bus';
+import { natsUsersFromConfig } from '@cosmicwave/bus';
 import { renderNatsConfig } from '../../apps/cli/src/render/nats-config';
 import type { HubOptions } from '../../apps/hub/src/app';
 

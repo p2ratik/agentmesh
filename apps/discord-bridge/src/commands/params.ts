@@ -1,4 +1,4 @@
-import type { Priority, RpcParamsInput } from '@agentmesh/protocol';
+import type { Priority, RpcParamsInput } from '@cosmicwave/protocol';
 
 /** Option values as read from an interaction (`null` when not given). */
 type Opt<T> = T | null;

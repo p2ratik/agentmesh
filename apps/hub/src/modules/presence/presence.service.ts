@@ -1,11 +1,11 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import type {
   DeliveryMode,
   ParticipantKind,
   PeerInfo,
   PresenceStatus,
   SessionSummary,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { PresenceService } from '../../contracts';
 import {

@@ -3,8 +3,8 @@ import {
   type NatsUser,
   SYS_ACCOUNT,
   SYS_USER_PERMISSIONS,
-} from '@agentmesh/bus/permissions';
-import { MeshError } from '@agentmesh/common';
+} from '@cosmicwave/bus/permissions';
+import { MeshError } from '@cosmicwave/common';
 import { quote, renderNkeyUser, renderUser } from './nats-users';
 
 /** Public keys from `hub.authCallout` in mesh.yaml; any may still be missing. */
@@ -23,7 +23,7 @@ function requireKeys(keys: CalloutKeys, hubId: string): Required<CalloutKeys> {
   if (missing.length > 0 || !keys.issuer || !keys.xkey || !keys.sysNkey) {
     throw new MeshError(
       'invalid_request',
-      `--auth-callout needs hub.authCallout keys. Run \`agentmesh keys add <id>\` for: ${missing.join(', ')}.`,
+      `--auth-callout needs hub.authCallout keys. Run \`cmw keys add <id>\` for: ${missing.join(', ')}.`,
     );
   }
   return { issuer: keys.issuer, xkey: keys.xkey, sysNkey: keys.sysNkey };

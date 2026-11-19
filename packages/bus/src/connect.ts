@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expandHome, type Logger } from '@agentmesh/common';
+import { expandHome, type Logger } from '@cosmicwave/common';
 import {
   type Authenticator,
   type ConnectionOptions,
@@ -138,29 +138,29 @@ function watchStatus(nc: NatsConnection, { logger, onStatus }: ConnectBusOptions
 
 /**
  * Credentials from the standard environment variables shared by every
- * AgentMesh process: AGENTMESH_NKEY_SEED (seed or file path), or
- * AGENTMESH_NATS_TOKEN, or AGENTMESH_NATS_USER / AGENTMESH_NATS_PASS.
+ * Cosmicwave process: COSMICWAVE_NKEY_SEED (seed or file path), or
+ * COSMICWAVE_NATS_TOKEN, or COSMICWAVE_NATS_USER / COSMICWAVE_NATS_PASS.
  */
 export function credentialsFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): BusCredentials | undefined {
-  if (env.AGENTMESH_NKEY_SEED) return { nkeySeed: env.AGENTMESH_NKEY_SEED };
-  if (env.AGENTMESH_NATS_TOKEN) return { token: env.AGENTMESH_NATS_TOKEN };
-  if (env.AGENTMESH_NATS_USER) {
+  if (env.COSMICWAVE_NKEY_SEED) return { nkeySeed: env.COSMICWAVE_NKEY_SEED };
+  if (env.COSMICWAVE_NATS_TOKEN) return { token: env.COSMICWAVE_NATS_TOKEN };
+  if (env.COSMICWAVE_NATS_USER) {
     return {
-      user: env.AGENTMESH_NATS_USER,
-      ...(env.AGENTMESH_NATS_PASS ? { pass: env.AGENTMESH_NATS_PASS } : {}),
+      user: env.COSMICWAVE_NATS_USER,
+      ...(env.COSMICWAVE_NATS_PASS ? { pass: env.COSMICWAVE_NATS_PASS } : {}),
     };
   }
   return undefined;
 }
 
-/** NATS servers: AGENTMESH_NATS_URL (comma-separated) overrides the configured list. */
+/** NATS servers: COSMICWAVE_NATS_URL (comma-separated) overrides the configured list. */
 export function serversFromEnv(
   configured: readonly string[],
   env: Record<string, string | undefined> = process.env,
 ): string[] {
-  const fromEnv = env.AGENTMESH_NATS_URL?.split(',')
+  const fromEnv = env.COSMICWAVE_NATS_URL?.split(',')
     .map((s) => s.trim())
     .filter(Boolean);
   return fromEnv?.length ? fromEnv : [...configured];

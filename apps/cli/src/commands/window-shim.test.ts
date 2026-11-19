@@ -17,7 +17,7 @@ import { CLAUDE, fallbackLines, launcherLines, platform, setup, startLine } from
 const SHIMS = platform === 'win32' ? ['claude-mesh.cmd', 'claude-mesh'] : ['claude-mesh'];
 /** A claude installed under the home folder, as the native installer does. */
 const HOME_BIN = join('home', '.local', 'bin');
-const OLD_SHIM = '#!/bin/sh\n# agentmesh claude-mesh\nexec /old/launcher "$@"\n';
+const OLD_SHIM = '#!/bin/sh\n# cosmicwave claude-mesh\nexec /old/launcher "$@"\n';
 
 const shimOf = (s: ReturnType<typeof setup>, name: string) =>
   shimScripts(s.files.launcher, platform, s.home).find((x) => x.name === name)?.content;
@@ -36,7 +36,7 @@ describe('window init writes claude-mesh', () => {
     absent(s.files.bin);
   });
 
-  it('into ~/.agentmesh/bin when claude is outside the home folder', async () => {
+  it('into ~/.cosmicwave/bin when claude is outside the home folder', async () => {
     const s = setup();
     expect(await s.run('--agent', 'bob-agent')).toBe(0);
     expect(files(s.bin)).toEqual([CLAUDE]);
@@ -49,7 +49,7 @@ describe('window init writes claude-mesh', () => {
   });
 
   it.skipIf(platform !== 'win32' && process.getuid?.() === 0)(
-    "into ~/.agentmesh/bin when claude's folder takes no write",
+    "into ~/.cosmicwave/bin when claude's folder takes no write",
     async () => {
       const s = setup(true, 'home', HOME_BIN);
       if (platform === 'win32') {
@@ -84,7 +84,7 @@ describe('window init writes claude-mesh', () => {
       expect(files(s.bin)).toEqual([CLAUDE, name].sort());
       expect(files(s.files.bin)).toEqual([...SHIMS].sort());
       expect(s.out.slice(2, 5)).toEqual([
-        `Left ${foreign} alone: AgentMesh didn't write it.`,
+        `Left ${foreign} alone: Cosmicwave didn't write it.`,
         `Wrote claude-mesh to ${s.files.bin}.`,
         startLine(s.work),
       ]);
@@ -124,7 +124,7 @@ describe('window init writes claude-mesh', () => {
       expect(await s.run('--agent', 'bob-agent')).toBe(0);
       expect(lstatSync(link).isSymbolicLink()).toBe(true);
       expect(files(s.files.bin)).toEqual([...SHIMS].sort());
-      expect(s.out[2]).toBe(`Left ${link} alone: AgentMesh didn't write it.`);
+      expect(s.out[2]).toBe(`Left ${link} alone: Cosmicwave didn't write it.`);
     }
   });
 
@@ -139,7 +139,7 @@ describe('window init writes claude-mesh', () => {
     expect(files(s.files.bin)).toEqual([...SHIMS].sort());
   });
 
-  it('refuses, writing nothing, when ~/.agentmesh/bin is not a folder', async () => {
+  it('refuses, writing nothing, when ~/.cosmicwave/bin is not a folder', async () => {
     const s = setup(true, 'home', HOME_BIN);
     mkdirSync(s.files.dir);
     writeFileSync(s.files.bin, '');
@@ -151,7 +151,7 @@ describe('window init writes claude-mesh', () => {
     expect(files(s.bin)).toEqual([CLAUDE]);
   });
 
-  it('says nothing more from ~/.agentmesh/bin once that folder is on PATH', async () => {
+  it('says nothing more from ~/.cosmicwave/bin once that folder is on PATH', async () => {
     const s = setup();
     s.ctx.env.PATH = [s.bin, s.files.bin].join(delimiter);
     expect(await s.run('--agent', 'bob-agent')).toBe(0);

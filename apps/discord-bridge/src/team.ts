@@ -1,6 +1,6 @@
-import { type RetryOptions, retry } from '@agentmesh/common';
-import { ConfigIndex, type MeshConfig, withMembers } from '@agentmesh/config';
-import type { MemberRecord, OpenInvite } from '@agentmesh/protocol';
+import { type RetryOptions, retry } from '@cosmicwave/common';
+import { ConfigIndex, type MeshConfig, withMembers } from '@cosmicwave/config';
+import type { MemberRecord, OpenInvite } from '@cosmicwave/protocol';
 import type { MeshRpc } from './rpc';
 
 /** What `/mesh remove` and `/mesh uninvite` autocomplete from. */

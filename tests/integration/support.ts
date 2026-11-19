@@ -1,23 +1,23 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RpcClient } from '@agentmesh/bus';
-import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
+import type { RpcClient } from '@cosmicwave/bus';
+import type { RpcMethodName, RpcParamsInput, RpcResult } from '@cosmicwave/protocol';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 /** The bundled plugin, spawned exactly like Claude Code spawns it. */
-export const PLUGIN = join(import.meta.dirname, '../../plugins/agentmesh/dist/server.js');
-/** The `agentmesh` CLI bundled in the plugin, which `/agentmesh:setup` runs. */
-export const PLUGIN_CLI = join(import.meta.dirname, '../../plugins/agentmesh/dist/cli.js');
+export const PLUGIN = join(import.meta.dirname, '../../plugins/cmw/dist/server.js');
+/** The `cmw` CLI bundled in the plugin, which `/cmw:setup` runs. */
+export const PLUGIN_CLI = join(import.meta.dirname, '../../plugins/cmw/dist/cli.js');
 
 /** The mesh window marker the e2e windows carry; `windowHome`'s policy holds it. */
 export const WINDOW_TOKEN = '0123456789abcdef0123456789abcdef';
 
-/** A temp home whose ~/.agentmesh/mesh-window.json makes bob-agent's marked session verify. */
+/** A temp home whose ~/.cosmicwave/mesh-window.json makes bob-agent's marked session verify. */
 export function windowHome(): string {
   const home = mkdtempSync(join(tmpdir(), 'am-e2e-home-'));
-  mkdirSync(join(home, '.agentmesh'));
+  mkdirSync(join(home, '.cosmicwave'));
   const policy = {
     version: 1,
     agentId: 'bob-agent',
@@ -26,7 +26,7 @@ export function windowHome(): string {
     integrationBranch: 'agents',
     testCommands: [],
   };
-  writeFileSync(join(home, '.agentmesh', 'mesh-window.json'), JSON.stringify(policy));
+  writeFileSync(join(home, '.cosmicwave', 'mesh-window.json'), JSON.stringify(policy));
   return home;
 }
 
@@ -55,21 +55,21 @@ export interface AgentEnv {
   natsUrl: string;
   prefix: string;
   nkeySeed?: string;
-  /** Home directory holding `.agentmesh` (agent.json, keys, invite.txt). */
+  /** Home directory holding `.cosmicwave` (agent.json, keys, invite.txt). */
   home?: string;
   /** Set last, e.g. the mesh window marker or a CLAUDE_PLUGIN_DATA of the test's own. */
   extraEnv?: Record<string, string>;
 }
 
 /**
- * This process's environment without the Claude Code and AgentMesh variables of the session
+ * This process's environment without the Claude Code and Cosmicwave variables of the session
  * running the tests: a spawned bundle runs in no mesh window, with no messaging address, relay
  * setting or seed, unless the test says so.
  */
 export function cleanEnv(): Record<string, string> {
   return Object.fromEntries(
     Object.entries(process.env).filter(
-      (e): e is [string, string] => e[1] !== undefined && !/^(CLAUDE|AGENTMESH)/.test(e[0]),
+      (e): e is [string, string] => e[1] !== undefined && !/^(CLAUDE|COSMICWAVE)/.test(e[0]),
     ),
   );
 }
@@ -84,12 +84,12 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
     env: {
       ...inherited,
       ...(env.home ? { HOME: env.home, USERPROFILE: env.home } : {}),
-      AGENTMESH_AGENT_ID: env.agentId,
-      AGENTMESH_NATS_URL: env.natsUrl,
-      AGENTMESH_PREFIX: env.prefix,
-      AGENTMESH_NKEY_SEED: env.nkeySeed ?? '',
-      AGENTMESH_LOG_FILE: '',
-      // State and heartbeat files land here, never in the real ~/.agentmesh/run.
+      COSMICWAVE_AGENT_ID: env.agentId,
+      COSMICWAVE_NATS_URL: env.natsUrl,
+      COSMICWAVE_PREFIX: env.prefix,
+      COSMICWAVE_NKEY_SEED: env.nkeySeed ?? '',
+      COSMICWAVE_LOG_FILE: '',
+      // State and heartbeat files land here, never in the real ~/.cosmicwave/run.
       CLAUDE_PLUGIN_DATA: dataDir,
       ...env.extraEnv,
     },
@@ -133,7 +133,7 @@ export async function spawnAgent(env: AgentEnv): Promise<Agent> {
 }
 
 /**
- * Opts the session in the way Claude does after /agentmesh:activate: asks for
+ * Opts the session in the way Claude does after /cmw:activate: asks for
  * a check (retrying until the plugin listens on its session subject), reads the
  * code the hub pushed, and sends it back with a description. Returns the final result's text.
  */

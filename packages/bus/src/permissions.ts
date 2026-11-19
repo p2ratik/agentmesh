@@ -1,5 +1,5 @@
-import type { MeshConfig } from '@agentmesh/config';
-import { consumerNames, inboxPrefix, streamNames, subjects } from '@agentmesh/protocol';
+import type { MeshConfig } from '@cosmicwave/config';
+import { consumerNames, inboxPrefix, streamNames, subjects } from '@cosmicwave/protocol';
 
 /** How a NATS user is scoped. Service roles map 1:1 to kinds. */
 export type NatsUserKind = 'hub' | 'agent' | 'bridge' | 'ingest' | 'custom';

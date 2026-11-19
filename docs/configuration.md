@@ -2,7 +2,7 @@
 
 One directory: `mesh.yaml`, plus optional `workflows/*.yaml`, `rules/*.yaml` and files they
 reference (e.g. `policy/team-policy.md`). The schemas live in `packages/config/src/schema` — this
-page mirrors them. Check a config with `agentmesh validate --config <dir>`.
+page mirrors them. Check a config with `cmw validate --config <dir>`.
 
 **Environment variables.** Any string may contain `${NAME}` or `${NAME:-fallback}`. Values are
 substituted after YAML parsing, so they can never change the document's structure. Booleans and
@@ -14,17 +14,17 @@ numbers are not coerced from strings — write them literally.
 | --- | --- | --- |
 | `version` | — (required) | Always `1`. |
 | `mesh.name` | — (required) | Shown in Discord and agent instructions. |
-| `mesh.prefix` | `mesh` | NATS subject prefix (`^[a-z][a-z0-9_-]{0,30}$`). Lets several meshes share one NATS. Invites carry it to laptops. On a laptop, the prefix in `~/.agentmesh/agent.json` wins over the plugin's `prefix` option, as long as the file is for that agent: the `agent_id` and `nats_url` options are empty or match it. Otherwise the plugin ignores the file. |
-| `nats.servers` | `nats://localhost:4222` | String or list. `AGENTMESH_NATS_URL` overrides at runtime. |
+| `mesh.prefix` | `mesh` | NATS subject prefix (`^[a-z][a-z0-9_-]{0,30}$`). Lets several meshes share one NATS. Invites carry it to laptops. On a laptop, the prefix in `~/.cosmicwave/agent.json` wins over the plugin's `prefix` option, as long as the file is for that agent: the `agent_id` and `nats_url` options are empty or match it. Otherwise the plugin ignores the file. |
+| `nats.servers` | `nats://localhost:4222` | String or list. `COSMICWAVE_NATS_URL` overrides at runtime. |
 
 ## `hub`
 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `serviceId` | `hub` | The hub's id as message sender and NATS user. |
-| `nkey` | — | Public key of the hub's NATS user (`agentmesh keys add hub`). |
-| `authCallout.issuer` / `xkey` / `sysNkey` | — | Public keys for auth-callout mode (`agentmesh nats-config --auth-callout`): the account key that signs user JWTs, the curve key that seals auth requests, and the hub's kick-only system user. Generate each with `agentmesh keys add hub-issuer`, `hub-xkey` and `hub-sys`; the seeds stay in `deploy/secrets`. |
-| `dataDir` | `./data` | Directory of `hub.sqlite`, relative to the config dir. `AGENTMESH_DATA_DIR` overrides. |
+| `nkey` | — | Public key of the hub's NATS user (`cmw keys add hub`). |
+| `authCallout.issuer` / `xkey` / `sysNkey` | — | Public keys for auth-callout mode (`cmw nats-config --auth-callout`): the account key that signs user JWTs, the curve key that seals auth requests, and the hub's kick-only system user. Generate each with `cmw keys add hub-issuer`, `hub-xkey` and `hub-sys`; the seeds stay in `deploy/secrets`. |
+| `dataDir` | `./data` | Directory of `hub.sqlite`, relative to the config dir. `COSMICWAVE_DATA_DIR` overrides. |
 | `http.enabled` / `host` / `port` | `true` / `0.0.0.0` / `8787` | `GET /healthz` (readiness: `200` when the hub's database, NATS and subscriptions answer, else `503`; the Docker healthcheck and automatic deploys need it on 8787), `POST /v1/ingest/<source>`. |
 | `allowInsecureIngest` | `false` | Required to use ingest `auth: { type: none }` (development only). |
 | `tickSeconds` | `10` | Scheduler interval (outbox retries, presence expiry, deadlines, leases). |
@@ -63,13 +63,13 @@ For example, if you will run `/mesh invite user:@dana id:dana`, list `dana-agent
   with the area's skills instead, or to whoever is online, and the hub logs a warning.
 - The hub also warns at start, and whenever the team changes, about any owner not on the team yet.
 - From the moment they join, they own the area, with no restart.
-- `agentmesh validate` lists these owners as **Pending**, so a typo stays visible.
+- `cmw validate` lists these owners as **Pending**, so a typo stays visible.
 - A human or service id as an owner is still an error.
 
 The same holds for `review.humanReviewers`, `planning.facilitator` and the ids in a rule's
 `notify.to`: each may name someone who will join by invite. Until they join, reviews leave that
 human out, the initiator's agent facilitates plans instead, and notices skip them. The hub warns
-about them, and `agentmesh validate` lists them as **Pending**. The wrong kind of id (an agent as a
+about them, and `cmw validate` lists them as **Pending**. The wrong kind of id (an agent as a
 human reviewer, a human as facilitator, a service as a notify target, or the hub) is still an
 error.
 
@@ -95,12 +95,12 @@ error.
 | `review.maxReviewers` | `2` | Agents picked per round. |
 | `review.humanReviewers` | `[]` | Humans always added as reviewers. Someone who joins by invite is added once they have joined (see [Areas](#areas)). |
 | `leases.defaultTtlMinutes` | `120` | Lease lifetime when none is given. |
-| `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`AGENTMESH_HEARTBEAT_SECONDS` sets it on laptops). |
+| `presence.heartbeatSeconds` | `20` | Documented plugin cadence (`COSMICWAVE_HEARTBEAT_SECONDS` sets it on laptops). |
 | `presence.offlineAfterSeconds` | `75` | Silence after which an agent shows offline. |
 | `presence.ownershipGraceMinutes` | `120` | A session silent past `offlineAfterSeconds` goes away but keeps its threads; after this many minutes it closes and releases them (a reconnect with its previous session id reclaims what nobody took). |
 | `relay.closedAskerEscalationMinutes` | `15` | A reply whose asking session closed waits this long for the owner's decision in the mesh window, then the hub pings them on Discord, in the thread (1–1440). Each closed asker gets one notice and at most one ping, and the owner's own reply in the thread starts neither. Only a session that was private when it closed (inactive, not the mesh window) counts as a closed asker; plugins get the value with `session.hello`. Known gap: if the human chose reopen but hasn't reopened yet, the ping still fires. |
 | `observability.enabled` | `true` | Plugins record behaviour events and the hub stores them; `false` turns both off once the hub restarts with it. The hub then refuses every report. A plugin that reaches it stops within one beat (or at a hello that says off), drops what it holds and keeps nothing more; while off it sends one empty, free report a beat to check back, so turning it on again resumes recording with no hello needed. A plugin that can't reach the hub while it is off (an offline laptop) never learns, and ships what it recorded, up to `client.maxBufferedEvents`, once the hub is back on. Events already stored stay readable until they age out. |
-| `observability.viewers` | `[]` | Human ids whose agents may read timelines with `observe.timeline` (the `timeline` tool and `agentmesh timeline`). Each must be a human listed in `mesh.yaml`, so a member who joined by invite can't be a viewer yet. The hub refuses everyone else with `forbidden`, admins included. Anyone with access to the hub's server or a backup can still read the events table directly. Events hold ids, counts, outcomes, error codes, timings and versions only, never message text, prompts, code or command lines ([security](security.md#observability)). |
+| `observability.viewers` | `[]` | Human ids whose agents may read timelines with `observe.timeline` (the `timeline` tool and `cmw timeline`). Each must be a human listed in `mesh.yaml`, so a member who joined by invite can't be a viewer yet. The hub refuses everyone else with `forbidden`, admins included. Anyone with access to the hub's server or a backup can still read the events table directly. Events hold ids, counts, outcomes, error codes, timings and versions only, never message text, prompts, code or command lines ([security](security.md#observability)). |
 | `observability.retentionDays` | `14` | How long the hub keeps events, by the time it received them (minimum 1). |
 | `observability.maxEventsPerMinute` | `300` | Events the hub accepts per agent per minute, duplicates included; the rest are counted as dropped. The same cap applies, separately, to the hub's own failed-call events per caller, and to refused-connect events from all clients together. |
 | `observability.client.maxBufferedEvents` | `500` | Events a plugin keeps in memory while it cannot reach the hub (minimum 50); sent to plugins with `session.hello`. |
@@ -153,7 +153,7 @@ the hub database, not JetStream. A `mesh.yaml` that still sets it loads; the key
 | --- | --- | --- |
 | `enabled` | `false` | Requires `token`, `applicationId`, `guildId`. |
 | `serviceId` | `discord-bridge` | Must be a service with `canActAsHumans: true`. |
-| `provision.enabled` / `category` | `true` / `Agent Mesh` | Create missing channels in this category. |
+| `provision.enabled` / `category` | `true` / `Cosmicwave` | Create missing channels in this category. |
 | `channels` | see below | Purpose → `{ name, type: text|forum, topic? }`. |
 
 Default channels: `council` (mesh-council), `tasks` (mesh-tasks), `reviews` (mesh-reviews),
@@ -165,7 +165,7 @@ Default channels: `council` (mesh-council), `tasks` (mesh-tasks), `reviews` (mes
 
 Docker Compose reads `deploy/.env` next to the compose file. It holds the secrets `mesh.yaml`
 references and the compose settings. Never commit it or paste its values into a chat.
-- `/agentmesh:setup` writes it once (mode 600) with a comment above every line, and never replaces
+- `/cmw:setup` writes it once (mode 600) with a comment above every line, and never replaces
   it. `setup render --force`, like a re-run of a render that has not finished, sets only
   `NATS_BIND` and `NATS_PUBLIC_HOST`, which follow the hosting mode (a trial going real); for the
   other settings that differ from the answers it names them, for you to edit by hand.
@@ -179,13 +179,13 @@ references and the compose settings. Never commit it or paste its values into a 
 | `DISCORD_BOT_TOKEN` | empty | The bot token. The admin pastes it after the `=` in their own editor; the CLI reads it, Claude never does. |
 | `DISCORD_APP_ID` | filled by `setup discord` | The bot's application id. |
 | `DISCORD_GUILD_ID` | filled by `setup discord` | The Discord server the mesh uses (digits). |
-| `AGENTMESH_IMAGE_REGISTRY` | `ghcr.io/p2ratik`, or `setup render --registry` | Where the setup compose file pulls `agentmesh-hub` and `agentmesh-discord-bridge` from. The repo's compose file builds instead and ignores it. |
-| `AGENTMESH_VERSION` | the plugin's version | The image tag the hub and bridge run: the workspace's pin. Only `agentmesh upgrade` changes it, so a plugin update never upgrades the hub. Setup compose only. |
-| `AGENTMESH_CONFIG_DIR` | `../config` | The mesh config directory, relative to `deploy/`, mounted read-only at `/config`. |
+| `COSMICWAVE_IMAGE_REGISTRY` | `ghcr.io/p2ratik`, or `setup render --registry` | Where the setup compose file pulls `cosmicwave-hub` and `cosmicwave-discord-bridge` from. The repo's compose file builds instead and ignores it. |
+| `COSMICWAVE_VERSION` | the plugin's version | The image tag the hub and bridge run: the workspace's pin. Only `cmw upgrade` changes it, so a plugin update never upgrades the hub. Setup compose only. |
+| `COSMICWAVE_CONFIG_DIR` | `../config` | The mesh config directory, relative to `deploy/`, mounted read-only at `/config`. |
 | `NATS_BIND` | `0.0.0.0` on a server, `127.0.0.1` on a trial | Where compose publishes NATS's port 4222. |
 | `NATS_PUBLIC_HOST` | the server's DNS name; empty on a trial | The TLS certificate's name. Inside compose the hub and bridge reach NATS by it (a network alias), so hostname verification passes. |
 | `HUB_HTTP_BIND` | `127.0.0.1` | Where compose publishes the hub's ingest endpoint (8787). Keep it private. |
-| `AGENTMESH_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`, for the hub and the bridge. |
+| `COSMICWAVE_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`, for the hub and the bridge. |
 | `NATS_MEM_LIMIT`, `HUB_MEM_LIMIT`, `BRIDGE_MEM_LIMIT` | `256m`, `512m`, `384m` | Memory caps of the three containers, in Docker units (`256m`, `1g`), sized for a 1–2 GB server. A container that reaches its cap is restarted. Both compose files use the same defaults when a key is missing ([deploy.md](deploy.md#containers)). |
 | `PIDS_LIMIT` | `256` | The most processes and threads each container may run. |
 | `HERMES_INGEST_TOKEN`, `GITHUB_WEBHOOK_SECRET` | not written | Referenced by the example ingest sources in `config/examples`. A new setup mesh has no ingest sources. |
@@ -206,7 +206,7 @@ who can read the run logs can see them, which is everyone on a public repo:
 | `AZURE_RESOURCE_GROUP`, `AZURE_NSG` | none | The VM's NSG. Set them to open port 22 only to the runner for the length of the job. Leave them empty if SSH is reachable some other way. |
 | `DEPLOY_SSH_RULE` | `github-deploy-ssh` | The name of that temporary NSG rule. |
 | `DEPLOY_SSH_RULE_PRIORITY` | `200` | Its priority. Pick one no other rule in the NSG uses. |
-| `AWS_DEPLOY_SG` | none | On AWS, the id of the security group that holds only the deploy's temporary SSH rule (the setup script creates `agentmesh-github-deploy`). Set it to open port 22 only to the runner for the length of the job. |
+| `AWS_DEPLOY_SG` | none | On AWS, the id of the security group that holds only the deploy's temporary SSH rule (the setup script creates `cosmicwave-github-deploy`). Set it to open port 22 only to the runner for the length of the job. |
 | `AWS_REGION` | none | The region of that security group and the instance. Needed with `AWS_DEPLOY_SG`. |
 | `DEPLOY_NATS_PORT` | `4222` | The public NATS port the post-deploy smoke test checks. |
 
@@ -214,18 +214,18 @@ who can read the run logs can see them, which is everyone on a public repo:
 
 | Secret | Meaning |
 | --- | --- |
-| `DEPLOY_SSH_KEY` | The deploy key's private half (ed25519). On the server, it can only run `agentmesh-deploy`. |
+| `DEPLOY_SSH_KEY` | The deploy key's private half (ed25519). On the server, it can only run `cosmicwave-deploy`. |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | The app registration the job signs in as through OIDC. These are not secret, but storing them as secrets masks them in the log. |
 | `AWS_DEPLOY_ROLE_ARN` | On AWS, the role the job assumes through OIDC. Not secret either; as a secret, the account id in it is masked in the log. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | On AWS accounts that may not use OIDC providers (`AWS_AUTH=key` in the setup script): the access key of the IAM user the job signs in as. Set either these or `AWS_DEPLOY_ROLE_ARN`, never both. |
 
-**On the server: `/etc/default/agentmesh-deploy`.** `deploy/auto-deploy/install.sh` writes it
-once and never replaces it. `agentmesh-deploy` reads it on every run:
+**On the server: `/etc/default/cosmicwave-deploy`.** `deploy/auto-deploy/install.sh` writes it
+once and never replaces it. `cosmicwave-deploy` reads it on every run:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `AGENTMESH_DIR` | `/opt/agentmesh` | The repo checkout the stack runs from. |
-| `IMAGE_REGISTRY` | `ghcr.io/p2ratik` | Where the images come from: `<registry>/agentmesh-hub:<version>`, and the same for `agentmesh-discord-bridge`. For deploys from Actions, it must be where `release.yml` publishes (`ghcr.io/<repository owner>`): the job verifies the images there and the server pulls them by digest. |
+| `COSMICWAVE_DIR` | `/opt/cosmicwave` | The repo checkout the stack runs from. |
+| `IMAGE_REGISTRY` | `ghcr.io/p2ratik` | Where the images come from: `<registry>/cosmicwave-hub:<version>`, and the same for `cosmicwave-discord-bridge`. For deploys from Actions, it must be where `release.yml` publishes (`ghcr.io/<repository owner>`): the job verifies the images there and the server pulls them by digest. |
 | `COMPOSE_PROFILES` | `discord` | The compose profiles to run. Leave it empty for a mesh without the Discord bridge. |
 | `GIT_REMOTE`, `RELEASE_BRANCH` | `origin`, `main` | A release tag must be on this branch of this remote. |
 | `BACKUP_DIR`, `KEEP_BACKUPS` | `~/backups`, `10` | Where the pre-deploy `hub-data` backups go, and how many of the script's own backups to keep. |
@@ -234,29 +234,29 @@ once and never replaces it. `agentmesh-deploy` reads it on every run:
 ## Off-site backups
 
 The settings for [off-site backups](deploy.md#off-site-backups), in
-`/etc/default/agentmesh-backup` on the hub server. `deploy/backup/install.sh` writes it once and
-never replaces it; `agentmesh-backup` reads it on every run. Neither required value is secret.
+`/etc/default/cosmicwave-backup` on the hub server. `deploy/backup/install.sh` writes it once and
+never replaces it; `cosmicwave-backup` reads it on every run. Neither required value is secret.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `BACKUP_REMOTE` | none (required) | The private backup repository, as an SSH URL: `git@github.com:<owner>/<repo>.git`. |
 | `AGE_RECIPIENT` | none (required) | The admin's age public key (`age1…`). Every copy is encrypted to it; its private half never goes to the server. |
-| `AGENTMESH_DIR` | `/opt/agentmesh` | The repo checkout the stack runs from. |
+| `COSMICWAVE_DIR` | `/opt/cosmicwave` | The repo checkout the stack runs from. |
 | `BACKUP_PATHS` | `config deploy/.env deploy/secrets deploy/nats/nats.conf deploy/docker-compose.override.yml` | The files and folders, relative to the checkout, that go into each copy next to `hub.sqlite`. A missing one is skipped with a warning. |
-| `BACKUP_SSH_KEY` | `~/.ssh/agentmesh-backup` | The key that pushes to the repository. `<key>.known_hosts` next to it holds the repository host's keys. |
+| `BACKUP_SSH_KEY` | `~/.ssh/cosmicwave-backup` | The key that pushes to the repository. `<key>.known_hosts` next to it holds the repository host's keys. |
 
 The schedule is the systemd timer's: every hour, a few minutes late at random, and caught up after
-the server was off. Change it with `sudo systemctl edit agentmesh-backup.timer`.
+the server was off. Change it with `sudo systemctl edit cosmicwave-backup.timer`.
 
 ## Laptop (plugin)
 
 Each laptop's settings live outside `mesh.yaml`. The plugin options, the environment knobs and the
-files in `~/.agentmesh/` are listed in the
-[plugin README](../plugins/agentmesh/README.md#settings-and-files). Two knobs belong to the mesh
+files in `~/.cosmicwave/` are listed in the
+[plugin README](../plugins/cmw/README.md#settings-and-files). Two knobs belong to the mesh
 window:
-- `AGENTMESH_MESH_WINDOW` marks the mesh window. Only its launcher and its settings file set it;
+- `COSMICWAVE_MESH_WINDOW` marks the mesh window. Only its launcher and its settings file set it;
   never set it by hand.
-- `AGENTMESH_MESH_WINDOW_HINT=off`, in the `env` of your Claude Code `settings.json`, hides the
+- `COSMICWAVE_MESH_WINDOW_HINT=off`, in the `env` of your Claude Code `settings.json`, hides the
   session-start line that says no mesh window is running.
 
 The window's permission mode is a `window init` flag, not a knob: `--mode auto` (the default)
@@ -264,12 +264,12 @@ starts it in Claude Code's auto mode, `--mode manual` in `default` mode, where c
 list ask you. Secrets are refused in both ([security.md](security.md#auto-mode-in-the-window)).
 
 One knob belongs to private sessions:
-- `AGENTMESH_RELAY=off` stops the mesh window from sending reply pointers to the sessions that
+- `COSMICWAVE_RELAY=off` stops the mesh window from sending reply pointers to the sessions that
   have it set (in the `env` of `settings.json`, or the shell that starts Claude Code). Their
-  answers still wait for them, and the AgentMesh line on their next prompt still says so. The
+  answers still wait for them, and the Cosmicwave line on their next prompt still says so. The
   window refuses the relay and tells the hub why.
 
-`/agentmesh:window` copies two values from this file, through the `Git:` line of the agent's
+`/cmw:window` copies two values from this file, through the `Git:` line of the agent's
 instructions, into the window's policy: `git.integrationBranch`, and the own-branch prefix from
 `git.branchTemplate`. Run it again after either changes. The prefix is the
 template with `{owner}` and `{agent}` filled in, cut at the first other placeholder, so

@@ -5,7 +5,7 @@
 //
 //   node deploy/auto-deploy/nats-smoke.mjs <host> [port]     exit 0 ok, 1 failed
 //
-// It follows `checkNatsTls` (apps/cli/src/setup/checks/nats-tls.ts), which `agentmesh doctor`
+// It follows `checkNatsTls` (apps/cli/src/setup/checks/nats-tls.ts), which `cmw doctor`
 // runs, but needs no install: the deploy job runs it with the runner's node. It reads the greeting
 // and, after the TLS handshake, the certificate; it sends no NATS command, so it never logs in.
 import { connect as connectTcp, isIP } from 'node:net';

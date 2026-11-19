@@ -1,4 +1,4 @@
-import { type ConnectWords, connectOnce, refusedOrUnreachable } from '@agentmesh/bus';
+import { type ConnectWords, connectOnce, refusedOrUnreachable } from '@cosmicwave/bus';
 import type { CheckResult } from './result';
 
 export type ConnectNats = (

@@ -65,9 +65,9 @@ Part 1 changes who may take unowned work.
 Each teammate runs one **mesh window**: an activated push session, started by a launcher, that takes
 the agent's team work (tasks, reviews, teammates' questions). Every other session is private.
 
-- **The marker and the hello flag.** `agentmesh window init` writes a random token (32 hex
-  characters) into `~/.agentmesh/mesh-window.json`. The launcher and the settings file's `env` set
-  `AGENTMESH_MESH_WINDOW=<token>`.
+- **The marker and the hello flag.** `cmw window init` writes a random token (32 hex
+  characters) into `~/.cosmicwave/mesh-window.json`. The launcher and the settings file's `env` set
+  `COSMICWAVE_MESH_WINDOW=<token>`.
   - The guard (below) is on whenever the variable is non-empty.
   - The plugin sends `meshWindow: true` in `session.hello` only when the value equals the policy's
     token and the policy's agent is the plugin's agent.
@@ -82,8 +82,8 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
     without the guard.
   - A fall-through past an inactive parent or task owner adds `; skipped inactive <id> (<why>)` to
     the reason.
-- **The launcher and its settings file.** `/agentmesh:window` (user-only) asks for the team folder
-  and the test commands, then runs the bundled CLI's `window init`. It writes, in `~/.agentmesh/`:
+- **The launcher and its settings file.** `/cmw:window` (user-only) asks for the team folder
+  and the test commands, then runs the bundled CLI's `window init`. It writes, in `~/.cosmicwave/`:
   - `mesh-window.json`, the policy: agent, token, own-branch prefix, integration branch, up to 10
     test commands;
   - `mesh-window.settings.json`, passed with `--settings`: the marker, the git environment, the
@@ -93,16 +93,16 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
   - an empty `empty-git-hooks/` folder.
 
   The launcher sets the marker, changes to the folder it is given, and runs
-  `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh -n mesh-<agent> --permission-mode default --settings <file> "/agentmesh:activate mesh window"`.
+  `claude --dangerously-load-development-channels plugin:cmw@cosmicwave -n mesh-<agent> --permission-mode default --settings <file> "/cmw:activate mesh window"`.
   Re-running `window init` keeps the token, so a running window stays verified.
   It also writes `claude-mesh`, which only forwards to the launcher, next to `claude` when that
   folder is under the home folder and holds no `claude-mesh` it didn't write, else to
-  `~/.agentmesh/bin` for the human to add to PATH; so the human starts the window by typing
+  `~/.cosmicwave/bin` for the human to add to PATH; so the human starts the window by typing
   `claude-mesh` in any shell, and every launcher check still applies.
 - **Two layers, and the guard fails closed.**
   - The settings file's allow rules approve routine work.
   - The plugin's `PreToolUse` hook, `dist/guard.js`, acts only when the marker is set. It denies
-    edits outside a registered `.claude/worktrees/mesh-*` worktree, and inside `~/.agentmesh` or
+    edits outside a registered `.claude/worktrees/mesh-*` worktree, and inside `~/.cosmicwave` or
     any `.git`. It asks before any Bash command that isn't one of its exact forms. It never allows.
   - A hook's deny or ask outranks every allow rule and mode, so both layers must agree before
     anything runs without a prompt. The one exception is an installed mod: without managed settings
@@ -130,7 +130,7 @@ the agent's team work (tasks, reviews, teammates' questions). Every other sessio
   MCP instructions.
 - **The session-start hint.** In any other session, at startup only, on an enrolled laptop with no
   fresh heartbeat from an active push session, the hook shows one line saying nothing is listening.
-  `AGENTMESH_MESH_WINDOW_HINT=off` hides it.
+  `COSMICWAVE_MESH_WINDOW_HINT=off` hides it.
 - **Layered settings are accepted.** Claude Code merges the human's user and project settings into
   the window. Cutting them with `--setting-sources` would drop the user settings that enable the
   plugin. The guard's deny and ask still outrank every allow rule.
@@ -166,12 +166,12 @@ follow, as built.
 - In the private session, the prompt hook labels the turn a verified pointer only when it comes
   from the window's own address and the body is exactly a pointer.
 - **The note is the fallback.** A private session that has used a mesh tool gets one line on each
-  prompt while replies wait in threads it started: `AgentMesh: N unread repl(ies) from X in threads
+  prompt while replies wait in threads it started: `Cosmicwave: N unread repl(ies) from X in threads
   this session started; call inbox to read them.` The hook finds the session by its Claude Code
   process (`CLAUDE_PID` equals the MCP server's parent), which is verified on Windows only.
 - The relay runs only on Windows in 0.6.0, where the address pattern is verified. Elsewhere the
   window answers `forwarded: false`, and the note covers it where the MCP server is a child of the
-  Claude Code process; the probe checks that on Linux. `AGENTMESH_RELAY=off` turns pointers
+  Claude Code process; the probe checks that on Linux. `COSMICWAVE_RELAY=off` turns pointers
   off for a session.
 
 **B. The asker has closed.**
@@ -315,10 +315,10 @@ Added during the build:
 - A mesh window that activates closes the same agent's away mesh windows and takes their threads
   at once (`sessions/takeover.ts`), because a laptop that sleeps or crashes sends no goodbye. Live
   windows, private sessions and other agents' sessions are untouched.
-- `agentmesh window init` warns when a shell startup file defines a `claude-mesh` function or
+- `cmw window init` warns when a shell startup file defines a `claude-mesh` function or
   alias, because one would run instead of the launcher in that shell, with no marker and no guard.
 - "Set up" means one thing for the session-start hint and for `activate`: a valid window policy
-  that names this agent, so a second Claude account sharing `~/.agentmesh` isn't told its window is
+  that names this agent, so a second Claude account sharing `~/.cosmicwave` isn't told its window is
   set up.
 - The worktree lookup behind the local sessions line refuses UNC and device spellings before any
   filesystem call, because opening a share can leak NTLM and stall `task_get`.
@@ -374,7 +374,7 @@ Part 2:
 Part 3:
 
 - An answer to a private session's question no longer goes unnoticed. At worst it shows as the
-  AgentMesh line on that session's next prompt, which is verified on Windows; on Linux and macOS it
+  Cosmicwave line on that session's next prompt, which is verified on Windows; on Linux and macOS it
   rests on the MCP server being a child of the Claude Code process.
 - The hub needs migration 008. `MIN_CLIENT_VERSION` stays 0.3.0. A 0.5.0 window gets no `relay`,
   no `released` marker and no unclaimed delivery, so it behaves as before. A 0.6.0 window whose

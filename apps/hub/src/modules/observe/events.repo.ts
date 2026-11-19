@@ -1,4 +1,4 @@
-import type { HubEvent, ObservedEvent, ReportedEvent } from '@agentmesh/protocol';
+import type { HubEvent, ObservedEvent, ReportedEvent } from '@cosmicwave/protocol';
 import type { Db } from '../../db/database';
 
 export interface EventFilter {

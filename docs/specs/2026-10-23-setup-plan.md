@@ -1,11 +1,11 @@
-# `/agentmesh:setup` Implementation Plan
+# `/cmw:setup` Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** an admin types `/agentmesh:setup` and Claude takes them from "plugin installed" to a live mesh: their own agent active, a checklist proving it, and the team's `/mesh invite` lines ready to run.
+**Goal:** an admin types `/cmw:setup` and Claude takes them from "plugin installed" to a live mesh: their own agent active, a checklist proving it, and the team's `/mesh invite` lines ready to run.
 
 **Architecture:**
-- **Claude conducts, the CLI does the work.** A plugin skill does the interview and runs `agentmesh` CLI steps. The steps are new subcommands of `apps/cli`:
+- **Claude conducts, the CLI does the work.** A plugin skill does the interview and runs `cmw` CLI steps. The steps are new subcommands of `apps/cli`:
   - `setup render`, `setup status`, `setup discord`, `setup host`, `setup deploy`, `setup admin` and `setup invites`;
   - `doctor` and `upgrade`.
 - **Answers are structured data.** Claude writes the answers to a zod-checked JSON file. Every config file is rendered from it by pure functions.
@@ -13,7 +13,7 @@
 - **Servers pull images.** CI publishes hub and bridge images to GHCR, and the rendered compose file pulls them.
 - **The repo's own `deploy/docker-compose.yml` is not changed.** It keeps building from source, which keeps Opzami's live VM working. Setup renders its own compose file that pulls images. This is how the spec's "contributors build from source" holds without an override file.
 
-**Tech Stack:** Node 24, TypeScript, zod 4, `yaml` 2.9.1, `@nats-io/nkeys`, nats.js v3 (`@agentmesh/bus`), vitest, tsup, GitHub Actions (docker buildx and QEMU).
+**Tech Stack:** Node 24, TypeScript, zod 4, `yaml` 2.9.1, `@nats-io/nkeys`, nats.js v3 (`@cosmicwave/bus`), vitest, tsup, GitHub Actions (docker buildx and QEMU).
 
 **Spec:** `docs/specs/2026-10-23-setup-design.md`. Read it first; the section numbers (§) below refer to it.
 
@@ -33,11 +33,11 @@
 - **Seed files:** mode 600, written with `writePrivateFile`. On the server, seeds are chowned to uid 1000.
 - **`--dir` is required** by every `setup …`, `doctor` and `upgrade` command. Setup never writes into the current directory by accident.
 - **Constants:**
-  - `DEFAULT_IMAGE_REGISTRY = 'ghcr.io/p2ratik'`, `DEFAULT_MARKETPLACE = 'p2ratik/agentmesh'` and `DEFAULT_REMOTE_DIR = '/opt/agentmesh'`, defined once in `apps/cli/src/setup/defaults.ts`.
+  - `DEFAULT_IMAGE_REGISTRY = 'ghcr.io/p2ratik'`, `DEFAULT_MARKETPLACE = 'p2ratik/cosmicwave'` and `DEFAULT_REMOTE_DIR = '/opt/cosmicwave'`, defined once in `apps/cli/src/setup/defaults.ts`.
   - Discord bot permissions `326954470480`, scopes `bot+applications.commands`.
 - **Versions:**
   - One version across every `package.json`, `plugin.json` and `VERSION` (Task 1).
-  - The final task bumps everything to `0.4.0` and rebuilds `plugins/agentmesh/dist/`.
+  - The final task bumps everything to `0.4.0` and rebuilds `plugins/cmw/dist/`.
 - **MCP SDK** stays pinned at `1.32.1`.
 - **Docs, ADR and threat note** ship in this branch (Task 14).
 - **Git:** commit on `agent/pratik/setup` only. Never push or open a PR unless Pratik asks.
@@ -45,9 +45,9 @@
 ## Review Focus
 
 1. **The admin's laptop is already on another mesh** (Pratik's is on Opzami's).
-   - Expected: `setup admin` refuses to replace `~/.agentmesh/agent.json` without `--replace`, and `setup render` never overwrites an existing seed.
+   - Expected: `setup admin` refuses to replace `~/.cosmicwave/agent.json` without `--replace`, and `setup render` never overwrites an existing seed.
    - Test in Task 8 and Task 4.
-2. **Workspace paths with spaces or a drive letter** (`C:\Users\First Last\agentmesh\acme`).
+2. **Workspace paths with spaces or a drive letter** (`C:\Users\First Last\cosmicwave\acme`).
    - Expected: `scp` and `docker` still get correct arguments.
    - Test in Task 7.
 3. **The bot is in no server when the wait runs out, or in several.**
@@ -57,7 +57,7 @@
    - Expected: it is read correctly and never echoed.
    - Test in Task 3 and Task 5.
 5. **A deploy fails half-way** (for example the images are missing).
-   - Expected: `deploy` is not marked done, the error names `AGENTMESH_VERSION` and the registry, and a re-run continues.
+   - Expected: `deploy` is not marked done, the error names `COSMICWAVE_VERSION` and the registry, and a re-run continues.
    - Test in Task 7.
 
 ---
@@ -66,12 +66,12 @@
 
 **Files:**
 - Create: `packages/common/src/version.ts`, `packages/common/src/version.test.ts`
-- Modify: `packages/common/src/index.ts` (export it); `plugins/agentmesh/src/server.ts:11`
+- Modify: `packages/common/src/index.ts` (export it); `plugins/cmw/src/server.ts:11`
 - Modify: the `"version"` in `apps/{hub,discord-bridge,cli}/package.json` and `packages/{bus,common,config,protocol}/package.json`, set to `0.3.1`
 - Also commit: `docs/specs/2026-10-23-setup-design.md`, `docs/specs/2026-10-23-setup-plan.md`
 
 **Interfaces:**
-- Produces: `export const VERSION: string` from `@agentmesh/common`. The plugin's `VERSION` re-exports it, and later tasks import it.
+- Produces: `export const VERSION: string` from `@cosmicwave/common`. The plugin's `VERSION` re-exports it, and later tasks import it.
 
 - [ ] **Step 1: Write the failing test** `packages/common/src/version.test.ts`
 ```ts
@@ -79,8 +79,8 @@ it('every package.json, the plugin manifest and VERSION agree', () => {
   const root = join(import.meta.dirname, '../../..');
   const files = [
     ...['apps/hub', 'apps/discord-bridge', 'apps/cli', 'packages/bus', 'packages/common',
-        'packages/config', 'packages/protocol', 'plugins/agentmesh'].map((d) => `${d}/package.json`),
-    'plugins/agentmesh/.claude-plugin/plugin.json',
+        'packages/config', 'packages/protocol', 'plugins/cmw'].map((d) => `${d}/package.json`),
+    'plugins/cmw/.claude-plugin/plugin.json',
   ];
   for (const f of files) expect(JSON.parse(readFileSync(join(root, f), 'utf8')).version, f).toBe(VERSION);
 });
@@ -88,9 +88,9 @@ it('every package.json, the plugin manifest and VERSION agree', () => {
 - [ ] **Step 2: Run it and check that it fails:** `pnpm vitest run packages/common/src/version.test.ts`. Expected: FAIL (VERSION is not defined).
 - [ ] **Step 3: Implement.**
   - Add `export const VERSION = '0.3.1';` and export it from the index.
-  - In `plugins/agentmesh/src/server.ts`, replace the literal with `export { VERSION } from '@agentmesh/common';`.
+  - In `plugins/cmw/src/server.ts`, replace the literal with `export { VERSION } from '@cosmicwave/common';`.
   - Set every listed `package.json` to `0.3.1`.
-- [ ] **Step 4: Run** `pnpm vitest run packages/common plugins/agentmesh` and `pnpm typecheck`. Expected: PASS.
+- [ ] **Step 4: Run** `pnpm vitest run packages/common plugins/cmw` and `pnpm typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit:** `git add -A && git commit -m "One version for every package; add the setup design and plan"`
 
 ### Task 2: Setup answers, summary, mesh.yaml and policy renderers
@@ -136,7 +136,7 @@ export const agentIdOf = (personId: string): string => `${personId}-agent`;
   - `renderAnswersSummary(a: SetupAnswers): string`
 - Constants in `defaults.ts`: the global constants, plus `MAX_POLICY_CHARS = 2000` and `NATS_PORT = 4222`.
 
-**What `renderMeshYaml` emits** (build a plain object and stringify it with `yaml`, behind a header comment saying the file came from `setup render` and can be edited, then `agentmesh validate` and `agentmesh setup deploy`):
+**What `renderMeshYaml` emits** (build a plain object and stringify it with `yaml`, behind a header comment saying the file came from `setup render` and can be edited, then `cmw validate` and `cmw setup deploy`):
 - `mesh: { name: meshName, prefix: 'mesh' }`.
 - `nats.servers`: `tls://<publicHost>:4222` for a server, `nats://127.0.0.1:4222` for a trial.
 - `enrollment.natsUrl`: `tls://<publicHost>:4222`, on a server only.
@@ -165,7 +165,7 @@ It adds a warning when the text is longer than `MAX_POLICY_CHARS`.
     - `rejects an area owner who is not a person` (the message contains `areas.0.owners.0`);
     - `rejects the admin listed again in people`;
     - `rejects duplicate Discord usernames`;
-    - `applies defaults` (`git.integrationBranch === 'agents'`, `remoteDir === '/opt/agentmesh'`).
+    - `applies defaults` (`git.integrationBranch === 'agents'`, `remoteDir === '/opt/cosmicwave'`).
   - `mesh-yaml.test.ts`: write `renderMeshYaml` and `renderPolicy().text` to a temp dir (`mesh.yaml`, `policy/team-policy.md`), then:
     - `server answers load cleanly`: `loadConfig(dir, { env: { DISCORD_BOT_TOKEN: 't', DISCORD_APP_ID: '1', DISCORD_GUILD_ID: '2' } })` succeeds (validation requires all three while `discord.enabled`, `packages/config/src/validate.ts:151`), `config.enrollment.natsUrl === 'tls://mesh.acme.dev:4222'`, and `config.ingest.sources` is empty;
     - `area owners become agents`: `config.areas[0].owners` equals `['dana-agent']` when the owner is `dana`;
@@ -187,8 +187,8 @@ It adds a warning when the text is longer than `MAX_POLICY_CHARS`.
 - Produces:
 ```ts
 // deploy-files.ts (pure)
-export function renderCompose(): string;   // repo compose with `image: ${AGENTMESH_IMAGE_REGISTRY}/agentmesh-hub:${AGENTMESH_VERSION}`
-                                          // and agentmesh-discord-bridge; no build:
+export function renderCompose(): string;   // repo compose with `image: ${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-hub:${COSMICWAVE_VERSION}`
+                                          // and cosmicwave-discord-bridge; no build:
 export function renderEnv(i: { hosting: Hosting; version: string; registry: string }): string;
 export const WORKSPACE_GITIGNORE: string;  // "deploy/.env\ndeploy/secrets/\ndeploy/nats/nats.conf\n"
 export function renderClaudeSettings(): string; // {"permissions":{"deny":["Read(./deploy/.env)","Read(./deploy/secrets/**)"]}}
@@ -201,7 +201,7 @@ export function updateEnvFile(path: string, values: Record<string, string>): voi
 export interface WorkspacePaths { root: string; answers: string; state: string; configDir: string; meshFile: string;
   policyFile: string; deployDir: string; compose: string; envFile: string; natsConf: string; secretsDir: string;
   gitignore: string; claudeSettings: string }
-export function workspacePaths(root: string): WorkspacePaths;  // setup-answers.json, .agentmesh-setup.json, config/…, deploy/…
+export function workspacePaths(root: string): WorkspacePaths;  // setup-answers.json, .cosmicwave-setup.json, config/…, deploy/…
 export const STEPS = ['render', 'discord', 'host', 'deploy', 'admin'] as const;
 export type StepName = (typeof STEPS)[number];
 export const SetupState = z.object({ version: z.literal(1), done: z.partialRecord(z.enum(STEPS), z.string()) });
@@ -214,9 +214,9 @@ export function writeRendered(path: string, content: string, force: boolean): Wr
 ```
 - **`renderEnv` lines**, each with its comment on the line above (never an inline comment):
   - `DISCORD_BOT_TOKEN=` (empty), `DISCORD_APP_ID=`, `DISCORD_GUILD_ID=`;
-  - `AGENTMESH_IMAGE_REGISTRY=<registry>`, `AGENTMESH_VERSION=<version>`, `AGENTMESH_CONFIG_DIR=../config`;
+  - `COSMICWAVE_IMAGE_REGISTRY=<registry>`, `COSMICWAVE_VERSION=<version>`, `COSMICWAVE_CONFIG_DIR=../config`;
   - on a server: `NATS_BIND=0.0.0.0` and `NATS_PUBLIC_HOST=<publicHost>`; on a trial: `NATS_BIND=127.0.0.1` and `NATS_PUBLIC_HOST=`;
-  - `HUB_HTTP_BIND=127.0.0.1` and `AGENTMESH_LOG_LEVEL=info`.
+  - `HUB_HTTP_BIND=127.0.0.1` and `COSMICWAVE_LOG_LEVEL=info`.
 - **`renderCompose`** keeps the volumes, ports, aliases, environment and `profiles: [discord]` of `deploy/docker-compose.yml`.
 
 - [ ] **Step 1: Write failing tests.**
@@ -224,7 +224,7 @@ export function writeRendered(path: string, content: string, force: boolean): Wr
   - `setEnvValues` keeps comments and the order, replaces `DISCORD_APP_ID=` in place, and appends an unknown key at the end.
   - `writeRendered` returns `created`, then `unchanged`; it returns `differs` and leaves the file untouched when the content changed; it returns `replaced` with `force`.
   - `readState` on an empty dir returns `{ version: 1, done: {} }`; `markDone` round-trips.
-  - `renderCompose` contains no `build:`, and does contain `image: ${AGENTMESH_IMAGE_REGISTRY}/agentmesh-hub:${AGENTMESH_VERSION}`.
+  - `renderCompose` contains no `build:`, and does contain `image: ${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-hub:${COSMICWAVE_VERSION}`.
   - `renderEnv` for a server has the line `NATS_PUBLIC_HOST=mesh.acme.dev`, and no line has text after the value.
 - [ ] **Step 2: Run** `pnpm vitest run apps/cli/src/setup`. Expected: FAIL.
 - [ ] **Step 3: Implement** the three modules.
@@ -260,23 +260,23 @@ export function renderStatus(state: SetupState, answers: SetupAnswers | null): s
      - It prints each policy warning to stderr.
   4. Keys.
      - **Server:** `hub`, `discord-bridge`, `hub-issuer`, `hub-xkey` and `hub-sys` into `deploy/secrets`.
-     - **Always:** `<admin>-agent` (and `<admin>-test-agent` for a trial with `testAgent`) into `<home>/.agentmesh`.
+     - **Always:** `<admin>-agent` (and `<admin>-test-agent` for a trial with `testAgent`) into `<home>/.cosmicwave`.
      - A holder that already has a key in `mesh.yaml` is skipped.
-     - An existing seed file is never overwritten: `addKey` already uses `wx`, and the error says to use `agentmesh keys add <id> --force` on purpose.
+     - An existing seed file is never overwritten: `addKey` already uses `wx`, and the error says to use `cmw keys add <id> --force` on purpose.
   5. `writeNatsConfig`: `tls` and `callout` for a server; neither for a trial. `out` is `deploy/nats/nats.conf`.
   6. `loadConfig` of `meshFile` must succeed. The env comes from `readEnvFile(.env)` (as a plain object), with each empty `DISCORD_BOT_TOKEN`, `DISCORD_APP_ID` or `DISCORD_GUILD_ID` filled with `SECRET_PLACEHOLDER` from `lib/config-files.ts`. They are only known after `setup discord`, and the full check without placeholders runs in `setup deploy` (Task 7).
   7. `markDone('render')`. Print the files written and `Next: paste your Discord bot token into <envFile> after DISCORD_BOT_TOKEN=, save it, then run setup discord. Never paste the token into the chat.`
 - `setup status --dir <ws>` prints `renderStatus`.
   - The next step follows the `STEPS` order. On a trial, `host` is skipped.
-  - After `admin`, the next step reads `run doctor, then /agentmesh:activate, then setup invites`.
+  - After `admin`, the next step reads `run doctor, then /cmw:activate, then setup invites`.
 
 - [ ] **Step 1: Write failing tests** in `render.test.ts`, using the `harness()` pattern from `cli.test.ts` with `homeDir` inside the temp dir:
-  - `renders a server workspace`: exit 0; `deploy/secrets/{hub,discord-bridge,hub-issuer,hub-xkey,hub-sys}.nk` exist; `home/.agentmesh/riya-agent.nk` exists; `nats.conf` contains `tls {` and `auth_callout`; `loadConfig` sees `config.hub.authCallout?.issuer` starting with `A`.
+  - `renders a server workspace`: exit 0; `deploy/secrets/{hub,discord-bridge,hub-issuer,hub-xkey,hub-sys}.nk` exist; `home/.cosmicwave/riya-agent.nk` exists; `nats.conf` contains `tls {` and `auth_callout`; `loadConfig` sees `config.hub.authCallout?.issuer` starting with `A`.
   - `renders a trial workspace`: `nats.conf` contains no `tls {`; the agent keys are in it; there is no `deploy/secrets/hub-issuer.nk`.
   - `--dry-run writes nothing`: the workspace has only `setup-answers.json`.
   - `a second run changes nothing`: the file hashes and the seed contents are identical, and the output contains `Already rendered`.
   - `--force keeps .env and the keys`: write `DISCORD_BOT_TOKEN=tok` into `.env`, re-run with `--force`; `.env` still contains `tok`, and the seeds are unchanged.
-  - `an existing admin seed is not overwritten` (Review Focus 1): pre-create `home/.agentmesh/riya-agent.nk`; the exit code is 1, the error mentions `keys add riya-agent --force`, and the file is unchanged.
+  - `an existing admin seed is not overwritten` (Review Focus 1): pre-create `home/.cosmicwave/riya-agent.nk`; the exit code is 1, the error mentions `keys add riya-agent --force`, and the file is unchanged.
   - The existing `cli.test.ts` end-to-end test still passes (the extraction keeps behaviour).
 - [ ] **Step 2: Run** `pnpm vitest run apps/cli`. Expected: the new tests FAIL.
 - [ ] **Step 3: Implement** the extraction, the commands and `renderStatus`.
@@ -371,7 +371,7 @@ export const setupHostCommand: Command;   // 'setup host'
   - Then it runs `runChecked(run, 'ssh', [...SSH_OPTIONS, ssh, 'sudo bash -s'], { input: script }, 'Preparing the server')` and marks `host` done.
 
 - [ ] **Step 1: Write failing tests.**
-  - The host script contains `certbot certonly --standalone`, `'mesh.acme.dev'` and `/opt/agentmesh/deploy/docker-compose.yml`, and has no `git`. `bash -n` passes on it when bash exists (`it.skipIf(!hasBash)`).
+  - The host script contains `certbot certonly --standalone`, `'mesh.acme.dev'` and `/opt/cosmicwave/deploy/docker-compose.yml`, and has no `git`. `bash -n` passes on it when bash exists (`it.skipIf(!hasBash)`).
   - `setup host` with a fake `run` records `ssh` with `BatchMode=yes` and `sudo bash -s`, and the script arrives as input.
   - DNS failure means no ssh call and exit 1.
   - On a trial, no ssh call.
@@ -397,9 +397,9 @@ export async function deployWorkspace(ctx: CliContext, p: WorkspacePaths, a: Set
 export const setupDeployCommand: Command;   // 'setup deploy'
 export const upgradeCommand: Command;       // 'upgrade'
 ```
-- `remoteCommands('/opt/agentmesh')`:
-  - **prepare:** `sudo chown -R "$(id -u):$(id -g)" /opt/agentmesh/deploy/secrets && mkdir -p /opt/agentmesh/deploy/secrets /opt/agentmesh/deploy/nats /opt/agentmesh/config`
-  - **finish:** `chmod 600 /opt/agentmesh/deploy/.env && sudo chown 1000:1000 /opt/agentmesh/deploy/secrets/*.nk && sudo chmod 600 /opt/agentmesh/deploy/secrets/*.nk && cd /opt/agentmesh/deploy && docker compose --profile discord pull && docker compose --profile discord up -d`
+- `remoteCommands('/opt/cosmicwave')`:
+  - **prepare:** `sudo chown -R "$(id -u):$(id -g)" /opt/cosmicwave/deploy/secrets && mkdir -p /opt/cosmicwave/deploy/secrets /opt/cosmicwave/deploy/nats /opt/cosmicwave/config`
+  - **finish:** `chmod 600 /opt/cosmicwave/deploy/.env && sudo chown 1000:1000 /opt/cosmicwave/deploy/secrets/*.nk && sudo chmod 600 /opt/cosmicwave/deploy/secrets/*.nk && cd /opt/cosmicwave/deploy && docker compose --profile discord pull && docker compose --profile discord up -d`
 - **`deployWorkspace` first checks the config.** `loadConfig` of the workspace config must succeed with the real `.env` values and no placeholders, which catches a missing token, application id or server id. Any issue fails the deploy before anything is copied.
 - **`deployWorkspace` on a server.** It needs `discord` and `host` done; otherwise it fails with the step to run. Then, every `scp` with `cwd: p.root` and relative paths:
   1. `ssh prepare`;
@@ -409,17 +409,17 @@ export const upgradeCommand: Command;       // 'upgrade'
   5. `scp -q deploy/secrets/<each>.nk … <t>:<dir>/deploy/secrets/`;
   6. `ssh finish`.
 - **On a trial**, it needs `discord` done, then runs `docker compose --profile discord pull` and `docker compose --profile discord up -d` with `cwd: p.deployDir`.
-- **A failure** in a pull step is rethrown with the extra line `Check that <registry>/agentmesh-hub:<version> exists (AGENTMESH_IMAGE_REGISTRY and AGENTMESH_VERSION in deploy/.env).`
+- **A failure** in a pull step is rethrown with the extra line `Check that <registry>/cosmicwave-hub:<version> exists (COSMICWAVE_IMAGE_REGISTRY and COSMICWAVE_VERSION in deploy/.env).`
 - **Success** calls `markDone('deploy')`.
-- **`upgrade --dir <ws> [--to <version>]`** sets `AGENTMESH_VERSION` to `--to ?? VERSION`, prints `Hub version <old> → <new>`, then runs `deployWorkspace`.
+- **`upgrade --dir <ws> [--to <version>]`** sets `COSMICWAVE_VERSION` to `--to ?? VERSION`, prints `Hub version <old> → <new>`, then runs `deployWorkspace`.
 
 - [ ] **Step 1: Write failing tests** with a fake `run` that records `(cmd, args, cwd)`:
   - `server deploy runs prepare, the copies, then finish`: the exact sequence of `cmd`s, and every scp arg that is not a remote target is relative, not absolute.
-  - `a workspace path with a space and a drive letter` (Review Focus 2): `p.root = 'C:\\Users\\First Last\\agentmesh\\acme'` (built with `path.win32` in the test); every scp call has `cwd === p.root`, and no arg contains `C:`.
-  - `a failed pull is not marked done and names the image` (Review Focus 5): the fake returns code 1 for the finish command; state has no `deploy`; stderr contains `` `ghcr.io/p2ratik/agentmesh-hub:${VERSION}` `` (import `VERSION`; never hard-code it, since Task 14 bumps it); a second run with a passing fake marks it done.
+  - `a workspace path with a space and a drive letter` (Review Focus 2): `p.root = 'C:\\Users\\First Last\\cosmicwave\\acme'` (built with `path.win32` in the test); every scp call has `cwd === p.root`, and no arg contains `C:`.
+  - `a failed pull is not marked done and names the image` (Review Focus 5): the fake returns code 1 for the finish command; state has no `deploy`; stderr contains `` `ghcr.io/p2ratik/cosmicwave-hub:${VERSION}` `` (import `VERSION`; never hard-code it, since Task 14 bumps it); a second run with a passing fake marks it done.
   - `an empty token fails before anything is copied`: `.env` has `DISCORD_BOT_TOKEN=`; the fake `run` is never called and the error names `discord.token`.
   - `trial deploy runs docker compose in deploy/`.
-  - `upgrade moves the pin and deploys`: `.env` has `AGENTMESH_VERSION=0.9.0` after `--to 0.9.0`, and the deploy commands ran.
+  - `upgrade moves the pin and deploys`: `.env` has `COSMICWAVE_VERSION=0.9.0` after `--to 0.9.0`, and the deploy commands ran.
   - `refuses before discord is done`.
 - [ ] **Step 2: Run** `pnpm vitest run apps/cli/src`. Expected: FAIL.
 - [ ] **Step 3: Implement** it.
@@ -429,35 +429,35 @@ export const upgradeCommand: Command;       // 'upgrade'
 ### Task 8: `setup admin` and the plugin's `connect` tool
 
 **Files:**
-- Create: `packages/common/src/agent-files.ts`; `apps/cli/src/commands/setup/admin.ts`; `plugins/agentmesh/src/join/connect-tool.ts`
-- Modify: `packages/common/src/index.ts`; `plugins/agentmesh/src/join/files.ts` (import `agentmeshDir` and `existingMesh` from common and delete the local copies); `plugins/agentmesh/src/main.ts` (unenrolled mode lists and dispatches `connect`); `apps/cli/src/main.ts`
-- Test: `apps/cli/src/commands/setup/admin.test.ts`, `plugins/agentmesh/src/join/connect-tool.test.ts`
+- Create: `packages/common/src/agent-files.ts`; `apps/cli/src/commands/setup/admin.ts`; `plugins/cmw/src/join/connect-tool.ts`
+- Modify: `packages/common/src/index.ts`; `plugins/cmw/src/join/files.ts` (import `cosmicwaveDir` and `existingMesh` from common and delete the local copies); `plugins/cmw/src/main.ts` (unenrolled mode lists and dispatches `connect`); `apps/cli/src/main.ts`
+- Test: `apps/cli/src/commands/setup/admin.test.ts`, `plugins/cmw/src/join/connect-tool.test.ts`
 
 **Interfaces:**
 - Produces:
 ```ts
 // packages/common/src/agent-files.ts — moved unchanged from the plugin
-export const agentmeshDir: (home: string) => string;
+export const cosmicwaveDir: (home: string) => string;
 export function existingMesh(home: string): { agentId?: string; natsUrl?: string } | null;
 // apps/cli
 export const setupAdminCommand: Command;   // 'setup admin'
-// plugins/agentmesh/src/join/connect-tool.ts
+// plugins/cmw/src/join/connect-tool.ts
 export const CONNECT_TOOL = 'connect';
 export const connectToolListing: { name: string; description: string; inputSchema: object };
 export async function callConnectTool(deps: { resolve: () => ConfigResult;
   onConnected: (agentId: string) => Promise<void> }): Promise<CallToolResult>;
 ```
 - **`setup admin --dir <ws> [--replace]`:**
-  - The agent id is `<admin>-agent`. The NATS URL is `tls://<publicHost>:4222` on a server and `nats://127.0.0.1:4222` on a trial. The seed is `<home>/.agentmesh/<agent>.nk` and must exist; otherwise the error says to run `setup render`.
+  - The agent id is `<admin>-agent`. The NATS URL is `tls://<publicHost>:4222` on a server and `nats://127.0.0.1:4222` on a trial. The seed is `<home>/.cosmicwave/<agent>.nk` and must exist; otherwise the error says to run `setup render`.
   - If `existingMesh(home)` names another agent id or URL and there is no `--replace`, exit 1 with `This laptop is already set up as <agent> on <url>. Run again with --replace to switch it to <team>; that agent stops working here.`
   - Write `agent.json` with `agentJson(…)` from `render/agent-setup.ts`, using `writePrivateFile(…, true)`.
-  - Print `Saved <home>/.agentmesh/agent.json for <agent>. In Claude Code, call the AgentMesh connect tool, or restart Claude Code with the channel flag. Then run /agentmesh:activate.` With `--replace`, it adds `Restart Claude Code: the running plugin is still connected to the old mesh.`
-  - On a trial with a test agent, it also prints the `agentmesh agent-setup <admin>-test-agent --config <ws>/config --nats-url nats://127.0.0.1:4222 --seed-file <home>/.agentmesh/<admin>-test-agent.nk` hint.
+  - Print `Saved <home>/.cosmicwave/agent.json for <agent>. In Claude Code, call the Cosmicwave connect tool, or restart Claude Code with the channel flag. Then run /cmw:activate.` With `--replace`, it adds `Restart Claude Code: the running plugin is still connected to the old mesh.`
+  - On a trial with a test agent, it also prints the `cmw agent-setup <admin>-test-agent --config <ws>/config --nats-url nats://127.0.0.1:4222 --seed-file <home>/.cosmicwave/<admin>-test-agent.nk` hint.
   - `markDone('admin')`.
 - **`connect`:**
-  - The description is `Connect this session with the settings that agentmesh setup saved in ~/.agentmesh/agent.json.`
+  - The description is `Connect this session with the settings that cmw setup saved in ~/.cosmicwave/agent.json.`
   - If `resolve()` is not ok, it returns `isError` with the problems.
-  - Otherwise it awaits `onConnected(config.agentId)` and returns `Connected as <agent>. Run /agentmesh:activate.`
+  - Otherwise it awaits `onConnected(config.agentId)` and returns `Connected as <agent>. Run /cmw:activate.`
   - In `main.ts` `runUnenrolled`, `onConnected` is the existing `onJoined`.
 
 - [ ] **Step 1: Write failing tests.**
@@ -467,7 +467,7 @@ export async function callConnectTool(deps: { resolve: () => ConfigResult;
     - `missing seed points at setup render`.
   - `connect-tool.test.ts`: an unresolved config gives `isError` with the problems listed; a resolved one calls `onConnected('riya-agent')` once.
   - `files.ts`'s existing tests still pass.
-- [ ] **Step 2: Run** `pnpm vitest run apps/cli/src plugins/agentmesh/src packages/common`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run apps/cli/src plugins/cmw/src packages/common`. Expected: FAIL.
 - [ ] **Step 3: Implement** it.
 - [ ] **Step 4: Run** it again, plus `pnpm typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit:** `git commit -m "Setup admin saves the admin's agent; the plugin connects without a restart"`
@@ -495,7 +495,7 @@ export function classifyChannels(channels: Array<{ name: string; type: number; p
 export async function checkAgentConnects(natsUrl: string, seedFile: string, agentId: string): Promise<CheckResult>;
   // connectOnce({ servers:[natsUrl], name:`doctor-${agentId}`, credentials:{ nkeySeed: seedFile } }) then close
 export function renderChecklist(team: string, results: CheckResult[]): string;
-  // first line "AgentMesh is live for <team>" when all ok, else "AgentMesh for <team>: <n> problem(s)"; ✓ / ✗ lines, ✗ followed by "   → <detail>"
+  // first line "Cosmicwave is live for <team>" when all ok, else "Cosmicwave for <team>: <n> problem(s)"; ✓ / ✗ lines, ✗ followed by "   → <detail>"
 export const doctorCommand: Command;   // 'doctor --dir <ws>'
 ```
 - **What `doctor` runs on a server:** `checkDns`, `checkNatsTls`, then the containers check over `ssh <t> "cd <dir>/deploy && docker compose --profile discord ps --format json"`. Then the Discord channels, using the token from `.env` and the channel defaults from the loaded config (`config.discord.channels`, `config.discord.provision.category`). Last, `checkAgentConnects`.
@@ -507,7 +507,7 @@ export const doctorCommand: Command;   // 'doctor --dir <ws>'
   - `checkNatsTls` against a local `net` server that writes `INFO {"tls_required":false}\r\n` fails with the detail `NATS does not offer TLS`.
   - `classifyContainers`: all three running and the hub healthy pass; a hub in `starting` fails with `docker compose logs hub` in the detail; a missing bridge fails.
   - `classifyChannels`: the full set passes; a missing `mesh-alerts` names it.
-  - `doctor` on a trial with fakes for `run` and `fetch` prints `AgentMesh is live for Acme`.
+  - `doctor` on a trial with fakes for `run` and `fetch` prints `Cosmicwave is live for Acme`.
 - [ ] **Step 2: Run** `pnpm vitest run apps/cli/src`. Expected: FAIL.
 - [ ] **Step 3: Implement** it. Every socket gets a 5 s timeout, and every socket is destroyed when done.
 - [ ] **Step 4: Run** it again. Expected: PASS.
@@ -531,12 +531,12 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
   `/mesh invite user:@<discordUsername> id:<id> name:<name>`, then ` roles:<a,b>` and ` skills:<x,y>` when they are not empty. Admins in `people` get `admin` among their roles.
 - **The join note**, as a numbered list:
   1. Join the `<team>` Discord server and allow DMs from its members.
-  2. `claude plugin marketplace add <marketplace>` and `claude plugin install agentmesh@agentmesh`.
-  3. Add `"mcp__plugin_agentmesh_mesh__*"` to `permissions.allow` in `~/.claude/settings.json`, and leave the plugin options empty.
-  4. When the invite DM arrives, save the code to `~/.agentmesh/invite.txt`, never in a chat.
-  5. Start `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`.
-  6. Run `/agentmesh:join` and confirm that the hub is `<publicHost>:4222`.
-  7. Run `/agentmesh:activate`.
+  2. `claude plugin marketplace add <marketplace>` and `claude plugin install cmw@cosmicwave`.
+  3. Add `"mcp__plugin_cmw_mesh__*"` to `permissions.allow` in `~/.claude/settings.json`, and leave the plugin options empty.
+  4. When the invite DM arrives, save the code to `~/.cosmicwave/invite.txt`, never in a chat.
+  5. Start `claude --dangerously-load-development-channels plugin:cmw@cosmicwave`.
+  6. Run `/cmw:join` and confirm that the hub is `<publicHost>:4222`.
+  7. Run `/cmw:activate`.
 
   It ends with `Install first: codes expire 24 hours after the invite.`
 - **The command:**
@@ -547,7 +547,7 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
 - [ ] **Step 1: Write failing tests.**
   - The exact line for `{ id:'sagar', name:'Sagar', discordUsername:'sagar_c', roles:['product','quality'], skills:['frontend'] }` is `/mesh invite user:@sagar_c id:sagar name:Sagar roles:product,quality skills:frontend`.
   - A person with no roles or skills gets no `roles:` or `skills:`.
-  - The note contains `mesh.acme.dev:4222` and `p2ratik/agentmesh`.
+  - The note contains `mesh.acme.dev:4222` and `p2ratik/cosmicwave`.
   - On a trial the output contains `cannot join a trial`.
 - [ ] **Step 2: Run** `pnpm vitest run apps/cli/src/setup`. Expected: FAIL.
 - [ ] **Step 3: Implement** it.
@@ -570,23 +570,23 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
 - [ ] **Step 2: Run** `pnpm vitest run apps/cli/src/setup/no-secrets.test.ts`. Expected: PASS. If it fails, fix the step that leaks; never weaken the test.
 - [ ] **Step 3: Commit:** `git commit -m "Test: no setup step prints a secret"`
 
-### Task 12: Ship the CLI in the plugin, the `/agentmesh:setup` skill, the end-to-end test
+### Task 12: Ship the CLI in the plugin, the `/cmw:setup` skill, the end-to-end test
 
 **Files:**
-- Create: `apps/cli/src/index.ts`; `plugins/agentmesh/src/cli.ts`; `plugins/agentmesh/skills/setup/SKILL.md`; `tests/integration/setup.e2e.test.ts`
+- Create: `apps/cli/src/index.ts`; `plugins/cmw/src/cli.ts`; `plugins/cmw/skills/setup/SKILL.md`; `tests/integration/setup.e2e.test.ts`
 - Modify:
   - `apps/cli/package.json`: `"exports": { ".": "./src/index.ts" }`.
   - `apps/cli/src/context.ts`: add `processContext(): CliContext`, moved out of `main.ts`; `main.ts` uses it.
-  - `plugins/agentmesh/package.json`: add `"@agentmesh/cli": "workspace:*"`.
-  - `plugins/agentmesh/tsup.config.ts`: `entry: { server: 'src/main.ts', cli: 'src/cli.ts' }`.
-  - `plugins/agentmesh/README.md`.
+  - `plugins/cmw/package.json`: add `"@cosmicwave/cli": "workspace:*"`.
+  - `plugins/cmw/tsup.config.ts`: `entry: { server: 'src/main.ts', cli: 'src/cli.ts' }`.
+  - `plugins/cmw/README.md`.
   - `tests/integration/support.ts`: `export const PLUGIN_CLI = …/dist/cli.js`.
 
 **Interfaces:**
 - Produces: `apps/cli/src/index.ts` exports `runCli`, `processContext` and `COMMANDS`. The plugin entry `src/cli.ts` runs `runCli(process.argv.slice(2), processContext()).then((c) => process.exit(c))`.
 
-**The skill `plugins/agentmesh/skills/setup/SKILL.md`.**
-- **Frontmatter:** `name: setup`; `description: Set up AgentMesh for your team: the hub, Discord and your own agent.`; `disable-model-invocation: true`; and no `allowed-tools`.
+**The skill `plugins/cmw/skills/setup/SKILL.md`.**
+- **Frontmatter:** `name: setup`; `description: Set up Cosmicwave for your team: the hub, Discord and your own agent.`; `disable-model-invocation: true`; and no `allowed-tools`.
 - **In the body, every CLI call is written exactly** as `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" <command> --dir "<workspace>"`.
 - **The body must contain these rules verbatim:**
   - "Never ask the user to paste the Discord bot token, an invite code or any key into this chat. If they paste one anyway, do not repeat it; tell them to reset it in the Discord developer portal and to put the new one in the file."
@@ -595,7 +595,7 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
   - "Agents cannot run `/mesh` admin commands. You print the invite lines; the admin runs them in Discord."
   - "Create nothing that costs money until the user says yes to the server size you proposed."
 - **The body's steps, in order:**
-  0. Run `setup status` when a workspace already exists; continue from its `Next`. Otherwise ask where to keep the workspace (default `~/agentmesh/<team>`). Tell the admin that this session must have been started with `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`, and that if it wasn't, they should restart that way first.
+  0. Run `setup status` when a workspace already exists; continue from its `Next`. Otherwise ask where to keep the workspace (default `~/cosmicwave/<team>`). Tell the admin that this session must have been started with `claude --dangerously-load-development-channels plugin:cmw@cosmicwave`, and that if it wasn't, they should restart that way first.
   1. **About you,** one topic at a time, exactly as spec §4 step 1. Propose ids, skills, areas and policy, then write `setup-answers.json` with the Write tool (its schema is listed in the skill as a JSON example). Run `setup render --dry-run`, show the summary, and wait for a yes.
   2. **Where.** Offer the three options from spec §4 step 2.
      - **New cloud server.** Check the CLI with `az account show`, `aws sts get-caller-identity`, `gcloud config get-value account`, `doctl account get` or `hcloud context active`. Propose exactly the server spec in §5.5 and ask for a yes. Run the provider commands one at a time; `deploy/azure/provision.sh` is the reference for Azure.
@@ -603,16 +603,16 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
   3. **Render.** Run `setup render`.
   4. **Discord.** Follow the portal steps from spec §4 step 3, then `setup discord` until it succeeds. Ask the admin to confirm the printed Discord account is theirs; if not, re-run with `--admin-discord-id`.
   5. **Launch.** Run `setup host` (server only), then `setup deploy`.
-  6. **You join.** Run `setup admin`, then call the AgentMesh `connect` tool (or ask the admin to restart with the flag), then run `/agentmesh:activate`.
+  6. **You join.** Run `setup admin`, then call the Cosmicwave `connect` tool (or ask the admin to restart with the flag), then run `/cmw:activate`.
   7. **Proof.**
      - Run `doctor`, then call `peers` and confirm the admin's agent is listed.
-     - Call `broadcast` with `AgentMesh is set up for <team>. Hello from <agent>.`
+     - Call `broadcast` with `Cosmicwave is set up for <team>. Hello from <agent>.`
      - Ask the admin whether they see it in `#mesh-council`.
      - Print the combined checklist in the spec §7 format.
   8. **Your team.** Run `setup invites`, show its output, and explain the order: teammates install first, the admin runs the lines.
 - **On any failure:** show the CLI's message, fix the cause with the admin, and re-run the same step. Never edit the files by hand to get around a failing step.
 
-**The end-to-end test `tests/integration/setup.e2e.test.ts`** (skip unless `AGENTMESH_TEST_NATS_BIN` exists and `PLUGIN` and `PLUGIN_CLI` are built):
+**The end-to-end test `tests/integration/setup.e2e.test.ts`** (skip unless `COSMICWAVE_TEST_NATS_BIN` exists and `PLUGIN` and `PLUGIN_CLI` are built):
 1. `node PLUGIN_CLI --help` exits 0 and lists `setup render`.
 2. Write trial answers into a temp workspace, with `HOME`/`USERPROFILE` set to a temp home. Run `node PLUGIN_CLI setup render --dir <ws>`.
 3. Patch the rendered `nats.conf` the way `mesh.auth.e2e.test.ts` does (port, monitoring line, JetStream dir), and start nats-server.
@@ -622,10 +622,10 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
 7. Call `connect`, then `peers`. The result lists `riya-agent`.
 
 - [ ] **Step 1: Write the e2e test** and `apps/cli/src/index.ts`.
-- [ ] **Step 2: Run** `pnpm --filter @agentmesh/plugin build`, then `pnpm test:integration`. Expected: the setup test FAILs, because `dist/cli.js` is missing or `connect` is not dispatched.
-- [ ] **Step 3: Implement** the export, the plugin entry, the tsup entry and the skill. Then rebuild with `pnpm --filter @agentmesh/plugin build`.
-- [ ] **Step 4: Run** `pnpm test:integration` (with `AGENTMESH_TEST_NATS_BIN` set) and `pnpm check`. Expected: PASS. Also run `node plugins/agentmesh/dist/cli.js setup status --dir <tmp>` on Windows; it exits 1 with a "not found" message for the answers file, not a stack trace.
-- [ ] **Step 5: Commit:** `git add -A && git commit -m "Plugin: ship the setup CLI and the /agentmesh:setup skill"`
+- [ ] **Step 2: Run** `pnpm --filter @cosmicwave/plugin build`, then `pnpm test:integration`. Expected: the setup test FAILs, because `dist/cli.js` is missing or `connect` is not dispatched.
+- [ ] **Step 3: Implement** the export, the plugin entry, the tsup entry and the skill. Then rebuild with `pnpm --filter @cosmicwave/plugin build`.
+- [ ] **Step 4: Run** `pnpm test:integration` (with `COSMICWAVE_TEST_NATS_BIN` set) and `pnpm check`. Expected: PASS. Also run `node plugins/cmw/dist/cli.js setup status --dir <tmp>` on Windows; it exits 1 with a "not found" message for the answers file, not a stack trace.
+- [ ] **Step 5: Commit:** `git add -A && git commit -m "Plugin: ship the setup CLI and the /cmw:setup skill"`
 
 ### Task 13: Release workflow (images + tag)
 
@@ -636,16 +636,16 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
   - **Trigger:** `on: push: branches: [main]`. **Permissions:** `contents: write` and `packages: write`.
   - **Steps:**
     1. Check out with `fetch-depth: 0`.
-    2. Read `V` from `plugins/agentmesh/.claude-plugin/plugin.json` with `node -p`.
+    2. Read `V` from `plugins/cmw/.claude-plugin/plugin.json` with `node -p`.
     3. Skip every later step when `git rev-parse "v$V"` succeeds.
     4. `docker/setup-qemu-action@v3`, `docker/setup-buildx-action@v3`, then `docker/login-action@v3` to `ghcr.io` with `GITHUB_TOKEN`.
     5. Run `docker/build-push-action@v6` twice, once with `target: hub` and once with `target: discord-bridge`:
        - `file: deploy/Dockerfile`, `context: .`, `platforms: linux/amd64,linux/arm64`, `push: true`;
-       - tags `ghcr.io/<owner-lowercase>/agentmesh-hub:$V` and `…/agentmesh-discord-bridge:$V`;
+       - tags `ghcr.io/<owner-lowercase>/cosmicwave-hub:$V` and `…/cosmicwave-discord-bridge:$V`;
        - `labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}`.
     6. `git tag "v$V" && git push origin "v$V"`.
   - Take the owner from `github.repository_owner` and lowercase it in a step, so it matches `DEFAULT_IMAGE_REGISTRY`.
-- [ ] **Step 2: Check that it parses:** `pnpm --filter @agentmesh/cli exec node --input-type=module -e "import {parse} from 'yaml';import {readFileSync} from 'node:fs';const w=parse(readFileSync('../../.github/workflows/release.yml','utf8'));if(!w.jobs)process.exit(1)"`. Expected: exit 0.
+- [ ] **Step 2: Check that it parses:** `pnpm --filter @cosmicwave/cli exec node --input-type=module -e "import {parse} from 'yaml';import {readFileSync} from 'node:fs';const w=parse(readFileSync('../../.github/workflows/release.yml','utf8'));if(!w.jobs)process.exit(1)"`. Expected: exit 0.
 - [ ] **Step 3: Commit:** `git commit -m "CI: publish hub and bridge images and tag each release"`
 
 ### Task 14: Docs, ADR 0007, version 0.4.0, final checks
@@ -653,10 +653,10 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
 **Files:**
 - Create: `docs/adr/0007-claude-run-setup.md`
 - Modify:
-  - `docs/getting-started.md`: rewritten around `/agentmesh:setup`; the old steps move under "Set up by hand".
+  - `docs/getting-started.md`: rewritten around `/cmw:setup`; the old steps move under "Set up by hand".
   - `docs/deploy.md`:
     - the generic server spec from spec §5.5;
-    - published images, `AGENTMESH_IMAGE_REGISTRY`/`AGENTMESH_VERSION`, and `upgrade`;
+    - published images, `COSMICWAVE_IMAGE_REGISTRY`/`COSMICWAVE_VERSION`, and `upgrade`;
     - a note that the repo's `deploy/docker-compose.yml` still builds from source for contributors and existing deploys.
   - `docs/security.md`: a threat note covering:
     - the token goes in a file, never the chat;
@@ -667,15 +667,15 @@ export const setupInvitesCommand: Command;   // 'setup invites --dir <ws> [--mar
     - the deny rules apply only to sessions opened in the workspace.
   - `docs/discord.md`: bot creation the way setup does it.
   - `docs/configuration.md`: the new `.env` keys.
-  - `README.md` and `plugins/agentmesh/README.md`: install plus `/agentmesh:setup` in three lines.
+  - `README.md` and `plugins/cmw/README.md`: install plus `/cmw:setup` in three lines.
   - `CLAUDE.md`: status, roadmap (Phase 2), the commands list, and the version-bump rule, which now reads "one VERSION in `packages/common/src/version.ts` plus every package.json and plugin.json; a bump merged to main is a release".
   - Every version to `0.4.0`: `packages/common/src/version.ts`, every `package.json`, `plugin.json`.
-  - Rebuild `plugins/agentmesh/dist/`.
+  - Rebuild `plugins/cmw/dist/`.
 
 - [ ] **Step 1: Write ADR 0007.** Its context is spec §1. Its decision is spec §5.1, §5.4 and §5.7. Its consequences are the image release coupling and the workspace as the source of truth.
 - [ ] **Step 2: Update the docs** listed above.
-- [ ] **Step 3: Bump to 0.4.0, then run** `pnpm --filter @agentmesh/plugin build && pnpm check && pnpm test:integration`. Expected: all pass. The version test from Task 1 proves the bump is complete.
-- [ ] **Step 4: Commit:** `git add -A && git commit -m "Docs, ADR 0007 and release 0.4.0 for /agentmesh:setup"`
+- [ ] **Step 3: Bump to 0.4.0, then run** `pnpm --filter @cosmicwave/plugin build && pnpm check && pnpm test:integration`. Expected: all pass. The version test from Task 1 proves the bump is complete.
+- [ ] **Step 4: Commit:** `git add -A && git commit -m "Docs, ADR 0007 and release 0.4.0 for /cmw:setup"`
 
 **After the plan (Pratik, by hand; not tasks for an agent):**
 1. Make the repo public.

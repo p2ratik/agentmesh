@@ -1,5 +1,5 @@
-import type { ConfigIndex } from '@agentmesh/config';
-import type { ParticipantRef } from '@agentmesh/protocol';
+import type { ConfigIndex } from '@cosmicwave/config';
+import type { ParticipantRef } from '@cosmicwave/protocol';
 
 /** Discord hosts six coloured default avatars itself — no third-party image service involved. */
 const DEFAULT_AVATAR_COUNT = 6;

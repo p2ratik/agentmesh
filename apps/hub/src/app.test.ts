@@ -1,5 +1,5 @@
-import { createLogger, ManualClock } from '@agentmesh/common';
-import type { MeshMessage } from '@agentmesh/protocol';
+import { createLogger, ManualClock } from '@cosmicwave/common';
+import type { MeshMessage } from '@cosmicwave/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from './app';
 import { MemoryPorts } from './ports';
@@ -120,7 +120,7 @@ describe('hub end to end (no NATS)', () => {
     expect(liveness()).toBe('live');
   });
 
-  // `agentmesh timeline` is no session: reading the timeline must not show its agent online.
+  // `cmw timeline` is no session: reading the timeline must not show its agent online.
   it('a timeline read without a session leaves presence alone', async () => {
     const { hub } = await start({ observability: { viewers: ['alice'] } });
     await hub.dispatch({ caller: 'alice-agent', method: 'observe.timeline' }, {});

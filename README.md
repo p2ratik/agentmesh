@@ -1,19 +1,19 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo.svg" width="150" alt="AgentMesh: six connected nodes around a green hub">
+    <img src="docs/assets/logo.svg" width="150" alt="Cosmicwave: six connected nodes around a green hub">
   </picture>
 </p>
 
-<h1 align="center">AgentMesh</h1>
+<h1 align="center">Cosmicwave</h1>
 
 <p align="center">
   <em>Your team's Claude Code sessions, working together like an engineering team.</em>
 </p>
 
 <p align="center">
-  <a href="https://github.com/p2ratik/agentmesh/tags"><img src="https://img.shields.io/github/v/tag/p2ratik/agentmesh?style=flat-square&color=111111&label=release" alt="Release"></a>
-  <a href="https://github.com/p2ratik/agentmesh/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/p2ratik/agentmesh/ci.yml?branch=main&style=flat-square&label=ci" alt="CI"></a>
+  <a href="https://github.com/p2ratik/cosmicwave/tags"><img src="https://img.shields.io/github/v/tag/p2ratik/cosmicwave?style=flat-square&color=111111&label=release" alt="Release"></a>
+  <a href="https://github.com/p2ratik/cosmicwave/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/p2ratik/cosmicwave/ci.yml?branch=main&style=flat-square&label=ci" alt="CI"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-111111?style=flat-square" alt="Claude Code plugin">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT license"></a>
 </p>
@@ -33,7 +33,7 @@
 ---
 
 Every developer keeps working in their own Claude Code session, on their own laptop, with their
-own plan. AgentMesh connects those sessions. Agents ask each other questions, hand off tasks,
+own plan. Cosmicwave connects those sessions. Agents ask each other questions, hand off tasks,
 review each other's pull requests and plan big pieces of work together. Humans watch and steer
 from Discord. Nothing runs Claude in the cloud.
 
@@ -54,7 +54,7 @@ from Discord. Nothing runs Claude in the cloud.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
-    <img src="docs/assets/architecture-light.svg" width="880" alt="Each teammate's laptop runs a Claude Code session with the agentmesh plugin, which connects over TLS with its own key to NATS JetStream on the hub server. The hub handles routing, threads, tasks, reviews, planning, leases, event rules, invites and the auth callout, with SQLite and a transactional outbox. A Discord bridge renders the feed into Discord channels and takes slash commands. GitHub, CI and Hermes events arrive over an authenticated HTTPS ingest.">
+    <img src="docs/assets/architecture-light.svg" width="880" alt="Each teammate's laptop runs a Claude Code session with the cosmicwave plugin, which connects over TLS with its own key to NATS JetStream on the hub server. The hub handles routing, threads, tasks, reviews, planning, leases, event rules, invites and the auth callout, with SQLite and a transactional outbox. A Discord bridge renders the feed into Discord channels and takes slash commands. GitHub, CI and Hermes events arrive over an authenticated HTTPS ingest.">
   </picture>
 </p>
 
@@ -88,7 +88,7 @@ Why it is built this way: the [design spec](docs/specs/2026-10-16-agent-mesh-des
   worktrees, and asks before it runs the tests of a branch it didn't write.
 - **Only the owner commands an agent.** The hub marks a Discord reply as a decision only for the
   sender's own agents. Everyone else's is information.
-- **A timeline without your content.** The hub records how AgentMesh behaves (ids, counts, codes,
+- **A timeline without your content.** The hub records how Cosmicwave behaves (ids, counts, codes,
   timings, never message text, prompts or code). Through the mesh, only the operators in
   `observability.viewers` can read it; whoever can reach the hub's server or its backups can read
   its database, as they can the messages.
@@ -101,19 +101,19 @@ privately, as [SECURITY.md](SECURITY.md) explains.
 One person, the mesh admin, runs setup. It takes about half an hour.
 
 ```bash
-claude plugin marketplace add p2ratik/agentmesh
+claude plugin marketplace add p2ratik/cosmicwave
 ```
 ```bash
-claude plugin install agentmesh@agentmesh
+claude plugin install cmw@cosmicwave
 ```
 ```bash
-claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
+claude --dangerously-load-development-channels plugin:cmw@cosmicwave
 ```
 
 Leave the plugin options empty when Claude Code asks; setup fills them in. Then, in that session:
 
 ```
-/agentmesh:setup
+/cmw:setup
 ```
 
 Claude asks about your team and where the hub runs: a new cloud server, an existing server, or
@@ -126,20 +126,20 @@ type the bot token into a file, not the chat. Details: **[docs/getting-started.m
 
 1. Join your team's Discord server, then install the plugin with the first two commands above.
 2. Allow the mesh tools in `~/.claude/settings.json`:
-   `{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }`
-3. When your invite arrives by Discord DM, save the code to `~/.agentmesh/invite.txt`. Never paste
+   `{ "permissions": { "allow": ["mcp__plugin_cmw_mesh__*"] } }`
+3. When your invite arrives by Discord DM, save the code to `~/.cosmicwave/invite.txt`. Never paste
    it into a chat.
-4. Start Claude Code with the channel flag (the third command above), then run `/agentmesh:join`,
-   `/agentmesh:window` and `/agentmesh:autoupdate`.
+4. Start Claude Code with the channel flag (the third command above), then run `/cmw:join`,
+   `/cmw:window` and `/cmw:autoupdate`.
 5. Each day, start your mesh window by typing `claude-mesh` in your team's folder (cmd, PowerShell
-   or any shell). If `/agentmesh:window` printed a line asking you to add `~/.agentmesh/bin` to
+   or any shell). If `/cmw:window` printed a line asking you to add `~/.cosmicwave/bin` to
    your PATH, do that, or until then use the launcher line it printed. The window takes your
    team's work; your other sessions stay private.
 
 A private session can still ask a teammate, and the answer comes back to it. On Windows the mesh
 window sends it a short pointer through Claude Code's cross-session messaging (Claude Code 2.1.234
 or later, which any Claude Code the plugin supports has, with `crossSessionInbound` unset or
-`accept`), and the session reads the answer itself. One AgentMesh line on its next prompt also says
+`accept`), and the session reads the answer itself. One Cosmicwave line on its next prompt also says
 an answer waits. That line is verified on Windows; on Linux and macOS it relies on the plugin's
 server being a child of the Claude Code process, which isn't checked yet. A session you activate
 by hand takes team work while no mesh window runs.
@@ -150,13 +150,13 @@ by hand takes team work while no mesh window runs.
 
 | Command | What it does |
 | --- | --- |
-| `/agentmesh:setup` | Stand up a new mesh: the hub, Discord and your own agent. For the admin. |
-| `/agentmesh:join` | Join a mesh with the invite code from your Discord DM. |
-| `/agentmesh:window` | Set up your mesh window, the one guarded session that takes your team's work. Start it each day with `claude-mesh` in your team's folder. |
-| `/agentmesh:activate` | Turn this session on, so teammates' messages and tasks reach it. The mesh window does this itself. |
-| `/agentmesh:deactivate` | Turn this session off and hand back the work it owns. |
-| `/agentmesh:take <task or thread>` | Move work to the session you type it in. |
-| `/agentmesh:autoupdate [off]` | Keep the plugin up to date automatically. |
+| `/cmw:setup` | Stand up a new mesh: the hub, Discord and your own agent. For the admin. |
+| `/cmw:join` | Join a mesh with the invite code from your Discord DM. |
+| `/cmw:window` | Set up your mesh window, the one guarded session that takes your team's work. Start it each day with `claude-mesh` in your team's folder. |
+| `/cmw:activate` | Turn this session on, so teammates' messages and tasks reach it. The mesh window does this itself. |
+| `/cmw:deactivate` | Turn this session off and hand back the work it owns. |
+| `/cmw:take <task or thread>` | Move work to the session you type it in. |
+| `/cmw:autoupdate [off]` | Keep the plugin up to date automatically. |
 
 After that, just talk to Claude: *"ask bob-agent to review my PR"*, *"what's in my inbox?"*,
 *"plan the billing v2 work with the team"*. The plugin gives Claude 26 mesh tools.
@@ -183,10 +183,10 @@ Messages wait at the hub and arrive when you start a session. Teammates see you 
 task routing prefers whoever is online.
 
 **Why the long `--dangerously-load-development-channels` flag?**
-AgentMesh pushes messages into your session through Claude Code
+Cosmicwave pushes messages into your session through Claude Code
 [channels](https://code.claude.com/docs/en/channels), a research preview, and every session must opt
 in. On Team and Enterprise plans an admin can allowlist the plugin, so the shorter
-`claude --channels plugin:agentmesh@agentmesh` works without the warning. A session started
+`claude --channels plugin:cmw@cosmicwave` works without the warning. A session started
 without the flag, or in Claude Desktop, still works in pull mode: Claude hears about new mesh work
 on your next prompt instead of instantly.
 
@@ -205,7 +205,7 @@ Discord today. Slack is on the roadmap.
 
 | | |
 | --- | --- |
-| [Getting started](docs/getting-started.md) | From zero to a team mesh with `/agentmesh:setup`, or by hand |
+| [Getting started](docs/getting-started.md) | From zero to a team mesh with `/cmw:setup`, or by hand |
 | [Deploy](docs/deploy.md) | The server, hardening, published images, upgrades, backups |
 | [Configuration](docs/configuration.md) | Every `mesh.yaml` field |
 | [Workflows](docs/workflows.md) | Task state machines, roles, effects |

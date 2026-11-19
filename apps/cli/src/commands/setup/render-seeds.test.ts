@@ -9,9 +9,9 @@ describe('setup render with a seed already there', () => {
   it("another mesh's seed is never in the way, nor overwritten", async () => {
     const h = cliHarness();
     const p = answersWorkspace(h, serverAnswers());
-    const dir = join(h.ctx.homeDir, '.agentmesh');
+    const dir = join(h.ctx.homeDir, '.cosmicwave');
     mkdirSync(dir, { recursive: true });
-    // /agentmesh:join names its seed <agent>.nk; setup's are per mesh.
+    // /cmw:join names its seed <agent>.nk; setup's are per mesh.
     writeFileSync(join(dir, 'riya-agent.nk'), 'SUJOINED\n');
     const seed = join(dir, 'acme-riya-agent.nk');
     writeFileSync(seed, 'SUOTHERMESH\n');
@@ -34,7 +34,7 @@ describe('setup render with a seed already there', () => {
     const p = answersWorkspace(h, serverAnswers());
     // There before setup, so render never wrote it: no re-run replaces it.
     writeFileSync(p.claudeMd, '# Our repo\n');
-    const dir = join(h.ctx.homeDir, '.agentmesh');
+    const dir = join(h.ctx.homeDir, '.cosmicwave');
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'acme-riya-agent.nk'), 'SUOTHERMESH\n');
     expect(await h.run('setup', 'render', '--dir', p.root)).toBe(1);

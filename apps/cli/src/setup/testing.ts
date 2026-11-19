@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DiscordConfig } from '@agentmesh/config';
+import { DiscordConfig } from '@cosmicwave/config';
 import type { z } from 'zod';
 import type { CliContext } from '../context';
 import { runCli } from '../main';
@@ -23,7 +23,7 @@ export const HEALTHY_CONTAINERS = [
 const discord = DiscordConfig.parse({});
 /** A Discord server with the default category, channels and planning forum. */
 export const MESH_CHANNELS = [
-  { id: '300000000000000003', name: 'Agent Mesh', type: 4, parent_id: null },
+  { id: '300000000000000003', name: 'Cosmicwave', type: 4, parent_id: null },
   ...Object.values(discord.channels).map((c, i) => ({
     id: `30000000000000001${i}`,
     name: c.name,
@@ -96,7 +96,7 @@ export function trialAnswers(): AnswersInput {
 
 /** Runs the CLI in a scratch folder whose `home` is the home directory; output is recorded. */
 export function cliHarness() {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-cli-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-cli-'));
   const out: string[] = [];
   const err: string[] = [];
   const ctx: CliContext = {

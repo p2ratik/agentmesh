@@ -1,4 +1,4 @@
-import { MeshError, redactSecrets } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@cosmicwave/common';
 import type { RpcHandlerMap } from '../../contracts';
 import { internalId } from '../../core/ids';
 import type { TaskServiceImpl } from './tasks.service';

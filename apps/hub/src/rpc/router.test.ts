@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import { RPC_METHODS, type RpcMethodName } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import { RPC_METHODS, type RpcMethodName } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext, RpcHandlerMap, SessionRecord } from '../contracts';
 import { testTeamConfig } from '../testing/fixtures';
@@ -176,8 +176,9 @@ describe('RPC router sessions', () => {
     ).rejects.toMatchObject({
       code: 'invalid_request',
       message:
-        "This session isn't registered with the hub. If your AgentMesh plugin is older than " +
-        '0.3.0, update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.',
+        "This session isn't registered with the hub: your plugin may be older than 0.3.0. " +
+        'It has been renamed: remove it and install cmw@cosmicwave (see docs/getting-started.md), ' +
+        'then restart Claude Code.',
     });
     const hello = { clientVersion: '0.2.0' };
     await expect(
@@ -200,7 +201,7 @@ describe('RPC router sessions', () => {
     ]);
   });
 
-  // `agentmesh timeline` is one connection and one call: it has no session to send.
+  // `cmw timeline` is one connection and one call: it has no session to send.
   it('takes observe.timeline without a session, and still verifies one that is sent', async () => {
     const { dispatch, seen } = sessionSetup();
     const timeline = (session?: string) =>

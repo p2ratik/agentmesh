@@ -1,4 +1,4 @@
-import { redactSecrets } from '@agentmesh/common';
+import { redactSecrets } from '@cosmicwave/common';
 import { lookup } from './match';
 
 const PLACEHOLDER = /\{\{\s*([\w.-]+)\s*\}\}/g;

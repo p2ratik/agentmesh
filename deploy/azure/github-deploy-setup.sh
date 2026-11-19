@@ -4,13 +4,13 @@
 # to `az` (allowed to create app registrations, custom roles and role assignments on the resource
 # group) and to `gh` (admin of the repository), with key-based SSH to the VM:
 #
-#   REPO=acme/agentmesh RG=rg-agentmesh NSG=nsg-vm-agentmesh DEPLOY_USER=mesh \
-#   DEPLOY_HOST=acme-agentmesh.centralindia.cloudapp.azure.com ./deploy/azure/github-deploy-setup.sh
+#   REPO=acme/cosmicwave RG=rg-cosmicwave NSG=nsg-vm-cosmicwave DEPLOY_USER=mesh \
+#   DEPLOY_HOST=acme-cosmicwave.centralindia.cloudapp.azure.com ./deploy/azure/github-deploy-setup.sh
 #
 # It sets up:
 #   Azure   an app registration that only this repo's `production` environment can sign in as
 #           (OIDC federation, no client secret), allowed only to add and remove rules on the NSG.
-#   Server  /usr/local/sbin/agentmesh-deploy and a deploy key that can run nothing else
+#   Server  /usr/local/sbin/cosmicwave-deploy and a deploy key that can run nothing else
 #           (deploy/auto-deploy/install.sh).
 #   GitHub  the `production` environment (deploys from main only), its secrets, and the
 #           repository variables the workflows read.
@@ -28,8 +28,8 @@ az() { command az "$@" | tr -d '\r'; }
 : "${DEPLOY_HOST:?set DEPLOY_HOST to the DNS name of the VM}"
 : "${DEPLOY_USER:=mesh}"
 : "${ENVIRONMENT:=production}"
-: "${APP_NAME:=agentmesh-deploy-${REPO//\//-}}"
-: "${ROLE_NAME:=AgentMesh deploy NSG rules ($RG)}"
+: "${APP_NAME:=cosmicwave-deploy-${REPO//\//-}}"
+: "${ROLE_NAME:=Cosmicwave deploy NSG rules ($RG)}"
 # -4: a DNS64 resolver can hand out a NAT64 address that does not route.
 read -r -a SSH_CMD <<<"${SSH:-ssh} -4 -o BatchMode=yes"
 TARGET="$DEPLOY_USER@$DEPLOY_HOST"
@@ -77,7 +77,7 @@ echo "Azure trusts tokens with the subject $SUBJECT"
 if [ "$(az role definition list --custom-role-only true --name "$ROLE_NAME" --query 'length(@)' -o tsv)" = 0 ]; then
   cat >"$TMP/role.json" <<EOF
 {"Name": "$ROLE_NAME", "IsCustom": true,
- "Description": "Lets the AgentMesh GitHub deploy open SSH to its runner for one run.",
+ "Description": "Lets the Cosmicwave GitHub deploy open SSH to its runner for one run.",
  "Actions": ["Microsoft.Network/networkSecurityGroups/read",
              "Microsoft.Network/networkSecurityGroups/securityRules/read",
              "Microsoft.Network/networkSecurityGroups/securityRules/write",

@@ -1,18 +1,18 @@
 import { parseArgs } from 'node:util';
-import { credentialsFromEnv, serversFromEnv } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import { loadConfig } from '@agentmesh/config';
+import { credentialsFromEnv, serversFromEnv } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import { loadConfig } from '@cosmicwave/config';
 import { startBridge } from './app';
 
 /**
- * agentmesh-discord [--config <dir>]
- * Env: AGENTMESH_CONFIG, AGENTMESH_NATS_URL, AGENTMESH_NKEY_SEED (or user/pass/token),
+ * cosmicwave-discord [--config <dir>]
+ * Env: COSMICWAVE_CONFIG, COSMICWAVE_NATS_URL, COSMICWAVE_NKEY_SEED (or user/pass/token),
  * plus whatever mesh.yaml references (typically DISCORD_BOT_TOKEN, DISCORD_APP_ID, DISCORD_GUILD_ID).
  */
 async function main(): Promise<void> {
   const logger = createLogger('discord-bridge');
   const { values } = parseArgs({ options: { config: { type: 'string' } } });
-  const loaded = loadConfig(values.config ?? process.env.AGENTMESH_CONFIG ?? './config');
+  const loaded = loadConfig(values.config ?? process.env.COSMICWAVE_CONFIG ?? './config');
   if (loaded.missingEnv.length > 0) {
     logger.warn({ missing: loaded.missingEnv }, 'config references unset environment variables');
   }

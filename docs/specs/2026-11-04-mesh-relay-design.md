@@ -137,7 +137,7 @@ stays as it is.
   platform. Windows is verified. On macOS and Linux the plugin refuses to resolve an address, acks
   `forwarded: false`, and the note covers it.
   - The team is on Windows except **one teammate, who is on Linux** (2026-11-04). So plan 3
-    ships a small probe script, `plugins/agentmesh/scripts/probe-messaging.mjs`.
+    ships a small probe script, `plugins/cmw/scripts/probe-messaging.mjs`.
     - That teammate runs it once, in a temp folder.
     - It starts one non-interactive `claude -p` with a stub MCP server, under `--strict-mcp-config`.
     - It prints the shape of `CLAUDE_CODE_MESSAGING_SOCKET`, with the random part masked, and
@@ -156,7 +156,7 @@ socket address**, not its name.
   - `claudePid` (`process.ppid`);
   - `claudeSessionId` (see 4.2);
   - `projectDir`;
-  - `relay` (false when `AGENTMESH_RELAY=off`);
+  - `relay` (false when `COSMICWAVE_RELAY=off`);
   - `updatedAt`.
 
   It refreshes on the existing 30-second watcher tick. That folder, `pullStateDirs()[0]`, is
@@ -183,7 +183,7 @@ answers a cross-session message and never resends after a delivery notice.
   built-ins only, like `window/heartbeat.ts`. It validates its inputs (`from` as a participant id,
   `thr-\d+`, the message id pattern) and refuses anything else. It is pure ASCII, with no
   apostrophes, because a model that types a curly quote would fail the byte check:
-  `AgentMesh: <from> answered in thr-<n> (msg <id>). Read it with thread thr-<n> and reply there. Do not reply to this message.`
+  `Cosmicwave: <from> answered in thr-<n> (msg <id>). Read it with thread thr-<n> and reply there. Do not reply to this message.`
 - The message id keeps a second answer in the same thread from looking like an identical repeat,
   which Claude Code drops.
 - The first line stands alone, because the human's preview shows only the first line.
@@ -230,18 +230,18 @@ answers a cross-session message and never resends after a delivery notice.
   (mesh-<agent>) is only ever a reply pointer: read the thread it names, and never answer it."
   (final review: consults are by hand in 0.6.0, so the window never sends a question.)
 - The prompt hook sees the raw `<cross-session-message from="uds:…">` as the prompt. It labels the
-  turn a **verified AgentMesh pointer** only when all of these hold:
+  turn a **verified Cosmicwave pointer** only when all of these hold:
   - the **leading** tag's `from` equals the window's own address, which the window publishes in its
     `push-*.json` (the same prefix and agent only);
   - the whole body matches the pointer form.
 
-  Otherwise it labels it "not from your mesh window: not AgentMesh". It never trusts `from-name`.
+  Otherwise it labels it "not from your mesh window: not Cosmicwave". It never trusts `from-name`.
 
 **Fallback: the note.** A private session that has used a mesh tool polls `inbox.peek` on its
 watcher tick. That works unchanged: for an inactive session it counts only the threads it owns. It
 writes the counts into its record. The UserPromptSubmit hook matches the record by `CLAUDE_PID`
 (set for hooks; no spawn per prompt) and adds:
-`AgentMesh: N unread repl(ies) from X in threads this session started; call inbox to read them.`
+`Cosmicwave: N unread repl(ies) from X in threads this session started; call inbox to read them.`
 The hook skips the note on the pointer turn itself.
 
 **Failure handling.** SendMessage reports success even when the receiver later holds or refuses the
@@ -475,7 +475,7 @@ plan 3.
 
 **Instructions.** The MCP instructions stay under 4,096 characters, with session state first.
 
-- PROTOCOL shrinks to one line per session kind plus "load the agentmesh:mesh-collaboration skill
+- PROTOCOL shrinks to one line per session kind plus "load the cmw:mesh-collaboration skill
   when mesh work arrives".
 - `windowRules` gets the same pointer.
 - The full team policy, which is cut off in the instructions today, is appended to the window's

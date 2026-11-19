@@ -15,7 +15,7 @@ whatever account is at hand, so a server that vanishes with its disk is a real c
 ## Decision
 
 - **Every hour, an encrypted copy leaves the server for a private git repository the admin owns.**
-  A systemd timer runs `/usr/local/sbin/agentmesh-backup`. It is root-owned, installed by
+  A systemd timer runs `/usr/local/sbin/cosmicwave-backup`. It is root-owned, installed by
   `deploy/backup/install.sh`, and runs as the user who runs docker compose.
 - **One copy holds everything needed to rebuild:** a `VACUUM INTO` snapshot of `hub.sqlite` that
   passed `PRAGMA quick_check`, plus `config/`, `deploy/.env`, `deploy/secrets/`, `nats.conf` and

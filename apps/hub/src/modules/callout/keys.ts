@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
-import type { MeshConfig } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import type { MeshConfig } from '@cosmicwave/config';
 import { fromCurveSeed, fromSeed, type KeyPair } from '@nats-io/nkeys';
 import type { CalloutKeys } from './callout.service';
 
@@ -13,7 +13,7 @@ export interface LoadedCalloutKeys extends CalloutKeys {
 /**
  * Callout mode is on when `hub.authCallout` names all three public keys. Their
  * seeds are `<hubId>-issuer.nk`, `-xkey.nk` and `-sys.nk` in the secrets dir
- * (what `agentmesh keys add` writes). Returns null when the mode is off.
+ * (what `cmw keys add` writes). Returns null when the mode is off.
  */
 export function loadCalloutKeys(
   hub: MeshConfig['hub'],
@@ -26,7 +26,7 @@ export function loadCalloutKeys(
     throw new MeshError('invalid_request', 'hub.authCallout needs issuer, xkey and sysNkey');
   }
   if (!secretsDir) {
-    throw new MeshError('invalid_request', 'Auth callout mode needs AGENTMESH_SECRETS_DIR');
+    throw new MeshError('invalid_request', 'Auth callout mode needs COSMICWAVE_SECRETS_DIR');
   }
   const read = (role: string, expectedKey: string, load: (seed: Uint8Array) => KeyPair) => {
     const file = join(secretsDir, `${hub.serviceId}-${role}.nk`);

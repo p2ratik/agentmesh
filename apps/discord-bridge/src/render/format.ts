@@ -1,5 +1,5 @@
-import { isMeshError } from '@agentmesh/common';
-import type { ParticipantRef, Severity } from '@agentmesh/protocol';
+import { isMeshError } from '@cosmicwave/common';
+import type { ParticipantRef, Severity } from '@cosmicwave/protocol';
 
 /** Discord's limits for thread names and webhook usernames. */
 export const THREAD_NAME_LIMIT = 100;
@@ -37,7 +37,7 @@ export function threadTitle(id: string, subject: string): string {
  */
 export function webhookUsername(ref: ParticipantRef): string {
   const clean = (text: string) => oneLine(text.replace(/discord|clyde/gi, ''), WEBHOOK_NAME_LIMIT);
-  const base = clean(ref.displayName) || clean(ref.id) || 'AgentMesh';
+  const base = clean(ref.displayName) || clean(ref.id) || 'Cosmicwave';
   const mentionsKind = base.toLowerCase().includes(ref.kind);
   const suffix = ref.kind === 'service' || mentionsKind ? '' : ` (${ref.kind})`;
   return `${truncate(base, WEBHOOK_NAME_LIMIT - suffix.length)}${suffix}`;

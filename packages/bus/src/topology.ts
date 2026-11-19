@@ -1,4 +1,4 @@
-import { consumerNames, streamNames, subjects } from '@agentmesh/protocol';
+import { consumerNames, streamNames, subjects } from '@cosmicwave/protocol';
 import {
   AckPolicy,
   type ConsumerConfig,

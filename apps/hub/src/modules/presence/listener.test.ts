@@ -1,4 +1,4 @@
-import type { NatsConnection } from '@agentmesh/bus';
+import type { NatsConnection } from '@cosmicwave/bus';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestHarness, joinTeam, leaveTeam } from '../../testing/harness';
 import { createPresenceModule } from './index';

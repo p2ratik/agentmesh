@@ -5,8 +5,8 @@ export function renderChecklist(team: string, results: CheckResult[]): string {
   const problems = results.filter((r) => !r.ok).length;
   const headline =
     problems === 0
-      ? `AgentMesh is live for ${team}`
-      : `AgentMesh for ${team}: ${problems} problem${problems === 1 ? '' : 's'}`;
+      ? `Cosmicwave is live for ${team}`
+      : `Cosmicwave for ${team}: ${problems} problem${problems === 1 ? '' : 's'}`;
   const lines = results.flatMap((r) => {
     if (r.ok) return [` ✓ ${r.label}`];
     return [` ✗ ${r.label}`, ...(r.detail ? [`   → ${r.detail.replaceAll('\n', '\n     ')}`] : [])];

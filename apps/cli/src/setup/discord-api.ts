@@ -1,5 +1,5 @@
-import { MeshError, VERSION } from '@agentmesh/common';
-import { DiscordUserId } from '@agentmesh/protocol';
+import { MeshError, VERSION } from '@cosmicwave/common';
+import { DiscordUserId } from '@cosmicwave/protocol';
 import { z } from 'zod';
 import { DEFAULT_MARKETPLACE } from './defaults';
 

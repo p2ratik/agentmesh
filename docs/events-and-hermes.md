@@ -83,7 +83,7 @@ cut. The `_` rewrite can hide a token in the type from secret redaction, so poin
 
 ## Sending events over NATS
 
-Give the producer a service entry with `role: ingest` and a key (`agentmesh keys add hermes`).
+Give the producer a service entry with `role: ingest` and a key (`cmw keys add hermes`).
 It may publish IngestEvent JSON to `{prefix}.ingest.{its id}` — NATS permissions guarantee the
 subject names the real sender. Use the `Nats-Msg-Id` header (or `id`) for dedup.
 

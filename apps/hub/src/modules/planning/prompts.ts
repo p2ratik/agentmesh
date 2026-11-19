@@ -1,4 +1,4 @@
-import type { PlanRound } from '@agentmesh/protocol';
+import type { PlanRound } from '@cosmicwave/protocol';
 import { planKey, threadKey } from '../../core/ids';
 import type { PlanRecord } from './plans.repo';
 

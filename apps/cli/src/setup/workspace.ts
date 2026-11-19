@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { agentmeshDir, MeshError } from '@agentmesh/common';
+import { cosmicwaveDir, MeshError } from '@cosmicwave/common';
 import { z } from 'zod';
 import { usageError } from '../args';
 import { type CliContext, resolveFrom } from '../context';
@@ -37,7 +37,7 @@ export function workspacePaths(root: string): WorkspacePaths {
   return {
     root,
     answers: join(root, 'setup-answers.json'),
-    state: join(root, '.agentmesh-setup.json'),
+    state: join(root, '.cosmicwave-setup.json'),
     configDir,
     meshFile: join(configDir, 'mesh.yaml'),
     policyFile: join(configDir, 'policy', 'team-policy.md'),
@@ -53,11 +53,11 @@ export function workspacePaths(root: string): WorkspacePaths {
 }
 
 /**
- * The seed of one of the admin's agents: `~/.agentmesh/<meshName>-<agent>.nk`. The mesh name
- * keeps it apart from the seeds `/agentmesh:join` and other meshes keep in that folder.
+ * The seed of one of the admin's agents: `~/.cosmicwave/<meshName>-<agent>.nk`. The mesh name
+ * keeps it apart from the seeds `/cmw:join` and other meshes keep in that folder.
  */
 export function agentSeedFile(homeDir: string, meshName: string, agentId: string): string {
-  return join(agentmeshDir(homeDir), `${meshName}-${agentId}.nk`);
+  return join(cosmicwaveDir(homeDir), `${meshName}-${agentId}.nk`);
 }
 
 /** The setup steps in order; the state file records when each one finished. */
@@ -67,7 +67,7 @@ export type StepName = (typeof STEPS)[number];
 /** The steps done for one hub: another hosting mode needs them again. */
 const HUB_STEPS: readonly StepName[] = ['host', 'deploy', 'admin'];
 
-/** `.agentmesh-setup.json`: finished steps and their ISO times. It holds no secrets. */
+/** `.cosmicwave-setup.json`: finished steps and their ISO times. It holds no secrets. */
 export const SetupState = z.object({
   version: z.literal(1),
   /** The hosting mode of the last render. */

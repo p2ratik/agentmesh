@@ -1,5 +1,5 @@
-import { ConfigIndex, withMembers } from '@agentmesh/config';
-import type { MemberRecord } from '@agentmesh/protocol';
+import { ConfigIndex, withMembers } from '@cosmicwave/config';
+import type { MemberRecord } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { testTeamConfig } from '../../testing/fixtures';
 

@@ -1,6 +1,6 @@
 // What window init prints about starting the window: the account, claude-mesh, the start line.
 import { isAbsolute, join, relative } from 'node:path';
-import { LAUNCHER_CMD, launcherDisplay, START_COMMAND } from '@agentmesh/common/window';
+import { LAUNCHER_CMD, launcherDisplay, START_COMMAND } from '@cosmicwave/common/window';
 import type { CliContext } from '../context';
 import type { ShimPlace } from '../lib/shim';
 
@@ -36,7 +36,7 @@ export function printStart(ctx: CliContext, s: StartFacts): void {
       ? `The window uses the Claude account in ${s.configDir} (CLAUDE_CONFIG_DIR).`
       : 'The window uses your default Claude account (~/.claude).',
   );
-  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: AgentMesh didn't write it.`);
+  for (const p of s.shim.foreign) ctx.stdout(`Left ${p} alone: Cosmicwave didn't write it.`);
   ctx.stdout(`Wrote ${START_COMMAND} to ${s.shim.dir}.`);
   ctx.stdout(
     `Start it each day in any folder: ${START_COMMAND} (or ${START_COMMAND} "${s.dir}" from anywhere)`,

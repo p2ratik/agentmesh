@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig } from '@agentmesh/config';
+import { loadConfig } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import { findExamplesDir } from '../../lib/repo-paths';
 import { parseAnswers } from '../answers';
@@ -15,7 +15,7 @@ const DISCORD_ENV = { DISCORD_BOT_TOKEN: 't', DISCORD_APP_ID: '1', DISCORD_GUILD
 /** Renders the answers into a temp config dir and loads it like the hub does. */
 function load(raw: AnswersInput) {
   const answers = parseAnswers(raw);
-  const dir = mkdtempSync(join(tmpdir(), 'agentmesh-setup-'));
+  const dir = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-'));
   mkdirSync(join(dir, 'policy'));
   writeFileSync(join(dir, 'mesh.yaml'), renderMeshYaml(answers));
   writeFileSync(join(dir, 'policy', 'team-policy.md'), renderPolicy(answers).text);
@@ -25,8 +25,8 @@ function load(raw: AnswersInput) {
 describe('renderMeshYaml', () => {
   it('points edits at setup deploy: validate cannot read deploy/.env', () => {
     const text = renderMeshYaml(parseAnswers(serverAnswers()));
-    expect(text).not.toContain('agentmesh validate');
-    expect(text).toContain('`agentmesh setup deploy`');
+    expect(text).not.toContain('cmw validate');
+    expect(text).toContain('`cmw setup deploy`');
   });
 
   it('server answers load cleanly', () => {

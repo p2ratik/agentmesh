@@ -1,6 +1,6 @@
-import { APP_ACCOUNT, type NatsConnection, permissionsFor } from '@agentmesh/bus';
-import { HOUR_MS, MINUTE_MS } from '@agentmesh/common';
-import { PublicNkey, type ReasonCode } from '@agentmesh/protocol';
+import { APP_ACCOUNT, type NatsConnection, permissionsFor } from '@cosmicwave/bus';
+import { HOUR_MS, MINUTE_MS } from '@cosmicwave/common';
+import { PublicNkey, type ReasonCode } from '@cosmicwave/protocol';
 import type { KeyPair } from '@nats-io/nkeys';
 import type { HubContext } from '../../context';
 import type { EnrollmentService } from '../../contracts';

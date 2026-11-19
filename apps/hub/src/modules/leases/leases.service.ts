@@ -1,5 +1,5 @@
-import { addMs, MINUTE_MS } from '@agentmesh/common';
-import type { Lease, LeaseConflict } from '@agentmesh/protocol';
+import { addMs, MINUTE_MS } from '@cosmicwave/common';
+import type { Lease, LeaseConflict } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { LeaseService } from '../../contracts';
 import { LeasesRepo } from './leases.repo';

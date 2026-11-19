@@ -1,6 +1,6 @@
 // The window's permission mode (auto by default, or manual) and the secret paths its settings deny
 // in every mode.
-import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@agentmesh/common/window';
+import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@cosmicwave/common/window';
 import { describe, expect, it } from 'vitest';
 import { launcherScript, secretReadRules, windowSettings } from './window';
 
@@ -49,7 +49,7 @@ const DENY = [
   'Read(~/.bash_history)',
   'Read(~/.zsh_history)',
   'Read(~/AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt)',
-  'Read(~/.agentmesh/**)',
+  'Read(~/.cosmicwave/**)',
   'Read(~/.claude/.credentials.json)',
   'Read(~/.claude.json)',
   'Read(~/AppData/Local/Google/Chrome/**)',
@@ -69,7 +69,7 @@ describe('the window in auto mode (the default)', () => {
     expect(p.disableBypassPermissionsMode).toBe('disable');
     expect('disableAutoMode' in p).toBe(false);
     expect(launcherScript(inputs('auto'), 'linux').split('\n')[4]).toBe(
-      `exec '/usr/bin/claude' ${CHANNEL_FLAG} -n 'mesh-bob-agent' --permission-mode auto --settings '/home/bob/.agentmesh/mesh-window.settings.json' '${LAUNCH_PROMPT}'`,
+      `exec '/usr/bin/claude' ${CHANNEL_FLAG} -n 'mesh-bob-agent' --permission-mode auto --settings '/home/bob/.cosmicwave/mesh-window.settings.json' '${LAUNCH_PROMPT}'`,
     );
     const win = { ...inputs('auto'), claude: 'C:\\c.cmd', files: windowFiles('C:\\h', 'win32') };
     expect(launcherScript(win, 'win32')).toContain(' --permission-mode auto --settings ');

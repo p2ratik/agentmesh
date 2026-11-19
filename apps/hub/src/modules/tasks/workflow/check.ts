@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { WorkflowConfig, WorkflowRole, WorkflowTransition } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import type { WorkflowConfig, WorkflowRole, WorkflowTransition } from '@cosmicwave/config';
 import type { Actor } from '../../../contracts';
 import { taskKey } from '../../../core/ids';
 import type { TaskRecord } from '../repo';

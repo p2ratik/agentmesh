@@ -1,4 +1,4 @@
-import { MAX_PEEK_SENDERS, type RpcResult } from '@agentmesh/protocol';
+import { MAX_PEEK_SENDERS, type RpcResult } from '@cosmicwave/protocol';
 import { threadKey } from '../../core/ids';
 import type { MessagingServiceImpl } from './messaging.service';
 import type { UnreadThread } from './reads.repo';

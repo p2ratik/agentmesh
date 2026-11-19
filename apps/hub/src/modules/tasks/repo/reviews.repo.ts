@@ -1,4 +1,4 @@
-import type { ReviewVerdict, TaskReview } from '@agentmesh/protocol';
+import type { ReviewVerdict, TaskReview } from '@cosmicwave/protocol';
 import type { Db } from '../../../db/database';
 
 /**

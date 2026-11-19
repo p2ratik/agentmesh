@@ -1,4 +1,4 @@
-import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@agentmesh/common/window';
+import { CHANNEL_FLAG, LAUNCH_PROMPT, windowFiles } from '@cosmicwave/common/window';
 import { describe, expect, it } from 'vitest';
 import {
   bakeable,
@@ -29,7 +29,7 @@ describe('windowSettings', () => {
     const i = inputs('linux', '/usr/bin/claude', '/home/bob');
     expect(windowSettings(i)).toEqual({
       env: {
-        AGENTMESH_MESH_WINDOW: token,
+        COSMICWAVE_MESH_WINDOW: token,
         GIT_CONFIG_COUNT: '3',
         GIT_CONFIG_KEY_0: 'core.hooksPath',
         GIT_CONFIG_VALUE_0: i.files.emptyHooks,
@@ -77,7 +77,7 @@ describe('launcherScript', () => {
         '@echo off',
         'setlocal',
         'set "NoDefaultCurrentDirectoryInExePath=1"',
-        `set "AGENTMESH_MESH_WINDOW=${token}"`,
+        `set "COSMICWAVE_MESH_WINDOW=${token}"`,
         'set "CLAUDE_CONFIG_DIR="',
         'if not "%~1"=="" cd /d "%~1" || exit /b 1',
         `call "C:\\bin\\claude.cmd" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "${i.files.settings}" "${LAUNCH_PROMPT}"`,
@@ -98,7 +98,7 @@ describe('launcherScript', () => {
     const i = { ...inputs('win32', `${home}\\.local\\bin\\claude.exe`, home), userProfile: home };
     const lines = launcherScript(i, 'win32').split('\r\n');
     expect(lines[6]).toBe(
-      `call "%USERPROFILE%\\.local\\bin\\claude.exe" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "%USERPROFILE%\\.agentmesh\\mesh-window.settings.json" "${LAUNCH_PROMPT}"`,
+      `call "%USERPROFILE%\\.local\\bin\\claude.exe" ${CHANNEL_FLAG} -n "mesh-bob-agent" --permission-mode default --settings "%USERPROFILE%\\.cosmicwave\\mesh-window.settings.json" "${LAUNCH_PROMPT}"`,
     );
     expect(launcherScript(i, 'win32')).toMatch(/^[\x20-\x7e\r\n]*$/);
   });
@@ -108,7 +108,7 @@ describe('launcherScript', () => {
     const w = { ...inputs('win32', 'C:\\c.cmd', home), userProfile: home };
     const win = launcherScript({ ...w, configDir: `${home}\\.claude-work` }, 'win32').split('\r\n');
     expect(win.slice(3, 6)).toEqual([
-      `set "AGENTMESH_MESH_WINDOW=${token}"`,
+      `set "COSMICWAVE_MESH_WINDOW=${token}"`,
       'set "CLAUDE_CONFIG_DIR=%USERPROFILE%\\.claude-work"',
       'if not "%~1"=="" cd /d "%~1" || exit /b 1',
     ]);
@@ -136,7 +136,7 @@ describe('launcherScript', () => {
     expect(launcherScript(i, 'linux')).toBe(
       [
         '#!/bin/sh',
-        `export AGENTMESH_MESH_WINDOW='${token}'`,
+        `export COSMICWAVE_MESH_WINDOW='${token}'`,
         'unset CLAUDE_CONFIG_DIR',
         // An exported CDPATH would send a relative folder elsewhere.
         'if [ -n "$1" ]; then CDPATH= cd -- "$1" || exit 1; fi',
@@ -149,7 +149,7 @@ describe('launcherScript', () => {
 
 describe('bakeable', () => {
   it('refuses characters a script would misread', () => {
-    expect(bakeable('C:/Users/R&D/.agentmesh/x', 'win32')).toBe(false);
+    expect(bakeable('C:/Users/R&D/.cosmicwave/x', 'win32')).toBe(false);
     expect(bakeable('C:/a%b', 'win32')).toBe(false);
     expect(bakeable('C:/a"b', 'win32')).toBe(false);
     expect(bakeable("/home/o'b", 'linux')).toBe(false);
@@ -160,8 +160,8 @@ describe('bakeable', () => {
 
   it('refuses non-ASCII left in a windows path once %USERPROFILE% stands in for the home', () => {
     const home = 'C:\\Users\\hömé';
-    expect(bakeable(`${home}\\.agentmesh\\x`, 'win32', home)).toBe(true);
-    expect(bakeable(`${home}\\.agentmesh\\x`, 'win32', null)).toBe(false);
+    expect(bakeable(`${home}\\.cosmicwave\\x`, 'win32', home)).toBe(true);
+    expect(bakeable(`${home}\\.cosmicwave\\x`, 'win32', null)).toBe(false);
     expect(bakeable('D:\\tööls\\claude.cmd', 'win32', home)).toBe(false);
     expect(bakeable('/home/hömé/x', 'linux', null)).toBe(true);
   });
@@ -183,11 +183,11 @@ describe('bakedPath', () => {
 
 describe('shimScripts', () => {
   it('writes claude-mesh on posix: the marker, then exec of the launcher', () => {
-    expect(shimScripts('/home/bob/.agentmesh/mesh-window', 'linux')).toEqual([
+    expect(shimScripts('/home/bob/.cosmicwave/mesh-window', 'linux')).toEqual([
       {
         name: 'claude-mesh',
         content:
-          '#!/bin/sh\n# agentmesh claude-mesh\nexec \'/home/bob/.agentmesh/mesh-window\' "$@"\n',
+          '#!/bin/sh\n# cosmicwave claude-mesh\nexec \'/home/bob/.cosmicwave/mesh-window\' "$@"\n',
       },
     ]);
   });
@@ -195,14 +195,14 @@ describe('shimScripts', () => {
   it('writes an ASCII claude-mesh.cmd on windows, and a sh claude-mesh for Git Bash', () => {
     // Git Bash finds no .cmd by its bare name, so the sh one runs the .cmd beside it.
     const home = 'C:\\Users\\hömé';
-    const scripts = shimScripts(`${home}\\.agentmesh\\mesh-window.cmd`, 'win32', home);
+    const scripts = shimScripts(`${home}\\.cosmicwave\\mesh-window.cmd`, 'win32', home);
     expect(scripts).toEqual([
       {
         name: 'claude-mesh.cmd',
         // No `call`: it would expand % again and double ^ in the folder argument. As the last
         // line, control passes to the launcher and its exit code comes back.
         content:
-          '@echo off\r\nrem agentmesh claude-mesh\r\n"%USERPROFILE%\\.agentmesh\\mesh-window.cmd" %*\r\n',
+          '@echo off\r\nrem cosmicwave claude-mesh\r\n"%USERPROFILE%\\.cosmicwave\\mesh-window.cmd" %*\r\n',
       },
       {
         name: 'claude-mesh',
@@ -213,7 +213,7 @@ describe('shimScripts', () => {
         // is absolute; an exported CDPATH can't redirect the cd.
         content: [
           '#!/bin/sh',
-          '# agentmesh claude-mesh',
+          '# cosmicwave claude-mesh',
           // `*\\*` in the file: a literal backslash (a Windows-form $0); `*\*` would mean a literal *.
           'case $0 in */*|*\\\\*) ;; *) echo "run claude-mesh by name or by its path" >&2; exit 1 ;; esac',
           'self=$0; case $self in /*|[A-Za-z]:*) ;; *) self=$PWD/$self ;; esac',
@@ -230,7 +230,7 @@ describe('shimScripts', () => {
     const ours = [...shimScripts('/x', 'linux'), ...shimScripts('C:\\x.cmd', 'win32')];
     for (const s of ours) expect(isOurShim(s.content)).toBe(true);
     expect(isOurShim('@echo off\r\ncall "C:\\other.exe" %*\r\n')).toBe(false);
-    expect(isOurShim('#!/bin/sh\n# not agentmesh claude-mesh\n')).toBe(false);
+    expect(isOurShim('#!/bin/sh\n# not cosmicwave claude-mesh\n')).toBe(false);
   });
 });
 

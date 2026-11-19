@@ -2,16 +2,16 @@
 # The caller sets REPO, ENVIRONMENT, DEPLOY_HOST, DEPLOY_USER, TARGET, TMP and SSH_CMD and runs it
 # from the repo root.
 
-# Installs agentmesh-deploy and a new deploy key on the server (a re-run rotates the key), then
+# Installs cosmicwave-deploy and a new deploy key on the server (a re-run rotates the key), then
 # creates the `production` environment with that key and the variables every deploy reads. The
 # private key goes from $TMP into the GitHub secret; the caller's trap deletes it.
 setup_server_and_github() {
   local remote host_key
   echo "== server: deploy endpoint and key"
-  ssh-keygen -q -t ed25519 -N '' -C agentmesh-github-deploy -f "$TMP/deploy_key"
+  ssh-keygen -q -t ed25519 -N '' -C cosmicwave-github-deploy -f "$TMP/deploy_key"
   printf -v remote 'd=$(mktemp -d) && tar -xf - -C "$d" && sudo MESH_USER=%q DEPLOY_PUBKEY=%q bash "$d/install.sh"; rc=$?; rm -rf "$d"; exit $rc' \
     "$DEPLOY_USER" "$(cat "$TMP/deploy_key.pub")"
-  tar -cf - -C deploy/auto-deploy agentmesh-deploy.sh install.sh | "${SSH_CMD[@]}" "$TARGET" "$remote"
+  tar -cf - -C deploy/auto-deploy cosmicwave-deploy.sh install.sh | "${SSH_CMD[@]}" "$TARGET" "$remote"
   # Read over the SSH session just authenticated, so the host key is the one this laptop trusts.
   host_key=$("${SSH_CMD[@]}" "$TARGET" cat /etc/ssh/ssh_host_ed25519_key.pub | cut -d' ' -f1,2)
 

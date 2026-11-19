@@ -1,5 +1,5 @@
 import { createServer, type Server, type Socket } from 'node:net';
-import { DiscordConfig } from '@agentmesh/config';
+import { DiscordConfig } from '@cosmicwave/config';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderChecklist } from '../render/checklist';
 import { classifyContainers } from './containers';
@@ -89,7 +89,7 @@ describe('connectionError', () => {
 
 /** One `docker compose ps --format json` line, with some of the fields compose prints. */
 const ps = (Service: string, State: string, Health = '') =>
-  JSON.stringify({ Name: `agentmesh-${Service}-1`, Service, State, Health, ExitCode: 0 });
+  JSON.stringify({ Name: `cosmicwave-${Service}-1`, Service, State, Health, ExitCode: 0 });
 
 describe('classifyContainers', () => {
   it('all three running and the hub healthy pass', () => {
@@ -153,7 +153,7 @@ describe('classifyContainers', () => {
 describe('classifyChannels', () => {
   const discord = DiscordConfig.parse({});
   const all = [
-    { name: 'Agent Mesh', type: 4, parent_id: null },
+    { name: 'Cosmicwave', type: 4, parent_id: null },
     ...Object.values(discord.channels).map((c) => ({
       name: c.name,
       type: c.type === 'forum' ? 15 : 0,
@@ -190,7 +190,7 @@ describe('classifyChannels', () => {
 describe('renderChecklist', () => {
   it('all passing', () => {
     expect(renderChecklist('Acme', [{ ok: true, label: 'one' }])).toBe(
-      'AgentMesh is live for Acme\n ✓ one',
+      'Cosmicwave is live for Acme\n ✓ one',
     );
   });
 
@@ -202,7 +202,7 @@ describe('renderChecklist', () => {
     ]);
     expect(text).toBe(
       [
-        'AgentMesh for Acme: 2 problems',
+        'Cosmicwave for Acme: 2 problems',
         ' ✓ one',
         ' ✗ two',
         '   → fix two',

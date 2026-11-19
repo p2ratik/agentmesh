@@ -1,4 +1,4 @@
-import { newSessionId } from '@agentmesh/common';
+import { newSessionId } from '@cosmicwave/common';
 import type { HubContext } from '../../context';
 import type { OpenInput } from '../../contracts';
 import { recordHub } from '../observe/hub-event';

@@ -23,7 +23,7 @@ export function renderKeyTable(rows: KeyRow[], secretsDir: string): string {
   const missing = rows.filter((r) => !r.holder.nkey).length;
   const footer =
     missing > 0
-      ? `${missing} without a key: run \`agentmesh keys add <id>\`.`
+      ? `${missing} without a key: run \`cmw keys add <id>\`.`
       : 'Every participant has a key.';
   return [header, ...lines, '', `Seeds looked up in ${secretsDir}. ${footer}`].join('\n');
 }
@@ -42,7 +42,7 @@ export function renderKeyAdded(input: KeyAddedInput): string {
     holder.kind === 'agent'
       ? [
           `Send ${input.seedFile} to ${holder.id}'s owner over a private channel. They save it as`,
-          `~/.agentmesh/${holder.id}.nk and run \`agentmesh agent-setup ${holder.id}\`.`,
+          `~/.cosmicwave/${holder.id}.nk and run \`cmw agent-setup ${holder.id}\`.`,
         ]
       : [
           'Keep the seed on the hub VM: docker compose mounts deploy/secrets read-only and the',
@@ -56,6 +56,6 @@ export function renderKeyAdded(input: KeyAddedInput): string {
     'Next:',
     ...who.map((l) => `  ${l}`),
     '  Never commit seed files; *.nk is git-ignored.',
-    '  Regenerate the NATS config: `agentmesh nats-config`, then reload NATS.',
+    '  Regenerate the NATS config: `cmw nats-config`, then reload NATS.',
   ].join('\n');
 }

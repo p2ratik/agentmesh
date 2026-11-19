@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import {
   PROTOCOL_VERSION,
   RPC_METHODS,
@@ -8,7 +8,7 @@ import {
   type RpcResponseEnvelope,
   type RpcResult,
   subjects,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { NatsConnection } from '@nats-io/transport-node';
 
 export interface CallOptions {

@@ -97,12 +97,12 @@ describe('discordApi', () => {
     const [category, council] = ['500000000000000005', '600000000000000006'];
     const discord = fakeDiscord({
       [`/guilds/${GUILD}/channels`]: [
-        { id: category, name: 'AgentMesh', type: 4, position: 0 },
+        { id: category, name: 'Cosmicwave', type: 4, position: 0 },
         { id: council, name: 'mesh-council', type: 0, parent_id: category },
       ],
     });
     expect(await discordApi(TOKEN, discord.fetch).channels(GUILD)).toEqual([
-      { id: category, name: 'AgentMesh', type: 4, parent_id: null },
+      { id: category, name: 'Cosmicwave', type: 4, parent_id: null },
       { id: council, name: 'mesh-council', type: 0, parent_id: category },
     ]);
   });

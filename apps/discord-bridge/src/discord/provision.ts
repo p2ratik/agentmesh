@@ -1,5 +1,5 @@
-import type { Logger } from '@agentmesh/common';
-import type { DiscordConfig } from '@agentmesh/config';
+import type { Logger } from '@cosmicwave/common';
+import type { DiscordConfig } from '@cosmicwave/config';
 import { type CategoryChannel, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import { ChannelDirectory } from './directory';
 
@@ -40,7 +40,7 @@ export async function provisionChannels(
       type: typeOf(wanted),
       parent: category,
       ...(wanted.topic ? { topic: wanted.topic } : {}),
-      reason: `AgentMesh ${purpose} channel`,
+      reason: `Cosmicwave ${purpose} channel`,
     });
     logger.info({ purpose, channel: channel.name }, 'created discord channel');
     byPurpose.set(purpose, channel.id);
@@ -54,6 +54,6 @@ async function ensureCategory(guild: Guild, name: string): Promise<CategoryChann
       c.type === ChannelType.GuildCategory && c.name === name,
   );
   return (
-    found ?? guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'AgentMesh' })
+    found ?? guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'Cosmicwave' })
   );
 }

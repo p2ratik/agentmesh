@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Installs off-site backups on the hub server (docs/deploy.md#off-site-backups):
-#   /usr/local/sbin/agentmesh-backup        the backup script (root-owned: a merge cannot change it)
-#   /etc/default/agentmesh-backup           its settings, written once and never replaced
-#   agentmesh-backup.{service,timer}        systemd units: every hour, as MESH_USER
-#   ~MESH_USER/.ssh/agentmesh-backup        the key that may push to the backup repository, and
+#   /usr/local/sbin/cosmicwave-backup        the backup script (root-owned: a merge cannot change it)
+#   /etc/default/cosmicwave-backup           its settings, written once and never replaced
+#   cosmicwave-backup.{service,timer}        systemd units: every hour, as MESH_USER
+#   ~MESH_USER/.ssh/cosmicwave-backup        the key that may push to the backup repository, and
 #                                           GitHub's published host keys next to it
 #
 #   sudo MESH_USER=ubuntu BACKUP_REMOTE=git@github.com:<owner>/<repo>.git \
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 : "${MESH_USER:=${SUDO_USER:-}}"
-: "${AGENTMESH_DIR:=/opt/agentmesh}"
+: "${COSMICWAVE_DIR:=/opt/cosmicwave}"
 : "${BACKUP_REMOTE:=}"
 : "${AGE_RECIPIENT:=}"
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo" >&2; exit 1; }
@@ -25,35 +25,35 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 GROUP=$(id -gn "$MESH_USER")
 HOME_DIR=$(getent passwd "$MESH_USER" | cut -d: -f6)
-KEY=$HOME_DIR/.ssh/agentmesh-backup
+KEY=$HOME_DIR/.ssh/cosmicwave-backup
 
 echo "== packages"
 command -v age >/dev/null && command -v git >/dev/null ||
   { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq age git >/dev/null; }
 
 echo "== backup script"
-install -o root -g root -m 755 "$HERE/agentmesh-backup.sh" /usr/local/sbin/agentmesh-backup
+install -o root -g root -m 755 "$HERE/cosmicwave-backup.sh" /usr/local/sbin/cosmicwave-backup
 
 echo "== settings"
-if [ ! -e /etc/default/agentmesh-backup ]; then
-  cat >/etc/default/agentmesh-backup <<EOF
-# Settings for /usr/local/sbin/agentmesh-backup (docs/configuration.md#off-site-backups).
+if [ ! -e /etc/default/cosmicwave-backup ]; then
+  cat >/etc/default/cosmicwave-backup <<EOF
+# Settings for /usr/local/sbin/cosmicwave-backup (docs/configuration.md#off-site-backups).
 # Neither value is secret: the repository's address and the admin's public key.
-AGENTMESH_DIR=$AGENTMESH_DIR
+COSMICWAVE_DIR=$COSMICWAVE_DIR
 BACKUP_REMOTE=$BACKUP_REMOTE
 AGE_RECIPIENT=$AGE_RECIPIENT
 #BACKUP_PATHS="config deploy/.env deploy/secrets deploy/nats/nats.conf deploy/docker-compose.override.yml"
-#BACKUP_SSH_KEY=\$HOME/.ssh/agentmesh-backup
+#BACKUP_SSH_KEY=\$HOME/.ssh/cosmicwave-backup
 EOF
-  chmod 644 /etc/default/agentmesh-backup
+  chmod 644 /etc/default/cosmicwave-backup
 else
-  echo "kept the existing /etc/default/agentmesh-backup"
+  echo "kept the existing /etc/default/cosmicwave-backup"
 fi
 
 echo "== key for the backup repository"
 install -d -o "$MESH_USER" -g "$GROUP" -m 700 "$HOME_DIR/.ssh"
 if [ ! -e "$KEY" ]; then
-  sudo -u "$MESH_USER" ssh-keygen -q -t ed25519 -N '' -C "agentmesh-backup@$(hostname)" -f "$KEY"
+  sudo -u "$MESH_USER" ssh-keygen -q -t ed25519 -N '' -C "cosmicwave-backup@$(hostname)" -f "$KEY"
 fi
 # GitHub's host keys as GitHub publishes them over HTTPS, so the first push trusts nothing unseen.
 META=$(curl -fsS https://api.github.com/meta) || { echo "cannot read https://api.github.com/meta" >&2; exit 1; }
@@ -64,27 +64,27 @@ chmod 644 "$KEY.known_hosts.new"
 mv "$KEY.known_hosts.new" "$KEY.known_hosts"
 
 echo "== systemd timer"
-cat >/etc/systemd/system/agentmesh-backup.service <<EOF
+cat >/etc/systemd/system/cosmicwave-backup.service <<EOF
 [Unit]
-Description=AgentMesh off-site backup (docs/deploy.md#off-site-backups)
+Description=Cosmicwave off-site backup (docs/deploy.md#off-site-backups)
 After=docker.service network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 User=$MESH_USER
-ExecStart=/usr/local/sbin/agentmesh-backup run
+ExecStart=/usr/local/sbin/cosmicwave-backup run
 # The plaintext lives only here (tmpfs, mode 700, removed when the run ends).
-RuntimeDirectory=agentmesh-backup
+RuntimeDirectory=cosmicwave-backup
 RuntimeDirectoryMode=0700
-StateDirectory=agentmesh-backup
+StateDirectory=cosmicwave-backup
 UMask=0077
 Nice=10
 TimeoutStartSec=15min
 EOF
-cat >/etc/systemd/system/agentmesh-backup.timer <<EOF
+cat >/etc/systemd/system/cosmicwave-backup.timer <<EOF
 [Unit]
-Description=AgentMesh off-site backup, every hour
+Description=Cosmicwave off-site backup, every hour
 
 [Timer]
 OnCalendar=hourly
@@ -95,20 +95,20 @@ Persistent=true
 WantedBy=timers.target
 EOF
 systemctl daemon-reload
-. /etc/default/agentmesh-backup
+. /etc/default/cosmicwave-backup
 if [ -n "${BACKUP_REMOTE:-}" ] && [ -n "${AGE_RECIPIENT:-}" ]; then
-  systemctl enable --now agentmesh-backup.timer >/dev/null
-  echo "the timer is on: $(systemctl show -p NextElapseUSecRealtime --value agentmesh-backup.timer)"
+  systemctl enable --now cosmicwave-backup.timer >/dev/null
+  echo "the timer is on: $(systemctl show -p NextElapseUSecRealtime --value cosmicwave-backup.timer)"
 else
-  echo "warning (agentmesh): set BACKUP_REMOTE and AGE_RECIPIENT in /etc/default/agentmesh-backup," \
-    "then: sudo systemctl enable --now agentmesh-backup.timer" >&2
+  echo "warning (cosmicwave): set BACKUP_REMOTE and AGE_RECIPIENT in /etc/default/cosmicwave-backup," \
+    "then: sudo systemctl enable --now cosmicwave-backup.timer" >&2
 fi
 
 echo "== checks"
 sudo -u "$MESH_USER" docker info >/dev/null 2>&1 ||
-  echo "warning (agentmesh): $MESH_USER cannot run docker; add it to the docker group." >&2
-[ -f "$AGENTMESH_DIR/deploy/docker-compose.yml" ] ||
-  echo "warning (agentmesh): no repo checkout at $AGENTMESH_DIR; set AGENTMESH_DIR in /etc/default/agentmesh-backup." >&2
+  echo "warning (cosmicwave): $MESH_USER cannot run docker; add it to the docker group." >&2
+[ -f "$COSMICWAVE_DIR/deploy/docker-compose.yml" ] ||
+  echo "warning (cosmicwave): no repo checkout at $COSMICWAVE_DIR; set COSMICWAVE_DIR in /etc/default/cosmicwave-backup." >&2
 echo "== done. Add this key to the backup repository (Settings > Deploy keys), with write access:"
 cat "$KEY.pub"
-echo "   Then run one backup now: sudo systemctl start agentmesh-backup && agentmesh-backup status"
+echo "   Then run one backup now: sudo systemctl start cosmicwave-backup && cosmicwave-backup status"

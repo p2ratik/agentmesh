@@ -4,7 +4,7 @@ name: Deploy
 # release workflow calls it after publishing a new version's images; a repository admin runs it by
 # hand to redeploy, or to roll back to an older version. It deploys only images whose signed
 # provenance says release.yml built them on main, and hands the server their digests. On the server
-# the deploy key is a forced command: this job can ask for `agentmesh-deploy deploy …` or `status`,
+# the deploy key is a forced command: this job can ask for `cosmicwave-deploy deploy …` or `status`,
 # never a shell.
 on:
   workflow_call:
@@ -80,7 +80,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: |
           for svc in hub discord-bridge; do
-            name="ghcr.io/${OWNER,,}/agentmesh-$svc"
+            name="ghcr.io/${OWNER,,}/cosmicwave-$svc"
             # The digest the tag points at now; it is then verified, and deployed, as is.
             digest=$(docker buildx imagetools inspect "$name:$VERSION" --format '{{json .Manifest.Digest}}' | tr -d '"') ||
               { echo "::error::$name:$VERSION is not published."; exit 1; }
@@ -89,7 +89,7 @@ jobs:
               --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
               --source-ref refs/heads/main --deny-self-hosted-runners >/dev/null ||
               { echo "::error::$name:$VERSION ($digest) has no build provenance from release.yml on main; refusing it."; exit 1; }
-            echo "- \`agentmesh-$svc\` $digest" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`cosmicwave-$svc\` $digest" >> "$GITHUB_STEP_SUMMARY"
             echo "${svc//-/_}=$digest" >> "$GITHUB_OUTPUT"
           done
 
@@ -126,7 +126,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: agentmesh-deploy-${{ github.run_id }}
+          role-session-name: cosmicwave-deploy-${{ github.run_id }}
           role-skip-session-tagging: true
           mask-aws-account-id: true
 

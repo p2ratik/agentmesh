@@ -5,7 +5,7 @@ Plan: [setup plan](../specs/2026-10-23-setup-plan.md).
 
 ## Context
 
-AgentMesh goes public soon. Its users are self-hosted startup teams of 5–15 people who already use
+Cosmicwave goes public soon. Its users are self-hosted startup teams of 5–15 people who already use
 Claude Code, plugins and MCP. Until now one admin needed about an hour of manual work to stand up a
 mesh:
 
@@ -22,16 +22,16 @@ Opzami's own deploy went this way, and the Discord bot token ended up pasted int
 ## Decision
 
 - **Claude conducts, a CLI does the work.**
-  - `/agentmesh:setup` is a plugin skill (`plugins/agentmesh/skills/setup/SKILL.md`, user-only
+  - `/cmw:setup` is a plugin skill (`plugins/cmw/skills/setup/SKILL.md`, user-only
     through `disable-model-invocation: true`). Claude asks the questions, explains each step and
     what went wrong, and runs the CLI one step at a time.
-  - Every change is made by `agentmesh` CLI steps that are deterministic and safe to re-run:
+  - Every change is made by `cmw` CLI steps that are deterministic and safe to re-run:
     `setup render`, `setup discord`, `setup host`, `setup deploy`, `setup admin` and
     `setup invites`, plus `setup status`, `doctor` and `upgrade`.
   - **Answers are structured data.** Claude writes one file, `setup-answers.json`, which a zod
     schema checks (`apps/cli/src/setup/answers.ts`). Pure renderers turn it into `mesh.yaml`, the
     team policy, `.env`, the compose file and `nats.conf`. Claude never writes YAML.
-  - **Progress is saved** in `.agentmesh-setup.json` in the workspace, which holds no secrets. A
+  - **Progress is saved** in `.cosmicwave-setup.json` in the workspace, which holds no secrets. A
     re-run skips finished steps, and no step overwrites a seed.
   - **The CLI ships inside the plugin** as a second bundle, `dist/cli.js`, which the skill runs as
     `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" <step> --dir "<workspace>"`. The admin installs
@@ -42,15 +42,15 @@ Opzami's own deploy went this way, and the Discord bot token ended up pasted int
     hub and Discord bridge images for amd64 and arm64, pushes them to GHCR and tags the commit
     `vX.Y.Z`. A version that is already tagged is skipped.
   - The compose file setup writes pulls
-    `${AGENTMESH_IMAGE_REGISTRY}/agentmesh-hub:${AGENTMESH_VERSION}` (and the bridge image), so a
+    `${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-hub:${COSMICWAVE_VERSION}` (and the bridge image), so a
     server needs only Docker: no clone and no build.
   - The registry is configuration. The default is `ghcr.io/p2ratik` (`DEFAULT_IMAGE_REGISTRY` in
     `apps/cli/src/setup/defaults.ts`); `setup render --registry` sets another.
   - One version for everything: `VERSION` in `packages/common/src/version.ts`, every
     `package.json` and `plugin.json`. A unit test fails when any of them differs.
   - **The workspace pins the hub version.** Setup writes the plugin's version into `.env` as
-    `AGENTMESH_VERSION`. `setup deploy` always uses that pin, so updating the plugin never
-    upgrades the hub silently; only `agentmesh upgrade` moves it.
+    `COSMICWAVE_VERSION`. `setup deploy` always uses that pin, so updating the plugin never
+    upgrades the hub silently; only `cmw upgrade` moves it.
 - **Agents never act as admins.**
   - Setup writes the first admin into `mesh.yaml`: a human with `roles: [admin]` and a
     `discordUserId`, plus their agent with its public key. `mesh.yaml` wins over the registry, so
@@ -131,13 +131,13 @@ change behaviour:
   read `config/`, `nats.conf` and the seeds only at start, so after a change to those alone the
   old config and keys would keep running. Deploy runs `up -d --force-recreate` instead, on a
   server and on a trial; agents reconnect within seconds.
-- **No separate `validate` step (§6).** `agentmesh validate` reads only the shell's environment,
+- **No separate `validate` step (§6).** `cmw validate` reads only the shell's environment,
   and the rendered `mesh.yaml` takes the Discord values from `deploy/.env`, so in a workspace it
   always fails. `setup deploy` already checks the config with the real `.env` before it copies
   anything, so the workspace `CLAUDE.md` and the `mesh.yaml` header say edit, then deploy.
 - **An unfinished render re-runs over its own files (R26).** Until a render finishes, a re-run
   replaces the files that render created, as `--force` would, and sets the two hosting keys in
-  `.env`. A seed collision in `~/.agentmesh` can then be fixed with another person id. A file
+  `.env`. A seed collision in `~/.cosmicwave` can then be fixed with another person id. A file
   that was there before setup is still kept, and after the first render nothing is replaced
   without `--force`.
 - **One version includes `tests/package.json` (R17).**
@@ -153,7 +153,7 @@ change behaviour:
 
 ## Alternatives considered
 
-- **`npx agentmesh up`** (the earlier Phase 2 roadmap): a wizard over compose. Replaced by this:
+- **`npx cosmicwave up`** (the earlier Phase 2 roadmap): a wizard over compose. Replaced by this:
   Claude proposes areas, skills and a policy from a conversation, the CLI stays deterministic, and
   nothing is published to npm.
 - **Claude writes the config itself.** Rejected: each company would end up with a different,

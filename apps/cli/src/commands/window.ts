@@ -9,7 +9,7 @@ import {
   type WindowMode,
   type WindowPolicy,
   windowFiles,
-} from '@agentmesh/common/window';
+} from '@cosmicwave/common/window';
 import { parseCommandArgs, usageError } from '../args';
 import { type CliContext, type Command, resolveFrom } from '../context';
 import { writeFileAtomic } from '../lib/files';
@@ -146,16 +146,16 @@ function printNotes(
 
 export const windowInitCommand: Command = {
   name: 'window init',
-  summary: 'Write the mesh window launcher, its settings and policy in ~/.agentmesh',
-  help: `Usage: agentmesh window init --agent <id> [--owner <id>] [--branch-template <t>]
+  summary: 'Write the mesh window launcher, its settings and policy in ~/.cosmicwave',
+  help: `Usage: cmw window init --agent <id> [--owner <id>] [--branch-template <t>]
                             [--integration-branch <b>] [--test <command>]... [--dir <folder>]
                             [--mode auto|manual]
 
-Writes ~/.agentmesh/mesh-window.json (the policy), mesh-window.settings.json (passed to
+Writes ~/.cosmicwave/mesh-window.json (the policy), mesh-window.settings.json (passed to
 claude --settings), the launcher (mesh-window.cmd on Windows, mesh-window elsewhere) and an
 empty empty-git-hooks/ folder. It also writes claude-mesh, which runs the launcher: next to claude
 when that folder is under your home folder and holds no claude-mesh of someone else's, else in
-~/.agentmesh/bin, which you add to PATH. Start the window each day with claude-mesh in your team's
+~/.cosmicwave/bin, which you add to PATH. Start the window each day with claude-mesh in your team's
 folder. Running it again keeps the window's token. With CLAUDE_CONFIG_DIR set, the window starts in
 that Claude account.
 
@@ -216,7 +216,7 @@ that Claude account.
     ]);
     const dir = resolveFrom(ctx, values.dir ?? '.');
     if (!isFolder(dir)) throw usageError(`--dir ${dir} is not a folder that exists.`);
-    // Checked before anything is written: claude-mesh may have to go into ~/.agentmesh/bin.
+    // Checked before anything is written: claude-mesh may have to go into ~/.cosmicwave/bin.
     for (const p of [files.dir, files.bin]) {
       if (present(p) && !isFolder(p)) {
         throw usageError(`${p} is not a folder. Move it away and run window init again.`);

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError, redactSecrets, VERSION } from '@agentmesh/common';
-import { loadConfig } from '@agentmesh/config';
+import { MeshError, redactSecrets, VERSION } from '@cosmicwave/common';
+import { loadConfig } from '@cosmicwave/config';
 import { type CliContext, cliOf } from '../context';
 import { runProcess } from '../lib/process';
 import type { SetupAnswers } from './answers';
@@ -75,23 +75,23 @@ export const isImageVersion = (value: string): boolean =>
  * setting, never its value: that may be the bot token, pasted on the wrong line.
  */
 function imageOf(ctx: CliContext, env: Map<string, string>) {
-  const registry = env.get('AGENTMESH_IMAGE_REGISTRY') ?? '';
-  const version = env.get('AGENTMESH_VERSION') ?? '';
+  const registry = env.get('COSMICWAVE_IMAGE_REGISTRY') ?? '';
+  const version = env.get('COSMICWAVE_VERSION') ?? '';
   if (!IMAGE_REGISTRY.test(registry) || redactSecrets(registry) !== registry) {
     throw new MeshError(
       'conflict',
-      'AGENTMESH_IMAGE_REGISTRY in deploy/.env is not an image registry such as ' +
+      'COSMICWAVE_IMAGE_REGISTRY in deploy/.env is not an image registry such as ' +
         `${DEFAULT_IMAGE_REGISTRY}. Correct it in the file and run again.`,
     );
   }
   if (!isImageVersion(version)) {
     throw new MeshError(
       'conflict',
-      `AGENTMESH_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it ` +
+      `COSMICWAVE_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it ` +
         `with \`${cliOf(ctx)} upgrade --dir <workspace> --to <version>\`.`,
     );
   }
-  return { registry, version, image: `${registry}/agentmesh-hub:${version}` };
+  return { registry, version, image: `${registry}/cosmicwave-hub:${version}` };
 }
 
 /** Runs a step that pulls the images; its failure gains a line naming the image. */
@@ -122,7 +122,7 @@ export async function deployWorkspace(
   requireSeeds(p, hosting.mode);
   // Checked, so a failed pull can print them.
   const { registry, version, image } = imageOf(ctx, env);
-  const hint = `Check that ${image} exists (AGENTMESH_IMAGE_REGISTRY=${registry}, AGENTMESH_VERSION=${version}).`;
+  const hint = `Check that ${image} exists (COSMICWAVE_IMAGE_REGISTRY=${registry}, COSMICWAVE_VERSION=${version}).`;
   const run = ctx.run ?? runProcess;
 
   if (hosting.mode === 'trial') {

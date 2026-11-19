@@ -2,14 +2,14 @@ import {
   CLAUDE_ACCOUNT_FILES,
   SECRET_HOME_PATHS,
   SECRET_NAMES,
-} from '@agentmesh/common/secret-paths';
+} from '@cosmicwave/common/secret-paths';
 import {
   CHANNEL_FLAG,
   LAUNCH_PROMPT,
   START_COMMAND,
   type WindowFiles,
   type WindowMode,
-} from '@agentmesh/common/window';
+} from '@cosmicwave/common/window';
 
 export interface WindowInputs {
   agentId: string;
@@ -90,7 +90,7 @@ export function windowSettings(i: WindowInputs): Record<string, unknown> {
     : [];
   return {
     env: {
-      AGENTMESH_MESH_WINDOW: i.token,
+      COSMICWAVE_MESH_WINDOW: i.token,
       GIT_CONFIG_COUNT: '3',
       GIT_CONFIG_KEY_0: 'core.hooksPath',
       GIT_CONFIG_VALUE_0: i.files.emptyHooks,
@@ -148,14 +148,14 @@ export function launcherScript(
         '@echo off',
         'setlocal',
         'set "NoDefaultCurrentDirectoryInExePath=1"',
-        `set "AGENTMESH_MESH_WINDOW=${i.token}"`,
+        `set "COSMICWAVE_MESH_WINDOW=${i.token}"`,
         `set "CLAUDE_CONFIG_DIR=${account ? at(account) : ''}"`,
         'if not "%~1"=="" cd /d "%~1" || exit /b 1',
         `call ${claude}`,
       ]
     : [
         '#!/bin/sh',
-        `export AGENTMESH_MESH_WINDOW='${i.token}'`,
+        `export COSMICWAVE_MESH_WINDOW='${i.token}'`,
         account ? `export CLAUDE_CONFIG_DIR='${account}'` : 'unset CLAUDE_CONFIG_DIR',
         // An exported CDPATH would send a relative folder elsewhere.
         'if [ -n "$1" ]; then CDPATH= cd -- "$1" || exit 1; fi',
@@ -165,7 +165,7 @@ export function launcherScript(
 }
 
 /** The marker line's text: a `claude-mesh` file that carries it was written by `window init`. */
-const SHIM_MARK = `agentmesh ${START_COMMAND}`;
+const SHIM_MARK = `cosmicwave ${START_COMMAND}`;
 
 export const isOurShim = (text: string): boolean =>
   text.split(/\r?\n/).some((l) => l === `rem ${SHIM_MARK}` || l === `# ${SHIM_MARK}`);

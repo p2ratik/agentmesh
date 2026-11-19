@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { HOUR_MS, MeshError, MINUTE_MS } from '@agentmesh/common';
-import { decodeInvite } from '@agentmesh/protocol';
+import { HOUR_MS, MeshError, MINUTE_MS } from '@cosmicwave/common';
+import { decodeInvite } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '../../contracts';
 import { resolveCaller } from '../../rpc/actor';

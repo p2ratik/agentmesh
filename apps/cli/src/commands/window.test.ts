@@ -13,7 +13,7 @@ import { platform, setup } from './window.fixture';
 
 const mode = (p: string) => statSync(p).mode & 0o777;
 
-describe('agentmesh window init', () => {
+describe('cmw window init', () => {
   it('writes the launcher, its settings and the policy', async () => {
     const { out, run, files, policy } = setup();
     expect(await run('--agent', 'bob-agent', '--owner', 'bob', '--test', 'pnpm check')).toBe(0);
@@ -24,7 +24,7 @@ describe('agentmesh window init', () => {
       testCommands: ['pnpm check'],
     });
     const settings = JSON.parse(readFileSync(files.settings, 'utf8'));
-    expect(settings.env.AGENTMESH_MESH_WINDOW).toBe(policy()?.token);
+    expect(settings.env.COSMICWAVE_MESH_WINDOW).toBe(policy()?.token);
     expect(readFileSync(files.launcher, 'utf8')).toContain(policy()?.token);
     expect(readdirSync(files.emptyHooks)).toEqual([]);
     expect(out[0]).toBe(
@@ -111,7 +111,7 @@ describe('agentmesh window init', () => {
     if (platform === 'win32') {
       // cmd reads a .cmd file in the console's code page, not UTF-8.
       expect(launcher).toContain(
-        '--settings "%USERPROFILE%\\.agentmesh\\mesh-window.settings.json"',
+        '--settings "%USERPROFILE%\\.cosmicwave\\mesh-window.settings.json"',
       );
       expect(launcher).toMatch(/^[\x20-\x7e\r\n]*$/);
     } else {
@@ -133,7 +133,7 @@ describe('agentmesh window init', () => {
     const other = setup();
     await other.run('--agent', 'bob-agent');
     expect(other.out[1]).toBe('The window uses your default Claude account (~/.claude).');
-    const root = mkdtempSync(join(tmpdir(), 'agentmesh-account-'));
+    const root = mkdtempSync(join(tmpdir(), 'cosmicwave-account-'));
     const account = join(root, 'claude-work');
     const { out, run, files } = setup(true, 'home', 'bin', { CLAUDE_CONFIG_DIR: account });
     expect(await run('--agent', 'bob-agent')).toBe(0);

@@ -15,10 +15,10 @@ describe('runProcess', () => {
   });
 
   it('a missing program is exit 127, not a crash', async () => {
-    expect(await runProcess('agentmesh-no-such-program', ['x'])).toEqual({
+    expect(await runProcess('cosmicwave-no-such-program', ['x'])).toEqual({
       code: 127,
       stdout: '',
-      stderr: 'agentmesh-no-such-program not found on PATH',
+      stderr: 'cosmicwave-no-such-program not found on PATH',
     });
   });
 });

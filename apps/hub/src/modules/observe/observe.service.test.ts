@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { createLogger, ManualClock } from '@agentmesh/common';
-import type { HubEvent, ReportedEvent } from '@agentmesh/protocol';
+import { createLogger, ManualClock } from '@cosmicwave/common';
+import type { HubEvent, ReportedEvent } from '@cosmicwave/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createHub, type Hub } from '../../app';
 import { MemoryPorts } from '../../ports';

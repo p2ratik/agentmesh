@@ -1,6 +1,6 @@
-# AgentMesh
+# Cosmicwave
 
-AgentMesh lets Claude Code sessions on different people's laptops work together like a
+Cosmicwave lets Claude Code sessions on different people's laptops work together like a
 professional engineering team. They ask each other questions, split and assign work, review each
 other's PRs, and plan big pieces of work together. Humans watch and steer from Discord.
 
@@ -85,7 +85,7 @@ file is gitignored and is never committed.
  Laptop (each teammate)                    Hub VM (docker compose)                 Discord
 ┌───────────────────────────┐   TLS     ┌──────────────────────────────┐        ┌───────────┐
 │ Claude Code                │  nkey    │ NATS JetStream (:4222)       │        │ #council  │
-│  └ agentmesh plugin (MCP   │◄────────►│  {p}.session.{agent}.{id}    │        │ #tasks    │
+│  └ cosmicwave plugin (MCP   │◄────────►│  {p}.session.{agent}.{id}    │        │ #tasks    │
 │    stdio + claude/channel) │          │  {P}_EVENTS    feed-{svc}    │        │ #reviews  │
 │    26 tools, session push, │          │  {P}_INGEST    hub-ingest    │        │ #planning │
 │    presence heartbeat      │          │  {p}.rpc.{caller}.{method}   │        │ #escalate │
@@ -110,13 +110,13 @@ file is gitignored and is never committed.
   - State changes and the messages they emit commit in one SQLite transaction (outbox). A
     publisher drains the outbox: agent deliveries go to one session each, feed events to
     JetStream.
-- **Plugin** (`plugins/agentmesh`):
+- **Plugin** (`plugins/cmw`):
   - An MCP stdio server declaring the `claude/channel` capability. It pushes
     `notifications/claude/channel` for the messages the hub delivers to its session (coalesced,
-    de-duplicated, acked only after the push). A session is inactive until `/agentmesh:activate`.
+    de-duplicated, acked only after the push). A session is inactive until `/cmw:activate`.
     It exposes tools such as ask/reply/broadcast/task_*/plan_*/lease/escalate.
   - The mesh window (ADR 0009): one marked session per teammate, started by `claude-mesh` (which
-    runs the launcher `~/.agentmesh/mesh-window`), takes the team's work. It starts in Claude
+    runs the launcher `~/.cosmicwave/mesh-window`), takes the team's work. It starts in Claude
     Code's auto mode by default (`window init --mode manual` opts out; ADR 0012). Its worktree
     guard (`dist/guard.js`, a `PreToolUse` hook) keeps its edits inside `.claude/worktrees/mesh-*`
     worktrees and refuses commands that name secret files, print credentials, dump the
@@ -129,10 +129,10 @@ file is gitignored and is never committed.
   - It records behaviour events (ids, counts, codes and timings, never content) and ships them to
     the hub with `telemetry.report`; the guard and hook leave theirs in `events-<agent>-<pid>.jsonl`
     files it collects (ADR 0011).
-  - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `agentmesh` CLI),
+  - Bundled into `dist/server.js` (the MCP server), `dist/cli.js` (the `cmw` CLI),
     `dist/hook.js` (prompt, session-start and session-end hook) and `dist/guard.js`, all committed
     so marketplace installs need no build.
-  - `/agentmesh:setup` (`skills/setup`) has Claude interview the admin and run the bundled CLI's
+  - `/cmw:setup` (`skills/setup`) has Claude interview the admin and run the bundled CLI's
     `setup` steps, from "plugin installed" to a live mesh (ADR 0007).
 - **Discord bridge** (`apps/discord-bridge`):
   - Pure renderers turn feed events into `PostIntent`s; an executor performs them with
@@ -159,14 +159,14 @@ packages/common     errors, ids, clock, logger, retry, paths
 apps/hub            hub service (src/modules/<module>/{repo,service,handlers,index}.ts, db, rpc, runtime)
 apps/discord-bridge render/ (pure), feed/, discord/, commands/, inbound/
 apps/cli            commands/ (incl. setup/), render/, lib/, setup/ (answers, renderers, checks, deploy)
-plugins/agentmesh   Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull,telemetry}/,
+plugins/cmw   Claude Code plugin: src/{inbox,tools,join,window,guard,relay,resume,hook,pull,telemetry}/,
                     skills/ (mesh-collaboration, setup, window, …), hooks/hooks.json, dist/server.js
                     (MCP server), dist/cli.js (the bundled CLI), dist/hook.js, dist/guard.js
 config/examples     commented mesh.yaml, workflows/, rules/, policy/ (real config/ is gitignored)
 deploy/             Dockerfile, docker-compose.yml, .env.example, azure/{provision,vm-setup,github-deploy-setup}.sh,
-                    aws/github-deploy-setup.sh, auto-deploy/ (agentmesh-deploy.sh: the deploy key's forced
+                    aws/github-deploy-setup.sh, auto-deploy/ (cosmicwave-deploy.sh: the deploy key's forced
                     command; install.sh; github-setup.sh, shared by the cloud setup scripts),
-                    backup/ (agentmesh-backup.sh: hourly encrypted off-site backups; install.sh;
+                    backup/ (cosmicwave-backup.sh: hourly encrypted off-site backups; install.sh;
                     backup-watch.yml, a workflow template for the backup repository)
 docs/               getting-started, deploy, configuration, workflows, planning, discord,
                     events-and-hermes, protocol, security, adr/, specs/ (original design spec)
@@ -185,14 +185,14 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
   - The plugin bundles everything (`noExternal`).
 - **Channels:**
   - Channels are a Claude Code research preview. Sessions start with
-    `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh` until the plugin is
+    `claude --dangerously-load-development-channels plugin:cmw@cosmicwave` until the plugin is
     allowlisted.
   - Channel `meta` keys must be identifiers.
   - Never declare `claude/channel/permission`: the mesh never relays tool-approval prompts.
-- **Users need an allow rule:** `mcp__plugin_agentmesh_mesh__*`.
+- **Users need an allow rule:** `mcp__plugin_cmw_mesh__*`.
 - **Required plugin options:** Claude Code does not start the plugin's MCP server until the
   required options (`agent_id`, `nats_url`) are set; they are stored in `settings.json` under
-  `pluginConfigs`. `~/.agentmesh/agent.json` fills in options left empty, such as the seed. Its
+  `pluginConfigs`. `~/.cosmicwave/agent.json` fills in options left empty, such as the seed. Its
   prefix wins over the `prefix` option (Claude Code may store a stale value there). The file
   applies only when the `agent_id` and `nats_url` options are empty or match it; otherwise it is
   ignored, because one file serves every Claude account on the laptop.
@@ -213,7 +213,7 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
     `src/hook.ts`, `src/guard.ts`, `src/guard/**`, `src/hook/**`,
     `src/relay/{pointer,address,local-session,forward-record}.ts`, `src/resume/claude-session.ts`,
     `src/agent-id.ts`, `src/window/{rules,heartbeat,session-start,guard-stamp,start-state}.ts`,
-    `src/pull/state.ts`, `src/telemetry/events-file.ts` (all under `plugins/agentmesh`),
+    `src/pull/state.ts`, `src/telemetry/events-file.ts` (all under `plugins/cmw`),
     `packages/common/src/{window,version}.ts` and `packages/protocol/src/observe-codes.ts`.
   - Cross-session messaging (the relay) needs Claude Code 2.1.234+ on native Windows. That is
     older than the plugin's own 2.1.295 minimum, so every supported install has it.
@@ -225,12 +225,12 @@ pnpm install
 pnpm check              # typecheck + lint + file-size + unit tests (what CI runs)
 pnpm test:integration   # needs nats-server on PATH; CI downloads 2.15.1
 pnpm build              # hub, bridge, cli, plugin bundles
-pnpm --filter @agentmesh/plugin build   # rebuild plugins/agentmesh/dist/{server,cli,hook,guard}.js (commit them)
+pnpm --filter @cosmicwave/plugin build   # rebuild plugins/cmw/dist/{server,cli,hook,guard}.js (commit them)
 pnpm mesh validate --config config
 pnpm mesh keys add <id> --config config --secrets deploy/secrets
 pnpm mesh nats-config --config config --tls --out deploy/nats/nats.conf
 pnpm mesh agent-setup <agent-id> --config config [--write]
-node plugins/agentmesh/scripts/smoke.mjs <nats-url>   # AGENTMESH_AGENT_ID / AGENTMESH_NKEY_SEED from env
+node plugins/cmw/scripts/smoke.mjs <nats-url>   # COSMICWAVE_AGENT_ID / COSMICWAVE_NKEY_SEED from env
 node <plugin dir>/dist/cli.js setup status --dir <workspace>   # the CLI the plugin ships; also doctor, upgrade
 ```
 
@@ -242,12 +242,12 @@ Run `pnpm check` before calling anything done.
 - **Packages:** protocol, config, bus, common.
 - **Hub:** every module listed above, plus `enrollment` (team registry) and `callout` (NATS auth
   callout).
-- **Plugin:** 26 tools, plus `/agentmesh:join|activate|deactivate|take|setup|autoupdate|window`, and an unenrolled
+- **Plugin:** 26 tools, plus `/cmw:join|activate|deactivate|take|setup|autoupdate|window`, and an unenrolled
   mode with `join` and `connect`.
 - **Discord bridge:** channels, forum planning, webhooks with avatars, addressee lines, slash
   commands, buttons, echo guard, `/mesh invite|uninvite|remove`.
 - **CLI**, including the setup steps, `doctor` and `upgrade`, bundled into the plugin.
-- **`/agentmesh:setup`** (ADR 0007): built and tested. Manual acceptance on a live server (and the
+- **`/cmw:setup`** (ADR 0007): built and tested. Manual acceptance on a live server (and the
   trial on Windows) is not done yet.
 - **Deploy:** Docker, compose, Let's Encrypt TLS, Azure scripts. `nats-config --auth-callout`
   renders the account-mode config. Setup prepares any Ubuntu server over SSH and runs the
@@ -257,7 +257,7 @@ Run `pnpm check` before calling anything done.
   the images are public, and the images pull anonymously.
 - **Automatic deploys (ADR 0010):** after publishing, the release workflow runs `deploy.yml`. It
   opens SSH to its runner through an Azure OIDC identity scoped to the NSG. The deploy key's
-  forced command `agentmesh-deploy` pulls the images, backs up online (`VACUUM INTO`), swaps the
+  forced command `cosmicwave-deploy` pulls the images, backs up online (`VACUUM INTO`), swaps the
   containers (a few seconds of downtime), waits for `/healthz` readiness (DB, NATS round trip,
   subscriptions) and rolls back if it fails. A smoke test then checks the public NATS endpoint.
   It deploys only images whose build provenance says `release.yml` built them on `main`
@@ -276,14 +276,14 @@ Run `pnpm check` before calling anything done.
     as online but are never sent deliveries; routing prefers push-capable agents.
   - The plugin polls `inbox.peek` and writes the unread counts to a state file. A plugin hook
     (`hooks/hooks.json`, `dist/hook.js`) adds one line about unread work on each prompt.
-  - `agentmesh autoupdate` turns on plugin auto-update in the user's own settings; join and setup
+  - `cmw autoupdate` turns on plugin auto-update in the user's own settings; join and setup
     offer it.
 - **The mesh window (0.4.4 and 0.5.0)** (ADR 0009, parts 1 and 2):
   - Reads no longer take team work: only a session that may take unowned work reads it (0.4.4).
-  - `/agentmesh:window` runs `agentmesh window init`, which writes the launcher
-    (`~/.agentmesh/mesh-window`), its `--settings` file (allow rules, git env, bypass and auto mode
+  - `/cmw:window` runs `cmw window init`, which writes the launcher
+    (`~/.cosmicwave/mesh-window`), its `--settings` file (allow rules, git env, bypass and auto mode
     off), its policy, and `claude-mesh` (next to `claude` when that folder is under home, else
-    `~/.agentmesh/bin`), which runs the launcher. The plugin reports `meshWindow` in hello, and the hub routes unowned work
+    `~/.cosmicwave/bin`), which runs the launcher. The plugin reports `meshWindow` in hello, and the hub routes unowned work
     to the window before the repo rule (migration 007).
   - The worktree guard, `dist/guard.js`, denies edits outside registered
     `.claude/worktrees/mesh-*` worktrees and asks before any command not on its exact list,
@@ -296,7 +296,7 @@ Run `pnpm check` before calling anything done.
     0.6.0 mesh window a body-less `relay` pointer (`sessions/relay.ts`). The window forwards the
     fixed pointer text with `SendMessage` to that session's messaging address, from its local
     record (`sess-*.json`). The guard passes exactly that send, once, and denies every other
-    `SendMessage` and `ListAgents`. Windows only. The AgentMesh line on the next prompt also says
+    `SendMessage` and `ListAgents`. Windows only. The Cosmicwave line on the next prompt also says
     an answer waits; it finds the session by its Claude Code process, verified on Windows only.
   - Closed askers (migration 008: `sessions.private_at_close`, `sessions.claude_session_id`,
     `orphan_decisions`): a thread a closed private session released goes to a 0.6.0 window
@@ -316,7 +316,7 @@ Run `pnpm check` before calling anything done.
     15 scenarios with fresh agents.
 - **Observability, phase 1 (plan 4, for 0.7.0)** (ADR 0011): built and tested; staging QA and the
   release are next.
-  - A timeline of how AgentMesh behaves: ids, counts, outcomes, error codes, timings and versions,
+  - A timeline of how Cosmicwave behaves: ids, counts, outcomes, error codes, timings and versions,
     never content (`docs/security.md#observability`). Every "why" is a reason code from
     `packages/protocol/src/observe-codes.ts`.
   - Hub module `observe` (migration 009, an `events` table keyed `(agent, id)`, pruned after
@@ -326,7 +326,7 @@ Run `pnpm check` before calling anything done.
     gap marker) and ships them every heartbeat with `telemetry.report`, an acked RPC on the free
     list with its own per-agent cap (`maxEventsPerMinute`). The guard and hook append to
     `events-<agent>-<pid>.jsonl` (built-ins only, 256 KB a file, 500 files) for it to collect.
-  - Operators read it with the `timeline` tool or `agentmesh timeline` (`observe.timeline`): only
+  - Operators read it with the `timeline` tool or `cmw timeline` (`observe.timeline`): only
     humans in `observability.viewers`, enforced by the hub, and the one RPC besides hello and bye
     that needs no session. The tool labels its result as data. Whoever has the hub's server or a
     backup can read the events table directly.
@@ -364,7 +364,7 @@ Run `pnpm check` before calling anything done.
   event schema, the recorder and its gap marker, the events files and their caps, the shipper, a
   reason code per guard check, the timeline formatter, the viewers check, retention and the
   sessionless router set. Auto mode: the secret deny and environment dumps in every mode (and no
-  false positives on `AgentMesh` or words with `env`), the risky floor inside compound commands,
+  false positives on `Cosmicwave` or words with `env`), the risky floor inside compound commands,
   a teammate's worktree, both launcher modes and the deny list, and the rules in both modes run
   through the guard.
 - **Integration tests:** real NATS 2.15.1, the hub and the bundled plugin over MCP.
@@ -383,7 +383,7 @@ Run `pnpm check` before calling anything done.
     `asker="closed"`, with the hub's notice and an `orphan_decisions` row; an owner's reply is
     marked `decides="yes"`. The built hook and guard bundles have smoke tests.
   - Plan 4: a plugin's events reach the hub and a viewer reads them with the tool and with
-    `agentmesh timeline` (text and `--json`); a member and an admin who aren't viewers are refused;
+    `cmw timeline` (text and `--json`); a member and an admin who aren't viewers are refused;
     the CLI exits 1 on a refused key (no credentials shown) and in bounded time when the hub is
     unreachable; an offline plugin ships its buffer when it reconnects.
 - **Live deployment:**
@@ -397,7 +397,7 @@ Run `pnpm check` before calling anything done.
     the unread nudge at session start) and hold agent ↔ agent threads, tasks and reviews.
 
 **Not yet verified:**
-- `/agentmesh:setup` on a fresh server and in trial mode on Windows (design §9).
+- `/cmw:setup` on a fresh server and in trial mode on Windows (design §9).
 - Pull mode in a real session: that Claude Code runs the plugin hook (CLI and Desktop) and passes
   `CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR` to the MCP server. The built hook passes a smoke test.
 - The mesh window in a live session: `claude-mesh` typed in PowerShell, Git Bash and cmd (in a
@@ -409,7 +409,7 @@ Run `pnpm check` before calling anything done.
   where auto isn't available), the hook input's `permission_mode` after Shift+Tab, a guard "ask"
   still prompting in auto mode, the secret deny rules blocking Read, Grep and Glob, and the
   session-start line for a window set up before auto mode.
-- Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/agentmesh:join` on a real
+- Invite-only onboarding on a live deploy (`/mesh invite` in Discord → `/cmw:join` on a real
   laptop), and migrating a live deploy to `--auth-callout` (ADR-0005).
 - How agent ↔ agent conversations render in Discord (webhook names and avatars, threads).
 - Slash commands invoked by a human, plan approval buttons, human replies relayed to agents.
@@ -427,9 +427,9 @@ Run `pnpm check` before calling anything done.
     ping after the configured minutes;
   - each teammate's Claude Code version, permission mode and `crossSessionInbound`;
   - closing a terminal window dropping the session from `peers`;
-  - the AgentMesh note on Linux and macOS (the probe's parent check: the MCP server must be a child
+  - the Cosmicwave note on Linux and macOS (the probe's parent check: the MCP server must be a child
     of the Claude Code process) and in Claude Desktop;
-  - a settings `env` entry reaching the plugin's MCP server (`AGENTMESH_RELAY=off`);
+  - a settings `env` entry reaching the plugin's MCP server (`COSMICWAVE_RELAY=off`);
   - the Linux address pattern, which needs `scripts/probe-messaging.mjs` run on Linux.
 - Plan 4 live (staging QA):
   - the plugin's events from real Claude Code sessions, and the timeline they make;
@@ -444,8 +444,8 @@ carries the full team policy.
 **Decided:**
 - The mesh channels are readable by everyone in the Discord server (see `docs/security.md`);
   acting is gated to members and admins.
-- MIT license; Pratik is the author. The repo stays at `p2ratik/agentmesh`, so the marketplace is
-  `p2ratik/agentmesh` and the images are `ghcr.io/p2ratik/agentmesh-*`.
+- MIT license; Pratik is the author. The repo stays at `p2ratik/cosmicwave`, so the marketplace is
+  `p2ratik/cosmicwave` and the images are `ghcr.io/p2ratik/cosmicwave-*`.
 
 **Open decisions:** per-agent GitHub machine accounts vs. personal tokens, a hosted option.
 
@@ -458,7 +458,7 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   1. An admin runs `/mesh invite user:@x id:<id> [name] [roles] [skills] [agent]`, and the bot DMs
      a one-time code recorded against that Discord account. It is a bearer secret, delivered by DM
      only.
-  2. The member saves the code to a file and runs `/agentmesh:join`. The nkey is generated on
+  2. The member saves the code to a file and runs `/cmw:join`. The nkey is generated on
      the laptop, and enrollment goes through the NATS auth callout.
   3. No YAML edit and no restart.
 - **Cancel or remove:** `/mesh uninvite person:<id>` cancels an open invite, and
@@ -467,7 +467,7 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   The hub's registry holds invited members.
 
 **Phase 2, setup: built** (ADR 0007).
-- **`/agentmesh:setup`** is the setup wizard; it replaces the planned `npx agentmesh up`. Claude
+- **`/cmw:setup`** is the setup wizard; it replaces the planned `npx cosmicwave up`. Claude
   interviews the admin; the bundled CLI renders a workspace (config, keys, `.env`, compose,
   `nats.conf`), prepares any Ubuntu server over SSH with Let's Encrypt TLS, deploys the published
   images, enrolls the admin's agent, proves it with `doctor`, and prints the invite lines.
@@ -488,14 +488,14 @@ Target users are self-hosted startup teams of 5–15 people who already know age
   bridge command → docs → tests.
 - New config option: schema in `packages/config` with a default → validation → example in
   `config/examples` → `docs/configuration.md`.
-- After changing anything the plugin bundles, rebuild `plugins/agentmesh/dist/` and commit it.
+- After changing anything the plugin bundles, rebuild `plugins/cmw/dist/` and commit it.
   Bump the version: `VERSION` lives in `packages/common/src/version.ts`; a bump touches it, the 9 workspace
   package.json files and plugin.json (`version.test.ts` pins them); a bump merged to main is a release. Claude Code caches plugins by version, so
   `claude plugin update` ignores same-version changes, and the release workflow publishes the hub
   and bridge images for that version.
 - Channel pushes are best-effort. Claude Code drops pushes when the session wasn't started with
   the channel flag, and the handshake doesn't reveal it. That is why a session receives nothing
-  until `/agentmesh:activate` proves a push arrives, and why the plugin acks only after pushing.
+  until `/cmw:activate` proves a push arrives, and why the plugin acks only after pushing.
   Action items are pushed; status items ride along as an `FYI` block on the next tool result.
   The hub's unread cursor and the `inbox` tool are the source of truth.
 - MCP server instructions are truncated at 4096 characters. Keep session state first, and keep

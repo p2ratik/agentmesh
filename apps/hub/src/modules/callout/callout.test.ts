@@ -1,5 +1,5 @@
-import { ManualClock, MeshError, MINUTE_MS } from '@agentmesh/common';
-import { encodeInvite, type InvitePayload, type MemberRecord } from '@agentmesh/protocol';
+import { ManualClock, MeshError, MINUTE_MS } from '@cosmicwave/common';
+import { encodeInvite, type InvitePayload, type MemberRecord } from '@cosmicwave/protocol';
 import { createAccount, createServer, createUser, type KeyPair } from '@nats-io/nkeys';
 import { describe, expect, it } from 'vitest';
 import type { RedeemInput } from '../../contracts';

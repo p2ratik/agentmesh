@@ -1,4 +1,4 @@
-import type { MessageRefs, RpcParams } from '@agentmesh/protocol';
+import type { MessageRefs, RpcParams } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext } from '../../contracts';
 import { createServiceHarness } from '../../testing/services';

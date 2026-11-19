@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom, resolveFrom } from '../context';
 import {
@@ -39,7 +39,7 @@ function tlsFrom(values: {
 export const natsConfigCommand: Command = {
   name: 'nats-config',
   summary: 'Render nats-server.conf with least-privilege users for every participant',
-  help: `Usage: agentmesh nats-config [--config <dir>] [--out <file>] [--dev]
+  help: `Usage: cmw nats-config [--config <dir>] [--out <file>] [--dev]
                              [--tls [--tls-cert <path>] [--tls-key <path>]]
                              [--max-file-store 5GB] [--max-connections 1024]
                              [--allow-missing] [--auth-callout]

@@ -1,6 +1,6 @@
 {
-  "name": "@agentmesh/bus",
-  "version": "0.7.2",
+  "name": "@cosmicwave/bus",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Thin NATS/JetStream layer: connections, topology, typed RPC, durable consumers.",
@@ -9,9 +9,9 @@
     "./permissions": "./src/permissions.ts"
   },
   "dependencies": {
-    "@agentmesh/common": "workspace:*",
-    "@agentmesh/config": "workspace:*",
-    "@agentmesh/protocol": "workspace:*",
+    "@cosmicwave/common": "workspace:*",
+    "@cosmicwave/config": "workspace:*",
+    "@cosmicwave/protocol": "workspace:*",
     "@nats-io/jetstream": "3.4.0",
     "@nats-io/transport-node": "3.4.0"
   }

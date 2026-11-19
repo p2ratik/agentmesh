@@ -14,10 +14,10 @@ export interface AgentSetupInput {
 }
 
 /** The permission rule that lets the mesh tools run without a prompt per call. */
-export const MESH_TOOLS_ALLOW_RULE = 'mcp__plugin_agentmesh_mesh__*';
-export const PLUGIN_REF = 'agentmesh@agentmesh';
+export const MESH_TOOLS_ALLOW_RULE = 'mcp__plugin_cmw_mesh__*';
+export const PLUGIN_REF = 'cmw@cosmicwave';
 
-/** The `~/.agentmesh/agent.json` fallback config the plugin reads. */
+/** The `~/.cosmicwave/agent.json` fallback config the plugin reads. */
 export function agentJson(
   input: Pick<AgentSetupInput, 'agentId' | 'natsUrl' | 'seedFile' | 'prefix'>,
 ): string {
@@ -36,10 +36,10 @@ const isLocal = (url: string): boolean => /\/\/(localhost|127\.0\.0\.1)(:|\/|$)/
 export function renderAgentSetup(input: AgentSetupInput): string {
   const settings = JSON.stringify({ permissions: { allow: [MESH_TOOLS_ALLOW_RULE] } }, null, 2);
   const lines = [
-    `AgentMesh setup for ${input.agentId} (${input.displayName}, owned by ${input.owner})`,
+    `Cosmicwave setup for ${input.agentId} (${input.displayName}, owned by ${input.owner})`,
     '',
     '1. Your key',
-    `   The mesh admin creates it with \`agentmesh keys add ${input.agentId}\` and sends you the seed`,
+    `   The mesh admin creates it with \`cmw keys add ${input.agentId}\` and sends you the seed`,
     '   privately. Never commit it or paste it into a chat.',
     `   Seed file: ${input.seedFile} (${input.seedFound ? 'found' : 'NOT FOUND yet'})`,
     '',
@@ -71,7 +71,7 @@ export function renderAgentSetup(input: AgentSetupInput): string {
     '',
     input.wroteConfig
       ? `Wrote ${input.wroteConfig}. It fills in empty options such as the seed, and its prefix wins over the prefix option. agent_id and nats_url must still be entered in the plugin options, and must match this file or the plugin ignores it.`
-      : 'Tip: add --write to save these values to ~/.agentmesh/agent.json. It fills in empty options such as the seed, and its prefix wins over the prefix option.',
+      : 'Tip: add --write to save these values to ~/.cosmicwave/agent.json. It fills in empty options such as the seed, and its prefix wins over the prefix option.',
   );
   return lines.join('\n');
 }

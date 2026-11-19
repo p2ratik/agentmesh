@@ -1,6 +1,6 @@
-import { addMs, MINUTE_MS } from '@agentmesh/common';
-import { STANDARD_PLANNING_TEMPLATE } from '@agentmesh/config';
-import type { DeliveryClass, MessageKind, PlanState, ReplyStatus } from '@agentmesh/protocol';
+import { addMs, MINUTE_MS } from '@cosmicwave/common';
+import { STANDARD_PLANNING_TEMPLATE } from '@cosmicwave/config';
+import type { DeliveryClass, MessageKind, PlanState, ReplyStatus } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, MessagingService, PresenceService, TaskService } from '../../contracts';
 import { internalId, planKey } from '../../core/ids';

@@ -37,7 +37,7 @@ export const SECRET_HOME_PATHS = [
   '.bash_history',
   '.zsh_history',
   'AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt',
-  '.agentmesh/**',
+  '.cosmicwave/**',
   '.claude/.credentials.json',
   '.claude.json',
   'AppData/Local/Google/Chrome/**',

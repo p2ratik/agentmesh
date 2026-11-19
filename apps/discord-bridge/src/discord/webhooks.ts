@@ -1,6 +1,6 @@
 import type { ForumChannel, TextChannel, Webhook } from 'discord.js';
 
-const WEBHOOK_NAME = 'AgentMesh';
+const WEBHOOK_NAME = 'Cosmicwave';
 
 /**
  * One webhook per parent channel, reused across restarts. Webhooks let each
@@ -29,5 +29,5 @@ export class WebhookCache {
 async function findOrCreate(channel: TextChannel | ForumChannel): Promise<Webhook> {
   const hooks = await channel.fetchWebhooks();
   const ours = hooks.find((h) => h.name === WEBHOOK_NAME && Boolean(h.token));
-  return ours ?? channel.createWebhook({ name: WEBHOOK_NAME, reason: 'AgentMesh mirroring' });
+  return ours ?? channel.createWebhook({ name: WEBHOOK_NAME, reason: 'Cosmicwave mirroring' });
 }

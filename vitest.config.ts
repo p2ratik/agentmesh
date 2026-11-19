@@ -9,7 +9,7 @@ export default defineConfig({
       'plugins/*/src/**/*.test.ts',
       'tests/**/*.test.ts',
     ],
-    // Integration tests self-skip unless AGENTMESH_TEST_NATS points at a NATS server.
+    // Integration tests self-skip unless COSMICWAVE_TEST_NATS points at a NATS server.
     testTimeout: 20_000,
   },
 });

@@ -19,7 +19,7 @@ const quote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 function renewalHook(publicHost: string, remoteDir: string): string {
   return [
     '#!/bin/sh',
-    '# Installed by agentmesh setup host: copy the renewed certificate for NATS and reload it.',
+    '# Installed by cmw setup host: copy the renewed certificate for NATS and reload it.',
     'set -e',
     `LIVE=${quote(`/etc/letsencrypt/live/${publicHost}`)}`,
     `TLS_DIR=${quote(`${remoteDir}/deploy/nats/tls`)}`,
@@ -44,11 +44,11 @@ export function renderHostScript(i: {
   user: string;
 }): string {
   return `#!/usr/bin/env bash
-# Prepares this server for the AgentMesh hub. Written by agentmesh setup host; safe to re-run.
+# Prepares this server for the Cosmicwave hub. Written by cmw setup host; safe to re-run.
 set -euo pipefail
 
 PUBLIC_HOST=${quote(i.publicHost)}
-AGENTMESH_DIR=${quote(i.remoteDir)}
+COSMICWAVE_DIR=${quote(i.remoteDir)}
 MESH_USER=${quote(i.user)}
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo" >&2; exit 1; }
 command -v apt-get >/dev/null || {
@@ -59,7 +59,7 @@ command -v apt-get >/dev/null || {
 echo "== packages"
 # A new server is still busy with cloud-init and unattended-upgrades: wait for apt's lock.
 cloud-init status --wait >/dev/null 2>&1 || true
-echo 'DPkg::Lock::Timeout "300";' >/etc/apt/apt.conf.d/90agentmesh-lock-timeout
+echo 'DPkg::Lock::Timeout "300";' >/etc/apt/apt.conf.d/90cosmicwave-lock-timeout
 apt-get update -qq
 command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
 docker compose version >/dev/null 2>&1 || {
@@ -75,16 +75,16 @@ printf '%s' ${quote(FIREWALL_SCRIPT)} >${FIREWALL_SCRIPT_PATH}
 chmod 755 ${FIREWALL_SCRIPT_PATH}
 printf '%s' ${quote(FIREWALL_UNIT)} >${FIREWALL_UNIT_PATH}
 systemctl daemon-reload
-systemctl enable -q agentmesh-firewall.service
-systemctl restart agentmesh-firewall.service
+systemctl enable -q cosmicwave-firewall.service
+systemctl restart cosmicwave-firewall.service
 
-echo "== $AGENTMESH_DIR"
-mkdir -p "$AGENTMESH_DIR/deploy/nats" "$AGENTMESH_DIR/deploy/secrets" "$AGENTMESH_DIR/config"
-chown "$MESH_USER:" "$AGENTMESH_DIR" "$AGENTMESH_DIR/deploy" "$AGENTMESH_DIR/deploy/nats" \\
-  "$AGENTMESH_DIR/deploy/secrets" "$AGENTMESH_DIR/config"
+echo "== $COSMICWAVE_DIR"
+mkdir -p "$COSMICWAVE_DIR/deploy/nats" "$COSMICWAVE_DIR/deploy/secrets" "$COSMICWAVE_DIR/config"
+chown "$MESH_USER:" "$COSMICWAVE_DIR" "$COSMICWAVE_DIR/deploy" "$COSMICWAVE_DIR/deploy/nats" \\
+  "$COSMICWAVE_DIR/deploy/secrets" "$COSMICWAVE_DIR/config"
 
 echo "== certificate renewal hook"
-HOOK=/etc/letsencrypt/renewal-hooks/deploy/agentmesh-nats.sh
+HOOK=/etc/letsencrypt/renewal-hooks/deploy/cosmicwave-nats.sh
 mkdir -p "$(dirname "$HOOK")"
 printf '%s' ${quote(renewalHook(i.publicHost, i.remoteDir))} >"$HOOK"
 chmod 755 "$HOOK"

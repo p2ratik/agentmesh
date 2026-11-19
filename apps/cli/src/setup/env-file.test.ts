@@ -54,7 +54,7 @@ describe('setEnvValues', () => {
 describe('env files', () => {
   /** A `.env` that others may read, so the update has to tighten it. */
   const envFile = () => {
-    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-env-'));
+    const dir = mkdtempSync(join(tmpdir(), 'cosmicwave-env-'));
     const path = join(dir, '.env');
     writeFileSync(path, ENV, { mode: 0o644 });
     return { dir, path };

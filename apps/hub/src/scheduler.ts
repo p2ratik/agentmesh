@@ -1,4 +1,4 @@
-import type { Clock, Logger } from '@agentmesh/common';
+import type { Clock, Logger } from '@cosmicwave/common';
 import type { TickJob } from './contracts';
 
 /**

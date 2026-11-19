@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 
 /** What to tell the person when the hub refused, and when it can't be told apart from a drop. */
 export interface ConnectWords {

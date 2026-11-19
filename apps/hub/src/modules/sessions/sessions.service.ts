@@ -1,4 +1,4 @@
-import { MeshError, parseId, redactSecrets } from '@agentmesh/common';
+import { MeshError, parseId, redactSecrets } from '@cosmicwave/common';
 import type {
   DeliveryMode,
   MeshMessage,
@@ -6,7 +6,7 @@ import type {
   SessionDelivery,
   SessionSummary,
   SessionView,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type {
   CallContext,

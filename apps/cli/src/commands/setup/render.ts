@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { VERSION } from '@agentmesh/common';
-import { loadConfig } from '@agentmesh/config';
+import { VERSION } from '@cosmicwave/common';
+import { loadConfig } from '@cosmicwave/config';
 import { parseCommandArgs, usageError } from '../../args';
 import { type Command, cliOf } from '../../context';
 import { SECRET_PLACEHOLDER } from '../../lib/config-files';
@@ -51,7 +51,7 @@ const OPTIONS = {
 /** Only `setup discord` learns these; until then the config is checked with stand-ins. */
 const DISCORD_ENV = ['DISCORD_BOT_TOKEN', 'DISCORD_APP_ID', 'DISCORD_GUILD_ID'];
 /** Later steps change these on purpose (setup discord, upgrade), so a kept .env may differ. */
-const ENV_SET_LATER = [...DISCORD_ENV, 'AGENTMESH_VERSION'];
+const ENV_SET_LATER = [...DISCORD_ENV, 'COSMICWAVE_VERSION'];
 /** Not secret, and they follow the hosting mode, so --force sets them in a kept .env. */
 const ENV_OF_MODE = ['NATS_BIND', 'NATS_PUBLIC_HOST'];
 const CALLOUT_KEYS = ['hub-issuer', 'hub-xkey', 'hub-sys'];
@@ -64,7 +64,7 @@ const CALLOUT_KEYS = ['hub-issuer', 'hub-xkey', 'hub-sys'];
  */
 function writeEnv(p: WorkspacePaths, a: SetupAnswers, force: boolean, registryFlag?: string) {
   const kept = existsSync(p.envFile) ? readEnvFile(p.envFile) : null;
-  const registry = registryFlag || kept?.get('AGENTMESH_IMAGE_REGISTRY') || DEFAULT_IMAGE_REGISTRY;
+  const registry = registryFlag || kept?.get('COSMICWAVE_IMAGE_REGISTRY') || DEFAULT_IMAGE_REGISTRY;
   const text = renderEnv({ hosting: a.hosting, version: VERSION, registry });
   const file = relative(p.root, p.envFile);
   if (!kept) {
@@ -88,13 +88,13 @@ function writeEnv(p: WorkspacePaths, a: SetupAnswers, force: boolean, registryFl
 interface KeyTarget {
   id: string;
   seedFile: string;
-  /** In ~/.agentmesh, which other meshes and `/agentmesh:join` use too. */
+  /** In ~/.cosmicwave, which other meshes and `/cmw:join` use too. */
   shared: boolean;
 }
 
 /**
  * Who gets a key, in the order they get it: the hub and the bridge (both modes), the
- * callout keys (a server), then the admin's agents, whose seeds go to ~/.agentmesh.
+ * callout keys (a server), then the admin's agents, whose seeds go to ~/.cosmicwave.
  */
 function keyTargets(
   meshText: string,
@@ -188,7 +188,7 @@ function nextLine(p: WorkspacePaths, before: SetupState, a: SetupAnswers): strin
 export const setupRenderCommand: Command = {
   name: 'setup render',
   summary: 'Write the workspace config, keys and NATS config from setup-answers.json',
-  help: `Usage: agentmesh setup render --dir <workspace> [--registry <r>] [--dry-run] [--force]
+  help: `Usage: cmw setup render --dir <workspace> [--registry <r>] [--dry-run] [--force]
 
 Renders config/mesh.yaml, the team policy, deploy/docker-compose.yml, deploy/.env,
 .gitignore, .claude/settings.json and CLAUDE.md from <workspace>/setup-answers.json,
@@ -199,7 +199,7 @@ gains the secret lines it lacks. deploy/.env and existing keys are always kept: 
 sets only NATS_BIND and NATS_PUBLIC_HOST in deploy/.env, and the other settings in which
 it differs are named. A render for another hosting mode than the last one marks host,
 deploy and admin as to do again, and from a trial to a server it says to stop the
-trial's containers first. Your agents' seeds go to ~/.agentmesh/<meshName>-<agent>.nk.
+trial's containers first. Your agents' seeds go to ~/.cosmicwave/<meshName>-<agent>.nk.
 --registry sets the image registry (default ${DEFAULT_IMAGE_REGISTRY}).`,
   run(argv, ctx) {
     const { values } = parseCommandArgs(argv, OPTIONS, { min: 0, max: 0, names: '' });

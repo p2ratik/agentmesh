@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { z } from 'zod';
 import { IsoDate, ParticipantId } from './primitives';
 import { PREFIX_PATTERN } from './subjects';
@@ -53,7 +53,7 @@ export type InvitePayload = z.infer<typeof InvitePayload>;
 /** Real codes are ~200 chars; anything far longer is not worth parsing. */
 const MAX_INVITE_CODE_CHARS = 1024;
 
-/** The single string a new member pastes into `/agentmesh:join`. */
+/** The single string a new member pastes into `/cmw:join`. */
 export function encodeInvite(payload: InvitePayload): string {
   return Buffer.from(JSON.stringify(InvitePayload.parse(payload))).toString('base64url');
 }
@@ -73,7 +73,7 @@ export function decodeInvite(code: string): InvitePayload {
 }
 
 // Never echo the code: it is a bearer secret.
-const invalidInvite = () => new MeshError('invalid_request', 'Not a valid AgentMesh invite code');
+const invalidInvite = () => new MeshError('invalid_request', 'Not a valid Cosmicwave invite code');
 
 export const MemberStatus = z.enum(['active', 'revoked']);
 export type MemberStatus = z.infer<typeof MemberStatus>;

@@ -1,4 +1,4 @@
-import type { SessionDelivery } from '@agentmesh/protocol';
+import type { SessionDelivery } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { FakeTransport } from '../../testing/fakes';
 import { createBobDispatchHarness as setup } from '../../testing/services';

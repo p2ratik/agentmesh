@@ -1,6 +1,6 @@
 import type { SQLInputValue } from 'node:sqlite';
-import { MeshError } from '@agentmesh/common';
-import type { Priority, Trust } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import type { Priority, Trust } from '@cosmicwave/protocol';
 import { taskKey } from '../../../core/ids';
 import { type Db, fromJson, toJson } from '../../../db/database';
 

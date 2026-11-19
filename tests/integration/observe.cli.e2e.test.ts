@@ -17,12 +17,12 @@ import {
 import { PLUGIN_CLI } from './support';
 
 /**
- * `agentmesh timeline` from the plugin's bundle when it can't get through: a nats-server that
+ * `cmw timeline` from the plugin's bundle when it can't get through: a nats-server that
  * refuses its key, a port nothing listens on, and a server that never says a word. No hub needed.
- * Needs AGENTMESH_TEST_NATS_BIN and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS_BIN and a built plugin.
  */
 describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN_CLI))(
-  'agentmesh timeline when it cannot get through',
+  'cmw timeline when it cannot get through',
   () => {
     const temps: string[] = [];
     const servers: ChildProcess[] = [];

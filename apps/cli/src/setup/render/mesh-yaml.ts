@@ -1,11 +1,11 @@
-import type { MeshConfigInput } from '@agentmesh/config';
+import type { MeshConfigInput } from '@cosmicwave/config';
 import { stringify } from 'yaml';
 import { adminRoles, agentIdOf, type SetupAnswers } from '../answers';
 import { NATS_PORT } from '../defaults';
 
-const HEADER = `# Written by \`agentmesh setup render\` from setup-answers.json. It is yours now: edit it
-# and push it with \`agentmesh setup deploy\`, which checks it first. The workspace's
-# CLAUDE.md says how to run \`agentmesh\`, the CLI in the AgentMesh plugin.
+const HEADER = `# Written by \`cmw setup render\` from setup-answers.json. It is yours now: edit it
+# and push it with \`cmw setup deploy\`, which checks it first. The workspace's
+# CLAUDE.md says how to run \`cmw\`, the CLI in the Cosmicwave plugin.
 # Every option is described in docs/configuration.md.
 `;
 
@@ -59,7 +59,7 @@ export function renderMeshYaml(a: SetupAnswers): string {
       token: fromEnv('DISCORD_BOT_TOKEN'),
       applicationId: fromEnv('DISCORD_APP_ID'),
       guildId: fromEnv('DISCORD_GUILD_ID'),
-      provision: { enabled: true, category: 'Agent Mesh' },
+      provision: { enabled: true, category: 'Cosmicwave' },
     },
   };
   return HEADER + stringify(config);

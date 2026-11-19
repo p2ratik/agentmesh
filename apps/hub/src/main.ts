@@ -1,26 +1,26 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { credentialsFromEnv, serversFromEnv } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import { loadConfig } from '@agentmesh/config';
+import { credentialsFromEnv, serversFromEnv } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import { loadConfig } from '@cosmicwave/config';
 import { createHub } from './app';
 import { loadCalloutKeys } from './modules/callout';
 
 /**
- * agentmesh-hub [--config <dir>]
- * Env: AGENTMESH_CONFIG, AGENTMESH_DATA_DIR, AGENTMESH_NATS_URL (comma-separated),
- * AGENTMESH_NKEY_SEED (seed or file) | AGENTMESH_NATS_USER/AGENTMESH_NATS_PASS | AGENTMESH_NATS_TOKEN,
- * AGENTMESH_SECRETS_DIR (auth-callout mode: holds <hubId>-issuer.nk, -xkey.nk and -sys.nk).
+ * cosmicwave-hub [--config <dir>]
+ * Env: COSMICWAVE_CONFIG, COSMICWAVE_DATA_DIR, COSMICWAVE_NATS_URL (comma-separated),
+ * COSMICWAVE_NKEY_SEED (seed or file) | COSMICWAVE_NATS_USER/COSMICWAVE_NATS_PASS | COSMICWAVE_NATS_TOKEN,
+ * COSMICWAVE_SECRETS_DIR (auth-callout mode: holds <hubId>-issuer.nk, -xkey.nk and -sys.nk).
  */
 async function main(): Promise<void> {
   const logger = createLogger('hub');
   const { values } = parseArgs({ options: { config: { type: 'string' } } });
-  const loaded = loadConfig(values.config ?? process.env.AGENTMESH_CONFIG ?? './config');
+  const loaded = loadConfig(values.config ?? process.env.COSMICWAVE_CONFIG ?? './config');
   const { config } = loaded;
   if (loaded.missingEnv.length > 0) {
     logger.warn({ missing: loaded.missingEnv }, 'config references unset environment variables');
   }
-  const dataDir = process.env.AGENTMESH_DATA_DIR ?? resolve(loaded.dir, config.hub.dataDir);
+  const dataDir = process.env.COSMICWAVE_DATA_DIR ?? resolve(loaded.dir, config.hub.dataDir);
   const credentials = credentialsFromEnv();
   const hub = await createHub({
     loaded,
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
       servers: serversFromEnv(config.nats.servers),
       ...(credentials ? { credentials } : {}),
     },
-    callout: loadCalloutKeys(config.hub, process.env.AGENTMESH_SECRETS_DIR),
+    callout: loadCalloutKeys(config.hub, process.env.COSMICWAVE_SECRETS_DIR),
     logger,
   });
   await hub.start();
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
       agents: hub.context.index.agents().map((a) => a.id),
       dataDir,
     },
-    'agentmesh hub started',
+    'cosmicwave hub started',
   );
 
   let stopping = false;

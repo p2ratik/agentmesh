@@ -1,4 +1,4 @@
-import { ParticipantId } from '@agentmesh/protocol';
+import { ParticipantId } from '@cosmicwave/protocol';
 import { z } from 'zod';
 
 export const IngestAuth = z.discriminatedUnion('type', [
@@ -63,7 +63,7 @@ export const DiscordConfig = z.object({
   applicationId: z.string().default(''),
   guildId: z.string().default(''),
   provision: z
-    .object({ enabled: z.boolean().default(true), category: z.string().default('Agent Mesh') })
+    .object({ enabled: z.boolean().default(true), category: z.string().default('Cosmicwave') })
     .prefault({}),
   /** Keyed by purpose; `reviews` falls back to `tasks`, `alerts` to `events`. */
   channels: z.record(z.string(), DiscordChannel).default({

@@ -1,4 +1,4 @@
-import { isMeshError } from '@agentmesh/common';
+import { isMeshError } from '@cosmicwave/common';
 import { agentSetupCommand } from './commands/agent-setup';
 import { autoupdateCommand } from './commands/autoupdate';
 import { doctorCommand } from './commands/doctor';
@@ -42,12 +42,12 @@ export const COMMANDS: readonly Command[] = [
 function usage(): string {
   const width = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;
   return [
-    'agentmesh — set up and manage an AgentMesh',
+    'cmw — set up and manage a Cosmicwave mesh',
     '',
     'Commands:',
     ...COMMANDS.map((c) => `  ${c.name.padEnd(width)}${c.summary}`),
     '',
-    'Run `agentmesh <command> --help` for details.',
+    'Run `cmw <command> --help` for details.',
   ].join('\n');
 }
 

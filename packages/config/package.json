@@ -1,6 +1,6 @@
 {
-  "name": "@agentmesh/config",
-  "version": "0.7.2",
+  "name": "@cosmicwave/config",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Loads, validates and indexes mesh configuration (team, workflows, rules, integrations).",
@@ -8,8 +8,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@agentmesh/common": "workspace:*",
-    "@agentmesh/protocol": "workspace:*",
+    "@cosmicwave/common": "workspace:*",
+    "@cosmicwave/protocol": "workspace:*",
     "yaml": "2.9.1",
     "zod": "4.6.7"
   }

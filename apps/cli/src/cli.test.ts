@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig } from '@agentmesh/config';
+import { loadConfig } from '@cosmicwave/config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type CliContext, cliCommand } from './context';
 import { findExamplesDir } from './lib/repo-paths';
@@ -13,7 +13,7 @@ const SECRETS = {
 };
 
 function harness(env: Record<string, string | undefined> = {}) {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-cli-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-cli-'));
   const out: string[] = [];
   const err: string[] = [];
   const ctx: CliContext = {
@@ -35,7 +35,7 @@ describe('config/examples', () => {
   });
 });
 
-describe('agentmesh CLI', () => {
+describe('cmw CLI', () => {
   it('scaffolds, validates, issues keys and renders NATS config end to end', async () => {
     const h = harness(SECRETS);
     expect(await h.run('init', 'mesh')).toBe(0);
@@ -136,12 +136,10 @@ describe('agentmesh CLI', () => {
       ),
     ).toBe(0);
     const text = h.out.at(-1) ?? '';
-    expect(text).toContain(
-      'claude --dangerously-load-development-channels plugin:agentmesh@agentmesh',
-    );
-    expect(text).toContain('mcp__plugin_agentmesh_mesh__*');
+    expect(text).toContain('claude --dangerously-load-development-channels plugin:cmw@cosmicwave');
+    expect(text).toContain('mcp__plugin_cmw_mesh__*');
     const written = JSON.parse(
-      readFileSync(join(h.ctx.homeDir, '.agentmesh', 'agent.json'), 'utf8'),
+      readFileSync(join(h.ctx.homeDir, '.cosmicwave', 'agent.json'), 'utf8'),
     );
     expect(written).toMatchObject({
       agentId: 'bob-agent',
@@ -217,10 +215,9 @@ describe('runMain', () => {
 
 describe('cliCommand', () => {
   it('names how to run this CLI again, since it is on no PATH', () => {
-    const bundle =
-      'C:\\Users\\riya\\.claude\\plugins\\cache\\agentmesh\\agentmesh\\0.4.0\\dist\\cli.js';
+    const bundle = 'C:\\Users\\riya\\.claude\\plugins\\cache\\cosmicwave\\cmw\\0.4.0\\dist\\cli.js';
     expect(cliCommand(bundle)).toBe(`node "${bundle}"`);
     expect(cliCommand('/repo/apps/cli/src/main.ts')).toBe('pnpm mesh');
-    expect(cliCommand(undefined)).toBe('agentmesh');
+    expect(cliCommand(undefined)).toBe('cmw');
   });
 });

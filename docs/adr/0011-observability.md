@@ -11,7 +11,7 @@ window's guard refused the `SendMessage` shape Claude Code really sends, so ever
 failed. The hub logged "relay forwarded", which looked like success. Monitoring that watches only
 the server would have shown green.
 
-The operator, who develops AgentMesh and runs the hub, wants to see how AgentMesh behaves on every
+The operator, who develops Cosmicwave and runs the hub, wants to see how Cosmicwave behaves on every
 teammate's machine, including behaviour nobody can name in advance. So the system has to keep a
 detailed event history that they can hand to Claude, and Claude has to be able to work out quickly
 what happened.
@@ -82,9 +82,9 @@ Constraints:
     and 500 is `client.maxBufferedEvents`' default, all the recorder could keep anyway. Without the
     cap, a review measured 10,000 waiting files making each listing of the folder take about 9 ms
     (the hook lists it several times a prompt) and blocking the MCP server's collect for about 3 s.
-  - Files are named by agent, so two Claude accounts that share the `~/.agentmesh/run` fallback
+  - Files are named by agent, so two Claude accounts that share the `~/.cosmicwave/run` fallback
     don't ship each other's events, as long as the hook gets each plugin's options
-    (`CLAUDE_PLUGIN_OPTION_*`). Otherwise `~/.agentmesh/agent.json` names the files, and the
+    (`CLAUDE_PLUGIN_OPTION_*`). Otherwise `~/.cosmicwave/agent.json` names the files, and the
     agent it names ships both accounts' lines. A writer that can't resolve its agent writes
     nothing in that fallback.
   - The collector validates every line with zod and counts a bad one in the gap.
@@ -95,7 +95,7 @@ Constraints:
   session is evidence of where Claude Code ran the hook, which ADR 0008 still needs checked live.
 - **One formatter, in the hub.** `observe.timeline` returns the events and the text from one pure
   function (`apps/hub/src/modules/observe/timeline.ts`), so the `timeline` tool and
-  `agentmesh timeline` print the same thing. A delivery's events fold into one journey line, with
+  `cmw timeline` print the same thing. A delivery's events fold into one journey line, with
   an ending that says where it stopped.
 - **`observe.timeline` needs no session.** The CLI is a one-shot process: it connects as the
   operator's agent, makes one call and exits. The router's `SESSIONLESS` set holds exactly
@@ -182,7 +182,7 @@ code to match:
 - **The nats `code` is gone.** It was reserved and nothing set it, but the schema took a
   64-character token and the formatter printed it: one more field a laptop could write a word
   into. A nats event carries its kind only.
-- **Clear connect errors.** `agentmesh timeline` and `doctor` map a refused, reset or unreachable
+- **Clear connect errors.** `cmw timeline` and `doctor` map a refused, reset or unreachable
   connect to words a person can act on, through the helper `join` uses (`refusedOrUnreachable` in
   `packages/bus`), never the server's own text. On Windows a refused key can show as a reset.
 
@@ -190,7 +190,7 @@ code to match:
 
 - **Phase 1 (0.7.0), built:** the event schemas and reason codes, the hub's store and its own
   events, the plugin's recorder and shipper, the guard's and hook's events, `observe.timeline`,
-  the `timeline` tool and `agentmesh timeline`, and the `observability.*` config.
+  the `timeline` tool and `cmw timeline`, and the `observability.*` config.
 - **Phase 2, planned:** hub metrics on `/metrics`, hand-written with no new dependency; a
   `monitoring` compose profile (Prometheus, Alertmanager, Grafana, node and NATS exporters) reached
   over SSH; dashboards; alert rules to a private webhook; and a dead man's switch. Until then the

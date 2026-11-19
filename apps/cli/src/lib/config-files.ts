@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
-import { type LoadedConfig, loadConfig } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import { type LoadedConfig, loadConfig } from '@cosmicwave/config';
 
 type Env = Record<string, string | undefined>;
 
 /** Stands in for unset secrets; long enough for every secret's minimum length. */
-export const SECRET_PLACEHOLDER = 'agentmesh-cli-placeholder-not-a-secret';
+export const SECRET_PLACEHOLDER = 'cosmicwave-cli-placeholder-not-a-secret';
 
 /** `mesh.yaml` (or `mesh.yml`) inside a directory, or the file itself. */
 export function meshFilePath(path: string): string {
