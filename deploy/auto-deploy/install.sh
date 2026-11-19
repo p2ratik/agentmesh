@@ -69,6 +69,8 @@ chmod 600 "$AUTH.new"
 mv "$AUTH.new" "$AUTH"
 
 echo "== checks"
+# The checkout is where the settings say (a server set up before the rename keeps /opt/agentmesh).
+COSMICWAVE_DIR=$(. /etc/default/cosmicwave-deploy; echo "$COSMICWAVE_DIR")
 sudo -u "$MESH_USER" docker info >/dev/null 2>&1 ||
   echo "warning (cosmicwave): $MESH_USER cannot run docker; add it to the docker group." >&2
 [ -f "$COSMICWAVE_DIR/deploy/docker-compose.yml" ] ||

@@ -37,10 +37,12 @@ command -v age >/dev/null && command -v git >/dev/null ||
 echo "== backup script"
 install -o root -g root -m 755 "$HERE/cosmicwave-backup.sh" /usr/local/sbin/cosmicwave-backup
 # An install from before the rename: stop its timer and any run, then carry its settings, key and
-# state across, so the deploy key already added to the backup repository keeps working.
+# state across, so the deploy key already added to the backup repository keeps working. An old
+# unit that cannot be stopped or disabled is removed anyway, with a warning (its script goes too).
 for unit in agentmesh-backup.timer agentmesh-backup.service; do
   if [ -e "/etc/systemd/system/$unit" ]; then
-    systemctl disable --now "$unit"
+    systemctl disable --now "$unit" ||
+      echo "warning (cosmicwave): could not stop or disable the old $unit; removing it anyway." >&2
     rm -f "/etc/systemd/system/$unit"
   fi
 done

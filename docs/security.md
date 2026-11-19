@@ -1614,13 +1614,14 @@ identity (Azure or AWS), and a moment when SSH is open to an address other than 
   `/usr/local/sbin/agentmesh-deploy` and ends in the marker `agentmesh-github-deploy`; an installer
   that replaced only lines with the new marker would leave the old key valid next to the new one.
   **Mitigation:** `deploy/auto-deploy/install.sh` removes every line that ends in either marker
-  before it adds its own, so the server keeps exactly one deploy key. Every other line (the
-  admin's keys, comments, blank lines) is kept as it was, in order; a file it cannot read stops it
-  and stays as it was. It deletes the old forced-command script first, so until that line
-  is gone, the old key runs nothing. **Residual risk:** until an admin re-runs the installer, the
-  old line and script stay. The old script asks for images under the old name, which releases from
-  0.8.0 on do not publish, so a new release fails there before changing anything. A deploy key
-  added by hand under another comment is not recognised.
+  (with or without a Windows line ending) before it adds its own, so the server keeps exactly one
+  deploy key. Every other line (the admin's keys, comments, blank lines) is kept byte for byte,
+  whatever its bytes, in order; a file it cannot read stops it and stays as it was. It deletes the
+  old forced-command script first, so until that line is gone, the old key runs nothing.
+  **Residual risk:** until an admin re-runs the installer, the old line and script stay. The old
+  script asks for images under the old name, which releases from 0.8.0 on do not publish, so a new
+  release fails there before changing anything. A deploy key added by hand under another comment
+  is not recognised.
 - **Threat: someone deploys code that was never reviewed.** On an open-source project, many people
   may get write access. **Mitigation:**
   - only jobs in the `production` environment can read the key, and that environment deploys only

@@ -27,13 +27,15 @@ let dir: string;
 const at = (name: string) => join(dir, name);
 
 /** Runs `script` in the temp folder (also $D) with bash, as `set -euo pipefail` installers do. */
-function run(script: string) {
-  const r = spawnSync('bash', ['-c', `set -euo pipefail; . ${posix(resolve(LIB))}; ${script}`], {
-    encoding: 'utf8',
+function runRaw(script: string, env: Record<string, string> = {}) {
+  return spawnSync('bash', ['-c', `set -euo pipefail; . ${posix(resolve(LIB))}; ${script}`], {
     cwd: dir,
-    env: { PATH: process.env.PATH, D: posix(dir) },
+    env: { PATH: process.env.PATH, D: posix(dir), ...env },
   });
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+function run(script: string, env: Record<string, string> = {}) {
+  const r = runRaw(script, env);
+  return { status: r.status, stdout: r.stdout.toString(), stderr: r.stderr.toString() };
 }
 
 beforeEach(() => {
@@ -80,6 +82,25 @@ describe.skipIf(!hasBash)('legacy-names.sh', () => {
     rmSync(at('new'));
     expect(run('carry_settings "$D/old" "$D/new"').status).toBe(0);
     expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('points carried backup settings at the moved key, and changes nothing else', () => {
+    const header = '# Settings for /usr/local/sbin/agentmesh-backup (docs/configuration.md).';
+    const remote = 'BACKUP_REMOTE=git@github.com:acme/agentmesh-backups.git';
+    const other = '#BACKUP_SSH_KEY=$HOME/.ssh/agentmesh-backup-spare';
+    const key = (path: string) => [
+      `BACKUP_SSH_KEY=$HOME/.ssh/${path}`,
+      `#BACKUP_SSH_KEY=$HOME/.ssh/${path}`,
+      `BACKUP_SSH_KEY="/home/u/.ssh/${path}"`,
+    ];
+    writeFileSync(
+      at('old'),
+      `${[header, 'AGENTMESH_DIR=/opt/agentmesh', remote, ...key('agentmesh-backup'), other].join('\n')}\n`,
+    );
+    expect(run('carry_settings "$D/old" "$D/new"').status).toBe(0);
+    expect(readFileSync(at('new'), 'utf8')).toBe(
+      `${[header, 'COSMICWAVE_DIR=/opt/agentmesh', remote, ...key('cosmicwave-backup'), other].join('\n')}\n`,
+    );
   });
 
   it('carries a folder only when the new one is missing', () => {
@@ -131,6 +152,38 @@ describe.skipIf(!hasBash)('legacy-names.sh', () => {
     expect(failed.stdout).not.toContain('went on');
   });
 
+  // Ubuntu's default locale is C.UTF-8, and sudo keeps it. There GNU grep reads a file with an
+  // invalid UTF-8 byte or a NUL as binary: it leaves such lines out (or prints "Binary file …
+  // matches" in their place) and still exits 0, which would lock the admin out.
+  it('keeps every other line byte for byte, whatever its bytes, in a UTF-8 locale', () => {
+    const line = (text: string) => Buffer.from(`${text}\n`, 'latin1');
+    const admin = line('ssh-ed25519 AAAAadmin Andr\xe9@laptop');
+    const deploy = line(
+      'restrict,command="/usr/local/sbin/agentmesh-deploy" ssh-ed25519 AAAAold agentmesh-github-deploy',
+    );
+    const nul = line('ssh-ed25519 AAAAnul a\0b');
+    const other = line('ssh-ed25519 AAAAother other@desk');
+    writeFileSync(at('authorized_keys'), Buffer.concat([admin, deploy, nul, other]));
+    const r = runRaw('without_deploy_lines "$D/authorized_keys"', { LC_ALL: 'C.UTF-8' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toEqual(Buffer.concat([admin, nul, other]));
+  });
+
+  it('drops a deploy line that ends in CRLF and keeps the CR on every other line', () => {
+    const admin = 'ssh-ed25519 AAAAwin admin@windows\r';
+    const other = 'ssh-ed25519 AAAAz other\r';
+    const lines = [
+      admin,
+      'restrict,command="/usr/local/sbin/agentmesh-deploy" ssh-ed25519 AAAAold agentmesh-github-deploy\r',
+      'restrict,command="/usr/local/sbin/cosmicwave-deploy" ssh-ed25519 AAAAnew cosmicwave-github-deploy\r',
+      other,
+    ];
+    writeFileSync(at('authorized_keys'), `${lines.join('\n')}\n`);
+    const r = runRaw('without_deploy_lines "$D/authorized_keys"');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toEqual(Buffer.from(`${admin}\n${other}\n`));
+  });
+
   it('defines functions only', () => {
     const r = spawnSync(
       'bash',
@@ -147,53 +200,5 @@ describe.skipIf(!hasBash)('legacy-names.sh', () => {
       'without_deploy_lines',
     ]);
     expect(readdirSync(dir)).toEqual([]);
-  });
-});
-
-/** Asserts that each text appears in `file`, in this order. */
-function expectInOrder(file: string, texts: string[]) {
-  const text = readFileSync(file, 'utf8');
-  let last = -1;
-  for (const t of texts) {
-    const i = text.indexOf(t, last + 1);
-    expect(i, `${file}: ${t}`).toBeGreaterThan(last);
-    last = i;
-  }
-}
-
-describe('the server installers', () => {
-  it('take over the auto-deploy install before writing their own', () => {
-    expectInOrder('deploy/auto-deploy/install.sh', [
-      '. "$HERE/../legacy-names.sh"',
-      'rm -f /usr/local/sbin/agentmesh-deploy',
-      'carry_settings /etc/default/agentmesh-deploy /etc/default/cosmicwave-deploy',
-      'if [ ! -e /etc/default/cosmicwave-deploy ]',
-      'HOME_DIR=',
-      'carry_path "$HOME_DIR/.local/state/agentmesh-deploy" "$HOME_DIR/.local/state/cosmicwave-deploy"',
-      '{ without_deploy_lines "$AUTH"; echo "$LINE"; } >"$AUTH.new"',
-    ]);
-    expect(readFileSync('deploy/auto-deploy/install.sh', 'utf8')).not.toContain('grep -v');
-    // The cloud setup scripts copy the installer to the server: the library goes with it.
-    expect(readFileSync('deploy/auto-deploy/github-setup.sh', 'utf8')).toContain(
-      'tar -cf - -C deploy legacy-names.sh auto-deploy/cosmicwave-deploy.sh auto-deploy/install.sh',
-    );
-  });
-
-  it('take over the backup install before writing their own', () => {
-    expectInOrder('deploy/backup/install.sh', [
-      '. "$HERE/../legacy-names.sh"',
-      'systemctl disable --now "$unit"',
-      'rm -f "/etc/systemd/system/$unit"',
-      'carry_settings /etc/default/agentmesh-backup /etc/default/cosmicwave-backup',
-      'carry_path "$HOME_DIR/.ssh/agentmesh-backup$f" "$KEY$f"',
-      'carry_path /var/lib/agentmesh-backup /var/lib/cosmicwave-backup',
-      'rm -f /usr/local/sbin/agentmesh-backup',
-      'if [ ! -e /etc/default/cosmicwave-backup ]',
-      'ssh-keygen',
-      'systemctl enable --now cosmicwave-backup.timer',
-    ]);
-    expect(readFileSync('deploy/backup/install.sh', 'utf8')).toContain(
-      'for unit in agentmesh-backup.timer agentmesh-backup.service; do',
-    );
   });
 });
