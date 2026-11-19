@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { VERSION } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
-import { remoteCommands } from '../../setup/deploy';
+import { remoteCommands, VOLUME_GUARD } from '../../setup/deploy';
 import { readEnvFile, updateEnvFile } from '../../setup/env-file';
 import { serverAnswers, trialAnswers } from '../../setup/testing';
 import { readState } from '../../setup/workspace';
@@ -36,8 +36,27 @@ describe('setup deploy', () => {
         'sudo chown -R "$(id -u):$(id -g)" /opt/cosmicwave/deploy/secrets && mkdir -p /opt/cosmicwave/deploy/secrets /opt/cosmicwave/deploy/nats && rm -rf /opt/cosmicwave/config.new && chmod 700 /opt/cosmicwave/deploy',
     );
     expect(finish).toBe(
-      'rm -rf /opt/cosmicwave/config && mv /opt/cosmicwave/config.new /opt/cosmicwave/config && chmod 600 /opt/cosmicwave/deploy/.env && chmod 644 /opt/cosmicwave/deploy/nats/nats.conf && sudo chown 1000:1000 /opt/cosmicwave/deploy/secrets/*.nk && sudo chmod 600 /opt/cosmicwave/deploy/secrets/*.nk && cd /opt/cosmicwave/deploy && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate',
+      'rm -rf /opt/cosmicwave/config && mv /opt/cosmicwave/config.new /opt/cosmicwave/config && chmod 600 /opt/cosmicwave/deploy/.env && chmod 644 /opt/cosmicwave/deploy/nats/nats.conf && sudo chown 1000:1000 /opt/cosmicwave/deploy/secrets/*.nk && sudo chmod 600 /opt/cosmicwave/deploy/secrets/*.nk && cd /opt/cosmicwave/deploy && ' +
+        `${VOLUME_GUARD} && docker compose --profile discord pull && docker compose --profile discord up -d --force-recreate`,
     );
+  });
+
+  // A server that ran before the rename keeps its data in agentmesh_* volumes: the guard must
+  // refuse before anything is pulled or started.
+  it('checks the volumes before pulling', () => {
+    expect(VOLUME_GUARD).toContain('agentmesh_hub-data');
+    expect(VOLUME_GUARD).toContain('COMPOSE_PROJECT_NAME=agentmesh');
+    expect(finish).toContain(VOLUME_GUARD);
+    expect(finish.indexOf(VOLUME_GUARD)).toBeGreaterThan(
+      finish.indexOf('cd /opt/cosmicwave/deploy'),
+    );
+    expect(finish.indexOf(VOLUME_GUARD)).toBeLessThan(
+      finish.indexOf('docker compose --profile discord pull'),
+    );
+  });
+
+  it('has no apostrophe in the guard', () => {
+    expect(VOLUME_GUARD).not.toContain("'");
   });
 
   it('server deploy runs prepare, the copies, then finish', async () => {

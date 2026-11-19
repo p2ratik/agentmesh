@@ -47052,12 +47052,13 @@ var DiscordChannel = external_exports.object({
   type: external_exports.enum(["text", "forum"]).default("text"),
   topic: external_exports.string().optional()
 });
+var DEFAULT_CATEGORY = "Cosmicwave";
 var DiscordConfig = external_exports.object({
   enabled: external_exports.boolean().default(false),
   token: external_exports.string().default(""),
   applicationId: external_exports.string().default(""),
   guildId: external_exports.string().default(""),
-  provision: external_exports.object({ enabled: external_exports.boolean().default(true), category: external_exports.string().default("Cosmicwave") }).prefault({}),
+  provision: external_exports.object({ enabled: external_exports.boolean().default(true), category: external_exports.string().default(DEFAULT_CATEGORY) }).prefault({}),
   /** Keyed by purpose; `reviews` falls back to `tasks`, `alerts` to `events`. */
   channels: external_exports.record(external_exports.string(), DiscordChannel).default({
     council: { name: "mesh-council", type: "text" },
@@ -49622,12 +49623,13 @@ refuses to replace settings for another agent or hub unless --replace.`,
 import { existsSync as existsSync12, readdirSync as readdirSync4 } from "node:fs";
 import { join as join14 } from "node:path";
 var UP = ["up", "-d", "--force-recreate"];
+var VOLUME_GUARD = 'if docker volume inspect agentmesh_hub-data >/dev/null 2>&1 && [ "$(docker compose config 2>/dev/null | sed -n "s/^name: //p" | head -n 1)" != agentmesh ]; then echo "This server keeps its data in Docker volumes named agentmesh_*. Add COMPOSE_PROJECT_NAME=agentmesh to deploy/.env and deploy again. Nothing was started." >&2; exit 1; fi';
 function remoteCommands(dir) {
   const seeds = `${dir}/deploy/secrets/*.nk`;
   return {
     // A server rebuilt under the same name has none of the folders setup host made.
     prepare: `[ -d ${dir}/deploy/secrets ] || { echo 'Run setup host again: ${dir}/deploy/secrets is missing on the server.' >&2; exit 1; }; sudo chown -R "$(id -u):$(id -g)" ${dir}/deploy/secrets && mkdir -p ${dir}/deploy/secrets ${dir}/deploy/nats && rm -rf ${dir}/config.new && chmod 700 ${dir}/deploy`,
-    finish: `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && chmod 600 ${dir}/deploy/.env && chmod 644 ${dir}/deploy/nats/nats.conf && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
+    finish: `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && chmod 600 ${dir}/deploy/.env && chmod 644 ${dir}/deploy/nats/nats.conf && sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && cd ${dir}/deploy && ${VOLUME_GUARD} && docker compose --profile discord pull && docker compose --profile discord ${UP.join(" ")}`
   };
 }
 function requireDone(p, steps) {

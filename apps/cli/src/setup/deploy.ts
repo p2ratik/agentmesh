@@ -18,6 +18,20 @@ import { markDone, readState, type StepName, type WorkspacePaths } from './works
 const UP = ['up', '-d', '--force-recreate'];
 
 /**
+ * Refuses to start the stack on empty volumes. Before the rename the compose project was called
+ * agentmesh, so a server that ran then keeps its data in agentmesh_hub-data; the compose file now
+ * says `name: cosmicwave`, and without COMPOSE_PROJECT_NAME=agentmesh in deploy/.env the hub would
+ * start on new, empty volumes. It only reads, and an unreadable compose file refuses too. One line
+ * and no apostrophe: it is sent over ssh inside a `&&` chain. Keep it the same as
+ * `refuse_orphaned_volumes` in deploy/auto-deploy/cosmicwave-deploy.sh.
+ */
+export const VOLUME_GUARD =
+  'if docker volume inspect agentmesh_hub-data >/dev/null 2>&1 && ' +
+  '[ "$(docker compose config 2>/dev/null | sed -n "s/^name: //p" | head -n 1)" != agentmesh ]; then ' +
+  'echo "This server keeps its data in Docker volumes named agentmesh_*. Add COMPOSE_PROJECT_NAME=agentmesh to deploy/.env and deploy again. Nothing was started." >&2; ' +
+  'exit 1; fi';
+
+/**
  * What `setup deploy` runs on the server before and after copying. `prepare` takes back
  * the seeds a previous deploy gave to uid 1000, so scp can replace them, and closes
  * `deploy/` to everyone but the ssh user: scp may create `.env` and the seeds readable by
@@ -41,7 +55,7 @@ export function remoteCommands(dir: string): { prepare: string; finish: string }
       `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && ` +
       `chmod 600 ${dir}/deploy/.env && chmod 644 ${dir}/deploy/nats/nats.conf && ` +
       `sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
-      `cd ${dir}/deploy && docker compose --profile discord pull && ` +
+      `cd ${dir}/deploy && ${VOLUME_GUARD} && docker compose --profile discord pull && ` +
       `docker compose --profile discord ${UP.join(' ')}`,
   };
 }

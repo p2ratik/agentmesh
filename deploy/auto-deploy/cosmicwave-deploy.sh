@@ -206,6 +206,19 @@ rollback() {
     "&& docker compose ps && docker compose logs --tail 50 hub" >&2
 }
 
+# Before the rename the compose project was called agentmesh, so a server that has run since then
+# keeps its data in the volume agentmesh_hub-data. The new compose file names the project cosmicwave:
+# without COMPOSE_PROJECT_NAME=agentmesh in deploy/.env the hub would start on new, empty volumes.
+# Refuse before anything is pulled or started. A failed or empty answer from compose also refuses.
+# This only reads: it never creates, renames or removes a volume.
+refuse_orphaned_volumes() {
+  if docker volume inspect agentmesh_hub-data >/dev/null 2>&1 &&
+     [ "$(docker compose config 2>/dev/null | sed -n "s/^name: //p" | head -n 1)" != agentmesh ]; then
+    echo "cosmicwave-deploy: This server keeps its data in Docker volumes named agentmesh_*. Add COMPOSE_PROJECT_NAME=agentmesh to deploy/.env and deploy again. Nothing was started." >&2
+    exit 1
+  fi
+}
+
 deploy() {
   begin_deploy
   log "deploy $VERSION (now: $(deployed))"
@@ -217,6 +230,7 @@ deploy() {
     { echo "cosmicwave-deploy: cannot fetch tag v$VERSION from $GIT_REMOTE" >&2; exit 1; }
   git_ merge-base --is-ancestor "v$VERSION^{commit}" "$GIT_REMOTE/$RELEASE_BRANCH" ||
     { echo "cosmicwave-deploy: v$VERSION is not on $RELEASE_BRANCH; refusing" >&2; exit 1; }
+  refuse_orphaned_volumes
 
   log "pull the $VERSION images"
   for svc in "${SERVICES[@]}"; do
