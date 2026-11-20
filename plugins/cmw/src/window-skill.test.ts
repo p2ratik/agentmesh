@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCli } from '@cosmicwave/cli';
+import { isTestCommand } from '@cosmicwave/common/window';
 import { describe, expect, it } from 'vitest';
 
 const SKILL = readFileSync(join(import.meta.dirname, '../skills/window/SKILL.md'), 'utf8');
@@ -41,6 +42,15 @@ describe('the /cmw:window skill', () => {
     expect(flat).toContain('Suggest the repo’s install command');
     expect(flat).toContain('show the error to the user and stop');
     expect(flat).toContain('exactly as printed');
+  });
+
+  it('states the plain-command rule before the CLI refuses, with examples the CLI accepts', () => {
+    expect(flat).toContain('so no shell characters (no `cd`, `&&`, `./`, quotes or pipes)');
+    expect(flat).toContain('ask for a plain form before running anything');
+    for (const example of ['npm run lint --prefix frontend', 'pnpm -C web test']) {
+      expect(flat).toContain(`\`${example}\``);
+      expect(isTestCommand(example)).toBe(true);
+    }
   });
 
   it('starts the window in auto mode, and offers manual mode in the summary, not up front', () => {

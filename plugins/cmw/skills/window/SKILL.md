@@ -18,7 +18,12 @@ You ask a few questions and run one CLI step; the CLI writes the files.
    that holds the team's repos.
 3. Ask for the exact test command lines. Explain that they run without a prompt on the window's own
    branches and with a prompt on everyone else's. Suggest the repo’s install command (such as
-   `pnpm install --frozen-lockfile`) as one of them: a new worktree has no dependencies. Use only
+   `pnpm install --frozen-lockfile`) as one of them: a new worktree has no dependencies. Each is
+   one plain command run from the repo's root, at most 10: it starts with a letter or digit and
+   uses only letters, digits, spaces and `. _ : / = @ -`, so no shell characters (no `cd`, `&&`,
+   `./`, quotes or pipes). For a subfolder, suggest its tool's flag, such as
+   `npm run lint --prefix frontend` or `pnpm -C web test`. If a command the user gives breaks this,
+   say so and ask for a plain form before running anything. Use only
    the commands the user gives; if they give none, leave out `--test`.
 4. Run
    `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" window init --agent <agent> --owner <owner> --branch-template "<template>" --integration-branch <branch> --test "<test command>" --dir "<folder>"`

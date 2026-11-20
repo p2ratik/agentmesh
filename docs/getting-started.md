@@ -204,7 +204,9 @@ for:
   reach; one repo checkout works too.
 - the exact test commands the window may run on its own branches, such as
   `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt
-  in manual mode; in auto mode other commands on its own branches go to auto mode's checks.
+  in manual mode; in auto mode other commands on its own branches go to auto mode's checks. Each
+  is one plain command run from the repo's root (at most 10), with no shell characters: write
+  `npm run lint --prefix frontend`, not `cd frontend && npm run lint`.
 
 The window starts in Claude Code's **auto mode** by default: commands not on its list go to auto
 mode's checks instead of asking you, while risky ones still ask (below). To review every such
