@@ -1,5 +1,5 @@
-import { ConfigIndex } from '@agentmesh/config';
-import { Plan, type PlanTaskDraft, type RpcParams } from '@agentmesh/protocol';
+import { ConfigIndex } from '@cosmicwave/config';
+import { Plan, type PlanTaskDraft, type RpcParams } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { Actor, CallContext } from './contracts';
 import { internalId } from './core/ids';

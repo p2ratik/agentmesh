@@ -1,4 +1,4 @@
-import type { ConfigIndex, HumanConfig } from '@agentmesh/config';
+import type { ConfigIndex, HumanConfig } from '@cosmicwave/config';
 
 export const NOT_A_MEMBER =
   "You're not a member of this mesh. Ask a mesh admin to add your Discord user id to mesh.yaml.";

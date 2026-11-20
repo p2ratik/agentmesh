@@ -1,4 +1,4 @@
-import type { PlanContribution, PlanTaskDraft } from '@agentmesh/protocol';
+import type { PlanContribution, PlanTaskDraft } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { checkDrafts, topologicalOrder } from './drafts';
 import { compileContributions, pickNewFacilitator, roundComplete } from './rounds';

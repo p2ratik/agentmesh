@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { AssignmentConfig, ConfigIndex } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import type { AssignmentConfig, ConfigIndex } from '@cosmicwave/config';
 
 /** The task facts routing looks at. */
 export interface RoutingSubject {

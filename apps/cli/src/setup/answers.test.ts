@@ -85,6 +85,6 @@ describe('parseAnswers', () => {
     expect(answers.git.integrationBranch).toBe('agents');
     expect(answers.git.protectedBranches).toEqual(['main']);
     expect(answers.decisions.plansNeedApproval).toBe(true);
-    expect(answers.hosting.mode === 'server' && answers.hosting.remoteDir).toBe('/opt/agentmesh');
+    expect(answers.hosting.mode === 'server' && answers.hosting.remoteDir).toBe('/opt/cosmicwave');
   });
 });

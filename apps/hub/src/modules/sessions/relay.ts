@@ -1,5 +1,5 @@
-import { isAtLeast, RELAY_MIN_VERSION } from '@agentmesh/common/version';
-import type { SessionDelivery } from '@agentmesh/protocol';
+import { isAtLeast, RELAY_MIN_VERSION } from '@cosmicwave/common/version';
+import type { SessionDelivery } from '@cosmicwave/protocol';
 import { internalId } from '../../core/ids';
 import { toRouteSession } from './mappers';
 import { longestActive, type RouteSession, ready } from './routing';

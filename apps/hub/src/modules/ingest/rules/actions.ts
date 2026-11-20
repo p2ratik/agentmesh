@@ -1,5 +1,5 @@
-import { redactSecrets } from '@agentmesh/common';
-import type { RuleAction } from '@agentmesh/config';
+import { redactSecrets } from '@cosmicwave/common';
+import type { RuleAction } from '@cosmicwave/config';
 import type { HubContext } from '../../../context';
 import type { MessagingService, PresenceService, TaskService } from '../../../contracts';
 import { systemActor } from '../../../rpc/actor';

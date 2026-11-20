@@ -1,4 +1,4 @@
-import type { RpcResult } from '@agentmesh/protocol';
+import type { RpcResult } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext } from '../../contracts';
 import { createBobDispatchHarness } from '../../testing/services';

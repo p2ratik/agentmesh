@@ -5,21 +5,21 @@ import type { Hosting } from '../answers';
  * published images instead of building from source, so a server needs only Docker.
  */
 export function renderCompose(): string {
-  return `# Written by \`agentmesh setup render\`. NATS JetStream, the AgentMesh hub and the Discord bridge.
-# The images are \${AGENTMESH_IMAGE_REGISTRY}/agentmesh-*:\${AGENTMESH_VERSION} from .env;
-# \`agentmesh upgrade\` moves the version. \`agentmesh setup deploy\` starts the stack.
+  return `# Written by \`cmw setup render\`. NATS JetStream, the Cosmicwave hub and the Discord bridge.
+# The images are \${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-*:\${COSMICWAVE_VERSION} from .env;
+# \`cmw upgrade\` moves the version. \`cmw setup deploy\` starts the stack.
 #
 # Expects (relative to this directory):
 #   .env              rendered by setup; holds DISCORD_BOT_TOKEN
-#   nats/nats.conf    from \`agentmesh nats-config\`
+#   nats/nats.conf    from \`cmw nats-config\`
 #   nats/tls/         fullchain.pem + privkey.pem when NATS requires TLS (a server)
-#   secrets/*.nk      from \`agentmesh keys add\`
-#   the mesh config   at $AGENTMESH_CONFIG_DIR (../config)
+#   secrets/*.nk      from \`cmw keys add\`
+#   the mesh config   at $COSMICWAVE_CONFIG_DIR (../config)
 #
 # Every service runs without Linux capabilities, cannot gain privileges, has a read-only root
 # filesystem (writes go to its volume and a small /tmp), and has memory, process and log caps.
 # The caps come from .env.
-name: agentmesh
+name: cosmicwave
 
 # Docker's default log never rotates, so a log flood would fill the disk: 3 files of 10 MB.
 x-logging: &logging
@@ -55,17 +55,17 @@ services:
     restart: unless-stopped
 
   hub:
-    image: \${AGENTMESH_IMAGE_REGISTRY}/agentmesh-hub:\${AGENTMESH_VERSION}
+    image: \${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-hub:\${COSMICWAVE_VERSION}
     env_file: .env
     environment:
-      AGENTMESH_CONFIG: /config
-      AGENTMESH_DATA_DIR: /data
-      AGENTMESH_NATS_URL: nats://\${NATS_PUBLIC_HOST:-nats}:4222
-      AGENTMESH_NKEY_SEED: /secrets/hub.nk
+      COSMICWAVE_CONFIG: /config
+      COSMICWAVE_DATA_DIR: /data
+      COSMICWAVE_NATS_URL: nats://\${NATS_PUBLIC_HOST:-nats}:4222
+      COSMICWAVE_NKEY_SEED: /secrets/hub.nk
       # Auth-callout mode reads hub-issuer.nk, hub-xkey.nk and hub-sys.nk from here.
-      AGENTMESH_SECRETS_DIR: /secrets
+      COSMICWAVE_SECRETS_DIR: /secrets
     volumes:
-      - \${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
+      - \${COSMICWAVE_CONFIG_DIR:-../config}:/config:ro
       - ./secrets:/secrets:ro
       - hub-data:/data
     ports:
@@ -84,14 +84,14 @@ services:
 
   discord-bridge:
     profiles: [discord]
-    image: \${AGENTMESH_IMAGE_REGISTRY}/agentmesh-discord-bridge:\${AGENTMESH_VERSION}
+    image: \${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-discord-bridge:\${COSMICWAVE_VERSION}
     env_file: .env
     environment:
-      AGENTMESH_CONFIG: /config
-      AGENTMESH_NATS_URL: nats://\${NATS_PUBLIC_HOST:-nats}:4222
-      AGENTMESH_NKEY_SEED: /secrets/discord-bridge.nk
+      COSMICWAVE_CONFIG: /config
+      COSMICWAVE_NATS_URL: nats://\${NATS_PUBLIC_HOST:-nats}:4222
+      COSMICWAVE_NKEY_SEED: /secrets/discord-bridge.nk
     volumes:
-      - \${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
+      - \${COSMICWAVE_CONFIG_DIR:-../config}:/config:ro
       # Only the bridge's own seed, never the whole secrets/ directory: the hub's seeds live
       # there (in auth-callout mode hub-issuer.nk signs any NATS identity), out of a bridge's reach.
       - ./secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro
@@ -121,17 +121,17 @@ export function renderEnv(i: { hosting: Hosting; version: string; registry: stri
 
 # The Discord bot token: paste it after the = sign and save. Claude never reads this file.
 DISCORD_BOT_TOKEN=
-# The bot's application id; \`agentmesh setup discord\` fills it in.
+# The bot's application id; \`cmw setup discord\` fills it in.
 DISCORD_APP_ID=
-# The Discord server the mesh uses; \`agentmesh setup discord\` fills it in.
+# The Discord server the mesh uses; \`cmw setup discord\` fills it in.
 DISCORD_GUILD_ID=
 
 # Where the hub and Discord bridge images come from.
-AGENTMESH_IMAGE_REGISTRY=${i.registry}
-# The hub version this workspace runs; only \`agentmesh upgrade\` changes it.
-AGENTMESH_VERSION=${i.version}
+COSMICWAVE_IMAGE_REGISTRY=${i.registry}
+# The hub version this workspace runs; only \`cmw upgrade\` changes it.
+COSMICWAVE_VERSION=${i.version}
 # The mesh config directory, relative to this one (mounted read-only at /config).
-AGENTMESH_CONFIG_DIR=../config
+COSMICWAVE_CONFIG_DIR=../config
 # Where NATS listens: 0.0.0.0 on a server (TLS), 127.0.0.1 on a trial.
 NATS_BIND=${server ? '0.0.0.0' : '127.0.0.1'}
 # The NATS certificate's DNS name on a server; empty on a trial.
@@ -139,7 +139,7 @@ NATS_PUBLIC_HOST=${server?.publicHost ?? ''}
 # The hub's ingest endpoint stays private to this machine.
 HUB_HTTP_BIND=127.0.0.1
 # Log level of the hub and the Discord bridge: debug, info, warn or error.
-AGENTMESH_LOG_LEVEL=info
+COSMICWAVE_LOG_LEVEL=info
 # Memory cap of the NATS container, in Docker units such as 256m or 1g (sized for 1-2 GB).
 NATS_MEM_LIMIT=256m
 # Memory cap of the hub container.

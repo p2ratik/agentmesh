@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import { ParticipantId } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import { ParticipantId } from '@cosmicwave/protocol';
 import { z } from 'zod';
 import { DEFAULT_REMOTE_DIR } from './defaults';
 

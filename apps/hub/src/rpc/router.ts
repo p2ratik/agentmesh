@@ -1,12 +1,12 @@
-import type { RpcCallContext, RpcDispatcher } from '@agentmesh/bus';
-import { type Logger, MeshError } from '@agentmesh/common';
-import type { ConfigIndex } from '@agentmesh/config';
+import type { RpcCallContext, RpcDispatcher } from '@cosmicwave/bus';
+import { type Logger, MeshError } from '@cosmicwave/common';
+import type { ConfigIndex } from '@cosmicwave/config';
 import {
   isRpcMethodName,
   type MethodDef,
   RPC_METHODS,
   type RpcMethodName,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { Actor, CallContext, RpcHandler, RpcHandlerMap, SessionsService } from '../contracts';
 import { isClaiming } from '../modules/sessions/claims';
 import { MIN_CLIENT_VERSION } from '../modules/sessions/version';
@@ -87,12 +87,13 @@ export function createRpcRouter(deps: RouterDeps): RpcDispatcher {
 
 /** Plugins older than the minimum swallow the hello refusal; their other calls must say this instead. */
 const NO_SESSION =
-  `This session isn't registered with the hub. If your AgentMesh plugin is older than ${MIN_CLIENT_VERSION}, ` +
-  'update it: claude plugin update agentmesh@agentmesh, then restart Claude Code.';
+  `This session isn't registered with the hub: your plugin may be older than ${MIN_CLIENT_VERSION}. ` +
+  'It has been renamed: remove it and install cmw@cosmicwave (see docs/getting-started.md), ' +
+  'then restart Claude Code.';
 
 /**
  * Agent calls that may come without a session: the hello that opens one, the bye, and
- * `agentmesh timeline` (one call). Widening it is a security decision (a test pins it).
+ * `cmw timeline` (one call). Widening it is a security decision (a test pins it).
  */
 const SESSIONLESS: ReadonlySet<RpcMethodName> = new Set([
   'session.hello',

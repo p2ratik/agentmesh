@@ -43,17 +43,17 @@ describe('renderJoinNote', () => {
   it('tells teammates how to install, where the hub is, and to install first', () => {
     const note = renderJoinNote({
       team: 'Acme',
-      marketplace: 'p2ratik/agentmesh',
+      marketplace: 'p2ratik/cosmicwave',
       publicHost: 'mesh.acme.dev',
     });
     expect(note).toContain('1. Join the Acme Discord server and allow DMs from its members.');
-    expect(note).toContain('`claude plugin marketplace add p2ratik/agentmesh`');
-    expect(note).toContain('`~/.agentmesh/invite.txt`');
-    expect(note).toContain('`/agentmesh:join` and confirm that the hub is `mesh.acme.dev:4222`');
+    expect(note).toContain('`claude plugin marketplace add p2ratik/cosmicwave`');
+    expect(note).toContain('`~/.cosmicwave/invite.txt`');
+    expect(note).toContain('`/cmw:join` and confirm that the hub is `mesh.acme.dev:4222`');
     expect(note).toContain('7. Say yes when Claude offers automatic plugin updates');
-    expect(note).toContain('turn them on later with `/agentmesh:autoupdate`');
+    expect(note).toContain('turn them on later with `/cmw:autoupdate`');
     expect(note).toContain(
-      "8. Run `/agentmesh:window`, then start your mesh window each day in your team's folder with `claude-mesh` (`window init` says when a folder must go on PATH first).",
+      "8. Run `/cmw:window`, then start your mesh window each day in your team's folder with `claude-mesh` (`window init` says when a folder must go on PATH first).",
     );
     expect(note.trimEnd().endsWith('Install first: codes expire 24 hours after the invite.')).toBe(
       true,
@@ -63,7 +63,7 @@ describe('renderJoinNote', () => {
 
 describe('setup invites', () => {
   function run(answers: AnswersInput, ...extra: string[]) {
-    const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-invites-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-invites-'));
     const p = workspacePaths(join(cwd, 'ws'));
     mkdirSync(p.root);
     writeFileSync(p.answers, JSON.stringify(answers));
@@ -81,13 +81,13 @@ describe('setup invites', () => {
     expect(out).toContain(
       'Run these in Discord (admins only):\n/mesh invite user:@dana id:dana name:Dana roles:security skills:security\n\nSend your teammates:',
     );
-    expect(out).toContain('`claude plugin marketplace add p2ratik/agentmesh`');
+    expect(out).toContain('`claude plugin marketplace add p2ratik/cosmicwave`');
     expect(out).toContain('`mesh.acme.dev:4222`');
   });
 
   it('uses --marketplace when given', async () => {
-    const { out } = await run(serverAnswers(), '--marketplace', 'acme/agentmesh-fork');
-    expect(out).toContain('`claude plugin marketplace add acme/agentmesh-fork`');
+    const { out } = await run(serverAnswers(), '--marketplace', 'acme/cosmicwave-fork');
+    expect(out).toContain('`claude plugin marketplace add acme/cosmicwave-fork`');
   });
 
   it('says teammates cannot join a trial', async () => {

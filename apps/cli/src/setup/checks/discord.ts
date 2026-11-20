@@ -1,3 +1,4 @@
+import { DEFAULT_CATEGORY, LEGACY_CATEGORY } from '@cosmicwave/config';
 import { discordApi } from '../discord-api';
 import type { CheckResult } from './result';
 
@@ -10,7 +11,8 @@ type Expected = Record<string, { name: string; type: 'text' | 'forum' }>;
 
 /**
  * Judges a server's channels against the config: the category, and each channel by name
- * and type (the bridge reuses channels by name, wherever they are). Pure.
+ * and type (the bridge reuses channels by name, wherever they are). The category follows the
+ * bridge's `pickCategory`: while it is the default, the old default category counts. Pure.
  */
 export function classifyChannels(
   channels: Array<{ name: string; type: number; parent_id: string | null }>,
@@ -19,8 +21,10 @@ export function classifyChannels(
 ): CheckResult {
   const has = (name: string, type: number) =>
     channels.some((c) => c.name === name && c.type === type);
+  const hasCategory =
+    has(category, CATEGORY) || (category === DEFAULT_CATEGORY && has(LEGACY_CATEGORY, CATEGORY));
   const missing = [
-    ...(has(category, CATEGORY) ? [] : [`the category "${category}"`]),
+    ...(hasCategory ? [] : [`the category "${category}"`]),
     ...Object.values(expected)
       .filter((c) => !has(c.name, c.type === 'forum' ? FORUM : TEXT))
       .map((c) => `#${c.name}${c.type === 'forum' ? ' (a forum)' : ''}`),

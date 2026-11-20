@@ -4,16 +4,19 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { bothFoldersAdvice } from '@cosmicwave/common/mesh-home';
 import { describe, expect, it } from 'vitest';
+import { windowInitCommand } from './window';
 import { platform, setup } from './window.fixture';
 
 const mode = (p: string) => statSync(p).mode & 0o777;
 
-describe('agentmesh window init', () => {
+describe('cmw window init', () => {
   it('writes the launcher, its settings and the policy', async () => {
     const { out, run, files, policy } = setup();
     expect(await run('--agent', 'bob-agent', '--owner', 'bob', '--test', 'pnpm check')).toBe(0);
@@ -24,7 +27,7 @@ describe('agentmesh window init', () => {
       testCommands: ['pnpm check'],
     });
     const settings = JSON.parse(readFileSync(files.settings, 'utf8'));
-    expect(settings.env.AGENTMESH_MESH_WINDOW).toBe(policy()?.token);
+    expect(settings.env.COSMICWAVE_MESH_WINDOW).toBe(policy()?.token);
     expect(readFileSync(files.launcher, 'utf8')).toContain(policy()?.token);
     expect(readdirSync(files.emptyHooks)).toEqual([]);
     expect(out[0]).toBe(
@@ -111,7 +114,7 @@ describe('agentmesh window init', () => {
     if (platform === 'win32') {
       // cmd reads a .cmd file in the console's code page, not UTF-8.
       expect(launcher).toContain(
-        '--settings "%USERPROFILE%\\.agentmesh\\mesh-window.settings.json"',
+        '--settings "%USERPROFILE%\\.cosmicwave\\mesh-window.settings.json"',
       );
       expect(launcher).toMatch(/^[\x20-\x7e\r\n]*$/);
     } else {
@@ -133,7 +136,7 @@ describe('agentmesh window init', () => {
     const other = setup();
     await other.run('--agent', 'bob-agent');
     expect(other.out[1]).toBe('The window uses your default Claude account (~/.claude).');
-    const root = mkdtempSync(join(tmpdir(), 'agentmesh-account-'));
+    const root = mkdtempSync(join(tmpdir(), 'cosmicwave-account-'));
     const account = join(root, 'claude-work');
     const { out, run, files } = setup(true, 'home', 'bin', { CLAUDE_CONFIG_DIR: account });
     expect(await run('--agent', 'bob-agent')).toBe(0);
@@ -207,6 +210,41 @@ describe('agentmesh window init', () => {
     expect(await run('--agent', 'bob-agent')).toBe(1);
     expect(err).toEqual(['error: claude is not on PATH. Install Claude Code first.']);
     expect(() => statSync(files.dir)).toThrow();
+  });
+
+  // A window is never written into ~/.agentmesh: its launcher and settings bake the folder's path.
+  it('refuses, writing nothing, while ~/.agentmesh is still there after the move', async () => {
+    const t = setup();
+    // Something the rename cannot move: a link to nowhere.
+    symlinkSync(join(t.root, 'nowhere'), join(t.home, '.agentmesh'), 'junction');
+    expect(await t.run('--agent', 'bob-agent')).toBe(2);
+    expect(t.err).toEqual([
+      'error: ~/.agentmesh could not be moved to ~/.cosmicwave. Close every Claude Code session and any terminal inside that folder. /cmw:window runs inside a session, so run window init from a plain terminal instead: cmw window init, with the same options.',
+    ]);
+    expect(readdirSync(t.home)).toEqual(['.agentmesh']);
+  });
+
+  it('refuses, moving nothing, while both folders exist, with the advice for where agent.json is', async () => {
+    const t = setup();
+    mkdirSync(join(t.home, '.agentmesh'));
+    writeFileSync(join(t.home, '.agentmesh', 'agent.json'), '{}');
+    mkdirSync(join(t.home, '.cosmicwave'));
+    expect(await t.run('--agent', 'bob-agent')).toBe(2);
+    expect(t.err).toEqual([`error: ${bothFoldersAdvice(t.home)}`]);
+    expect(t.err[0]).toContain('so ~/.agentmesh is the folder to keep');
+    expect(readdirSync(join(t.home, '.agentmesh'))).toEqual(['agent.json']);
+    expect(readdirSync(join(t.home, '.cosmicwave'))).toEqual([]);
+  });
+
+  // window init is the one CLI command that moves the folder (no other command does).
+  it('moves ~/.agentmesh to ~/.cosmicwave itself, then writes the window there', async () => {
+    const t = setup();
+    mkdirSync(join(t.home, '.agentmesh'));
+    writeFileSync(join(t.home, '.agentmesh', 'agent.json'), '{}');
+    expect(windowInitCommand.run(['--agent', 'bob-agent'], t.ctx)).toBe(0);
+    expect(readdirSync(t.home)).not.toContain('.agentmesh');
+    expect(readFileSync(join(t.home, '.cosmicwave', 'agent.json'), 'utf8')).toBe('{}');
+    expect(t.policy()?.agentId).toBe('bob-agent');
   });
 
   it('warns about a checkout that does not ignore its worktrees', async () => {

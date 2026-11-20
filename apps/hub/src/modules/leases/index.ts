@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import type { HubContext } from '../../context';
 import type { HubModule, LeaseService, RpcHandlerMap } from '../../contracts';
 import { internalId } from '../../core/ids';

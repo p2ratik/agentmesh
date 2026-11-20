@@ -1,5 +1,5 @@
-import type { Logger } from '@agentmesh/common';
-import type { RelayAnswer, SessionDelivery, SessionRelay } from '@agentmesh/protocol';
+import type { Logger } from '@cosmicwave/common';
+import type { RelayAnswer, SessionDelivery, SessionRelay } from '@cosmicwave/protocol';
 import type { MessagingService, SessionsService } from '../../contracts';
 import type { DeliveryPort, DeliveryReceipt } from '../../ports';
 import type { RecordHub } from '../observe/hub-event';

@@ -92,7 +92,7 @@ check tasks or read threads, but it receives no pushes and takes nothing off the
 
 **Activating.**
 
-- `/agentmesh:activate` makes the session active. `/agentmesh:deactivate` turns it off again.
+- `/cmw:activate` makes the session active. `/cmw:deactivate` turns it off again.
 - Activation is confirmed end to end. The hub sends the session one test message, and the session
   goes live only after its Claude sees it and confirms with a tool call. Claude Code gives a plugin
   no documented way to know whether a session accepts channel pushes, so this round trip is the
@@ -128,7 +128,7 @@ active sessions. It is the party that knows what its question is about.
 3. The recipient's longest-active session. *(Pratik accepted this default during the playback.)*
 4. None. The message waits as unread in the hub, and the next session the human activates gets it.
 
-**Precedence: the first owner keeps the work.** Ownership moves only through `/agentmesh:take`, or
+**Precedence: the first owner keeps the work.** Ownership moves only through `/cmw:take`, or
 when the owning session ends. Pratik's words: messages go to the working session "until the working
 session is closed".
 
@@ -149,7 +149,7 @@ session is closed".
 
 **Absence: sleep, crash, resume.**
 
-- A clean close (`session.bye`, `/agentmesh:deactivate`) releases ownership at once.
+- A clean close (`session.bye`, `/cmw:deactivate`) releases ownership at once.
 - A session that stops heartbeating without saying bye is marked away, not released. Its work is
   held for a grace period: a new config option, default 2 hours *(my call)*.
 - If the same plugin process reconnects within that time, after a laptop sleep for example, it is
@@ -157,7 +157,7 @@ session is closed".
 - After the grace period the work is released and routed by the fallback rules. A session that
   reconnects later takes back whatever no other session took meanwhile.
 - `claude --resume` of a conversation that was active starts the activation round trip by itself,
-  without the human typing `/agentmesh:activate`. On success it takes back what it owned and nobody
+  without the human typing `/cmw:activate`. On success it takes back what it owned and nobody
   else took. *(My call: the human already opted that conversation in.)*
 - The hook that knows the Claude conversation id passes it to the plugin. That is the same window
   pairing as the transcript path (§10).
@@ -178,7 +178,7 @@ session is closed".
 under a new session id. The session stays active and keeps what it owns. Right after the clear it
 gets its card (§6).
 
-**Moving work by hand.** `/agentmesh:take <task or thread>` moves ownership to the session where it
+**Moving work by hand.** `/cmw:take <task or thread>` moves ownership to the session where it
 is typed, along with the handover card for that work.
 
 ## 4. Part B — What interrupts an agent
@@ -250,7 +250,7 @@ There is no hub change. Ownership routing makes this matter more, because a mess
 session that owns its thread. Instructions for task-17 sent in a side thread reach whoever owns that
 thread.
 
-Update `plugins/agentmesh/skills/mesh-collaboration/SKILL.md` with these rules:
+Update `plugins/cmw/skills/mesh-collaboration/SKILL.md` with these rules:
 
 - **Task talk goes in the task's own thread.** `task_get` shows the thread. Reply there instead of
   opening a new thread. If another person must be asked about the task, `ask` with
@@ -292,7 +292,7 @@ The agent gets a short index and pulls details only when it needs them.
 **The same card serves every trigger:**
 
 - A `SessionStart` hook (startup, resume, clear, compact) loads it.
-- When work changes hands (`/agentmesh:take`, or work released by a closed session), the receiving
+- When work changes hands (`/cmw:take`, or work released by a closed session), the receiving
   session gets the card for that work. It also gets the previous owner's latest note, and the
   previous transcript path when it is on the same machine.
 
@@ -368,7 +368,7 @@ The agent gets a short index and pulls details only when it needs them.
     `docs/configuration.md`.
   - Behaviour changes update `docs/protocol.md` and the matching docs.
   - The delivery change replaces "one durable consumer per agent" (ADR 0001), so it needs a new ADR.
-  - Rebuild `plugins/agentmesh/dist/server.js` and bump the version in `plugin.json`,
+  - Rebuild `plugins/cmw/dist/server.js` and bump the version in `plugin.json`,
     `package.json` and `src/server.ts`.
 - **Other agents' work:**
   - Build on `origin/agents` (plugin 0.1.7). It already contains invite-only onboarding (hub
@@ -394,7 +394,7 @@ Left to the builder:
 - **Window pairing.** How a hook pairs with the plugin process of the same window, to read the card
   or the previous transcript path. Process ancestry is the likely route; verify it on Windows.
   Whether the `SessionStart` hook injects the card itself or tells Claude to call a `briefing` tool.
-- **Names and limits:** tool and command names beyond `/agentmesh:activate`, `deactivate` and
+- **Names and limits:** tool and command names beyond `/cmw:activate`, `deactivate` and
   `take`; the card format; line limits.
 - **Plugins without sessions.** *My call:* no compatibility mode. The hub tells pre-session plugins
   to update; the team is two agents today.

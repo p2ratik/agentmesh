@@ -1,5 +1,5 @@
-import { type JetStreamClient, publishJson } from '@agentmesh/bus';
-import { type DomainEvent, subjects } from '@agentmesh/protocol';
+import { type JetStreamClient, publishJson } from '@cosmicwave/bus';
+import { type DomainEvent, subjects } from '@cosmicwave/protocol';
 import type { EventPort } from '../ports';
 
 /** Publishes feed events to JetStream with dedup ids. Deliveries go to sessions instead. */

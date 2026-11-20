@@ -1,4 +1,4 @@
-import type { ObservedEvent } from '@agentmesh/protocol';
+import type { ObservedEvent } from '@cosmicwave/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatTimeline, type TimelineOptions } from './timeline';
 

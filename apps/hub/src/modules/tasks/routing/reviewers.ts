@@ -1,4 +1,4 @@
-import type { TaskReview } from '@agentmesh/protocol';
+import type { TaskReview } from '@cosmicwave/protocol';
 
 export interface ReviewerRequest {
   /** Never picked (the assignee, the requester). */

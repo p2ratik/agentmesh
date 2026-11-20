@@ -1,4 +1,4 @@
-import type { Lease } from '@agentmesh/protocol';
+import type { Lease } from '@cosmicwave/protocol';
 import { optionalKey } from '../../core/ids';
 import type { Db } from '../../db/database';
 

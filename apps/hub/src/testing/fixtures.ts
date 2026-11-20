@@ -1,4 +1,4 @@
-import { configFromObject, type LoadedConfig } from '@agentmesh/config';
+import { configFromObject, type LoadedConfig } from '@cosmicwave/config';
 
 /**
  * A small, realistic team used across hub tests:

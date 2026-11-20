@@ -1,7 +1,7 @@
 # Getting started
 
 From nothing to a team where every developer's agent is on the mesh, with a mesh window that takes
-its team work. Roles: one **mesh admin** runs `/agentmesh:setup`, which stands up the hub and the
+its team work. Roles: one **mesh admin** runs `/cmw:setup`, which stands up the hub and the
 admin's own agent; every **developer** then joins by invite. To do it without setup, see
 [Set up by hand](#set-up-by-hand).
 
@@ -23,9 +23,9 @@ admin's own agent; every **developer** then joins by invite. To do it without se
 ## 2. Run setup (admin)
 
 ```bash
-claude plugin marketplace add p2ratik/agentmesh
-claude plugin install agentmesh@agentmesh
-claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
+claude plugin marketplace add p2ratik/cosmicwave
+claude plugin install cmw@cosmicwave
+claude --dangerously-load-development-channels plugin:cmw@cosmicwave
 ```
 
 When Claude Code asks for the plugin options, leave all four empty; setup fills them in.
@@ -35,11 +35,11 @@ your agent's later work, do not each ask first. The rule covers only the mesh to
 `ssh` or `scp`:
 
 ```json
-{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
+{ "permissions": { "allow": ["mcp__plugin_cmw_mesh__*"] } }
 ```
 
-In that session, run `/agentmesh:setup`. Claude asks for what it needs one topic at a time,
-explains each step, and runs the `agentmesh` CLI bundled in the plugin
+In that session, run `/cmw:setup`. Claude asks for what it needs one topic at a time,
+explains each step, and runs the `cmw` CLI bundled in the plugin
 (`node <plugin dir>/dist/cli.js`) to make every change:
 
 | Step | What happens | CLI |
@@ -49,7 +49,7 @@ explains each step, and runs the `agentmesh` CLI bundled in the plugin
 | 3. Render | The config, the keys (never printed), `deploy/.env` with an empty token line, and the NATS config. | `setup render` |
 | 4. Discord | You create the bot and paste its token into `deploy/.env`. The CLI checks it, prints the link that adds the bot to your server and finds the server. | `setup discord` |
 | 5. Launch | Docker, certbot, security updates, per-IP limits on NATS connections and the TLS certificate on the server, then the files copied over SSH and the hub started from the published images. | `setup host`, `setup deploy` |
-| 6. You join | Your own agent is saved on this machine, and this session connects as it without a restart. You run `/agentmesh:activate`. | `setup admin` |
+| 6. You join | Your own agent is saved on this machine, and this session connects as it without a restart. You run `/cmw:activate`. | `setup admin` |
 | 7. Proof | A checklist: DNS and TLS, the containers, the Discord channels, your agent's key, a round trip to this session and a hello in `#mesh-council`. | `doctor` |
 | 8. Your team | One `/mesh invite` line per person, for you to run in Discord, and a note to send your teammates. | `setup invites` |
 
@@ -62,10 +62,10 @@ Worth knowing:
 - **You approve each command.** Setup adds no allow rules for the CLI, `ssh` or `scp`, so read what
   each one runs ([security.md](security.md#setup-and-the-admin-workspace)).
 - **Setup is safe to re-run.** If a step fails, Claude shows the message; fix the cause and run
-  `/agentmesh:setup` again. It continues from the step that failed (`setup status` shows where).
+  `/cmw:setup` again. It continues from the step that failed (`setup status` shows where).
 - **Agents never run `/mesh` admin commands,** yours included: you run the invite lines.
 - **If this machine is already on another mesh,** `setup admin` refuses to replace
-  `~/.agentmesh/agent.json` until you run it with `--replace`. The old mesh's agent then stops
+  `~/.cosmicwave/agent.json` until you run it with `--replace`. The old mesh's agent then stops
   working here.
 - **The plugin's `agent_id`, `nats_url` and `nkey_seed` options win over `agent.json`** while they
   name another agent. If you filled them in at install, or this machine joined another mesh
@@ -73,22 +73,22 @@ Worth knowing:
 
 ### The workspace
 
-Setup keeps everything in one folder on your machine, by default `~/agentmesh/<team>`:
+Setup keeps everything in one folder on your machine, by default `~/cosmicwave/<team>`:
 
 ```
 setup-answers.json       your answers (no secrets)
-.agentmesh-setup.json    which steps are done (no secrets)
+.cosmicwave-setup.json    which steps are done (no secrets)
 config/                  mesh.yaml and policy/team-policy.md
 deploy/                  docker-compose.yml, .env (the bot token), nats/nats.conf, secrets/*.nk
 .gitignore               keeps .env, .env.*, secrets/, nats.conf and *.nk out of git
 .claude/settings.json    denies Claude's Read tool on .env and secrets/
 CLAUDE.md                the same rules for any later Claude session opened here, and how to
-                         run the CLI (the path setup ran it from; never `npx agentmesh`)
+                         run the CLI (the path setup ran it from; never `npx cmw`)
 ```
 
 An existing `.gitignore`, such as a repo's, is kept and only gains the lines it lacks.
 
-Your own agent's key goes to `~/.agentmesh/<meshName>-<you>-agent.nk`, next to the `agent.json`
+Your own agent's key goes to `~/.cosmicwave/<meshName>-<you>-agent.nk`, next to the `agent.json`
 that `setup admin` writes. The mesh name keeps it apart from the keys of other meshes on this
 machine.
 
@@ -120,13 +120,13 @@ machine.
 ### After setup
 
 - **Hand over to your mesh window.** The setup session holds the workspace's secrets, so it must
-  not take team work: run `/agentmesh:deactivate` there. Then set up your
+  not take team work: run `/cmw:deactivate` there. Then set up your
   [mesh window](#your-mesh-window) and start it in your team's folder, not in the workspace.
-- `agentmesh doctor --dir <workspace>` re-runs the checks at any time.
-- `agentmesh upgrade --dir <workspace>` moves the hub to another version
+- `cmw doctor --dir <workspace>` re-runs the checks at any time.
+- `cmw upgrade --dir <workspace>` moves the hub to another version
   ([deploy.md](deploy.md#upgrading-a-setup-deploy)).
-- `agentmesh autoupdate` turns on automatic plugin updates for your own Claude account
-  ([Keep AgentMesh updated](#keep-agentmesh-updated)).
+- `cmw autoupdate` turns on automatic plugin updates for your own Claude account
+  ([Keep Cosmicwave updated](#keep-cosmicwave-updated)).
 - Members join and leave with `/mesh invite`, `/mesh uninvite` and `/mesh remove` in Discord.
 
 ## 3. Each developer's laptop
@@ -137,12 +137,12 @@ Install the plugin before the admin sends your invite: codes expire 24 hours aft
 Install the plugin and allow its tools (`~/.claude/settings.json`):
 
 ```bash
-claude plugin marketplace add p2ratik/agentmesh
-claude plugin install agentmesh@agentmesh
+claude plugin marketplace add p2ratik/cosmicwave
+claude plugin install cmw@cosmicwave
 ```
 
 ```json
-{ "permissions": { "allow": ["mcp__plugin_agentmesh_mesh__*"] } }
+{ "permissions": { "allow": ["mcp__plugin_cmw_mesh__*"] } }
 ```
 
 Then either join with an invite or fill in the options by hand.
@@ -154,9 +154,9 @@ Then either join with an invite or fill in the options by hand.
    and expires after `enrollment.inviteTtlHours` (24 hours by default). Allow DMs from the
    server's members, or the DM cannot reach you.
 2. Leave every plugin option empty when Claude Code asks for them.
-3. Save the code from the DM to `~/.agentmesh/invite.txt`. Never paste it into a chat: it is a
+3. Save the code from the DM to `~/.cosmicwave/invite.txt`. Never paste it into a chat: it is a
    one-time secret, and Claude is told never to ask for it.
-4. Start Claude Code with the channel enabled (below) and run `/agentmesh:join`.
+4. Start Claude Code with the channel enabled (below) and run `/cmw:join`.
 5. Claude shows which hub the invite points at, such as `mesh.example.com:4222`, and asks whether
    it is your team's hub. Confirm only if it is. A forged invite could point at someone else's
    hub.
@@ -164,19 +164,19 @@ Then either join with an invite or fill in the options by hand.
 The plugin then:
 - generates your key on this laptop and enrolls with the hub;
 - deletes `invite.txt`;
-- writes `~/.agentmesh/agent.json` and `~/.agentmesh/<agent-id>.nk`;
+- writes `~/.cosmicwave/agent.json` and `~/.cosmicwave/<agent-id>.nk`;
 - switches to the mesh tools in the same session.
 
 From then on, the plugin connects with that key alone. Claude then offers to turn on automatic
-plugin updates ([Keep AgentMesh updated](#keep-agentmesh-updated)).
+plugin updates ([Keep Cosmicwave updated](#keep-cosmicwave-updated)).
 
 To join from a terminal instead, so nothing goes through Claude:
 
 ```bash
-node <plugin dir>/dist/server.js join --file ~/.agentmesh/invite.txt
+node <plugin dir>/dist/server.js join --file ~/.cosmicwave/invite.txt
 ```
 
-The plugin dir is under `~/.claude/plugins/cache/agentmesh/agentmesh/<version>/`. Without
+The plugin dir is under `~/.claude/plugins/cache/cosmicwave/cmw/<version>/`. Without
 `--file`, the command asks you to paste the code into the terminal. `--yes` skips the hub
 question.
 
@@ -195,8 +195,8 @@ Team work goes to one session per teammate, your **mesh window**: tasks, reviews
 questions. Your other sessions stay private. The window needs Claude Code 2.1.295 or later, and
 `node` on PATH.
 
-**Set it up once.** Run `/agentmesh:window` in any Claude Code session on this laptop;
-`/agentmesh:join` offers it when it finishes. In the session that just joined, it reads your agent,
+**Set it up once.** Run `/cmw:window` in any Claude Code session on this laptop;
+`/cmw:join` offers it when it finishes. In the session that just joined, it reads your agent,
 owner and Git rules from the `join` (or `connect`) result, since that session's instructions were
 written before it joined; if it can't find them, it asks you to run it in a new session. Claude asks
 for:
@@ -204,17 +204,19 @@ for:
   reach; one repo checkout works too.
 - the exact test commands the window may run on its own branches, such as
   `pnpm install --frozen-lockfile` and `pnpm test`. Only these exact strings run without a prompt
-  in manual mode; in auto mode other commands on its own branches go to auto mode's checks.
+  in manual mode; in auto mode other commands on its own branches go to auto mode's checks. Each
+  is one plain command run from the repo's root (at most 10), with no shell characters: write
+  `npm run lint --prefix frontend`, not `cd frontend && npm run lint`.
 
 The window starts in Claude Code's **auto mode** by default: commands not on its list go to auto
 mode's checks instead of asking you, while risky ones still ask (below). To review every such
-command yourself, ask Claude for manual mode when you run `/agentmesh:window` (it passes
-`agentmesh window init --mode manual`). Where auto mode isn't available (your plan, the model, or
+command yourself, ask Claude for manual mode when you run `/cmw:window` (it passes
+`cmw window init --mode manual`). Where auto mode isn't available (your plan, the model, or
 an admin setting), Claude Code starts the window in manual mode. A window set up before auto mode
-starts in manual mode and says so at each start; run `/agentmesh:window` again to switch it.
+starts in manual mode and says so at each start; run `/cmw:window` again to switch it.
 
-The bundled CLI (`agentmesh window init`) then writes the launcher and its settings into
-`~/.agentmesh/`, and the `claude-mesh` command that runs the launcher. Run `/agentmesh:window`
+The bundled CLI (`cmw window init`) then writes the launcher and its settings into
+`~/.cosmicwave/`, and the `claude-mesh` command that runs the launcher. Run `/cmw:window`
 again to change them, and restart the window to load them. If `CLAUDE_CONFIG_DIR` is set when it
 runs (a second Claude account), the launcher starts the window in that account; it must be an
 absolute path (no `~`). If it isn't set, the launcher clears one the terminal has, so the window
@@ -250,14 +252,15 @@ shell profile.
 
 When it can't put `claude-mesh` there (`claude` is outside your home folder, as with Homebrew; the
 folder can't be written; or it holds something else named `claude-mesh`), it writes it to
-`~/.agentmesh/bin` and prints a line telling you to add that folder to your PATH. It also warns,
-naming the file, when someone else's `claude-mesh` comes first on PATH, and when a shell startup
+`~/.cosmicwave/bin` and prints a line telling you to add that folder to your PATH. It also warns,
+naming the file, when someone else's `claude-mesh` comes first on PATH (or one written before the
+rename, which starts a window that is no longer there), and when a shell startup
 file (a PowerShell profile, `.bashrc`, `.zshrc`, fish's config and the like) defines a
 `claude-mesh` function or alias, which would run instead in that shell. Until typing `claude-mesh`
 reaches one of its own, start the window with the line it prints instead:
 
 ```bash
-~/.agentmesh/mesh-window "/home/alice/code/acme"
+~/.cosmicwave/mesh-window "/home/alice/code/acme"
 ```
 
 On Windows `window init` prints three lines. In PowerShell the launcher `mesh-window.cmd` (with
@@ -266,15 +269,15 @@ its absolute folder; a `~` in the folder doesn't work in PowerShell). In Git Bas
 has a space. In cmd the launcher by `%USERPROFILE%`, since cmd doesn't know `~` at all:
 
 ```powershell
-~/.agentmesh/mesh-window.cmd "C:\code\acme"    # PowerShell
+~/.cosmicwave/mesh-window.cmd "C:\code\acme"    # PowerShell
 ```
 
 ```bash
-~/.agentmesh/bin/claude-mesh "C:\code\acme"    # Git Bash
+~/.cosmicwave/bin/claude-mesh "C:\code\acme"    # Git Bash
 ```
 
 ```bat
-"%USERPROFILE%\.agentmesh\mesh-window.cmd" "C:\code\acme"
+"%USERPROFILE%\.cosmicwave\mesh-window.cmd" "C:\code\acme"
 ```
 
 The Windows launcher and `claude-mesh.cmd` write paths under your user folder as
@@ -283,7 +286,7 @@ non-ASCII letters works. `window init` refuses any other path with non-ASCII let
 installed outside your user folder, say).
 
 Confirm the development channel when Claude Code asks. The window then activates itself with
-`/agentmesh:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
+`/cmw:activate mesh window`; if it doesn't, type that. Leave it open, and work in your other
 sessions as usual. After a restart it lists its tasks and resumes those still in progress in their
 existing worktrees, and it reads a thread before it answers a reply meant for its earlier session.
 
@@ -296,7 +299,7 @@ sleeps or crashes says nothing, so the window goes away after `presence.offlineA
 by default) and keeps its threads. The next mesh window you start takes them over as soon as it
 activates; otherwise they wait for `presence.ownershipGraceMinutes` (120 by default). `peers`
 shows an away session with the time it closes. After a longer sleep, the window gets a new session
-when the laptop wakes and re-activates itself; you run `/agentmesh:activate` there only if it says
+when the laptop wakes and re-activates itself; you run `/cmw:activate` there only if it says
 it couldn't. It doesn't if another mesh window you started meanwhile is live: it asks you instead.
 
 **What it does without asking, and what asks:**
@@ -313,9 +316,9 @@ it couldn't. It doesn't if another mesh window you started meanwhile is live: it
   `kubectl`, `aws`, `ssh` and the like) and recursive searches (`grep -r`) outside a task worktree.
   In manual mode it also asks for PowerShell commands and anything else not on its list.
 - **Refused outright, in every mode:** commands that name secret files (`.env` files, keys,
-  `~/.ssh`, `~/.aws`, credentials, shell histories, browser profiles, `~/.agentmesh/`), print a
+  `~/.ssh`, `~/.aws`, credentials, shell histories, browser profiles, `~/.cosmicwave/`), print a
   stored credential (`gh auth token`), dump the whole environment or read a secret-named variable
-  (`$GITHUB_TOKEN`); edits outside its mesh worktrees, in `~/.agentmesh/`, or in any `.git` folder.
+  (`$GITHUB_TOKEN`); edits outside its mesh worktrees, in `~/.cosmicwave/`, or in any `.git` folder.
   `.env.example` is blocked too: paste what the window needs from it yourself. So is a commit
   message that names a secret file: the window rewords it.
 - It never runs in bypass mode. The details and their limits are in
@@ -345,7 +348,7 @@ path.
 
 **Answers come back to the private session that asked.**
 - On Windows, the mesh window passes that session a pointer through Claude Code's cross-session
-  messaging, such as `AgentMesh: bob-agent answered in thr-12 (msg msg-01…). Read it with thread
+  messaging, such as `Cosmicwave: bob-agent answered in thr-12 (msg msg-01…). Read it with thread
   thr-12 and reply there. Do not reply to this message.` The pointer carries no content: the
   session reads the answer itself with `thread`. Cross-session messaging needs Claude Code 2.1.234
   or later on native Windows (any Claude Code the plugin supports has it), and
@@ -353,12 +356,12 @@ path.
   holds the pointer for approval and drops it after 5 minutes; VS Code, Desktop and `-p` sessions
   can't show that approval, so they may not get it.
 - While an answer waits, the session's next prompt also gets one line, such as
-  `AgentMesh: 1 unread repl(ies) from bob-agent in threads this session started; call inbox to read
+  `Cosmicwave: 1 unread repl(ies) from bob-agent in threads this session started; call inbox to read
   them.` It covers any pointer that didn't arrive. It is verified on Windows. On macOS and Linux,
   where 0.6.0 has no pointer, it is the only path, and it relies on the plugin's MCP server being
   a child of the Claude Code process, which the probe checks. Both need the session to have made
   a mesh call, as asking does.
-- `AGENTMESH_RELAY=off` turns the pointers off for a session
+- `COSMICWAVE_RELAY=off` turns the pointers off for a session
   ([configuration.md](configuration.md#laptop-plugin)).
 - If the session closed before the answer came, the answer goes to your mesh window, which asks
   you: continue it there, reopen that session with `claude --resume <id>` (it prints the command
@@ -376,7 +379,7 @@ laptop still waits for you ([discord.md](discord.md#talking-to-agents)). Other p
 are information for your agent.
 
 **The session-start line.** When no session of yours is active with pushes (normally that is your
-mesh window), a new session says so in one line at startup. Add `AGENTMESH_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
+mesh window), a new session says so in one line at startup. Add `COSMICWAVE_MESH_WINDOW_HINT=off` to the `env` of your Claude Code `settings.json` to
 hide it.
 
 **Claude Desktop users.** Desktop can't pass the channel flag, so it can't be a mesh window. Start
@@ -392,18 +395,18 @@ and sends you the output. Fill the plugin options when asked: `agent_id`, `nats_
 ### Start a session
 
 ```bash
-claude --dangerously-load-development-channels plugin:agentmesh@agentmesh
+claude --dangerously-load-development-channels plugin:cmw@cosmicwave
 ```
 
-(Once an org admin adds `agentmesh@agentmesh` to `allowedChannelPlugins`, use
-`claude --channels plugin:agentmesh@agentmesh`.)
+(Once an org admin adds `cmw@cosmicwave` to `allowedChannelPlugins`, use
+`claude --channels plugin:cmw@cosmicwave`.)
 
 **Claude Desktop is pull-only.** Pushes need the channel flag, and Claude Code turns channels on
 only from the command line, so the Desktop app's Code tab cannot receive them. Run your
 [mesh window](#your-mesh-window) in a terminal instead. Without one, you can run
-`/agentmesh:activate` in Desktop: the test message never arrives, so Claude activates the session
+`/cmw:activate` in Desktop: the test message never arrives, so Claude activates the session
 in pull mode and says so. Teammates see you online (marked `pull`). Nothing is pushed: the hub keeps
-your messages unread, and each prompt you type starts with one AgentMesh line counting them, so
+your messages unread, and each prompt you type starts with one Cosmicwave line counting them, so
 Claude reads them with `inbox` and acts with `task_get`, `task_act`, `review_submit` or `reply`.
 Work reaches a pull session on your next prompt, not at once, so routing prefers teammates with a
 push session. To receive pushes, start a session from a terminal with the command above
@@ -416,7 +419,7 @@ stays inactive: the mesh tools still work, but nothing is pushed to it, it reads
 threads, and teammates do not see it. Answers to its own questions still reach it, as a pointer
 from the window or a line on its next prompt.
 
-To make another session receive mesh messages anyway, run `/agentmesh:activate` there. The hub
+To make another session receive mesh messages anyway, run `/cmw:activate` there. The hub
 sends the session a test message, and the session goes live once Claude confirms it arrived. If it
 does not arrive, the session was started without the channel flag: Claude activates it pull-only
 instead (see above), and you can restart it with the command above for instant pushes. (The mesh
@@ -425,38 +428,38 @@ If Claude
 reports that the hub could not reach the session, try again in a few seconds. If it keeps failing,
 the NATS permissions predate plugin 0.2.0: in static mode the admin re-renders nats.conf and
 reloads NATS ([deploy.md](deploy.md#operations)); in auth-callout mode, restart Claude Code.
-`/agentmesh:deactivate` turns a session off again and releases the work it owns, and
-`/agentmesh:take <task or thread>` moves work to the session where you type it.
+`/cmw:deactivate` turns a session off again and releases the work it owns, and
+`/cmw:take <task or thread>` moves work to the session where you type it.
 
 To take someone off the mesh, an admin runs `/mesh remove person:dana`. Their agent is
 disconnected within seconds and refused from then on. People listed in mesh.yaml are removed by
 editing it, followed by a re-render or a hub restart. The steps differ by mode; see
 [deploy.md](deploy.md#operations).
 
-### Keep AgentMesh updated
+### Keep Cosmicwave updated
 
 Claude Code leaves automatic updates off for a marketplace you add yourself, and the marketplace
 cannot turn them on for you. Turn them on once per Claude account, in any of these ways:
 
-- **The command.** In Claude Code, run `/agentmesh:autoupdate` (`/agentmesh:autoupdate off` turns
-  it off again). `/agentmesh:join` and `/agentmesh:setup` also offer it. From a terminal:
+- **The command.** In Claude Code, run `/cmw:autoupdate` (`/cmw:autoupdate off` turns
+  it off again). `/cmw:join` and `/cmw:setup` also offer it. From a terminal:
 
   ```bash
   node <plugin dir>/dist/cli.js autoupdate     # --off turns it off again
   ```
 
-  It sets `extraKnownMarketplaces.agentmesh` in your own `settings.json` (in `$CLAUDE_CONFIG_DIR`
+  It sets `extraKnownMarketplaces.cosmicwave` in your own `settings.json` (in `$CLAUDE_CONFIG_DIR`
   if set, else `~/.claude`) to the marketplace source Claude Code recorded when you added it, with
   `autoUpdate: true`. Nothing else in the file changes, and a second run says so.
   `--marketplace <name>` picks another marketplace name.
-- **The toggle.** In Claude Code, `/plugin` → Marketplaces → agentmesh → Enable auto-update.
+- **The toggle.** In Claude Code, `/plugin` → Marketplaces → cosmicwave → Enable auto-update.
 - **By hand**, in `~/.claude/settings.json`:
 
   ```json
   {
     "extraKnownMarketplaces": {
-      "agentmesh": {
-        "source": { "source": "github", "repo": "p2ratik/agentmesh" },
+      "cosmicwave": {
+        "source": { "source": "github", "repo": "p2ratik/cosmicwave" },
         "autoUpdate": true
       }
     }
@@ -468,13 +471,167 @@ cannot turn them on for you. Turn them on once per Claude account, in any of the
 
 Claude Code downloads a new version in the background after a session's first message. Running
 sessions keep the old version until you run `/reload-plugins` or restart Claude Code. Updates move
-only the plugin; the hub changes version only with `agentmesh upgrade`.
+only the plugin; the hub changes version only with `cmw upgrade`.
 
 **Optional, for a team repo.** The same `extraKnownMarketplaces` entry can go into the repo's
 `.claude/settings.json`. It is a convenience, not a guarantee: it applies only to sessions started
 in that repo, only after each teammate trusts the folder, and `enabledPlugins` there does not
 install the plugin from this marketplace by itself, so each teammate still runs
-`claude plugin install agentmesh@agentmesh`. The per-user setting above is the reliable path.
+`claude plugin install cmw@cosmicwave`. The per-user setting above is the reliable path.
+
+### Moving from AgentMesh
+
+Cosmicwave was called AgentMesh until 0.8.0 ([ADR 0014](adr/0014-rename-to-cosmicwave.md)). Your
+key, your agent id and your roles carry over, so nobody is invited again. Claude Code treats the
+renamed plugin as a new one, though: its tools, its saved options, its data folder and its
+auto-update setting start fresh, so each member reinstalls it once. Nothing changed on the wire,
+so you can switch before or after your hub moves to 0.8.0. Admins move the server with
+[deploy.md → Moving a server from AgentMesh](deploy.md#moving-a-server-from-agentmesh).
+
+**First, check that your key is in a file.** Before you uninstall, check that
+`~/.agentmesh/agent.json` exists and has an `nkeySeed` line. These print only a count or
+`True`, never the key:
+
+```bash
+grep -c nkeySeed ~/.agentmesh/agent.json
+```
+
+```powershell
+Select-String -Quiet nkeySeed ~/.agentmesh/agent.json
+```
+
+When the line is missing, `grep` prints `0` and PowerShell prints nothing at all: no output is a
+missing line, not a pass.
+
+If another Claude account on this laptop switched first, the folder is already
+`~/.cosmicwave`: check `~/.cosmicwave/agent.json` instead. Members who joined with an invite have
+the file. If the file or the line is missing, your settings are in the plugin's options, and the
+uninstall deletes them: note your agent id, hub URL and prefix, and keep your seed in a file of
+your own, so you can enter them again after the install.
+
+**Then, in each Claude account on this laptop:**
+
+1. Close every Claude Code session, your mesh window included, and any terminal open inside
+   `~/.agentmesh`.
+2. Remove the old marketplace. This also uninstalls the old plugin:
+
+   ```bash
+   claude plugin marketplace remove agentmesh
+   ```
+
+3. Add the new marketplace and install the plugin. Leave the plugin options empty when Claude Code
+   asks; `agent.json` fills them in.
+
+   ```bash
+   claude plugin marketplace add p2ratik/cosmicwave
+   claude plugin install cmw@cosmicwave
+   ```
+
+4. In `~/.claude/settings.json` (`$CLAUDE_CONFIG_DIR/settings.json` for a second account), replace
+   the allow rule `mcp__plugin_agentmesh_mesh__*` with `mcp__plugin_cmw_mesh__*`. If you turned on
+   automatic updates, delete the `agentmesh` entry under `extraKnownMarketplaces` too, and after
+   step 5 run `/cmw:autoupdate` ([Keep Cosmicwave updated](#keep-cosmicwave-updated)). If its
+   `env` sets `AGENTMESH_MESH_WINDOW_HINT` or `AGENTMESH_RELAY`, rename them
+   `COSMICWAVE_MESH_WINDOW_HINT` and `COSMICWAVE_RELAY`: the old names are not read.
+5. Start Claude Code with the channel flag
+   (`claude --dangerously-load-development-channels plugin:cmw@cosmicwave`), run `/cmw:window`
+   once, then start your mesh window with `claude-mesh` as before.
+
+**Also, where they apply:**
+- **Your PATH.** If you added `~/.agentmesh/bin` to it (the old `/agentmesh:window` put
+  `claude-mesh` there when it could not write it beside `claude`), replace it with
+  `~/.cosmicwave/bin`. `/cmw:window` says when the folder it wrote `claude-mesh` to is not on
+  your PATH.
+- **A team repo's `.claude/settings.json`** that names the old plugin: rename an `agentmesh` entry
+  under `extraKnownMarketplaces` to `cosmicwave` with `"repo": "p2ratik/cosmicwave"`,
+  `agentmesh@agentmesh` under `enabledPlugins` to `cmw@cosmicwave`, and an allow rule
+  `mcp__plugin_agentmesh_mesh__*` to `mcp__plugin_cmw_mesh__*`, then commit it.
+
+**When the folder moves.** The plugin's MCP server renames `~/.agentmesh` to `~/.cosmicwave` when
+it starts, and `/cmw:window` (`cmw window init`) does just before it writes the window. No other
+`cmw` command moves it: they read and write `~/.agentmesh` where it is, so a plugin from before
+the rename keeps its folder until you switch. It is one rename of the whole folder: your key,
+`agent.json` and anything else you keep there (an off-site backup key, say) move together, and
+nothing is copied or deleted. Then the seed path in `agent.json` is pointed into the new folder.
+- If Windows refuses the rename because a file in the folder is open, nothing changes: the plugin
+  uses `~/.agentmesh` where it is and tries again at its next start. `/cmw:window` will not set up
+  a window in the old folder; it asks you to close every Claude Code session and any terminal
+  inside that folder. It runs inside a session itself, so then run window init from a plain
+  terminal, as its message says: `node <plugin dir>/dist/cli.js window init` with the options
+  `/cmw:window` used (`--agent <your agent id>` and any others).
+- If both `~/.agentmesh` and `~/.cosmicwave` exist, nothing moves. The plugin's log and
+  `/cmw:window` say what to do, which depends on where `agent.json` is:
+  - **`~/.cosmicwave` has no `agent.json`:** your key is still in `~/.agentmesh`, so keep that
+    folder and change nothing in it. Move whatever you put in `~/.cosmicwave` into `~/.agentmesh`,
+    remove the then-empty `~/.cosmicwave`, and start Claude Code again (or run `/cmw:window`
+    again): the one rename then moves everything.
+  - **`~/.cosmicwave` holds `agent.json`:** the folder has already moved, and `~/.agentmesh` is a
+    leftover (a session still on the old plugin can make it again). Look inside it first and move
+    anything you still need into `~/.cosmicwave`: key files ending in `.nk`, an `agent.json`, a
+    backup key. Only then remove `~/.agentmesh`.
+- `/cmw:window` writes the launcher, its settings and `claude-mesh` again under the new names, and
+  replaces the `claude-mesh` the old plugin wrote. Until you run it, a new session says at startup
+  that this laptop's mesh window was set up under the old name and `claude-mesh` no longer starts
+  it (the line `COSMICWAVE_MESH_WINDOW_HINT=off` hides).
+
+**Two Claude accounts on one laptop** (`CLAUDE_CONFIG_DIR`) share the folder, so switch them
+together. Once one account has moved it, the old plugin in the other finds no `~/.agentmesh` and
+shows as not joined until you do steps 2 to 4 there as well.
+
+**What carries over, and what does not.**
+- **Kept:** your key and agent id, your roles and skills (the hub holds them), and every message.
+  The hub's inbox still holds them, and your mesh window reads them as before.
+- **Lost:** the plugin's local session records, which live in its data folder. A reply pointer, or
+  a `claude --resume`, for a conversation started under the old plugin does not find its session.
+  Read the thread with `thread` or `inbox` instead.
+
+**Going back to 0.7.2.** The default branch no longer offers `agentmesh@agentmesh`, so the old
+plugin comes from the tag `v0.7.2`:
+
+1. In each Claude account, close every Claude Code session, your mesh window included, and any
+   terminal open inside `~/.cosmicwave`. Then remove the new marketplace, which also uninstalls
+   the plugin:
+
+   ```bash
+   claude plugin marketplace remove cosmicwave
+   ```
+
+2. Once per laptop, rename the folder back. Do it only while no `~/.agentmesh` exists; if one
+   does, sort that out first as described under **When the folder moves**.
+
+   ```bash
+   [ -e ~/.agentmesh ] || mv ~/.cosmicwave ~/.agentmesh
+   ```
+
+   ```powershell
+   Rename-Item ~/.cosmicwave .agentmesh   # refuses when ~/.agentmesh exists
+   ```
+
+   Then open `~/.agentmesh/agent.json` in an editor and, in the `nkeySeed` path, change
+   `.cosmicwave` to `.agentmesh`: the move pointed it into the new folder, and 0.7.2 does not look
+   there. A seed written as the key itself (it starts with `SU`) stays as it is.
+3. In each Claude account, add the old marketplace at its tag and install the old plugin, leaving
+   its options empty:
+
+   ```bash
+   claude plugin marketplace add p2ratik/cosmicwave#v0.7.2
+   claude plugin install agentmesh@agentmesh
+   ```
+
+4. Undo step 4 of the move in each `settings.json`: the allow rule back to
+   `mcp__plugin_agentmesh_mesh__*`, `COSMICWAVE_MESH_WINDOW_HINT` and `COSMICWAVE_RELAY` back to
+   their `AGENTMESH_` names, and the `cosmicwave` entry under `extraKnownMarketplaces` deleted if
+   you turned on automatic updates. Undo the PATH and team repo changes too.
+5. Delete the `claude-mesh` files that `/cmw:window` wrote beside `claude` (`claude-mesh`, and
+   `claude-mesh.cmd` on Windows; their second line is `# cosmicwave claude-mesh` or
+   `rem cosmicwave claude-mesh`): they start the new window, and the old `/agentmesh:window`
+   leaves alone a file it did not write. Then start Claude Code with
+   `claude --dangerously-load-development-channels plugin:agentmesh@agentmesh`, run
+   `/agentmesh:window` once, and start the window with `claude-mesh`.
+
+Going back cannot restore either plugin's session records or options: each uninstall deleted its
+own, so a conversation started under 0.8.0 does not find its session either. Your key, agent id,
+roles and messages are unaffected.
 
 ## 4. First run
 
@@ -486,13 +643,13 @@ install the plugin from this marketplace by itself, so each teammate still runs
 
 ## Set up by hand
 
-The manual path, without `/agentmesh:setup`: you write the config, generate the keys and run the
+The manual path, without `/cmw:setup`: you write the config, generate the keys and run the
 repo's compose file, which builds the images from source. Contributors use it, and so do teams
 that keep NATS on a private network such as Tailscale. Plan about an hour.
 
 ### Prerequisites
 
-- Node 24 and pnpm 10 on the admin's machine (to run the `agentmesh` CLI).
+- Node 24 and pnpm 10 on the admin's machine (to run the `cmw` CLI).
 - A small Linux VM for the hub (see [deploy.md](deploy.md#deploying-by-hand)) with Docker.
 - For invite-only onboarding: a DNS name for the VM with a TLS certificate for NATS. Without
   invites: [Tailscale](https://tailscale.com) (or another private network) on the VM and every
@@ -502,7 +659,7 @@ that keep NATS on a private network such as Tailscale. Plan about an hour.
 ### Create the config
 
 ```bash
-git clone <your AgentMesh fork> && cd AgentMesh
+git clone <your Cosmicwave fork> && cd cosmicwave
 pnpm install && pnpm build
 pnpm mesh init config            # copies config/examples → config/
 ```
@@ -584,10 +741,10 @@ VM, then:
 ```bash
 cd deploy
 docker compose --profile discord up -d --build
-docker compose logs -f hub        # "mesh topology ready" … "agentmesh hub started"
+docker compose logs -f hub        # "mesh topology ready" … "cosmicwave hub started"
 ```
 
-Discord now shows an **Agent Mesh** category with the purpose channels. Each developer then sets
+Discord now shows a **Cosmicwave** category with the purpose channels. Each developer then sets
 up their laptop as in [section 3](#3-each-developers-laptop).
 
 ## Branch protection (recommended)

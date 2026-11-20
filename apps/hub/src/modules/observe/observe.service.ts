@@ -1,11 +1,11 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import {
   HubEvent,
   OBSERVABILITY_OFF,
   type ObservedEvent,
   ParticipantId,
   ReportedEvent,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { EventSink } from '../../contracts';
 import { EventsRepo } from './events.repo';

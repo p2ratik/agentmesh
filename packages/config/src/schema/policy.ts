@@ -1,4 +1,4 @@
-import { CLOSED_ASKER_DEFAULT_MINUTES, isSafeInviteUrl } from '@agentmesh/protocol';
+import { CLOSED_ASKER_DEFAULT_MINUTES, isSafeInviteUrl } from '@cosmicwave/protocol';
 import { z } from 'zod';
 
 export const GitConfig = z.object({
@@ -56,7 +56,7 @@ export const LeaseConfig = z.object({
   defaultTtlMinutes: z.number().int().positive().default(120),
 });
 
-/** Invite-only onboarding (`/mesh invite`, `/agentmesh:join`). */
+/** Invite-only onboarding (`/mesh invite`, `/cmw:join`). */
 export const EnrollmentConfig = z.object({
   /**
    * The NATS URL new members' laptops connect to, written into every invite code.

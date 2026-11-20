@@ -1,6 +1,6 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createLogger } from '@agentmesh/common';
+import { createLogger } from '@cosmicwave/common';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { HealthReport } from '../../../runtime/health';
 import { closeServer, startIngestServer } from './server';

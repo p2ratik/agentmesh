@@ -1,4 +1,4 @@
-import { type NatsUser, type Permissions, permissionsFor } from '@agentmesh/bus/permissions';
+import { type NatsUser, type Permissions, permissionsFor } from '@cosmicwave/bus/permissions';
 
 /** NATS config strings are double-quoted so `$JS…` is never read as a variable. */
 export const quote = (value: string): string => JSON.stringify(value);

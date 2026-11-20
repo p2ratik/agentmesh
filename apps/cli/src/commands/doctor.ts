@@ -50,7 +50,7 @@ async function checkContainers(
 export const doctorCommand: Command = {
   name: 'doctor',
   summary: "Check the mesh: DNS, TLS, containers, Discord channels and your agent's key",
-  help: `Usage: agentmesh doctor --dir <workspace>
+  help: `Usage: cmw doctor --dir <workspace>
 
 Checks that hosting.publicHost resolves and that NATS answers TLS there with a
 certificate valid for at least 14 more days (a server only), that nats, hub and

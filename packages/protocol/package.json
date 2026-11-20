@@ -1,6 +1,6 @@
 {
-  "name": "@agentmesh/protocol",
-  "version": "0.7.2",
+  "name": "@cosmicwave/protocol",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Wire contract shared by the hub, bridges and the Claude Code channel plugin.",
@@ -9,7 +9,7 @@
     "./observe-codes": "./src/observe-codes.ts"
   },
   "dependencies": {
-    "@agentmesh/common": "workspace:*",
+    "@cosmicwave/common": "workspace:*",
     "zod": "4.6.7"
   }
 }

@@ -10,9 +10,9 @@ import {
   jetstreamManager,
   type NatsConnection,
   removeLegacyDelivery,
-} from '@agentmesh/bus';
-import type { Logger } from '@agentmesh/common';
-import type { MeshConfig } from '@agentmesh/config';
+} from '@cosmicwave/bus';
+import type { Logger } from '@cosmicwave/common';
+import type { MeshConfig } from '@cosmicwave/config';
 
 const MB = 1024 * 1024;
 
@@ -31,7 +31,7 @@ export interface NatsSettings {
 export async function connectHubNats(settings: NatsSettings, logger: Logger): Promise<HubNats> {
   const nc = await connectBus({
     servers: settings.servers,
-    name: 'agentmesh-hub',
+    name: 'cosmicwave-hub',
     ...(settings.credentials ? { credentials: settings.credentials } : {}),
     logger,
   });

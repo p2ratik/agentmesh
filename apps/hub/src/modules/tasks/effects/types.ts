@@ -1,4 +1,4 @@
-import type { WorkflowConfig } from '@agentmesh/config';
+import type { WorkflowConfig } from '@cosmicwave/config';
 import type { HubContext } from '../../../context';
 import type { Actor, PostInput, TaskActInput } from '../../../contracts';
 import type { Operation } from '../operation';

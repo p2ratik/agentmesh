@@ -1,5 +1,5 @@
-import { HOUR_MS } from '@agentmesh/common';
-import type { ReplyStatus, RpcParams } from '@agentmesh/protocol';
+import { HOUR_MS } from '@cosmicwave/common';
+import type { ReplyStatus, RpcParams } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext } from '../../contracts';
 import { internalId } from '../../core/ids';

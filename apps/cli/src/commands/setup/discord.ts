@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { sleep } from '@agentmesh/common';
-import { DiscordUserId } from '@agentmesh/protocol';
+import { sleep } from '@cosmicwave/common';
+import { DiscordUserId } from '@cosmicwave/protocol';
 import { parseCommandArgs, usageError } from '../../args';
 import type { Command } from '../../context';
 import { writeFileAtomic } from '../../lib/files';
@@ -31,7 +31,7 @@ async function waitForGuilds(api: DiscordApi, waitMs: number, wait: (ms: number)
 export const setupDiscordCommand: Command = {
   name: 'setup discord',
   summary: 'Check the bot token, then wait for the bot to join your Discord server',
-  help: `Usage: agentmesh setup discord --dir <workspace> [--guild <id>] [--admin-discord-id <id>] [--wait-seconds 300]
+  help: `Usage: cmw setup discord --dir <workspace> [--guild <id>] [--admin-discord-id <id>] [--wait-seconds 300]
 
 Reads DISCORD_BOT_TOKEN from deploy/.env, checks it with Discord and prints the link
 that adds the bot to a server. Waits up to --wait-seconds for the bot to join one,

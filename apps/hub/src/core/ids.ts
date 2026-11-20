@@ -1,4 +1,4 @@
-import { formatId, MeshError, parseId, type SequentialKind } from '@agentmesh/common';
+import { formatId, MeshError, parseId, type SequentialKind } from '@cosmicwave/common';
 
 /** Parses a protocol id (`task-42`) into the internal integer, or throws `invalid_request`. */
 export function internalId(kind: SequentialKind, raw: string): number {

@@ -1,5 +1,5 @@
-import type { LoadedConfig } from '@agentmesh/config';
-import type { MessageRefs, ReplyStatus, SessionDelivery } from '@agentmesh/protocol';
+import type { LoadedConfig } from '@cosmicwave/config';
+import type { MessageRefs, ReplyStatus, SessionDelivery } from '@cosmicwave/protocol';
 import type {
   ControlService,
   MessagingService,

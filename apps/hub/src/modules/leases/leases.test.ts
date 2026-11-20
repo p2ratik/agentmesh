@@ -1,4 +1,4 @@
-import { HOUR_MS } from '@agentmesh/common';
+import { HOUR_MS } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
 import { createTestHarness, leaveTeam } from '../../testing/harness';
 import { LeaseServiceImpl } from './leases.service';

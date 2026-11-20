@@ -1,5 +1,5 @@
-import { configFromObject } from '@agentmesh/config';
-import type { MemberRecord, OpenInvite, RpcMethodName } from '@agentmesh/protocol';
+import { configFromObject } from '@cosmicwave/config';
+import type { MemberRecord, OpenInvite, RpcMethodName } from '@cosmicwave/protocol';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { authorize } from '../auth';
@@ -80,7 +80,7 @@ describe('/mesh invite', () => {
     const i = interaction({ id: 'dana' }, async (text) => void dms.push(text));
     const reply = await runInvite(i, actAs(rpc, 'alice', i.id));
     expect(dms[0]).toContain(CODE);
-    expect(dms[0]).toContain('/agentmesh:join');
+    expect(dms[0]).toContain('/cmw:join');
     expect(reply).toContain('inv-abc');
     expect(reply).not.toContain(CODE);
     expect(calls.map((c) => c.method)).toEqual(['enrollment.invite']);

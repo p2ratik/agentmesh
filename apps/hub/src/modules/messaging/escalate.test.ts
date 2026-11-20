@@ -1,4 +1,4 @@
-import type { RpcParams } from '@agentmesh/protocol';
+import type { RpcParams } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext } from '../../contracts';
 import { internalId } from '../../core/ids';

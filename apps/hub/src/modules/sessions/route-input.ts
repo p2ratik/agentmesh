@@ -1,4 +1,4 @@
-import type { ReleasedMarker } from '@agentmesh/protocol';
+import type { ReleasedMarker } from '@cosmicwave/protocol';
 import { toRouteSession } from './mappers';
 import { chainOwner, type RouteInput, takesReleased } from './routing';
 import type { SessionsRepo } from './sessions.repo';

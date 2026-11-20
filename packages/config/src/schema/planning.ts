@@ -1,4 +1,4 @@
-import { PlanRound } from '@agentmesh/protocol';
+import { PlanRound } from '@cosmicwave/protocol';
 import { z } from 'zod';
 
 export const PlanningTemplate = z.object({

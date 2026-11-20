@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { type Logger, MINUTE_MS } from '@agentmesh/common';
-import type { IngestSource } from '@agentmesh/config';
+import { type Logger, MINUTE_MS } from '@cosmicwave/common';
+import type { IngestSource } from '@cosmicwave/config';
 import { header, verifyIngestAuth } from './auth';
 import { type IdentifiedEvent, normalizeEvent } from './normalize';
 

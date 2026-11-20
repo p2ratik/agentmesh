@@ -1,4 +1,4 @@
-import { natsUsersFromConfig } from '@agentmesh/bus/permissions';
+import { natsUsersFromConfig } from '@cosmicwave/bus/permissions';
 import {
   DEFAULT_MAX_FILE_STORE,
   type NatsConfigResult,

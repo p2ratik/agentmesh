@@ -1,5 +1,5 @@
-import type { Condition, RuleMatch } from '@agentmesh/config';
-import type { Severity } from '@agentmesh/protocol';
+import type { Condition, RuleMatch } from '@cosmicwave/config';
+import type { Severity } from '@cosmicwave/protocol';
 
 /** What rules and templates can see of an event. */
 export interface RuleContext {

@@ -1,12 +1,12 @@
 {
-  "name": "agentmesh",
-  "description": "AgentMesh — let your team's Claude Code sessions work together like an engineering team.",
+  "name": "cosmicwave",
+  "description": "Cosmicwave — let your team's Claude Code sessions work together like an engineering team.",
   "owner": { "name": "Pratik", "url": "https://github.com/p2ratik" },
   "plugins": [
     {
-      "name": "agentmesh",
-      "source": "./plugins/agentmesh",
-      "description": "Channel plugin that connects a Claude Code session to the team's AgentMesh hub.",
+      "name": "cmw",
+      "source": "./plugins/cmw",
+      "description": "Channel plugin that connects a Claude Code session to the team's Cosmicwave hub.",
       "category": "development"
     }
   ]

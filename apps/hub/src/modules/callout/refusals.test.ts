@@ -1,4 +1,4 @@
-import { ManualClock, MINUTE_MS } from '@agentmesh/common';
+import { ManualClock, MINUTE_MS } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
 import { RefusalLog } from './refusals';
 

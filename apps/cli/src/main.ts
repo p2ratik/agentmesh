@@ -1,4 +1,4 @@
-import { isMeshError } from '@agentmesh/common';
+import { isMeshError } from '@cosmicwave/common';
 import { agentSetupCommand } from './commands/agent-setup';
 import { autoupdateCommand } from './commands/autoupdate';
 import { doctorCommand } from './commands/doctor';
@@ -42,12 +42,12 @@ export const COMMANDS: readonly Command[] = [
 function usage(): string {
   const width = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;
   return [
-    'agentmesh — set up and manage an AgentMesh',
+    'cmw — set up and manage a Cosmicwave mesh',
     '',
     'Commands:',
     ...COMMANDS.map((c) => `  ${c.name.padEnd(width)}${c.summary}`),
     '',
-    'Run `agentmesh <command> --help` for details.',
+    'Run `cmw <command> --help` for details.',
   ].join('\n');
 }
 
@@ -61,7 +61,10 @@ export function matchCommand(argv: readonly string[]): { command: Command; rest:
   return null;
 }
 
-/** Runs the CLI; returns the exit code (0 ok, 1 failure, 2 usage error). */
+/**
+ * Runs the CLI; returns the exit code (0 ok, 1 failure, 2 usage error). It never moves the laptop
+ * folder: only `window init` does, so a plugin from before the rename keeps its folder.
+ */
 export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
   if (argv.length === 0 || argv[0] === 'help' || argv[0] === '--help' || argv[0] === '-h') {
     ctx.stdout(usage());

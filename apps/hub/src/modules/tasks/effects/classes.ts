@@ -1,5 +1,5 @@
-import type { WorkflowState } from '@agentmesh/config';
-import type { DeliveryClass } from '@agentmesh/protocol';
+import type { WorkflowState } from '@cosmicwave/config';
+import type { DeliveryClass } from '@cosmicwave/protocol';
 import type { TaskRecord } from '../repo';
 
 /*

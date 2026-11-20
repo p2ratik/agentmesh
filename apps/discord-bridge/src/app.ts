@@ -4,10 +4,10 @@ import {
   jetstream,
   type NatsConnection,
   RpcClient,
-} from '@agentmesh/bus';
-import type { Logger } from '@agentmesh/common';
-import type { LoadedConfig } from '@agentmesh/config';
-import { inboxPrefix } from '@agentmesh/protocol';
+} from '@cosmicwave/bus';
+import type { Logger } from '@cosmicwave/common';
+import type { LoadedConfig } from '@cosmicwave/config';
+import { inboxPrefix } from '@cosmicwave/protocol';
 import { Client, Events, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { commandDefinitions } from './commands/definitions';
 import { createInteractionHandler } from './commands/router';
@@ -46,7 +46,7 @@ export async function startBridge(options: BridgeOptions): Promise<Bridge> {
 
   const nc: NatsConnection = await connectBus({
     servers: options.servers,
-    name: 'agentmesh-discord',
+    name: 'cosmicwave-discord',
     inboxPrefix: inboxPrefix(discord.serviceId),
     ...(options.credentials ? { credentials: options.credentials } : {}),
     logger,

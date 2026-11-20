@@ -1,5 +1,5 @@
-import type { ConfigIndex } from '@agentmesh/config';
-import type { DomainEvent } from '@agentmesh/protocol';
+import type { ConfigIndex } from '@cosmicwave/config';
+import type { DomainEvent } from '@cosmicwave/protocol';
 import { renderNotice, renderPaused, renderResumed } from '../render/control';
 import { renderExternalReceived } from '../render/external';
 import type { PostIntent } from '../render/intents';

@@ -1,5 +1,5 @@
-import { MINUTE_MS } from '@agentmesh/common';
-import type { MeshMessage, ReleasedMarker } from '@agentmesh/protocol';
+import { MINUTE_MS } from '@cosmicwave/common';
+import type { MeshMessage, ReleasedMarker } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { MessagingService } from '../../contracts';
 import { threadKey } from '../../core/ids';

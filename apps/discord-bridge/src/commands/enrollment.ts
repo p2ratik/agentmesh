@@ -1,4 +1,4 @@
-import type { RpcParamsInput, RpcResult } from '@agentmesh/protocol';
+import type { RpcParamsInput, RpcResult } from '@cosmicwave/protocol';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import type { HumanCall } from '../rpc';
 import { splitIds } from './params';
@@ -29,10 +29,10 @@ export function inviteParams(o: {
 /** The DM: the only place the code is ever written. Pure. */
 export function inviteDm(invite: Invite, invitedBy: string): string {
   return [
-    `You're invited to join the team's AgentMesh as **${invite.agentId}** (invited by ${invitedBy}).`,
+    `You're invited to join the team's mesh as **${invite.agentId}** (invited by ${invitedBy}).`,
     '',
-    '1. Save the code below to `~/.agentmesh/invite.txt`. Do not paste it into a chat: it is a one-time secret.',
-    '2. In Claude Code with the AgentMesh plugin installed, run `/agentmesh:join`.',
+    '1. Save the code below to `~/.cosmicwave/invite.txt`. Do not paste it into a chat: it is a one-time secret.',
+    '2. In Claude Code with the Cosmicwave plugin installed, run `/cmw:join`.',
     `It expires ${when(invite.expiresAt)} and works once.`,
     '',
     `\`\`\`\n${invite.code}\n\`\`\``,

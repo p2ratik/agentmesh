@@ -1,6 +1,6 @@
-import type { NatsConnection } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import type { SessionDelivery } from '@agentmesh/protocol';
+import type { NatsConnection } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import type { SessionDelivery } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { deliveryChunks, NatsSessionTransport } from './nats-transport';
 

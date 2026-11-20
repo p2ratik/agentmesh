@@ -1,4 +1,4 @@
-import type { DeliveryClass } from '@agentmesh/protocol';
+import type { DeliveryClass } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import {
   assigneeNoticeClass,

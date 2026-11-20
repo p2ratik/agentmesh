@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { createLogger } from '@agentmesh/common';
+import { createLogger } from '@cosmicwave/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
@@ -7,9 +7,9 @@ import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './supp
 
 /**
  * Real NATS (no auth) + real hub + the bundled plugin over MCP stdio.
- * Needs AGENTMESH_TEST_NATS=nats://… with JetStream, and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS=nats://… with JetStream, and a built plugin.
  */
-const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
+const NATS = process.env.COSMICWAVE_TEST_NATS ?? '';
 const PREFIX = `e2e${Date.now().toString(36)}`;
 
 describe.skipIf(!NATS || !existsSync(PLUGIN))('mesh end to end over NATS', () => {

@@ -9,7 +9,7 @@ export default defineConfig({
   // Keep `node:` specifiers: newer built-ins such as node:sqlite only exist with the prefix.
   removeNodeProtocol: false,
   clean: true,
-  noExternal: [/^@agentmesh\//],
+  noExternal: [/^@cosmicwave\//],
   // Bundled CommonJS dependencies (e.g. nkeys) call require(); give the ESM bundle one.
   banner: {
     js: [

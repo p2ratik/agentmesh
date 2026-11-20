@@ -1,12 +1,12 @@
-import { type JetStreamClient, publishJson, runConsumer } from '@agentmesh/bus';
-import type { Logger } from '@agentmesh/common';
+import { type JetStreamClient, publishJson, runConsumer } from '@cosmicwave/bus';
+import type { Logger } from '@cosmicwave/common';
 import {
   consumerNames,
   IngestEvent,
   parseTokenAfter,
   streamNames,
   subjects,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import { eventId, type IdentifiedEvent } from './http/normalize';
 
 /** How events reach the rules engine durably. NATS in production. */

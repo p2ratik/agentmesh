@@ -41,7 +41,7 @@ export function claimThread(
   const key = threadKey(threadId);
   return (
     `${key} belongs to your session ${held.id} (“${held.description ?? 'no description'}”); ` +
-    `its messages go there. Run /agentmesh:take ${key} to move it here.`
+    `its messages go there. Run /cmw:take ${key} to move it here.`
   );
 }
 

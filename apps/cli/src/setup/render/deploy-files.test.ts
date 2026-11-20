@@ -23,10 +23,10 @@ describe('renderCompose', () => {
     const compose = renderCompose();
     expect(compose).not.toContain('build:');
     expect(compose).toContain(
-      `image: \${AGENTMESH_IMAGE_REGISTRY}/agentmesh-hub:\${AGENTMESH_VERSION}`,
+      `image: \${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-hub:\${COSMICWAVE_VERSION}`,
     );
     expect(compose).toContain(
-      `image: \${AGENTMESH_IMAGE_REGISTRY}/agentmesh-discord-bridge:\${AGENTMESH_VERSION}`,
+      `image: \${COSMICWAVE_IMAGE_REGISTRY}/cosmicwave-discord-bridge:\${COSMICWAVE_VERSION}`,
     );
   });
 
@@ -36,9 +36,9 @@ describe('renderCompose', () => {
     expect(services.nats.ports).toEqual([`\${NATS_BIND:-127.0.0.1}:4222:4222`]);
     expect(services.nats.networks.default.aliases).toEqual([`\${NATS_PUBLIC_HOST:-nats}`]);
     expect(services.hub.ports).toEqual([`\${HUB_HTTP_BIND:-127.0.0.1}:8787:8787`]);
-    expect(services.hub.environment.AGENTMESH_SECRETS_DIR).toBe('/secrets');
+    expect(services.hub.environment.COSMICWAVE_SECRETS_DIR).toBe('/secrets');
     expect(services['discord-bridge'].profiles).toEqual(['discord']);
-    expect(services['discord-bridge'].environment.AGENTMESH_NKEY_SEED).toBe(
+    expect(services['discord-bridge'].environment.COSMICWAVE_NKEY_SEED).toBe(
       '/secrets/discord-bridge.nk',
     );
     expect(Object.keys(volumes)).toEqual(['nats-data', 'hub-data']);
@@ -49,7 +49,7 @@ describe('renderCompose', () => {
     const { services } = parse(compose);
     expect(services.hub.volumes).toContain('./secrets:/secrets:ro');
     expect(services['discord-bridge'].volumes).toEqual([
-      `\${AGENTMESH_CONFIG_DIR:-../config}:/config:ro`,
+      `\${COSMICWAVE_CONFIG_DIR:-../config}:/config:ro`,
       './secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro',
     ]);
     const bridge = compose.slice(compose.indexOf('  discord-bridge:'));
@@ -101,8 +101,8 @@ describe('renderEnv', () => {
     const lines = env().split('\n');
     expect(lines).toContain('NATS_PUBLIC_HOST=mesh.acme.dev');
     expect(lines).toContain('NATS_BIND=0.0.0.0');
-    expect(lines).toContain('AGENTMESH_IMAGE_REGISTRY=ghcr.io/acme');
-    expect(lines).toContain('AGENTMESH_VERSION=9.9.9');
+    expect(lines).toContain('COSMICWAVE_IMAGE_REGISTRY=ghcr.io/acme');
+    expect(lines).toContain('COSMICWAVE_VERSION=9.9.9');
     expect(lines).toContain('DISCORD_BOT_TOKEN=');
   });
 

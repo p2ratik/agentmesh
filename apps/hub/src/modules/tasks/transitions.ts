@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { EffectRef, WorkflowConfig, WorkflowTransition } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import type { EffectRef, WorkflowConfig, WorkflowTransition } from '@cosmicwave/config';
 import type { HubContext } from '../../context';
 import type { Actor, PostInput, TaskActInput } from '../../contracts';
 import { systemActor } from '../../rpc/actor';

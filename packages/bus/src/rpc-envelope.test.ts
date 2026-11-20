@@ -1,4 +1,4 @@
-import { createLogger } from '@agentmesh/common';
+import { createLogger } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
 import { type RpcDispatcher, serveRpc } from './rpc-server';
 

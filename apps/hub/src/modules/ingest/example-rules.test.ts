@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from '@agentmesh/config';
+import { loadConfig } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import { type RuleContext, ruleMatches } from './rules/match';
 

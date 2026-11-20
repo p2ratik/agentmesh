@@ -36,7 +36,7 @@ jobs:
         env:
           OWNER: ${{ github.repository_owner }}
         run: |
-          V=$(node -p "require('./plugins/agentmesh/.claude-plugin/plugin.json').version")
+          V=$(node -p "require('./plugins/cmw/.claude-plugin/plugin.json').version")
           echo "version=$V" >> "$GITHUB_OUTPUT"
           # GHCR names are lowercase; this matches DEFAULT_IMAGE_REGISTRY in apps/cli.
           echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
@@ -66,7 +66,7 @@ jobs:
           target: hub
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ steps.version.outputs.owner }}/agentmesh-hub:${{ steps.version.outputs.version }}
+          tags: ghcr.io/${{ steps.version.outputs.owner }}/cosmicwave-hub:${{ steps.version.outputs.version }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
       - name: Build and push the Discord bridge image
         id: bridge
@@ -78,7 +78,7 @@ jobs:
           target: discord-bridge
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ steps.version.outputs.owner }}/agentmesh-discord-bridge:${{ steps.version.outputs.version }}
+          tags: ghcr.io/${{ steps.version.outputs.owner }}/cosmicwave-discord-bridge:${{ steps.version.outputs.version }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
       # Signed by GitHub for this workflow on main and stored next to the images. Anyone with write
       # access can push an image to these tags from another branch; only these pass the deploy.
@@ -86,14 +86,14 @@ jobs:
         if: steps.version.outputs.release == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/agentmesh-hub
+          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/cosmicwave-hub
           subject-digest: ${{ steps.hub.outputs.digest }}
           push-to-registry: true
       - name: Attest the Discord bridge image
         if: steps.version.outputs.release == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/agentmesh-discord-bridge
+          subject-name: ghcr.io/${{ steps.version.outputs.owner }}/cosmicwave-discord-bridge
           subject-digest: ${{ steps.bridge.outputs.digest }}
           push-to-registry: true
       - name: Tag the release

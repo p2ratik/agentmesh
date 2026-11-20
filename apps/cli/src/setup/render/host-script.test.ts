@@ -7,7 +7,7 @@ const hasBash = spawnSync('bash', ['--version']).status === 0;
 
 const script = renderHostScript({
   publicHost: 'mesh.acme.dev',
-  remoteDir: '/opt/agentmesh',
+  remoteDir: '/opt/cosmicwave',
   user: 'deploy',
 });
 
@@ -18,7 +18,7 @@ describe('renderHostScript', () => {
     expect(script).toContain("MESH_USER='deploy'");
     expect(script).toContain('Ubuntu 24.04 is the tested target');
     expect(script).toContain('certbot certonly --standalone');
-    expect(script).toContain('/opt/agentmesh/deploy/docker-compose.yml');
+    expect(script).toContain('/opt/cosmicwave/deploy/docker-compose.yml');
     expect(script).toContain('usermod -aG docker "$MESH_USER"');
     expect(script).not.toMatch(/\bgit\b/);
   });
@@ -37,7 +37,7 @@ describe('renderHostScript', () => {
 
   it('creates the workspace folders for the ssh user and gets a certificate only once', () => {
     for (const dir of ['', '/deploy', '/deploy/nats', '/deploy/secrets', '/config']) {
-      expect(script).toContain(`"$AGENTMESH_DIR${dir}"`);
+      expect(script).toContain(`"$COSMICWAVE_DIR${dir}"`);
     }
     expect(script).toContain('chown "$MESH_USER:"');
     expect(script).toMatch(
@@ -61,7 +61,7 @@ describe('renderHostScript', () => {
       });
       expect(odd).toContain(`MESH_USER='o'\\''neil'`);
       expect((await runProcess('bash', ['-n'], { input: odd })).code).toBe(0);
-      expect(await valuesOf(odd, ['PUBLIC_HOST', 'AGENTMESH_DIR', 'MESH_USER'])).toEqual([
+      expect(await valuesOf(odd, ['PUBLIC_HOST', 'COSMICWAVE_DIR', 'MESH_USER'])).toEqual([
         "it's.dev",
         "/opt/a'b",
         "o'neil",

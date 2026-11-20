@@ -1,5 +1,5 @@
 {
-  "name": "agentmesh",
+  "name": "cosmicwave",
   "private": true,
   "description": "Local-first mesh that lets Claude Code sessions on different machines work together like an engineering team.",
   "license": "MIT",
@@ -17,10 +17,11 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "check:size": "node scripts/check-file-size.mjs",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:size && pnpm test",
-    "dev:hub": "pnpm --filter @agentmesh/hub dev",
-    "dev:bridge": "pnpm --filter @agentmesh/discord-bridge dev",
-    "mesh": "pnpm --filter @agentmesh/cli start"
+    "check:name": "node scripts/check-legacy-name.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:size && pnpm check:name && pnpm test",
+    "dev:hub": "pnpm --filter @cosmicwave/hub dev",
+    "dev:bridge": "pnpm --filter @cosmicwave/discord-bridge dev",
+    "mesh": "pnpm --filter @cosmicwave/cli start"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

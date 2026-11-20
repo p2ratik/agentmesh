@@ -37,6 +37,8 @@ export const SECRET_HOME_PATHS = [
   '.bash_history',
   '.zsh_history',
   'AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt',
+  '.cosmicwave/**',
+  // The folder's old name, until it is moved (or a leftover beside the new one).
   '.agentmesh/**',
   '.claude/.credentials.json',
   '.claude.json',

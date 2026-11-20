@@ -1,4 +1,4 @@
-# Observability: a timeline of how AgentMesh behaves, on the hub and on every laptop
+# Observability: a timeline of how Cosmicwave behaves, on the hub and on every laptop
 
 Status: approved for phase 1 (2026-11-06).
 
@@ -22,7 +22,7 @@ Staging QA of 0.6.0 found five bugs. The two worst ones (the window's guard refu
 `SendMessage` shape) happened entirely on a laptop. The hub logged "relay forwarded", which looked like
 success, while every relay failed. Monitoring that only watches the server would have shown green.
 
-The operator (Pratik, who develops AgentMesh and owns the server) wants to see how AgentMesh behaves on
+The operator (Pratik, who develops Cosmicwave and owns the server) wants to see how Cosmicwave behaves on
 every teammate's machine, and to be alerted when it misbehaves. He expects "unexpected behaviours" he
 can't name in advance. So the system has to keep a detailed event history that he can hand to an agent
 (Claude), and the agent has to be able to work out what happened from it quickly.
@@ -31,7 +31,7 @@ can't name in advance. So the system has to keep a detailed event history that h
 
 **Goals**
 
-- A per-agent, per-session **timeline** of AgentMesh behaviour, covering what the hub saw and what each
+- A per-agent, per-session **timeline** of Cosmicwave behaviour, covering what the hub saw and what each
   plugin saw. For example: activations and their result, every mesh tool call and its outcome, each
   message's delivery journey, relay outcomes, guard decisions, disconnects and reconnects, and versions.
 - **Agents can read it.** One command or tool call returns a timeline an agent can reason over.
@@ -44,7 +44,7 @@ can't name in advance. So the system has to keep a detailed event history that h
 - Tracing Claude's reasoning or what it did with a message. The plugin can see that it handed a message
   to Claude Code; it can't see whether Claude read it.
 - A general log platform (Loki or ELK). The hub's own event store is enough for a team of 5–15.
-- Monitoring teammates' laptops beyond AgentMesh (CPU, other apps).
+- Monitoring teammates' laptops beyond Cosmicwave (CPU, other apps).
 
 **Anti-goals** (failure even if it technically works)
 
@@ -59,7 +59,7 @@ can't name in advance. So the system has to keep a detailed event history that h
 ## 3. Who can see what (decided by Pratik)
 
 - **Viewers** are a config list of humans: `observability.viewers`. For this team it's `[pratik]`. Later,
-  someone who joins AgentMesh development can be added without a code change.
+  someone who joins Cosmicwave development can be added without a code change.
 - The hub enforces it. A timeline call from an agent whose owner isn't a viewer is refused with
   `forbidden`. Aheen and every other teammate are refused, admins included.
 - Grafana, Prometheus and Alertmanager run on the operator's VM and are reachable only through his SSH
@@ -162,9 +162,9 @@ store. There is no HTTP read path for events, so the viewers check has nothing t
 1. **Mesh tool `timeline`**, in every plugin, described as "operator only". The operator asks any of
    his Claude sessions, "show me Aheen's mesh timeline for the last two hours". For anyone else the hub
    refuses it.
-2. **CLI** `agentmesh timeline --agent <id> [--session <id>] [--thread thr-N] [--since 2h]`. It uses the
-   operator's own agent credentials from `~/.agentmesh/agent.json`, the same as the plugin.
-3. **Grafana** for trends only (section 8). An alert links the exact `agentmesh timeline …` command to
+2. **CLI** `cmw timeline --agent <id> [--session <id>] [--thread thr-N] [--since 2h]`. It uses the
+   operator's own agent credentials from `~/.cosmicwave/agent.json`, the same as the plugin.
+3. **Grafana** for trends only (section 8). An alert links the exact `cmw timeline …` command to
    run.
 
 The output is plain text, one line per event, grouped into a delivery's journey where it can be: hub sent
@@ -228,7 +228,7 @@ CLI print the same thing.
 - **Routing.** Alertmanager sends to the operator's private Discord webhook (Alertmanager's Discord
   receiver) or to email, from `ALERT_DISCORD_WEBHOOK_URL` / SMTP settings in `deploy/.env`. Alerts never
   pass through the hub or the bridge, so they still arrive when those are down. Each alert's text names
-  the agent and the `agentmesh timeline` command.
+  the agent and the `cmw timeline` command.
 - **A dead man's switch.** Prometheus's always-firing `Watchdog` alert pings an external check-in URL
   every minute (`DEADMAN_PING_URL`, optional; healthchecks.io's free plan or any equivalent). If the
   pings stop because the VM, Prometheus or Alertmanager died, the external service alerts the operator.
@@ -252,7 +252,7 @@ They are added, empty and commented, to the repo's `deploy/.env.example`.
 
 **Scope of the monitoring stack (my call).** In 0.7.0 the Prometheus, Alertmanager and Grafana stack lives
 in the repo's deploy files (`deploy/docker-compose.yml` profile `monitoring`, `deploy/monitoring/`). That
-is the compose the operator's VM runs from `/opt/agentmesh`. The `setup` wizard and its rendered workspace
+is the compose the operator's VM runs from `/opt/cosmicwave`. The `setup` wizard and its rendered workspace
 compose don't install it yet: other teams get the telemetry, the timeline and `/metrics`, and can copy
 `deploy/monitoring/`. Wizard support is a later change.
 
@@ -262,7 +262,7 @@ compose don't install it yet: other teams get the telemetry, the timeline and `/
   images are third-party, pinned by version in the compose file, and never pulled by the forced command.
 - The operator starts or upgrades the profile by hand, with a reviewed script,
   `deploy/monitoring/up.sh` (`docker compose --profile monitoring pull` and `up -d`). VM writes are his.
-- A release can change alert rules or dashboards in the `/opt/agentmesh` checkout. So, when the profile
+- A release can change alert rules or dashboards in the `/opt/cosmicwave` checkout. So, when the profile
   is running, the deploy script sends Prometheus and Alertmanager a reload (`kill -s HUP`). No image
   changes, and no effect on the hub's health gate or rollback.
 - `docs/security.md` notes that the forced command gains that reload.

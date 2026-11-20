@@ -1,5 +1,5 @@
-import type { Logger } from '@agentmesh/common';
-import { MAX_TAKEN_THREADS } from '@agentmesh/protocol';
+import type { Logger } from '@cosmicwave/common';
+import { MAX_TAKEN_THREADS } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import { threadKey } from '../../core/ids';
 import { recordHub } from '../observe/hub-event';

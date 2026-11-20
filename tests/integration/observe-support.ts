@@ -4,13 +4,13 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { type AddressInfo, createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ObservedEvent } from '@agentmesh/protocol';
+import type { ObservedEvent } from '@cosmicwave/protocol';
 import { createUser } from '@nats-io/nkeys';
 import { cleanEnv, PLUGIN_CLI } from './support';
 
-/** Helpers for the observability e2e files: the bundled `agentmesh timeline`, laptops, ports. */
+/** Helpers for the observability e2e files: the bundled `cmw timeline`, laptops, ports. */
 
-export const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+export const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 
 export interface Run {
   code: number | null;
@@ -30,7 +30,7 @@ export async function until<T>(fn: () => Promise<T | undefined>, timeoutMs = 30_
   }
 }
 
-/** `agentmesh timeline` from the plugin's bundle, with `home` as `~`; killed if it hangs. */
+/** `cmw timeline` from the plugin's bundle, with `home` as `~`; killed if it hangs. */
 export function timeline(home: string, ...args: string[]): Promise<Run> {
   const started = Date.now();
   const env = { ...cleanEnv(), HOME: home, USERPROFILE: home };
@@ -61,7 +61,7 @@ export const jsonLines = (r: Run): ObservedEvent[] =>
 export function laptop(temps: string[], agentId: string, natsUrl: string, prefix: string) {
   const home = mkdtempSync(join(tmpdir(), 'am-e2e-obs-home-'));
   temps.push(home);
-  const dir = join(home, '.agentmesh');
+  const dir = join(home, '.cosmicwave');
   mkdirSync(dir);
   const seed = new TextDecoder().decode(createUser().getSeed());
   const nkeySeed = join(dir, `${agentId}.nk`);

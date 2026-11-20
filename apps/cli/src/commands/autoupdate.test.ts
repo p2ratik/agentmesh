@@ -6,7 +6,7 @@ import type { CliContext } from '../context';
 import { runCli } from '../main';
 
 function setup(env: Record<string, string> = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'agentmesh-autoupdate-'));
+  const home = mkdtempSync(join(tmpdir(), 'cosmicwave-autoupdate-'));
   const out: string[] = [];
   const err: string[] = [];
   const ctx: CliContext = {
@@ -22,22 +22,22 @@ function setup(env: Record<string, string> = {}) {
 
 const entry = (file: string) => JSON.parse(readFileSync(file, 'utf8')).extraKnownMarketplaces;
 
-describe('agentmesh autoupdate', () => {
+describe('cmw autoupdate', () => {
   it('creates settings.json, then reports nothing changed on a second run', async () => {
     const { home, out, run } = setup();
     const file = join(home, '.claude', 'settings.json');
     expect(await run()).toBe(0);
     expect(out[0]).toBe(
-      `Turned on auto-update for the "agentmesh" plugin marketplace in ${file}. Claude Code downloads new versions in the background; run /reload-plugins or restart Claude Code to load one.`,
+      `Turned on auto-update for the "cosmicwave" plugin marketplace in ${file}. Claude Code downloads new versions in the background; run /reload-plugins or restart Claude Code to load one.`,
     );
     expect(entry(file)).toEqual({
-      agentmesh: { source: { source: 'github', repo: 'p2ratik/agentmesh' }, autoUpdate: true },
+      cosmicwave: { source: { source: 'github', repo: 'p2ratik/cosmicwave' }, autoUpdate: true },
     });
     const text = readFileSync(file, 'utf8');
     expect(text.endsWith('}\n')).toBe(true);
     expect(await run()).toBe(0);
     expect(out[1]).toBe(
-      `Auto-update for the "agentmesh" plugin marketplace was already on in ${file}; nothing changed.`,
+      `Auto-update for the "cosmicwave" plugin marketplace was already on in ${file}; nothing changed.`,
     );
     expect(readFileSync(file, 'utf8')).toBe(text);
   });
@@ -46,14 +46,16 @@ describe('agentmesh autoupdate', () => {
     const { home, run } = setup({ CLAUDE_CONFIG_DIR: 'second' });
     const dir = join(home, 'second');
     mkdirSync(join(dir, 'plugins'), { recursive: true });
-    const source = { source: 'git', url: 'https://git.acme.dev/agentmesh.git' };
+    const source = { source: 'git', url: 'https://git.acme.dev/cosmicwave.git' };
     writeFileSync(
       join(dir, 'plugins', 'known_marketplaces.json'),
-      JSON.stringify({ agentmesh: { source, installLocation: dir, lastUpdated: 'x' } }),
+      JSON.stringify({ cosmicwave: { source, installLocation: dir, lastUpdated: 'x' } }),
     );
     writeFileSync(join(dir, 'settings.json'), '{\n  "model": "opus"\n}\n');
     expect(await run('--off')).toBe(0);
-    expect(entry(join(dir, 'settings.json'))).toEqual({ agentmesh: { source, autoUpdate: false } });
+    expect(entry(join(dir, 'settings.json'))).toEqual({
+      cosmicwave: { source, autoUpdate: false },
+    });
   });
 
   it.skipIf(process.platform === 'win32')('keeps the file’s mode', async () => {

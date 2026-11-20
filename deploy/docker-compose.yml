@@ -1,19 +1,19 @@
-# The hub VM: NATS JetStream + the AgentMesh hub (+ the Discord bridge).
+# The hub VM: NATS JetStream + the Cosmicwave hub (+ the Discord bridge).
 #
 #   cp .env.example .env              # fill in secrets
 #   docker compose up -d              # nats + hub
 #   docker compose --profile discord up -d   # also the Discord bridge
 #
 # Expects (relative to this directory):
-#   nats/nats.conf    from `agentmesh nats-config [--tls] --out deploy/nats/nats.conf`
+#   nats/nats.conf    from `cmw nats-config [--tls] --out deploy/nats/nats.conf`
 #   nats/tls/         fullchain.pem + privkey.pem when NATS requires TLS (see deploy/azure)
-#   secrets/*.nk      from `agentmesh keys add … --secrets deploy/secrets`
-#   the mesh config   at $AGENTMESH_CONFIG_DIR (default ../config)
+#   secrets/*.nk      from `cmw keys add … --secrets deploy/secrets`
+#   the mesh config   at $COSMICWAVE_CONFIG_DIR (default ../config)
 #
 # Every service runs without Linux capabilities, cannot gain privileges, has a read-only root
 # filesystem (writes go to its volume and a small /tmp), and has memory, process and log caps.
 # The caps come from .env (docs/deploy.md#hardening-the-server).
-name: agentmesh
+name: cosmicwave
 
 # Docker's default log never rotates, so a log flood would fill the disk: 3 files of 10 MB.
 x-logging: &logging
@@ -52,14 +52,14 @@ services:
     build: { context: .., dockerfile: deploy/Dockerfile, target: hub }
     env_file: .env
     environment:
-      AGENTMESH_CONFIG: /config
-      AGENTMESH_DATA_DIR: /data
-      AGENTMESH_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
-      AGENTMESH_NKEY_SEED: /secrets/hub.nk
+      COSMICWAVE_CONFIG: /config
+      COSMICWAVE_DATA_DIR: /data
+      COSMICWAVE_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
+      COSMICWAVE_NKEY_SEED: /secrets/hub.nk
       # Auth-callout mode reads hub-issuer.nk, hub-xkey.nk and hub-sys.nk from here.
-      AGENTMESH_SECRETS_DIR: /secrets
+      COSMICWAVE_SECRETS_DIR: /secrets
     volumes:
-      - ${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
+      - ${COSMICWAVE_CONFIG_DIR:-../config}:/config:ro
       - ./secrets:/secrets:ro
       - hub-data:/data
     ports:
@@ -81,11 +81,11 @@ services:
     build: { context: .., dockerfile: deploy/Dockerfile, target: discord-bridge }
     env_file: .env
     environment:
-      AGENTMESH_CONFIG: /config
-      AGENTMESH_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
-      AGENTMESH_NKEY_SEED: /secrets/discord-bridge.nk
+      COSMICWAVE_CONFIG: /config
+      COSMICWAVE_NATS_URL: nats://${NATS_PUBLIC_HOST:-nats}:4222
+      COSMICWAVE_NKEY_SEED: /secrets/discord-bridge.nk
     volumes:
-      - ${AGENTMESH_CONFIG_DIR:-../config}:/config:ro
+      - ${COSMICWAVE_CONFIG_DIR:-../config}:/config:ro
       # Only the bridge's own seed, never the whole secrets/ directory: the hub's seeds live
       # there (in auth-callout mode hub-issuer.nk signs any NATS identity), out of a bridge's reach.
       - ./secrets/discord-bridge.nk:/secrets/discord-bridge.nk:ro

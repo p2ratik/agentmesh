@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { expandHome, MeshError } from '@agentmesh/common';
-import { ConfigIndex } from '@agentmesh/config';
+import { expandHome, homeDirName, MeshError, meshHome } from '@cosmicwave/common';
+import { ConfigIndex } from '@cosmicwave/config';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom, resolveFrom } from '../context';
 import { loadTopology } from '../lib/config-files';
@@ -12,11 +12,11 @@ import { type AgentSetupInput, agentJson, renderAgentSetup } from '../render/age
 export const agentSetupCommand: Command = {
   name: 'agent-setup',
   summary: "Print a developer's laptop setup (plugin, options, permissions, launch)",
-  help: `Usage: agentmesh agent-setup <agent-id> [--config <dir>] [--nats-url <url>]
+  help: `Usage: cmw agent-setup <agent-id> [--config <dir>] [--nats-url <url>]
                              [--seed-file <path>] [--marketplace <src>] [--write]
 
 Prints the exact steps for the developer who owns <agent-id>. --write saves
-~/.agentmesh/agent.json, which fills in options left empty (such as the
+~/.cosmicwave/agent.json, which fills in options left empty (such as the
 seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
   run(argv, ctx) {
     const { values, positionals } = parseCommandArgs(
@@ -43,8 +43,9 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
           .join(', ')}`,
       );
     }
-    // `~/…` stays as written: the steps are often for a teammate's machine, not this one.
-    const given = values['seed-file'] ?? `~/.agentmesh/${agentId}.nk`;
+    // `~/…` stays as written: the steps are often for a teammate's machine, not this one. The
+    // folder is this laptop's (~/.agentmesh until it moves), so --write points into it.
+    const given = values['seed-file'] ?? `~/${homeDirName(ctx.homeDir)}/${agentId}.nk`;
     const seedFile = given.startsWith('~') ? given : resolveFrom(ctx, given);
     const input: AgentSetupInput = {
       agentId,
@@ -54,11 +55,11 @@ seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
       seedFile,
       seedFound: existsSync(expandHome(seedFile, ctx.homeDir)),
       prefix: config.mesh.prefix,
-      marketplace: values.marketplace ?? findRepoRoot() ?? '<path or GitHub repo of AgentMesh>',
+      marketplace: values.marketplace ?? findRepoRoot() ?? '<path or GitHub repo of Cosmicwave>',
       wroteConfig: null,
     };
     if (values.write) {
-      const file = join(ctx.homeDir, '.agentmesh', 'agent.json');
+      const file = join(meshHome(ctx.homeDir), 'agent.json');
       writePrivateFile(file, agentJson(input), true);
       input.wroteConfig = file;
     }

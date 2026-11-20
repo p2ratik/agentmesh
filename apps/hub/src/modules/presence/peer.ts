@@ -1,5 +1,5 @@
-import type { ConfigIndex, MeshConfig } from '@agentmesh/config';
-import type { PeerInfo, PresenceStatus, SessionSummary } from '@agentmesh/protocol';
+import type { ConfigIndex, MeshConfig } from '@cosmicwave/config';
+import type { PeerInfo, PresenceStatus, SessionSummary } from '@cosmicwave/protocol';
 import type { ConfiguredParticipant, ParticipantRow, PresenceFields } from './participants.repo';
 
 /** How the hub signs its own notices: "<mesh name> hub". */

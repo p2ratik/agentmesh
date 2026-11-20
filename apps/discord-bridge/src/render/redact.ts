@@ -1,5 +1,5 @@
-import { redactSecrets } from '@agentmesh/common';
-import type { DomainEvent } from '@agentmesh/protocol';
+import { redactSecrets } from '@cosmicwave/common';
+import type { DomainEvent } from '@cosmicwave/protocol';
 
 /**
  * Masks secrets in every string inside a value (a feed event, an RPC result).

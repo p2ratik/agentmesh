@@ -1,4 +1,4 @@
-import type { ConfigIndex } from '@agentmesh/config';
+import type { ConfigIndex } from '@cosmicwave/config';
 
 /**
  * Who an `area-owners` notice goes to: the area's owners on the team. While

@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
 import { decodeInvite, encodeInvite, type InvitePayload } from './enrollment';
 import { RPC_METHODS } from './rpc';

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Creates the AgentMesh hub VM on Azure with the Azure CLI (run where `az login` works).
+# Creates the Cosmicwave hub VM on Azure with the Azure CLI (run where `az login` works).
 #
-#   DNS_LABEL=acme-agentmesh ./deploy/azure/provision.sh
+#   DNS_LABEL=acme-cosmicwave ./deploy/azure/provision.sh
 #
 # Result: an Ubuntu 24.04 VM reachable at <DNS_LABEL>.<LOCATION>.cloudapp.azure.com with a
 # firewall that allows SSH from your current IP only, NATS (TLS) on 4222 and HTTP on 80
@@ -10,8 +10,8 @@ set -euo pipefail
 
 : "${DNS_LABEL:?set DNS_LABEL — the VM becomes <label>.<location>.cloudapp.azure.com}"
 : "${LOCATION:=centralindia}"
-: "${RESOURCE_GROUP:=rg-agentmesh}"
-: "${VM_NAME:=vm-agentmesh}"
+: "${RESOURCE_GROUP:=rg-cosmicwave}"
+: "${VM_NAME:=vm-cosmicwave}"
 : "${VM_SIZE:=Standard_B2als_v2}"
 : "${ADMIN_USER:=mesh}"
 : "${SSH_PUBLIC_KEY:=$HOME/.ssh/id_ed25519.pub}"
@@ -49,5 +49,5 @@ az vm create -g "$RESOURCE_GROUP" -n "$VM_NAME" -l "$LOCATION" \
 FQDN=$(az network public-ip show -g "$RESOURCE_GROUP" -n "$PIP" --query dnsSettings.fqdn -o tsv)
 echo
 echo "Ready: ssh $ADMIN_USER@$FQDN"
-echo "Next:  clone the repo to /opt/agentmesh on the VM, then"
-echo "       sudo PUBLIC_HOST=$FQDN /opt/agentmesh/deploy/azure/vm-setup.sh"
+echo "Next:  clone the repo to /opt/cosmicwave on the VM, then"
+echo "       sudo PUBLIC_HOST=$FQDN /opt/cosmicwave/deploy/azure/vm-setup.sh"

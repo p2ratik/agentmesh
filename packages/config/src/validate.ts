@@ -58,7 +58,7 @@ export function validateReferences(config: MeshConfig): ConfigIssue[] {
 }
 
 /**
- * Valid but risky settings: `agentmesh validate` prints them and still passes. A service that can act
+ * Valid but risky settings: `cmw validate` prints them and still passes. A service that can act
  * as humans can send as any owner, and an owner's message is a decision for their agents.
  */
 export function configWarnings(config: MeshConfig): ConfigIssue[] {
@@ -77,7 +77,7 @@ export function configWarnings(config: MeshConfig): ConfigIssue[] {
 /**
  * People mesh.yaml refers to without listing them (area owners, human reviewers,
  * the planning facilitator, rule notify targets): people expected to join by
- * invite. The hub skips them until they do; `agentmesh validate` lists them so a
+ * invite. The hub skips them until they do; `cmw validate` lists them so a
  * typo stays visible.
  */
 export function pendingInvitees(config: MeshConfig): string[] {

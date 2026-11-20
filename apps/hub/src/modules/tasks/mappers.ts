@@ -1,4 +1,4 @@
-import type { Task } from '@agentmesh/protocol';
+import type { Task } from '@cosmicwave/protocol';
 import { optionalKey, taskKey, threadKey } from '../../core/ids';
 import type { TaskRecord } from './repo';
 

@@ -1,4 +1,4 @@
-import type { RpcMethodName, ThreadKind } from '@agentmesh/protocol';
+import type { RpcMethodName, ThreadKind } from '@cosmicwave/protocol';
 
 /** What a successful RPC makes the calling session own. Keys are protocol keys (`thr-3`). */
 export type ClaimTarget = { kind: 'thread' | 'task' | 'plan'; key: string };

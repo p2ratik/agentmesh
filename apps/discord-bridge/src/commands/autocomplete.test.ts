@@ -1,5 +1,5 @@
-import { ConfigIndex, configFromObject } from '@agentmesh/config';
-import type { OpenInvite } from '@agentmesh/protocol';
+import { ConfigIndex, configFromObject } from '@cosmicwave/config';
+import type { OpenInvite } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { autocompleteFor } from './autocomplete';
 
