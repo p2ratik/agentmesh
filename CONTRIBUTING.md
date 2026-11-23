@@ -1,5 +1,14 @@
 # Contributing
 
+## Where to go
+
+- **Questions, ideas, your team's setup:** [Discussions](https://github.com/p2ratik/agentmesh/discussions).
+- **A bug, or a feature that is clear enough to build:** [Issues](https://github.com/p2ratik/agentmesh/issues/new/choose), using the forms.
+- **A vulnerability:** a private report ([SECURITY.md](SECURITY.md)), never a public issue.
+- **Never paste a secret** (bot token, NATS seed, invite code, `.env` value) anywhere public.
+
+Everyone here follows the [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Setup
 
 ```bash
