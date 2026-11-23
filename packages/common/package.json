@@ -3,6 +3,7 @@
   "version": "0.7.2",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./secret-paths": "./src/secret-paths.ts",
