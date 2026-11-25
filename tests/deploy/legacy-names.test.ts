@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -26,11 +27,13 @@ const posix = (p: string) =>
 let dir: string;
 const at = (name: string) => join(dir, name);
 
-/** Runs `script` in the temp folder (also $D) with bash, as `set -euo pipefail` installers do. */
+/** Runs `script` in the temp folder (also $D) with bash, as `set -euo pipefail` installers do. The
+ * library's path ($LIB) travels in the environment: a clone may sit in a folder with a space. */
 function runRaw(script: string, env: Record<string, string> = {}) {
-  return spawnSync('bash', ['-c', `set -euo pipefail; . ${posix(resolve(LIB))}; ${script}`], {
+  const lib = env.LIB ?? posix(resolve(LIB));
+  return spawnSync('bash', ['-c', `set -euo pipefail; . "$LIB"; ${script}`], {
     cwd: dir,
-    env: { PATH: process.env.PATH, D: posix(dir), ...env },
+    env: { PATH: process.env.PATH, D: posix(dir), LIB: lib, ...env },
   });
 }
 function run(script: string, env: Record<string, string> = {}) {
@@ -184,14 +187,29 @@ describe.skipIf(!hasBash)('legacy-names.sh', () => {
     expect(r.stdout).toEqual(Buffer.from(`${admin}\n${other}\n`));
   });
 
+  it('is sourced from a folder with a space in its name', () => {
+    // A tester's clone sat in ".../mesh baal/cosmicwave", and every test here failed with it.
+    const spaced = join(dir, 'with space');
+    mkdirSync(spaced);
+    copyFileSync(LIB, join(spaced, 'legacy-names.sh'));
+    writeFileSync(at('old'), 'AGENTMESH_DIR=/opt/agentmesh\n');
+    const r = run('carry_settings "$D/old" "$D/new"', {
+      LIB: posix(join(spaced, 'legacy-names.sh')),
+    });
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(readFileSync(at('new'), 'utf8')).toBe('COSMICWAVE_DIR=/opt/agentmesh\n');
+  });
+
   it('defines functions only', () => {
     const r = spawnSync(
       'bash',
-      [
-        '-c',
-        `o=$-; . ${posix(resolve(LIB))}; [ "$-" = "$o" ] || echo changed; compgen -A function`,
-      ],
-      { encoding: 'utf8', cwd: dir, env: { PATH: process.env.PATH } },
+      ['-c', 'o=$-; . "$LIB"; [ "$-" = "$o" ] || echo changed; compgen -A function'],
+      {
+        encoding: 'utf8',
+        cwd: dir,
+        env: { PATH: process.env.PATH, LIB: posix(resolve(LIB)) },
+      },
     );
     expect(r.stderr).toBe('');
     expect(r.stdout.split('\n').filter(Boolean).sort()).toEqual([

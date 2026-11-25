@@ -16,8 +16,9 @@ export const agentSetupCommand: Command = {
                              [--seed-file <path>] [--marketplace <src>] [--write]
 
 Prints the exact steps for the developer who owns <agent-id>. --write saves
-~/.cosmicwave/agent.json, which fills in options left empty (such as the
-seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
+~/.cosmicwave/agent.json, which supplies every plugin option left empty, so
+with it the options can all stay empty. The plugin ignores the file when the
+agent_id or nats_url option names another agent or hub.`,
   run(argv, ctx) {
     const { values, positionals } = parseCommandArgs(
       argv,

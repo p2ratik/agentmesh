@@ -93,40 +93,60 @@ esac
 const started = (calls: string[]) =>
   calls.some((c) => c.startsWith('pull') || c.startsWith('compose up'));
 
+/** Each test builds a git repository with two tags and runs the deploy script: on a Windows laptop
+ * under the full parallel run that took over the default 20 s (the 0.8.0 test run, 2026-11-24). */
+const DEPLOY_TIMEOUT = 120_000;
+
 describe.skipIf(!hasBash)('cosmicwave-deploy volume guard', () => {
-  it('refuses to deploy a cosmicwave release over agentmesh volumes without the project name', () => {
-    const { r, calls, out, now } = deployOver({ volume: 'exists', newName: 'cosmicwave' });
-    expect(r.status).toBe(1);
-    expect(out).toContain('COMPOSE_PROJECT_NAME=agentmesh');
-    expect(out).toContain('Nothing was started.');
-    expect(started(calls)).toBe(false);
-    expect(calls.some((c) => /volume (create|rm|prune)/.test(c))).toBe(false);
-    expect(now).toBe('v0.9.0'); // not checked out
-  });
+  it(
+    'refuses to deploy a cosmicwave release over agentmesh volumes without the project name',
+    () => {
+      const { r, calls, out, now } = deployOver({ volume: 'exists', newName: 'cosmicwave' });
+      expect(r.status).toBe(1);
+      expect(out).toContain('COMPOSE_PROJECT_NAME=agentmesh');
+      expect(out).toContain('Nothing was started.');
+      expect(started(calls)).toBe(false);
+      expect(calls.some((c) => /volume (create|rm|prune)/.test(c))).toBe(false);
+      expect(now).toBe('v0.9.0'); // not checked out
+    },
+    DEPLOY_TIMEOUT,
+  );
 
-  it('refuses when compose cannot say the project name', () => {
-    const { r, calls, now } = deployOver({ volume: 'exists', newName: '' });
-    expect(r.status).toBe(1);
-    expect(started(calls)).toBe(false);
-    expect(now).toBe('v0.9.0');
-  });
+  it(
+    'refuses when compose cannot say the project name',
+    () => {
+      const { r, calls, now } = deployOver({ volume: 'exists', newName: '' });
+      expect(r.status).toBe(1);
+      expect(started(calls)).toBe(false);
+      expect(now).toBe('v0.9.0');
+    },
+    DEPLOY_TIMEOUT,
+  );
 
-  it('deploys when COMPOSE_PROJECT_NAME=agentmesh is set', () => {
-    const { r, calls, out, now } = deployOver({
-      volume: 'exists',
-      newName: 'cosmicwave',
-      projectEnv: 'agentmesh',
-    });
-    expect(r.status, out).toBe(0);
-    expect(calls.some((c) => c.startsWith('compose up'))).toBe(true);
-    expect(now).toBe('v1.0.0');
-  });
+  it(
+    'deploys when COMPOSE_PROJECT_NAME=agentmesh is set',
+    () => {
+      const { r, calls, out, now } = deployOver({
+        volume: 'exists',
+        newName: 'cosmicwave',
+        projectEnv: 'agentmesh',
+      });
+      expect(r.status, out).toBe(0);
+      expect(calls.some((c) => c.startsWith('compose up'))).toBe(true);
+      expect(now).toBe('v1.0.0');
+    },
+    DEPLOY_TIMEOUT,
+  );
 
-  it('deploys on a server with no agentmesh volumes', () => {
-    const { r, calls, out } = deployOver({ volume: 'none', newName: 'cosmicwave' });
-    expect(r.status, out).toBe(0);
-    expect(calls.some((c) => c.startsWith('compose up'))).toBe(true);
-  });
+  it(
+    'deploys on a server with no agentmesh volumes',
+    () => {
+      const { r, calls, out } = deployOver({ volume: 'none', newName: 'cosmicwave' });
+      expect(r.status, out).toBe(0);
+      expect(calls.some((c) => c.startsWith('compose up'))).toBe(true);
+    },
+    DEPLOY_TIMEOUT,
+  );
 });
 
 // The CLI sends VOLUME_GUARD over ssh; run it as a remote shell would.

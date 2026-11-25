@@ -47921,6 +47921,7 @@ function agentJson(input2) {
 `;
 }
 var isLocal = (url2) => /\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url2);
+var shellArg = (value) => /\s/.test(value) ? `"${value}"` : value;
 function renderAgentSetup(input2) {
   const settings = JSON.stringify({ permissions: { allow: [MESH_TOOLS_ALLOW_RULE] } }, null, 2);
   const lines = [
@@ -47932,10 +47933,11 @@ function renderAgentSetup(input2) {
     `   Seed file: ${input2.seedFile} (${input2.seedFound ? "found" : "NOT FOUND yet"})`,
     "",
     "2. Install the plugin",
-    `   claude plugin marketplace add ${input2.marketplace}`,
+    `   claude plugin marketplace add ${shellArg(input2.marketplace)}`,
     `   claude plugin install ${PLUGIN_REF}`,
     "",
-    "3. Plugin settings (enter these when Claude Code asks for the plugin options)",
+    "3. Plugin settings (add each to the install line as --config key=value, or set them later",
+    `   with /plugin configure ${PLUGIN_REF} in Claude Code)`,
     `   agent_id   ${input2.agentId}`,
     `   nats_url   ${input2.natsUrl}`,
     `   nkey_seed  ${input2.seedFile}`,
@@ -47957,7 +47959,7 @@ function renderAgentSetup(input2) {
   }
   lines.push(
     "",
-    input2.wroteConfig ? `Wrote ${input2.wroteConfig}. It fills in empty options such as the seed, and its prefix wins over the prefix option. agent_id and nats_url must still be entered in the plugin options, and must match this file or the plugin ignores it.` : "Tip: add --write to save these values to ~/.cosmicwave/agent.json. It fills in empty options such as the seed, and its prefix wins over the prefix option."
+    input2.wroteConfig ? `Wrote ${input2.wroteConfig}. With it you can leave every plugin option empty: it supplies all four. If you do enter agent_id or nats_url, they must match this file, or the plugin ignores it. Its prefix wins over the prefix option.` : "Tip: add --write to save these values to ~/.cosmicwave/agent.json. With that file you can leave every plugin option empty."
   );
   return lines.join("\n");
 }
@@ -47970,8 +47972,9 @@ var agentSetupCommand = {
                              [--seed-file <path>] [--marketplace <src>] [--write]
 
 Prints the exact steps for the developer who owns <agent-id>. --write saves
-~/.cosmicwave/agent.json, which fills in options left empty (such as the
-seed). Claude Code still needs agent_id and nats_url in the plugin options.`,
+~/.cosmicwave/agent.json, which supplies every plugin option left empty, so
+with it the options can all stay empty. The plugin ignores the file when the
+agent_id or nats_url option names another agent or hub.`,
   run(argv, ctx) {
     const { values, positionals } = parseCommandArgs(
       argv,
@@ -48857,7 +48860,14 @@ import { existsSync as existsSync9, readFileSync as readFileSync9 } from "node:f
 import { join as join11 } from "node:path";
 
 // ../../apps/cli/src/setup/legacy-workspace.ts
-import { constants, copyFileSync, existsSync as existsSync8, readFileSync as readFileSync8, renameSync as renameSync4, writeFileSync as writeFileSync3 } from "node:fs";
+import {
+  constants,
+  copyFileSync,
+  existsSync as existsSync8,
+  readFileSync as readFileSync8,
+  renameSync as renameSync4,
+  writeFileSync as writeFileSync3
+} from "node:fs";
 import { join as join10 } from "node:path";
 
 // ../../apps/cli/src/setup/render/deploy-files.ts

@@ -20,33 +20,28 @@
       }
     }
   },
-  "channels": [
-    {
-      "server": "mesh",
-      "displayName": "Cosmicwave",
-      "userConfig": {
-        "agent_id": {
-          "type": "string",
-          "title": "Agent id",
-          "description": "Your agent's id, e.g. alice-agent. Leave empty to join with an invite (/cmw:join)."
-        },
-        "nats_url": {
-          "type": "string",
-          "title": "Hub URL",
-          "description": "NATS URL of your team's hub, e.g. nats://100.64.0.10:4222 (comma-separate several). Leave empty to join with an invite."
-        },
-        "nkey_seed": {
-          "type": "string",
-          "title": "Credentials",
-          "description": "Your nkey seed (SU…) or the path to your .nk file from `cmw keys add`. Leave empty for a dev hub without auth.",
-          "sensitive": true
-        },
-        "prefix": {
-          "type": "string",
-          "title": "Subject prefix",
-          "description": "mesh.prefix from the hub's mesh.yaml (empty means mesh). Leave empty if you join with an invite: ~/.cosmicwave/agent.json sets it and wins over this option."
-        }
-      }
+  "userConfig": {
+    "agent_id": {
+      "type": "string",
+      "title": "Agent id",
+      "description": "Your agent's id, e.g. alice-agent. Leave empty to join with an invite (/cmw:join)."
+    },
+    "nats_url": {
+      "type": "string",
+      "title": "Hub URL",
+      "description": "NATS URL of your team's hub, e.g. nats://100.64.0.10:4222 (comma-separate several). Leave empty to join with an invite."
+    },
+    "nkey_seed": {
+      "type": "string",
+      "title": "Credentials",
+      "description": "Your nkey seed (SU…) or the path to your .nk file from `cmw keys add`. Leave empty for a dev hub without auth.",
+      "sensitive": true
+    },
+    "prefix": {
+      "type": "string",
+      "title": "Subject prefix",
+      "description": "mesh.prefix from the hub's mesh.yaml (empty means mesh). Leave empty if you join with an invite: ~/.cosmicwave/agent.json sets it and wins over this option."
     }
-  ]
+  },
+  "channels": [{ "server": "mesh", "displayName": "Cosmicwave" }]
 }

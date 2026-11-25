@@ -32,6 +32,9 @@ export function agentJson(
 
 const isLocal = (url: string): boolean => /\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
 
+/** A source with a space is quoted, so the printed line survives a paste into any shell. */
+const shellArg = (value: string): string => (/\s/.test(value) ? `"${value}"` : value);
+
 /** Step-by-step instructions for one developer's laptop. Pure. */
 export function renderAgentSetup(input: AgentSetupInput): string {
   const settings = JSON.stringify({ permissions: { allow: [MESH_TOOLS_ALLOW_RULE] } }, null, 2);
@@ -44,10 +47,11 @@ export function renderAgentSetup(input: AgentSetupInput): string {
     `   Seed file: ${input.seedFile} (${input.seedFound ? 'found' : 'NOT FOUND yet'})`,
     '',
     '2. Install the plugin',
-    `   claude plugin marketplace add ${input.marketplace}`,
+    `   claude plugin marketplace add ${shellArg(input.marketplace)}`,
     `   claude plugin install ${PLUGIN_REF}`,
     '',
-    '3. Plugin settings (enter these when Claude Code asks for the plugin options)',
+    '3. Plugin settings (add each to the install line as --config key=value, or set them later',
+    `   with /plugin configure ${PLUGIN_REF} in Claude Code)`,
     `   agent_id   ${input.agentId}`,
     `   nats_url   ${input.natsUrl}`,
     `   nkey_seed  ${input.seedFile}`,
@@ -70,8 +74,8 @@ export function renderAgentSetup(input: AgentSetupInput): string {
   lines.push(
     '',
     input.wroteConfig
-      ? `Wrote ${input.wroteConfig}. It fills in empty options such as the seed, and its prefix wins over the prefix option. agent_id and nats_url must still be entered in the plugin options, and must match this file or the plugin ignores it.`
-      : 'Tip: add --write to save these values to ~/.cosmicwave/agent.json. It fills in empty options such as the seed, and its prefix wins over the prefix option.',
+      ? `Wrote ${input.wroteConfig}. With it you can leave every plugin option empty: it supplies all four. If you do enter agent_id or nats_url, they must match this file, or the plugin ignores it. Its prefix wins over the prefix option.`
+      : 'Tip: add --write to save these values to ~/.cosmicwave/agent.json. With that file you can leave every plugin option empty.',
   );
   return lines.join('\n');
 }

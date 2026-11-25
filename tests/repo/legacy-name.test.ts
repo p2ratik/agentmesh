@@ -29,11 +29,12 @@ afterEach(() => {
 });
 
 describe('check-legacy-name', () => {
+  // It reads every tracked file: 24 s on a loaded Windows laptop, over the default 20 s.
   it('passes on this repository', () => {
     const r = run();
     expect(r.stdout).toContain('The old name appears only where it is meant to.');
     expect(r.status).toBe(0);
-  });
+  }, 120_000);
 
   it('names a file that brings the old name back', () => {
     const r = run(repo({ 'x.md': 'AgentMesh\n' }));

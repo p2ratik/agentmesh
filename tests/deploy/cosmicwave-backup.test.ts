@@ -111,7 +111,7 @@ describe.skipIf(!hasBash)('cosmicwave-backup run', () => {
     // No plaintext outlives the run.
     expect(readdirSync(join(dir, 'run'))).toEqual([]);
     expect(readFileSync(join(dir, 'state', 'last-daily'), 'utf8').trim()).toBe('2026-11-13');
-  }, 60_000);
+  }, 120_000);
 
   it('replaces the hourly copy on later runs and adds one daily commit per day', () => {
     expect(run().status).toBe(0);
@@ -130,7 +130,7 @@ describe.skipIf(!hasBash)('cosmicwave-backup run', () => {
     ]);
     expect(opened('main').db).toBe('SQLITE-2026-11-14');
     expect(opened('main~1').db).toBe('SQLITE-2026-11-13');
-  }, 60_000);
+  }, 120_000);
 
   it('pushes nothing when the snapshot fails', () => {
     const r = run({ STUB_SNAPSHOT_FAIL: '1' });
@@ -138,7 +138,7 @@ describe.skipIf(!hasBash)('cosmicwave-backup run', () => {
     expect(r.stderr).toContain('nothing was pushed');
     expect(git('for-each-ref').out).toBe('');
     expect(readdirSync(join(dir, 'run'))).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 
   it.each([
     [{ BACKUP_REMOTE: '' }, 'set BACKUP_REMOTE'],
