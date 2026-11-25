@@ -73,9 +73,11 @@ const ALLOWED = [
   // The name check itself and its test.
   'scripts/check-legacy-name.mjs',
   'tests/repo/legacy-name.test.ts',
-  // The two rename documents.
+  // The rename documents: the design, the plan, the tester's guide and the list of open fixes.
   'docs/specs/2026-11-19-cosmicwave-rename-design.md',
   'docs/specs/2026-11-19-cosmicwave-rename-plan.md',
+  'docs/specs/2026-11-24-cosmicwave-rename-test-guide.md',
+  'docs/specs/2026-11-25-cosmicwave-rename-fix-checklist.md',
   // The "moving from AgentMesh" section of the security doc.
   'docs/security.md',
   // ADR 0014, and the docs that tell members and admins how to move from the old name.

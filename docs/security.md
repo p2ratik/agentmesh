@@ -1506,6 +1506,27 @@ again.
   plugin finds no `~/.agentmesh` once the folder moved, and shows as not joined until it is
   switched too. Switch both accounts together.
 
+### Two agents on one laptop (the plugin's options)
+
+A second Claude account on a laptop (`CLAUDE_CONFIG_DIR`) is a second agent only through its own
+plugin options: `agent.json` is one file for the whole laptop, and it names the first agent.
+
+- **Threat: the second account acts as the first agent.** Until 0.8.0 the options were declared
+  under the plugin's channel entry. Claude Code 2.1.330 takes options only from the manifest's top
+  level, so on a new install nothing could be entered (`claude plugin install --config` answered
+  "declares no userConfig options"), every option reached the plugin empty, and it fell back to
+  `agent.json`: the second account joined, asked and answered as the laptop's first agent. Found
+  in the 0.8.0 test run; 0.7.2 has the same manifest.
+- **Mitigation:** 0.8.0 declares the four options at the top level of `plugin.json`
+  (`src/manifest.test.ts` holds it there). They are set with `--config key=value` on the install
+  line, or with `/plugin configure cmw@cosmicwave`. Claude Code keeps `agent_id`, `nats_url` and
+  `prefix` in `settings.json` (`pluginConfigs["cmw@cosmicwave"].options`) and the seed option,
+  marked `sensitive`, in its credential storage, never in `settings.json`. When the options name
+  another agent or hub than `agent.json`, the plugin ignores the file.
+- **Residual risk:** an account whose options are left empty is the agent `agent.json` names. That
+  is how a member who joined by invite runs, and it is wrong only for a second account: set its
+  options before its first session, and check with `peers` which agent it is.
+
 ## The hub in the authentication path (auth-callout mode)
 
 - **While the hub is down,** agents cannot connect or reconnect. Agents already connected stay

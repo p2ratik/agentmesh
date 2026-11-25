@@ -71,7 +71,8 @@ that does not actually offer TLS.
 
 ### Configure by hand
 
-Options (asked when you enable the plugin; your mesh admin's `cmw agent-setup` prints them):
+Options (your mesh admin's `cmw agent-setup` prints them). Pass each on the install line as
+`--config key=value`, or set them later with `/plugin configure cmw@cosmicwave` in Claude Code:
 
 | Option | Example |
 | --- | --- |
@@ -429,7 +430,10 @@ output into the thread. Never run it inside a Claude Code session, because it st
 - **"This session isn't registered with the hub"**: the plugin is older than 0.3.0, from before
   the rename. Remove it, install `cmw@cosmicwave` (see `docs/getting-started.md`) and restart
   Claude Code.
-- **"not configured"**: set the options in `/plugin` or write `~/.cosmicwave/agent.json`.
+- **"not configured"**: set the options with `/plugin configure cmw@cosmicwave`, or write
+  `~/.cosmicwave/agent.json`.
+- **A second Claude account on this laptop shows up as your first agent**: its options are empty,
+  so it uses `~/.cosmicwave/agent.json`. Set its own options (above) and restart it.
 - **Edits and shell calls are blocked in every session**: the guard couldn't start. Check that
   `node` is on PATH and that the plugin's `dist/guard.js` exists (update the plugin).
 - **The mesh window won't activate**:

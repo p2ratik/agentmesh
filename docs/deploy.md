@@ -225,7 +225,8 @@ iptables -I DOCKER-USER 1 -i <default-route interface> -p tcp -m conntrack --cts
   [A deploy by hand](#a-deploy-by-hand) under Moving a server from AgentMesh first):
   1. `git pull`.
   2. `sudo PUBLIC_HOST=<the DNS name> ./deploy/azure/vm-setup.sh` (safe to re-run; on another
-     provider, run its update, firewall and ssh steps).
+     provider, run its update, firewall and ssh steps). On a server set up before the rename, add
+     `COSMICWAVE_DIR=/opt/agentmesh` before `./deploy/…`, as that section says.
   3. Re-render `nats.conf` with the deploy's flags, for example
      `cmw nats-config --config config --tls --auth-callout --out deploy/nats/nats.conf`.
   4. With the Discord bridge, check that `deploy/secrets/discord-bridge.nk` exists: the bridge now
@@ -804,14 +805,15 @@ services:
   discord-bridge:
     image: ghcr.io/p2ratik/agentmesh-discord-bridge:0.7.2
 EOF
-cd deploy && docker compose --profile discord up -d --no-build --pull never
+cd deploy && docker compose --profile discord pull && docker compose --profile discord up -d --no-build
 ```
 
 Leave out the `discord-bridge` lines and `--profile discord` without the bridge, and use your own
-registry in place of `ghcr.io/p2ratik` if you pull from one. The 0.7.2 images are still on the
-server from before; if `docker image ls` no longer lists them, run
-`docker compose --profile discord pull` first. `cosmicwave-deploy status` then says `v0.7.2`, and
-the next release's deploy moves the server forward again.
+registry in place of `ghcr.io/p2ratik` if you pull from one. The pull is needed although the 0.7.2
+images are on the server: the deploy fetched them by digest, so they carry no `0.7.2` tag there,
+and `up` alone stops with "No such image". The images under the old names stay public.
+`cosmicwave-deploy status` then says `v0.7.2`, and the next release's deploy moves the server
+forward again.
 
 **A deploy by hand.** In the checkout: `git checkout --detach v0.7.2`, then
 `docker compose --profile discord up -d --build --force-recreate` in `deploy/`. `deploy/.env`

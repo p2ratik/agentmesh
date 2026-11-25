@@ -192,8 +192,12 @@ tests/integration   e2e against a real nats-server + hub + bundled plugin over M
 - **Users need an allow rule:** `mcp__plugin_cmw_mesh__*`.
 - **Plugin options:** the manifest marks none of them required, so Claude Code starts the plugin's
   MCP server with them empty, and the plugin offers `join` and `connect` until it has settings.
-  They are stored in `settings.json` under `pluginConfigs`. `~/.cosmicwave/agent.json` fills in
-  options left empty, such as the seed. Its
+  They are declared at the top level of `plugin.json` (`userConfig`), never under `channels[]`:
+  Claude Code 2.1.330 ignores options declared there, so nothing could be entered and a second
+  account on a laptop joined as the first agent (`src/manifest.test.ts`). Set them with
+  `claude plugin install … --config key=value` or `/plugin configure cmw@cosmicwave`; they are
+  stored in `settings.json` under `pluginConfigs[…].options`, the seed in Claude Code's credential
+  storage. `~/.cosmicwave/agent.json` fills in options left empty, such as the seed. Its
   prefix wins over the `prefix` option (Claude Code may store a stale value there). The file
   applies only when the `agent_id` and `nats_url` options are empty or match it; otherwise it is
   ignored, because one file serves every Claude account on the laptop.

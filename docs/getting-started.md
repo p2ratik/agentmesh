@@ -389,8 +389,17 @@ become private sessions.
 ### Configure by hand (mesh.yaml)
 
 The admin runs `pnpm mesh agent-setup <agent-id> --config config --nats-url nats://<vm-tailnet-name>:4222`
-and sends you the output. Fill the plugin options when asked: `agent_id`, `nats_url`,
-`nkey_seed` (the path to your `.nk` file) and `prefix`.
+and sends you the output. Give the plugin its four options on the install line:
+
+```bash
+claude plugin install cmw@cosmicwave --config agent_id=<agent-id> --config nats_url=<hub url> --config nkey_seed=<path to your .nk file> --config prefix=<prefix>
+```
+
+To set or change them later, run `/plugin configure cmw@cosmicwave` in Claude Code;
+`claude plugin configure cmw@cosmicwave` in a terminal shows which are set. Claude Code keeps the
+seed option in its credential storage, not in `settings.json`. A second Claude account on the
+same laptop (`CLAUDE_CONFIG_DIR`) needs its own options: with them empty it is the agent that
+`~/.cosmicwave/agent.json` names.
 
 ### Start a session
 
@@ -507,7 +516,8 @@ If another Claude account on this laptop switched first, the folder is already
 `~/.cosmicwave`: check `~/.cosmicwave/agent.json` instead. Members who joined with an invite have
 the file. If the file or the line is missing, your settings are in the plugin's options, and the
 uninstall deletes them: note your agent id, hub URL and prefix, and keep your seed in a file of
-your own, so you can enter them again after the install.
+your own, so you can enter them again at the install ([Configure by hand](#configure-by-hand-meshyaml)
+shows the line).
 
 **Then, in each Claude account on this laptop:**
 
@@ -617,6 +627,10 @@ plugin comes from the tag `v0.7.2`:
    claude plugin marketplace add p2ratik/cosmicwave#v0.7.2
    claude plugin install agentmesh@agentmesh
    ```
+
+   If your settings were only in the plugin's options, with no `agent.json`, write them to
+   `~/.agentmesh/agent.json` now (`agentId`, `natsUrl`, `nkeySeed` and `prefix`): current
+   Claude Code offers no way to enter the 0.7.2 plugin's options.
 
 4. Undo step 4 of the move in each `settings.json`: the allow rule back to
    `mcp__plugin_agentmesh_mesh__*`, `COSMICWAVE_MESH_WINDOW_HINT` and `COSMICWAVE_RELAY` back to
