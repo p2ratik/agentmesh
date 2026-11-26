@@ -144,6 +144,19 @@ Pratik's decision on 25 November: these stay as notes and do not hold the rename
 - [ ] Release gate: a 0.7.2 plugin against the 0.8.0 hub and the reverse, with real sessions
   (ask, reply, a task, a review). One call each way has passed in a scratch run.
 - [ ] Release gate: a real uninstall and reinstall on Pratik's Windows laptop.
+- [x] **Simulated on 26 November** (a throwaway git marketplace and plugin in a scratch Claude
+  Code 2.1.330 config, renamed underneath an installed copy): once the marketplace is refreshed,
+  the old plugin is listed as `failed to load` ("Plugin … not found in marketplace …"). Its
+  cached files stay, and nothing is deleted. So after a merge to `main`, a member whose
+  marketplace refreshes (automatic updates on, or a manual `marketplace update`) loses the mesh in
+  every session started after that, until they do the move in `docs/getting-started.md`. Members
+  with automatic updates off are not touched. A refresh that cannot reach the repository changes
+  nothing. Not seen, because it needs a signed-in session: whether a session with the plugin in
+  that state still runs its hooks.
+- [ ] **Doc to add:** after such a refresh the marketplace keeps its old local name, and the new
+  plugin can be installed from it as `cmw@agentmesh`. That id does not match the launcher's
+  channel or the docs, so the moving steps must say: remove the old marketplace first, never
+  install `cmw` from it.
 - [ ] Release gate: what an installed 0.7.2 plugin with automatic updates does when its
   marketplace is renamed under it. Settle this before merging: the plugin's hooks block every
   tool call if they break.

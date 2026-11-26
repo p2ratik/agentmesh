@@ -139,12 +139,15 @@ describe.skipIf(!hasFlock)('cosmicwave-deploy over a checkout with hand edits', 
       write(join(checkout, 'config/examples/mesh.yaml'), 'stale copy\n');
       write(join(checkout, 'config/mesh.yaml'), 'live\n');
 
-      // A running, healthy stack with no hub container to back up yet; sleep returns at once.
+      // A running, healthy stack with no hub container to back up yet; sleep returns at once. The
+      // server has no volumes from before the rename, so the volume guard has nothing to refuse
+      // (a stub that answered 0 to everything read as "old volumes exist": CI, 2026-11-25).
       const bin = join(root, 'bin');
       write(
         join(bin, 'docker'),
         `#!/usr/bin/env bash
 case "$*" in
+  'volume inspect '*) exit 1 ;;
   'compose ps -a -q hub') ;;
   'compose ps -q '*) echo c1 ;;
   inspect*) echo 'running 0' ;;
