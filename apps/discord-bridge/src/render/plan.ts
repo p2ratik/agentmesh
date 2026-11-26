@@ -1,5 +1,5 @@
-import type { ConfigIndex } from '@agentmesh/config';
-import type { DomainEventData, Plan, PlanState, PlanTaskDraft } from '@agentmesh/protocol';
+import type { ConfigIndex } from '@cosmicwave/config';
+import type { DomainEventData, Plan, PlanState, PlanTaskDraft } from '@cosmicwave/protocol';
 import { planButtonId } from '../custom-ids';
 import { list, oneLine, relativeTime, threadTitle } from './format';
 import type { PostIntent, ThreadTarget } from './intents';

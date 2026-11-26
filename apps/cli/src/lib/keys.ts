@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { writeFileAtomic, writePrivateFile } from './files';
 import { findKeyHolder, type KeyHolder, setPublicKey } from './mesh-document';
@@ -23,7 +23,7 @@ export interface AddKeyOptions {
   /** How to run this CLI, for the hint that replaces an existing seed file. */
   cli: string;
   /**
-   * The seed goes to a folder other meshes share (~/.agentmesh). An existing file there is
+   * The seed goes to a folder other meshes share (~/.cosmicwave). An existing file there is
    * never replaced on a hint's say-so: the hint asks for another id instead of --force.
    */
   shared?: boolean;

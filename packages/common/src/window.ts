@@ -2,12 +2,14 @@
 // guard bundles import this and must stay free of zod and other dependencies.
 import { readFileSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
+import { homeDirName } from './mesh-home';
 
-export const MESH_WINDOW_ENV = 'AGENTMESH_MESH_WINDOW';
-export const MESH_WINDOW_HINT_ENV = 'AGENTMESH_MESH_WINDOW_HINT';
-export const CHANNEL_FLAG = '--dangerously-load-development-channels plugin:agentmesh@agentmesh';
+export const MESH_WINDOW_ENV = 'COSMICWAVE_MESH_WINDOW';
+export const MESH_WINDOW_HINT_ENV = 'COSMICWAVE_MESH_WINDOW_HINT';
+export const PLUGIN_CHANNEL = 'plugin:cmw@cosmicwave';
+export const CHANNEL_FLAG = `--dangerously-load-development-channels ${PLUGIN_CHANNEL}`;
 export const RESTART = `claude ${CHANNEL_FLAG}`;
-export const LAUNCH_PROMPT: string | null = '/agentmesh:activate mesh window';
+export const LAUNCH_PROMPT: string | null = '/cmw:activate mesh window';
 const launcherName = (platform: NodeJS.Platform) =>
   platform === 'win32' ? 'mesh-window.cmd' : 'mesh-window';
 /**
@@ -17,9 +19,9 @@ const launcherName = (platform: NodeJS.Platform) =>
 export const START_COMMAND = 'claude-mesh';
 /** The launcher in the fallback start line. PowerShell and Git Bash on Windows need the `.cmd`. */
 export const launcherDisplay = (platform: NodeJS.Platform): string =>
-  `~/.agentmesh/${launcherName(platform)}`;
+  `~/.cosmicwave/${launcherName(platform)}`;
 /** The Windows launcher as cmd, which knows no `~`, runs it. */
-export const LAUNCHER_CMD = '"%USERPROFILE%\\.agentmesh\\mesh-window.cmd"';
+export const LAUNCHER_CMD = '"%USERPROFILE%\\.cosmicwave\\mesh-window.cmd"';
 
 export interface WindowFiles {
   dir: string;
@@ -34,7 +36,8 @@ export interface WindowFiles {
 export function windowFiles(home: string, platform: NodeJS.Platform): WindowFiles {
   // The given platform's separator, not the host's: a win32 launcher can be rendered on Linux (CI).
   const { join } = platform === 'win32' ? win32 : posix;
-  const dir = join(home, '.agentmesh');
+  // ~/.agentmesh until it is moved; window init refuses to write there (its launcher bakes paths).
+  const dir = join(home, homeDirName(home));
   return {
     dir,
     policy: join(dir, 'mesh-window.json'),

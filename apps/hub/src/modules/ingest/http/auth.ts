@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { IngestAuth } from '@agentmesh/config';
+import type { IngestAuth } from '@cosmicwave/config';
 
 export type Headers = Record<string, string | string[] | undefined>;
 

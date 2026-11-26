@@ -2,9 +2,9 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RpcClient } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import { decodeInvite, inboxPrefix } from '@agentmesh/protocol';
+import { RpcClient } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import { decodeInvite, inboxPrefix } from '@cosmicwave/protocol';
 import { createAccount, createCurve, createUser, fromSeed, type KeyPair } from '@nats-io/nkeys';
 import { connect, type NatsConnection, nkeyAuthenticator } from '@nats-io/transport-node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,9 +20,9 @@ import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './supp
  * bridge's RPC path, the bundled plugin joins with a key it generates, talks
  * to a mesh.yaml agent, is removed, kicked and refused. Real nats-server
  * 2.15.1 in account mode with the hub's auth callout; no Discord.
- * Needs AGENTMESH_TEST_NATS_BIN and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS_BIN and a built plugin.
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 const OFFSET = Math.floor(Date.now() % 400);
 const PORT = 6000 + OFFSET;
 // fetch refuses "bad ports" (6566, 6665–6669, 6679, 6697…) without connecting; 7100–7499 has none.
@@ -86,9 +86,9 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       ],
       enrollment: { natsUrl: URL },
     });
-    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-onboarding-'));
+    const dir = mkdtempSync(join(tmpdir(), 'cosmicwave-onboarding-'));
     const home = join(dir, 'home');
-    const inviteFile = join(home, '.agentmesh', 'invite.txt');
+    const inviteFile = join(home, '.cosmicwave', 'invite.txt');
     const hubLog = join(dir, 'hub.log');
     const logger = createLogger('onboarding-hub', {
       level: 'trace',
@@ -148,7 +148,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       expect(decodeInvite(invite.code)).toMatchObject({ natsUrl: URL, prefix: PREFIX });
       code = invite.code;
       // The member saves the code from the DM to a file; it never enters the chat.
-      mkdirSync(join(home, '.agentmesh'), { recursive: true });
+      mkdirSync(join(home, '.cosmicwave'), { recursive: true });
       writeFileSync(inviteFile, `${code}\n`);
     }, 30_000);
 
@@ -156,19 +156,19 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
       joiner = await spawnAgent(joinerEnv);
       agents.push(joiner);
       const before = await joiner.client.listTools();
-      // `connect` is for an admin whose agent.json `agentmesh setup admin` saved.
+      // `connect` is for an admin whose agent.json `cmw setup admin` saved.
       expect(before.tools.map((t) => t.name)).toEqual(['join', 'connect']);
 
       const first = await joiner.call('join', {});
       expect(first).toContain(`${HUB} as dana-agent`);
       expect(first).not.toContain(code.trim());
-      expect(await connectionNames()).not.toContain('agentmesh-plugin:dana-agent');
+      expect(await connectionNames()).not.toContain('cosmicwave-plugin:dana-agent');
       expect(joiner.notifications).not.toContain('notifications/tools/list_changed');
 
       const joined = await joiner.call('join', { confirm_hub: HUB });
-      expect(joined).toContain('Joined the AgentMesh "onboarding" as dana-agent');
+      expect(joined).toContain('Joined the mesh "onboarding" as dana-agent');
       expect(existsSync(inviteFile)).toBe(false);
-      const saved = JSON.parse(readFileSync(join(home, '.agentmesh', 'agent.json'), 'utf8'));
+      const saved = JSON.parse(readFileSync(join(home, '.cosmicwave', 'agent.json'), 'utf8'));
       expect(saved).toMatchObject({ agentId: 'dana-agent', natsUrl: URL, prefix: PREFIX });
       const publicKey = fromSeed(
         new TextEncoder().encode(readFileSync(saved.nkeySeed, 'utf8').trim()),
@@ -220,18 +220,18 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
     }, 60_000);
 
     it('removing the member kicks the live session and refuses the key', async () => {
-      expect(await connectionNames()).toContain('agentmesh-plugin:dana-agent');
+      expect(await connectionNames()).toContain('cosmicwave-plugin:dana-agent');
       const removed = await asAdmin('ix-remove')('enrollment.remove', { humanId: 'dana' });
       expect(removed).toMatchObject({ removed: true, agentIds: ['dana-agent'] });
 
-      const gone = async () => !(await connectionNames()).includes('agentmesh-plugin:dana-agent');
+      const gone = async () => !(await connectionNames()).includes('cosmicwave-plugin:dana-agent');
       expect(await until(gone)).toBe(true);
       // The kicked plugin tries to reconnect (whether it then gives up after repeated
       // authorization errors or keeps retrying). No attempt may get in, so look again later.
       await new Promise((r) => setTimeout(r, 4500));
       expect(await gone()).toBe(true);
 
-      const saved = JSON.parse(readFileSync(join(home, '.agentmesh', 'agent.json'), 'utf8'));
+      const saved = JSON.parse(readFileSync(join(home, '.cosmicwave', 'agent.json'), 'utf8'));
       const seed = readFileSync(saved.nkeySeed, 'utf8').trim();
       const raw = await connect({
         servers: URL,

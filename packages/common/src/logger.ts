@@ -16,7 +16,7 @@ const SECRET_FIELDS = ['invite', 'inviteCode', 'secret', 'token', 'auth_token'];
 export const REDACTED_LOG_PATHS = SECRET_FIELDS.flatMap((f) => [f, `*.${f}`]);
 
 export function createLogger(name: string, options: LoggerOptions = {}): Logger {
-  const level = options.level ?? process.env.AGENTMESH_LOG_LEVEL ?? 'info';
+  const level = options.level ?? process.env.COSMICWAVE_LOG_LEVEL ?? 'info';
   const destination = options.destination ?? 'stdout';
   const stream =
     destination === 'stdout'

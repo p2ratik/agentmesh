@@ -30,7 +30,7 @@ const SSH = [
 
 /** A rendered workspace with the Discord values in .env, and fakes for everything doctor calls. */
 async function workspace(answers: AnswersInput, channels: () => unknown = () => MESH_CHANNELS) {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-doctor-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-doctor-'));
   const out: string[] = [];
   const err: string[] = [];
   const calls: Array<{ cmd: string; args: readonly string[]; cwd?: string }> = [];
@@ -74,7 +74,7 @@ describe('doctor', () => {
     expect(await t.doctor()).toBe(0);
     expect(t.out.join('\n')).toBe(
       [
-        'AgentMesh is live for Acme',
+        'Cosmicwave is live for Acme',
         ' ✓ nats, hub (healthy) and discord-bridge are running',
         ' ✓ Discord: category, 7 channels and the planning forum exist',
         ' ✓ riya-agent connects to nats://127.0.0.1:4222',
@@ -91,7 +91,7 @@ describe('doctor', () => {
     expect(t.connects).toEqual([
       {
         servers: ['nats://127.0.0.1:4222'],
-        seedFile: join(t.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'),
+        seedFile: join(t.ctx.homeDir, '.cosmicwave', 'acme-riya-agent.nk'),
         name: 'doctor-riya-agent',
       },
     ]);
@@ -111,7 +111,7 @@ describe('doctor', () => {
         ...SSH,
         '--',
         'deploy@mesh.acme.dev',
-        'cd /opt/agentmesh/deploy && docker compose --profile discord ps --format json',
+        'cd /opt/cosmicwave/deploy && docker compose --profile discord ps --format json',
       ],
     ]);
     expect(t.connects[0]?.servers).toEqual(['tls://mesh.acme.dev:4222']);
@@ -126,7 +126,7 @@ describe('doctor', () => {
     });
     expect(await t.doctor()).toBe(1);
     const output = t.out.join('\n');
-    expect(output).toContain('AgentMesh for Acme: 1 problem\n');
+    expect(output).toContain('Cosmicwave for Acme: 1 problem\n');
     expect(output).toContain(' ✗ Could not list the containers');
     expect(output).toContain('Connection timed out');
     expect(output).toContain(' ✓ Discord: category, 7 channels and the planning forum exist');
@@ -139,7 +139,7 @@ describe('doctor', () => {
     );
     expect(await t.doctor()).toBe(1);
     const output = [...t.out, ...t.err].join('\n');
-    expect(output).toContain('AgentMesh for Acme: 1 problem\n');
+    expect(output).toContain('Cosmicwave for Acme: 1 problem\n');
     expect(output).toContain('answered 403: the bot has no access there');
     expect(output).not.toContain(TOKEN);
   });

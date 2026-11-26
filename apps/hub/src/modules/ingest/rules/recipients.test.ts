@@ -1,4 +1,4 @@
-import { ConfigIndex } from '@agentmesh/config';
+import { ConfigIndex } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import { testTeamConfig } from '../../../testing/fixtures';
 import { areaRecipients } from './recipients';

@@ -2,7 +2,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseWindowPolicy, windowFiles } from '@agentmesh/common/window';
+import { parseWindowPolicy, windowFiles } from '@cosmicwave/common/window';
 import type { CliContext } from '../context';
 import { runCli } from '../main';
 
@@ -15,7 +15,7 @@ export function setup(
   binName = 'bin',
   env: CliContext['env'] = {},
 ) {
-  const root = mkdtempSync(join(tmpdir(), 'agentmesh-window-'));
+  const root = mkdtempSync(join(tmpdir(), 'cosmicwave-window-'));
   const home = join(root, homeName);
   const bin = join(root, binName);
   const work = join(root, 'work');
@@ -41,16 +41,16 @@ export function setup(
  * The start lines printed while typing claude-mesh doesn't reach ours. Git Bash on Windows runs
  * the sh claude-mesh by its path (`bash`, `~/…` form).
  */
-export const launcherLines = (work: string, bash = '~/.agentmesh/bin/claude-mesh') =>
+export const launcherLines = (work: string, bash = '~/.cosmicwave/bin/claude-mesh') =>
   platform === 'win32'
     ? [
-        `Until then, in PowerShell: ~/.agentmesh/mesh-window.cmd "${work}"`,
+        `Until then, in PowerShell: ~/.cosmicwave/mesh-window.cmd "${work}"`,
         `In Git Bash: ${bash} "${work}"`,
-        `In cmd: "%USERPROFILE%\\.agentmesh\\mesh-window.cmd" "${work}"`,
+        `In cmd: "%USERPROFILE%\\.cosmicwave\\mesh-window.cmd" "${work}"`,
       ]
-    : [`Until then: ~/.agentmesh/mesh-window "${work}"`];
+    : [`Until then: ~/.cosmicwave/mesh-window "${work}"`];
 
-/** What window init prints when claude-mesh went to ~/.agentmesh/bin, which isn't on PATH. */
+/** What window init prints when claude-mesh went to ~/.cosmicwave/bin, which isn't on PATH. */
 export const fallbackLines = (bin: string, work: string) => [
   `${bin} is not on your PATH: add it to use claude-mesh (window init never changes PATH).`,
   ...launcherLines(work),

@@ -2,7 +2,7 @@ import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLogger } from '@agentmesh/common';
+import { createLogger } from '@cosmicwave/common';
 import { afterAll, describe, expect, it } from 'vitest';
 import { trialAnswers } from '../../apps/cli/src/setup/testing';
 import { createHub, type Hub } from '../../apps/hub/src/app';
@@ -10,12 +10,12 @@ import { loadConfig } from '../../packages/config/src/load';
 import { type Agent, PLUGIN, PLUGIN_CLI, spawnAgent, untilConnected } from './support';
 
 /**
- * `/agentmesh:setup` without Claude: the CLI bundled in the plugin renders a trial
+ * `/cmw:setup` without Claude: the CLI bundled in the plugin renders a trial
  * workspace, the hub starts from it against a real nats-server, `setup admin` saves
  * the admin's agent and an unenrolled plugin connects with `connect`. No Docker, no
- * Discord. Needs AGENTMESH_TEST_NATS_BIN and a built plugin (dist/server.js, dist/cli.js).
+ * Discord. Needs COSMICWAVE_TEST_NATS_BIN and a built plugin (dist/server.js, dist/cli.js).
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 const PORT = 7600 + Math.floor(Date.now() % 400);
 const URL = `nats://127.0.0.1:${PORT}`;
 /** Only `setup discord` writes these to .env; the hub checks them, the bridge never starts. */
@@ -28,7 +28,7 @@ const DISCORD_ENV = {
 describe.skipIf(
   !NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN) || !existsSync(PLUGIN_CLI),
 )('setup end to end', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'agentmesh-setup-'));
+  const dir = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-'));
   const ws = join(dir, 'acme');
   const home = join(dir, 'home');
   /** Runs the bundled CLI the way the skill does, with the temp home as `~`. */
@@ -62,7 +62,7 @@ describe.skipIf(
     const rendered = cli('setup', 'render', '--dir', ws);
     expect(rendered.stderr).toBe('');
     expect(rendered.status).toBe(0);
-    expect(existsSync(join(home, '.agentmesh', 'acme-riya-agent.nk'))).toBe(true);
+    expect(existsSync(join(home, '.cosmicwave', 'acme-riya-agent.nk'))).toBe(true);
   });
 
   it('starts the hub from the workspace, and the admin agent connects', async () => {
@@ -93,7 +93,7 @@ describe.skipIf(
     expect(admin.stderr).toBe('');
     expect(admin.status).toBe(0);
     // A trial hub listens on 127.0.0.1:4222; this test's nats-server listens on PORT.
-    const agentFile = join(home, '.agentmesh', 'agent.json');
+    const agentFile = join(home, '.cosmicwave', 'agent.json');
     const saved = JSON.parse(readFileSync(agentFile, 'utf8'));
     expect(saved).toMatchObject({ agentId: 'riya-agent', prefix: 'mesh' });
     writeFileSync(agentFile, JSON.stringify({ ...saved, natsUrl: URL }));

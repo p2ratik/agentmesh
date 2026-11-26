@@ -1,4 +1,4 @@
-import type { Logger } from '@agentmesh/common';
+import type { Logger } from '@cosmicwave/common';
 import {
   ActionRowBuilder,
   ButtonBuilder,

@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { ConfigIndex } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import type { ConfigIndex } from '@cosmicwave/config';
 import type { Actor } from '../contracts';
 
 /** Builds the actor for an authenticated NATS identity. */

@@ -1,5 +1,5 @@
 import { readFileSync, renameSync, rmSync } from 'node:fs';
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { writePrivateFile } from '../lib/files';
 
 /**

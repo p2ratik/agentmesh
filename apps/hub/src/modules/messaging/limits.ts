@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { LimitsConfig } from '@agentmesh/config';
+import { MeshError } from '@cosmicwave/common';
+import type { LimitsConfig } from '@cosmicwave/config';
 
 /** What the limits are checked against, gathered by the caller. */
 export interface PostCounts {

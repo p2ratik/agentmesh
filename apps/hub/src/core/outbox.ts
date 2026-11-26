@@ -1,4 +1,4 @@
-import { type Clock, type Logger, newEventId } from '@agentmesh/common';
+import { type Clock, type Logger, newEventId } from '@cosmicwave/common';
 import type {
   DeliveryClass,
   DomainEvent,
@@ -6,7 +6,7 @@ import type {
   DomainEventType,
   MeshMessage,
   SessionDelivery,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { Outbox } from '../contracts';
 import type { Db } from '../db/database';
 import type { DeliveryPort, EventPort } from '../ports';

@@ -1,10 +1,10 @@
 import { isDeepStrictEqual } from 'node:util';
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { z } from 'zod';
 import { DEFAULT_MARKETPLACE, DEFAULT_MARKETPLACE_NAME } from '../setup/defaults';
 
 /**
- * Pure edits of Claude Code's own files for `agentmesh autoupdate`. Errors never quote the
+ * Pure edits of Claude Code's own files for `cmw autoupdate`. Errors never quote the
  * text they were given: settings.json can hold env values and tokens.
  */
 

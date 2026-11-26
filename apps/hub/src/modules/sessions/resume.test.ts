@@ -1,4 +1,4 @@
-import { MINUTE_MS } from '@agentmesh/common';
+import { MINUTE_MS } from '@cosmicwave/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { OpenInput } from '../../contracts';
 import { createBobDispatchHarness } from '../../testing/services';

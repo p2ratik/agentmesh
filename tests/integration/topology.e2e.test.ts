@@ -1,10 +1,10 @@
-import { ensureStreams, jetstreamManager } from '@agentmesh/bus';
-import { streamNames, subjects } from '@agentmesh/protocol';
+import { ensureStreams, jetstreamManager } from '@cosmicwave/bus';
+import { streamNames, subjects } from '@cosmicwave/protocol';
 import { connect } from '@nats-io/transport-node';
 import { describe, expect, it } from 'vitest';
 
-/** Needs AGENTMESH_TEST_NATS=nats://… with JetStream. */
-const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
+/** Needs COSMICWAVE_TEST_NATS=nats://… with JetStream. */
+const NATS = process.env.COSMICWAVE_TEST_NATS ?? '';
 const PREFIX = `topo${Date.now().toString(36)}`;
 
 describe.skipIf(!NATS)('stream topology', () => {

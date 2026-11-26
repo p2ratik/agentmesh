@@ -1,4 +1,4 @@
-import type { ObservedEvent } from '@agentmesh/protocol';
+import type { ObservedEvent } from '@cosmicwave/protocol';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const shortMsg = (id: string) => `msg-…${id.slice(-4)}`;

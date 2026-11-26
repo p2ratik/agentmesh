@@ -1,4 +1,4 @@
-import { VERSION } from '@agentmesh/common';
+import { VERSION } from '@cosmicwave/common';
 import { parseCommandArgs, usageError } from '../args';
 import type { Command } from '../context';
 import { deployWorkspace, isImageVersion } from '../setup/deploy';
@@ -8,9 +8,9 @@ import { loadAnswers, workspaceFrom } from '../setup/workspace';
 export const upgradeCommand: Command = {
   name: 'upgrade',
   summary: 'Move the workspace to another hub version and deploy it',
-  help: `Usage: agentmesh upgrade --dir <workspace> [--to <version>]
+  help: `Usage: cmw upgrade --dir <workspace> [--to <version>]
 
-Sets AGENTMESH_VERSION in deploy/.env to --to (default: this CLI's version, ${VERSION}),
+Sets COSMICWAVE_VERSION in deploy/.env to --to (default: this CLI's version, ${VERSION}),
 then runs setup deploy. If the deploy fails, the old version goes back into deploy/.env.
 Nothing else changes the hub version a workspace runs.`,
   async run(argv, ctx) {
@@ -23,17 +23,17 @@ Nothing else changes the hub version a workspace runs.`,
     if (!isImageVersion(to)) throw usageError('--to takes an image version such as 0.4.0');
     const p = workspaceFrom(ctx, values.dir);
     const answers = loadAnswers(p);
-    const previous = readEnvFile(p.envFile).get('AGENTMESH_VERSION') ?? '';
+    const previous = readEnvFile(p.envFile).get('COSMICWAVE_VERSION') ?? '';
     // Printed, so never the value of a broken line (the token pasted there): upgrade fixes it.
     const from = !previous ? '(none)' : isImageVersion(previous) ? previous : '(not a version)';
-    updateEnvFile(p.envFile, { AGENTMESH_VERSION: to });
+    updateEnvFile(p.envFile, { COSMICWAVE_VERSION: to });
     ctx.stdout(`Hub version ${from} → ${to}`);
     try {
       await deployWorkspace(ctx, p, answers);
     } catch (error) {
       // A version that is not published must not break every later config-only deploy.
-      updateEnvFile(p.envFile, { AGENTMESH_VERSION: previous });
-      ctx.stderr(`AGENTMESH_VERSION is back at ${from} in deploy/.env.`);
+      updateEnvFile(p.envFile, { COSMICWAVE_VERSION: previous });
+      ctx.stderr(`COSMICWAVE_VERSION is back at ${from} in deploy/.env.`);
       throw error;
     }
     return 0;

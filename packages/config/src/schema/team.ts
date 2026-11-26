@@ -1,4 +1,4 @@
-import { ParticipantId, PublicNkey } from '@agentmesh/protocol';
+import { ParticipantId, PublicNkey } from '@cosmicwave/protocol';
 import { z } from 'zod';
 
 export const HumanConfig = z.object({

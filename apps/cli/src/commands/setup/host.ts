@@ -9,7 +9,7 @@ import { loadAnswers, markDone, workspaceFrom } from '../../setup/workspace';
 export const setupHostCommand: Command = {
   name: 'setup host',
   summary: 'Prepare the server over SSH: Docker, the TLS certificate and its renewal',
-  help: `Usage: agentmesh setup host --dir <workspace>
+  help: `Usage: cmw setup host --dir <workspace>
 
 Checks that hosting.publicHost resolves, then pipes a script to \`sudo bash -s\` on the
 server over ssh (hosting.ssh, with your own SSH key). The script installs Docker and

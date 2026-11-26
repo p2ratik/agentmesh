@@ -1,11 +1,11 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import type {
   DeliveryClass,
   MeshMessage,
   ParticipantRef,
   SessionDelivery,
   ThreadSummary,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type {
   ControlService,

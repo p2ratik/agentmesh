@@ -1,0 +1,50 @@
+import { VERSION } from '@cosmicwave/common';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import {
+  CallToolRequestSchema,
+  type CallToolResult,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import type { ChannelEvent } from './inbox/render';
+import type { ToolListing, ToolResult } from './tools/registry';
+
+export const SERVER_NAME = 'mesh';
+export { VERSION };
+
+/** The tools the session offers right now; it changes when an unenrolled plugin joins. */
+export interface ToolHandler {
+  list(): ToolListing[];
+  /** `signal` aborts when Claude Code cancels the call; the SDK then drops the result. */
+  call(name: string, args: unknown, signal?: AbortSignal): Promise<ToolResult>;
+}
+
+/**
+ * The MCP server Claude Code talks to. It declares the `claude/channel`
+ * capability (so the hub can push messages into the session) and tools.
+ * Permission relay is deliberately NOT declared: approving tool use stays
+ * with the human at this laptop.
+ */
+export function createMcpServer(instructions: string, handler: () => ToolHandler): Server {
+  const server = new Server(
+    { name: SERVER_NAME, version: VERSION },
+    {
+      capabilities: { experimental: { 'claude/channel': {} }, tools: { listChanged: true } },
+      instructions,
+    },
+  );
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: handler().list() }));
+  server.setRequestHandler(
+    CallToolRequestSchema,
+    async (request, extra): Promise<CallToolResult> =>
+      handler().call(request.params.name, request.params.arguments, extra.signal),
+  );
+  return server;
+}
+
+/** Pushes one event into the session as a `<channel>` tag. */
+export function pushEvent(server: Server, event: ChannelEvent): Promise<void> {
+  return server.notification({
+    method: 'notifications/claude/channel',
+    params: { content: event.content, meta: event.meta },
+  });
+}

@@ -27,6 +27,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm check:size
+      - run: pnpm check:name
       - run: pnpm test
 
   # Real NATS + hub + the bundled plugin over MCP, with and without nkey auth.
@@ -49,7 +50,7 @@ jobs:
       # what its source builds to. agent/* pushes may still be mid-branch with a stale bundle.
       - name: Check the committed plugin bundles match the source
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
-        run: git diff --exit-code -- plugins/agentmesh/dist
+        run: git diff --exit-code -- plugins/cmw/dist
       - name: Download nats-server for the authenticated test
         env:
           NATS_NAME: nats-server-v2.15.1-linux-amd64
@@ -60,11 +61,11 @@ jobs:
           curl -fsSLO "https://github.com/nats-io/nats-server/releases/download/v2.15.1/$NATS_NAME.tar.gz"
           echo "$NATS_SHA256  $NATS_NAME.tar.gz" | sha256sum -c -
           tar xzf "$NATS_NAME.tar.gz"
-          echo "AGENTMESH_TEST_NATS_BIN=$RUNNER_TEMP/$NATS_NAME/nats-server" >> "$GITHUB_ENV"
+          echo "COSMICWAVE_TEST_NATS_BIN=$RUNNER_TEMP/$NATS_NAME/nats-server" >> "$GITHUB_ENV"
       - name: Start JetStream for the open test
         run: |
-          "$AGENTMESH_TEST_NATS_BIN" -js -p 4333 -sd "$RUNNER_TEMP/js" &
+          "$COSMICWAVE_TEST_NATS_BIN" -js -p 4333 -sd "$RUNNER_TEMP/js" &
           sleep 1
       - run: pnpm test:integration
         env:
-          AGENTMESH_TEST_NATS: nats://127.0.0.1:4333
+          COSMICWAVE_TEST_NATS: nats://127.0.0.1:4333

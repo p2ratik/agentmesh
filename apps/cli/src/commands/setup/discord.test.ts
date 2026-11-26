@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig } from '@agentmesh/config';
+import { loadConfig } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import type { CliContext } from '../../context';
 import { humanDiscordId } from '../../lib/mesh-document';
@@ -32,7 +32,7 @@ function discordRoutes(guilds: unknown = [{ id: GUILD, name: 'Acme', icon: null 
 
 /** A rendered trial workspace whose .env has `tokenValue`, talking to a fake Discord. */
 async function rendered(routes: Record<string, unknown>, tokenValue = TOKEN) {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-discord-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-discord-'));
   const out: string[] = [];
   const err: string[] = [];
   const sleeps: number[] = [];

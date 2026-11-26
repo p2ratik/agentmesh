@@ -1,4 +1,4 @@
-# `/agentmesh:setup` — design
+# `/cmw:setup` — design
 
 Date: 2026-10-23 · Status: built; see [ADR 0007](../adr/0007-claude-run-setup.md) for the
 implementation rulings. Agreed with Pratik in conversation.
@@ -10,7 +10,7 @@ implementation rulings. Agreed with Pratik in conversation.
 
 ## 1. Why
 
-AgentMesh goes public soon. Its users are self-hosted startup teams of 5–15 people who already
+Cosmicwave goes public soon. Its users are self-hosted startup teams of 5–15 people who already
 use Claude Code, plugins and MCP. Today one admin needs about an hour of manual work to stand up
 a mesh (`docs/getting-started.md` steps 1–5, `docs/deploy.md`):
 
@@ -28,7 +28,7 @@ questions.
 ## 2. Goals, non-goals, anti-goals
 
 **Goals**
-1. **One command.** `/agentmesh:setup` takes an admin from "plugin installed" to a live mesh:
+1. **One command.** `/cmw:setup` takes an admin from "plugin installed" to a live mesh:
    their own agent is active and their team's invite commands are ready.
 2. **Claude asks only for what it needs**, one topic at a time. It proposes the rest (areas,
    skills, team policy) for the admin to correct.
@@ -74,15 +74,15 @@ The admin is the founder or tech lead. Before running setup they need:
 
 They start Claude Code with the channel flag, then run:
 ```
-claude plugin marketplace add <public AgentMesh repo>
-claude plugin install agentmesh@agentmesh
-/agentmesh:setup
+claude plugin marketplace add <public Cosmicwave repo>
+claude plugin install cmw@cosmicwave
+/cmw:setup
 ```
 
 ## 4. The flow (what the admin sees)
 
 ```
-/agentmesh:setup
+/cmw:setup
  1. About you   team name, what you build, people (name, role, Discord and GitHub usernames)
                 → Claude proposes areas, skills and a short team policy; you correct them
  2. Where       new cloud server · existing server · this machine (trial)
@@ -135,11 +135,11 @@ nothing is written until the admin confirms it.
 5. *(My call.)* The admin's own Discord user id defaults to the server owner's id, confirmed by
    username. If the admin is not the owner, they copy their id with Developer Mode.
 
-**4. Launch.** The CLI does everything in §5.1–§5.5. `agentmesh validate` must pass before
+**4. Launch.** The CLI does everything in §5.1–§5.5. `cmw validate` must pass before
 anything leaves this machine.
 
 **5. You join.**
-- Setup writes the same files `/agentmesh:join` writes (`~/.agentmesh/agent.json` and the key),
+- Setup writes the same files `/cmw:join` writes (`~/.cosmicwave/agent.json` and the key),
   so the plugin connects as `<admin>-agent`.
 - If the plugin needs a restart to pick them up, Claude says so and setup continues at step 6
   when run again.
@@ -151,8 +151,8 @@ anything leaves this machine.
   to run in Discord.
 - **A short note for the admin to send teammates.** It tells them to join the Discord server and
   allow DMs from its members. Then they install the plugin and add the allow rule. When the code
-  arrives by DM, they save it to `~/.agentmesh/invite.txt`, start Claude with the channel flag,
-  and run `/agentmesh:join` and then `/agentmesh:activate`.
+  arrives by DM, they save it to `~/.cosmicwave/invite.txt`, start Claude with the channel flag,
+  and run `/cmw:join` and then `/cmw:activate`.
 - **The order to follow:** teammates install the plugin before the invite is sent, because
   codes expire after 24 hours.
 
@@ -160,9 +160,9 @@ anything leaves this machine.
 
 ### 5.1 Claude conducts, a CLI does the work (my call)
 
-- **Claude's role.** `/agentmesh:setup` is a plugin command (`plugins/agentmesh/commands/`, like
+- **Claude's role.** `/cmw:setup` is a plugin command (`plugins/cmw/commands/`, like
   `join.md`). Claude asks the questions, explains each step and what went wrong, and runs the CLI.
-- **The CLI's role.** Every change is made by `agentmesh` CLI steps that are deterministic and
+- **The CLI's role.** Every change is made by `cmw` CLI steps that are deterministic and
   safe to re-run:
   - **render:** answers → config;
   - **discord:** check the token, then wait for the bot to join a server;
@@ -191,7 +191,7 @@ anything leaves this machine.
 
 ### 5.2 The workspace folder (my call)
 
-- **What it holds.** One folder on the admin's machine (default `~/agentmesh/<team>`; the admin
+- **What it holds.** One folder on the admin's machine (default `~/cosmicwave/<team>`; the admin
   may choose another) holds `config/`, `deploy/` (compose file, `.env`, `nats.conf`, `secrets/`)
   and the setup state.
 - **It is the source of truth.** Later changes are made here and pushed with `deploy`.
@@ -218,7 +218,7 @@ anything leaves this machine.
 
 - **CI publishes the images.** On each release tag, CI builds the hub and Discord bridge images
   for amd64 and arm64 and pushes them to GHCR as public packages.
-- **The compose file pulls instead of building.** It uses `image:` with `AGENTMESH_VERSION` from
+- **The compose file pulls instead of building.** It uses `image:` with `COSMICWAVE_VERSION` from
   `.env`, so a server needs only Docker: no clone, no build. A 1 GB VM cannot build the monorepo
   reliably anyway.
 - **Contributors still build from source** through a compose override file.
@@ -235,7 +235,7 @@ anything leaves this machine.
   every bundled change bumps the plugin version.
 - **The workspace pins the hub version.**
   - Setup writes the running plugin's version into the workspace's `.env`
-    (`AGENTMESH_VERSION`).
+    (`COSMICWAVE_VERSION`).
   - `deploy` always uses that pin, so updating the plugin never upgrades the hub silently.
   - Moving the pin is an explicit `upgrade` step.
 - **Hub-only releases don't force teammates to update.** The hub's minimum plugin version moves
@@ -310,18 +310,18 @@ them as commented examples, and the hub's HTTP port stays bound to localhost.
 - **Members:** `/mesh invite`, `/mesh uninvite` and `/mesh remove` in Discord, unchanged.
 - **Areas, policy and workflows:** the admin asks Claude in the workspace. Claude edits the files,
   runs `validate`, then runs `deploy`, which restarts the hub.
-- **Health:** `agentmesh doctor` re-runs the checks from §7 at any time.
+- **Health:** `cmw doctor` re-runs the checks from §7 at any time.
 - **Runtime role, skill and area-owner changes** from Discord belong to the next design.
 
 ## 7. Proof: setup is done only when every check passes
 
 ```
-AgentMesh is live for Acme
+Cosmicwave is live for Acme
  ✓ mesh.acme.dev resolves to the server; :4222 answers TLS (cert valid to 21 Jan)
  ✓ nats, hub (healthy) and discord-bridge are running
  ✓ Discord bot online in "Acme": category, 7 channels and the planning forum exist
  ✓ riya-agent connects and appears in peers
- ✓ Round trip: hub → this session (/agentmesh:activate test message)
+ ✓ Round trip: hub → this session (/cmw:activate test message)
  ✓ Hello from riya-agent is visible in #mesh-council
  Next: run these 3 invite lines in Discord (below)
 ```
@@ -341,7 +341,7 @@ AgentMesh is live for Acme
 - **Types:** zod schemas at every boundary, including the answers file.
 - **Platforms:** setup works from Windows, macOS and Linux. It relies on the system `ssh`/`scp`
   rather than a bash-only shell.
-- **Plugin:** rebuild and commit `plugins/agentmesh/dist/`, and bump the version in
+- **Plugin:** rebuild and commit `plugins/cmw/dist/`, and bump the version in
   `plugin.json`, `package.json` and `src/server.ts`.
 - **Security:** a threat note in `docs/security.md` (this change touches secrets, SSH and the
   network surface).
@@ -364,7 +364,7 @@ stdout or stderr.
 (the existing harness). Whether CI also runs the trial path under Docker is up to the builder.
 
 **Manual acceptance before launch (Pratik).**
-- On a fresh server, go from plugin install through `/agentmesh:setup` to an all-green proof in
+- On a fresh server, go from plugin install through `/cmw:setup` to an all-green proof in
   under 30 minutes, with no YAML edited by hand.
 - Search the session transcript for the bot token and the seeds; none may be there.
 - Also do one trial-mode run on Windows.
@@ -373,7 +373,7 @@ stdout or stderr.
 
 - **ADR 0007:** a Claude-run setup over a deterministic CLI, published images, and the workspace
   as the source of truth.
-- **`getting-started.md`:** rewritten around `/agentmesh:setup`; the manual path moves to a
+- **`getting-started.md`:** rewritten around `/cmw:setup`; the manual path moves to a
   "by hand" section.
 - **`deploy.md`:** the generic server spec, published images, and upgrades by image version.
 - **`security.md`:** the threat note (§5.3, §5.7).
@@ -385,7 +385,7 @@ stdout or stderr.
 ## 11. Who decided what
 
 **Decided by Pratik**
-- A single `/agentmesh:setup` command in which Claude asks for what it needs (Discord bot, company
+- A single `/cmw:setup` command in which Claude asks for what it needs (Discord bot, company
   overview, team members and their roles).
 - The admin chooses where the hub runs, locally or in the cloud. Installing the cloud CLI is the
   admin's responsibility.

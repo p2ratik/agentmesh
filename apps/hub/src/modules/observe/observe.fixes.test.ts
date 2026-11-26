@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ReportedEvent } from '@agentmesh/protocol';
+import type { ReportedEvent } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { testTeamConfig } from '../../testing/fixtures';
 import { createTestHarness } from '../../testing/harness';

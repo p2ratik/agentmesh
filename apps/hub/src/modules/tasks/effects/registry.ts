@@ -1,4 +1,4 @@
-import type { BuiltinEffect } from '@agentmesh/config';
+import type { BuiltinEffect } from '@cosmicwave/config';
 import { autoAssign } from './assign';
 import {
   clearAssignee,
@@ -13,7 +13,7 @@ import type { Effect } from './types';
 
 /**
  * One implementation per built-in effect name. The `Record` type makes the
- * compiler insist that every effect declared in @agentmesh/config exists here.
+ * compiler insist that every effect declared in @cosmicwave/config exists here.
  */
 export const EFFECTS: Record<BuiltinEffect, Effect> = {
   auto_assign: autoAssign,

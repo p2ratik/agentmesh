@@ -15,10 +15,10 @@ export function isBelow(dir: string, home: string, platform: NodeJS.Platform): b
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
 
-/** Whether the file at `p` carries the `claude-mesh` marker line. */
-export const isOwnShim = (p: string): boolean => {
+/** Whether the file at `p` carries the `claude-mesh` marker line (with `legacy`, the old one too). */
+export const isOwnShim = (p: string, legacy = true): boolean => {
   try {
-    return isOurShim(readFileSync(p, 'utf8'));
+    return isOurShim(readFileSync(p, 'utf8'), legacy);
   } catch {
     return false; // a folder or an unreadable file is not ours either
   }

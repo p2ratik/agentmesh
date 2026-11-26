@@ -1,6 +1,6 @@
-# AgentMesh configuration — one directory describes your team, how work flows and
+# Cosmicwave configuration — one directory describes your team, how work flows and
 # how the hub reaches everyone. Secrets come from the environment: ${NAME} or
-# ${NAME:-fallback}. Check it with:  agentmesh validate --config <this dir>
+# ${NAME:-fallback}. Check it with:  cmw validate --config <this dir>
 version: 1
 
 mesh:
@@ -8,12 +8,12 @@ mesh:
   prefix: mesh # NATS subject prefix; use another one to run several meshes on one NATS
 
 nats:
-  # How processes reach NATS. AGENTMESH_NATS_URL overrides this at runtime
+  # How processes reach NATS. COSMICWAVE_NATS_URL overrides this at runtime
   # (docker compose sets it to nats://nats:4222 for the hub and the bridge).
   servers: nats://localhost:4222
 
 hub:
-  dataDir: ./data # hub.sqlite lives here (AGENTMESH_DATA_DIR overrides)
+  dataDir: ./data # hub.sqlite lives here (COSMICWAVE_DATA_DIR overrides)
   http:
     enabled: true # GET /healthz and POST /v1/ingest/<source>
     host: 0.0.0.0
@@ -21,9 +21,9 @@ hub:
   streams: # JetStream size caps in MB; the oldest messages go when full. Keep the sum under nats.conf's max_file_store.
     eventsMaxMB: 128 # activity feed (also kept 7 days at most)
     ingestMaxMB: 64 # external events waiting for the hub
-  # nkey: U…   # written by `agentmesh keys add hub`
-  # Only for `agentmesh nats-config --auth-callout` (the hub admits agents itself).
-  # Public keys; each is written by `agentmesh keys add hub-issuer|hub-xkey|hub-sys`
+  # nkey: U…   # written by `cmw keys add hub`
+  # Only for `cmw nats-config --auth-callout` (the hub admits agents itself).
+  # Public keys; each is written by `cmw keys add hub-issuer|hub-xkey|hub-sys`
   # and its seed stays in deploy/secrets.
   # authCallout:
   #   issuer: A…    # signs the callout's responses and the user JWTs
@@ -45,7 +45,7 @@ humans:
     displayName: Carol
     discordUserId: "100000000000000003"
 
-# One Claude Code session per person, each running the agentmesh plugin.
+# One Claude Code session per person, each running the Cosmicwave plugin.
 # In Discord each agent posts under its own name and picture: displayName defaults to
 # "<owner>'s agent", and without avatarUrl every agent gets a distinct built-in avatar.
 agents:
@@ -133,7 +133,7 @@ observability: # behaviour timeline: ids, counts and codes only, never message t
   client:
     maxBufferedEvents: 500 # events a plugin keeps in memory while it can't reach the hub (min 50)
 
-enrollment: # invite-only onboarding: /mesh invite in Discord, /agentmesh:join on the laptop
+enrollment: # invite-only onboarding: /mesh invite in Discord, /cmw:join on the laptop
   # natsUrl: tls://mesh.example.com:4222 # public NATS address put in invite codes (tls://; the plugin cannot use wss:// yet)
   inviteTtlHours: 24 # an unused invite code expires after this
   userJwtTtlMinutes: 60 # NATS credentials the hub issues expire after this (backstop for removals; a removed agent id waits this long before re-invite)
@@ -165,6 +165,6 @@ discord:
   token: ${DISCORD_BOT_TOKEN:-}
   applicationId: ${DISCORD_APP_ID:-}
   guildId: ${DISCORD_GUILD_ID:-}
-  provision: { enabled: true, category: "Agent Mesh" }
+  provision: { enabled: true, category: "Cosmicwave" }
   # channels: override names per purpose (council, tasks, reviews, planning,
   # escalations, events, alerts) — defaults in docs/configuration.md

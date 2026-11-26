@@ -1,4 +1,4 @@
-import type { DomainEventData } from '@agentmesh/protocol';
+import type { DomainEventData } from '@cosmicwave/protocol';
 import { EXTERNAL, isAtLeast, SEVERITY_EMOJI } from './format';
 import type { PostIntent } from './intents';
 

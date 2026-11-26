@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** every plugin and the hub record schema-checked events about how AgentMesh behaves. The hub stores them,
+**Goal:** every plugin and the hub record schema-checked events about how Cosmicwave behaves. The hub stores them,
 and the operator, alone, reads a per-agent timeline through a mesh tool and a CLI command.
 
 **Architecture:** a new hub module, `observe`, owns an `events` table (migration 009). It also owns a `ctx.events`
@@ -40,11 +40,11 @@ and out of scope.
 - **Files and bundles:**
   - No file over 300 lines (`pnpm check:size`). `apps/hub/src/modules/sessions/sessions.service.ts` is at 280:
     instrument from other files.
-  - `plugins/agentmesh/dist/hook.js` and `dist/guard.js` stay built-ins only (no zod). The guard and hook write
+  - `plugins/cmw/dist/hook.js` and `dist/guard.js` stay built-ins only (no zod). The guard and hook write
     plain JSON lines; the MCP server validates them with zod when it collects them.
-  - Every task that changes bundled plugin source rebuilds `plugins/agentmesh/dist` in the same commit.
+  - Every task that changes bundled plugin source rebuilds `plugins/cmw/dist` in the same commit.
 - **Tests and docs:**
-  - Tests never write the real `~/.agentmesh` or `~/.claude`.
+  - Tests never write the real `~/.cosmicwave` or `~/.claude`.
   - Docs change in the same task as the behaviour they describe.
   - The version bump happens only in the last task.
 - **Compatibility:**
@@ -258,10 +258,10 @@ and out of scope.
 
 **Files:**
 
-- Create: `plugins/agentmesh/src/telemetry/recorder.ts`, `shipper.ts` and `events-file.ts` (built-ins only), plus
+- Create: `plugins/cmw/src/telemetry/recorder.ts`, `shipper.ts` and `events-file.ts` (built-ins only), plus
   tests.
-- Modify: `plugins/agentmesh/src/session.ts` (wiring; keep ≤ 270 lines; put the logic in `telemetry/`),
-  `plugins/agentmesh/src/main.ts`, `plugins/agentmesh/src/server.ts` (the MCP `getClientVersion()` getter),
+- Modify: `plugins/cmw/src/session.ts` (wiring; keep ≤ 270 lines; put the logic in `telemetry/`),
+  `plugins/cmw/src/main.ts`, `plugins/cmw/src/server.ts` (the MCP `getClientVersion()` getter),
   `packages/bus/src/connect.ts` (an optional `onStatus(type: 'disconnect' | 'reconnect' | 'error')` callback for
   `watchStatus`).
 
@@ -299,9 +299,9 @@ and out of scope.
     - "collects and validates the guard's file, dropping a bad line".
   - `events-file.test.ts`: "stops appending at 256 KB".
   - `session.test.ts`: "a hello records connected with the Claude Code version". Use temp `CLAUDE_PLUGIN_DATA`.
-- [ ] **Step 2:** run `pnpm vitest run plugins/agentmesh/src/telemetry plugins/agentmesh/src/session.test.ts`.
+- [ ] **Step 2:** run `pnpm vitest run plugins/cmw/src/telemetry plugins/cmw/src/session.test.ts`.
   Expected: FAIL.
-- [ ] **Step 3:** implement and wire it. Rebuild `plugins/agentmesh/dist`.
+- [ ] **Step 3:** implement and wire it. Rebuild `plugins/cmw/dist`.
 - [ ] **Step 4:** run `pnpm check`. Expected: PASS; `hook.js` and `guard.js` have no zod.
 - [ ] **Step 5:** commit `"Plugin: record events and ship them to the hub on the heartbeat"`.
 
@@ -309,7 +309,7 @@ and out of scope.
 
 **Files** (modify, with tests next to each):
 
-- `plugins/agentmesh/src/tools/registry.ts` (`run`): a `tool` event with name, `ok` or code, ms, and the ids among
+- `plugins/cmw/src/tools/registry.ts` (`run`): a `tool` event with name, `ok` or code, ms, and the ids among
   `thread_id`, `task_id`, `plan_id`. Never other args.
 - `tools/activation.ts` and `tools/sessions.ts`: `activation` phases with reason codes.
 - `inbox/session-inbox.ts`: delivery `received`, `pushed`, `push_failed`, `deduped` and `held`.
@@ -333,7 +333,7 @@ and out of scope.
   - "a relay push records relay pushed";
   - "an expired unclaimed pointer records relay expired once".
 - [ ] **Step 2:** run them. Expected: FAIL.
-- [ ] **Step 3:** implement. Rebuild `plugins/agentmesh/dist`.
+- [ ] **Step 3:** implement. Rebuild `plugins/cmw/dist`.
 - [ ] **Step 4:** run `pnpm check`. Expected: PASS.
 - [ ] **Step 5:** commit `"Plugin: record tool calls, activations, deliveries and relay outcomes"`.
 
@@ -341,11 +341,11 @@ and out of scope.
 
 **Files** (modify, with tests next to each):
 
-- `plugins/agentmesh/src/guard/decide.ts` (`GuardDecision` gains `code`), `guard/send.ts` (one code per failed
+- `plugins/cmw/src/guard/decide.ts` (`GuardDecision` gains `code`), `guard/send.ts` (one code per failed
   check, plus `key` for `send.unknown_key`), `guard/commands.ts` and `guard/paths.ts` as needed.
-- `plugins/agentmesh/src/guard.ts`: append a `guard` event for every deny and ask, and a relay `claimed` event when
+- `plugins/cmw/src/guard.ts`: append a `guard` event for every deny and ask, and a relay `claimed` event when
   `SendMessage` passes, through `appendEvent`.
-- `plugins/agentmesh/src/hook.ts` and `hook/prompt.ts`: append `hook` events (`note_shown` with the count,
+- `plugins/cmw/src/hook.ts` and `hook/prompt.ts`: append `hook` events (`note_shown` with the count,
   `pointer_labelled`, `window_labelled`, `not_mesh_labelled`, `error`).
 
 **Interfaces:**
@@ -368,15 +368,15 @@ and out of scope.
     zod.
 - [ ] **Step 2:** run them. Expected: FAIL.
 - [ ] **Step 3:** implement. Appending never throws: wrap it and continue, because the guard's decision must not
-  change. Rebuild `plugins/agentmesh/dist`.
+  change. Rebuild `plugins/cmw/dist`.
 - [ ] **Step 4:** run `pnpm check`. Expected: PASS.
 - [ ] **Step 5:** commit `"Guard and hook: reason codes, and events for the timeline"`.
 
-### Task 8: The `timeline` tool and `agentmesh timeline`
+### Task 8: The `timeline` tool and `cmw timeline`
 
 **Files:**
 
-- Create: `plugins/agentmesh/src/tools/observe.ts` (the `timeline` tool) and a test. Register it in
+- Create: `plugins/cmw/src/tools/observe.ts` (the `timeline` tool) and a test. Register it in
   `tools/registry.ts`.
 - Create: `apps/cli/src/commands/timeline.ts` and a test. Register it in `apps/cli/src/main.ts`.
 
@@ -389,9 +389,9 @@ and out of scope.
   - input: `{ agent?, session?, thread_id?, since?, until?, limit? }`;
   - `mutating: false`;
   - it returns the RPC's `text`, plus `\n(truncated: narrow the window or raise limit)` when `truncated`.
-- **The CLI:** `agentmesh timeline [--agent <id>] [--session <id>] [--thread thr-N] [--since 2h] [--until <t>]
+- **The CLI:** `cmw timeline [--agent <id>] [--session <id>] [--thread thr-N] [--since 2h] [--until <t>]
   [--limit N] [--json]`.
-  - It reads `~/.agentmesh/agent.json` (agent id, NATS URL, seed, prefix).
+  - It reads `~/.cosmicwave/agent.json` (agent id, NATS URL, seed, prefix).
   - It connects once (`connectOnce`), calls through `RpcClient` and prints `text`, or the events as JSON lines with
     `--json`.
   - Its help says it is for the mesh's operators. A refusal prints the hub's message and exits 1.
@@ -401,10 +401,10 @@ and out of scope.
   - The CLI test, with a fake RPC client: "prints text, --json prints one event per line, and exits 1 on
     forbidden".
 - [ ] **Step 2:** run them. Expected: FAIL.
-- [ ] **Step 3:** implement. Rebuild `plugins/agentmesh/dist` (`cli.js` and `server.js`).
+- [ ] **Step 3:** implement. Rebuild `plugins/cmw/dist` (`cli.js` and `server.js`).
 - [ ] **Step 4:** run `pnpm check`. Expected: PASS. The `instructions.test.ts` length budget still holds: the new
   tool adds nothing to the instructions.
-- [ ] **Step 5:** commit `"Timeline: a mesh tool and agentmesh timeline for the operator"`.
+- [ ] **Step 5:** commit `"Timeline: a mesh tool and cmw timeline for the operator"`.
 
 ### Task 9: End to end
 
@@ -420,8 +420,8 @@ and out of scope.
   - "an offline plugin ships its buffer when it reconnects". Stop and restart NATS, or close and reopen the plugin's
     connection, whichever the harness supports. If neither is practical, cover it at unit level in Task 5 and say so
     in the report.
-- [ ] **Step 2:** run the integration suite with the cached nats-server (`AGENTMESH_TEST_NATS_BIN`,
-  `AGENTMESH_TEST_NATS`). Expected: PASS, and the new file is not skipped.
+- [ ] **Step 2:** run the integration suite with the cached nats-server (`COSMICWAVE_TEST_NATS_BIN`,
+  `COSMICWAVE_TEST_NATS`). Expected: PASS, and the new file is not skipped.
 - [ ] **Step 3:** commit `"Tests: observability end to end"`.
 
 ### Task 10: Docs and the threat notes
@@ -431,9 +431,9 @@ and out of scope.
 - Modify: `docs/security.md`, which needs:
   - a section "Observability" with spec §10's notes for phase 1: the `telemetry.report` ingress, the `observe.timeline`
     viewers-only read, attribution by caller, caps, no free text, the privacy line, and disclosure;
-  - a paragraph "What AgentMesh records about your sessions, and what it never records".
+  - a paragraph "What Cosmicwave records about your sessions, and what it never records".
 - Modify: `docs/protocol.md` (both RPCs and the hello field), `docs/configuration.md` (done in Task 1; check it),
-  `plugins/agentmesh/README.md` (the disclosure paragraph and the `timeline` tool), `README.md` (one line),
+  `plugins/cmw/README.md` (the disclosure paragraph and the `timeline` tool), `README.md` (one line),
   `CLAUDE.md` (status, the new module, the built-ins file `telemetry/events-file.ts`, and the `timeline` tool in the
   tool count).
 - Create: `docs/adr/0011-observability.md`: the decisions and my calls from spec §12, phase 1 versus phase 2, and why
@@ -446,9 +446,9 @@ and out of scope.
 ### Task 11: Release 0.7.0
 
 **Files:** `packages/common/src/version.ts` (`VERSION = '0.7.0'`), the 9 workspace `package.json` files,
-`plugins/agentmesh/.claude-plugin/plugin.json`, and `plugins/agentmesh/dist/*` (rebuilt).
+`plugins/cmw/.claude-plugin/plugin.json`, and `plugins/cmw/dist/*` (rebuilt).
 
-- [ ] **Step 1:** bump every version file (`version.test.ts` pins them), then run `pnpm --filter @agentmesh/plugin
+- [ ] **Step 1:** bump every version file (`version.test.ts` pins them), then run `pnpm --filter @cosmicwave/plugin
   build`.
 - [ ] **Step 2:** run `pnpm check` and the integration suite. Expected: PASS, with none skipped.
 - [ ] **Step 3:** commit `"Release 0.7.0: observability phase 1, the event timeline"`.
@@ -459,4 +459,4 @@ and out of scope.
   3. Run the window with a guard built from a commit before 4f8f79f (the `summary` bug). Its denials show
      `send.unknown_key (summary)`.
   4. A NATS outage shows `disconnect` and `reconnect`, and the buffered events arrive afterwards.
-  5. `agentmesh timeline --agent tester-agent --since 30m` from the staging home prints the same timeline.
+  5. `cmw timeline --agent tester-agent --since 30m` from the staging home prints the same timeline.

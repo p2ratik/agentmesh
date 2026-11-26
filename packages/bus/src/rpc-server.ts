@@ -1,11 +1,11 @@
-import { type Logger, toErrorPayload } from '@agentmesh/common';
+import { type Logger, toErrorPayload } from '@cosmicwave/common';
 import {
   inboxPrefix,
   parseRpcSubject,
   RpcRequestEnvelope,
   type RpcResponseEnvelope,
   subjects,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { Msg, NatsConnection, Subscription } from '@nats-io/transport-node';
 
 export interface RpcCallContext {

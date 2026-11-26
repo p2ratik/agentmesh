@@ -1,4 +1,4 @@
-import type { MeshMessage } from '@agentmesh/protocol';
+import type { MeshMessage } from '@cosmicwave/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type { DeliveryReceipt } from '../ports';
 import { createTestHarness, type TestHarness } from '../testing/harness';

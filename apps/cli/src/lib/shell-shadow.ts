@@ -1,7 +1,7 @@
 // Pure: which shell startup files could define a claude-mesh that runs instead of the launcher,
 // and which lines of one do. No I/O: the reader is `shell-shadow-scan.ts`.
 import { join } from 'node:path';
-import { START_COMMAND } from '@agentmesh/common/window';
+import { START_COMMAND } from '@cosmicwave/common/window';
 
 const NAME = START_COMMAND;
 const END = '(?![\\w-])';

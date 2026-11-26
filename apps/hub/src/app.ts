@@ -1,7 +1,7 @@
 import { join } from 'node:path';
-import { connectBus, type RpcDispatcher, serveRpc } from '@agentmesh/bus';
-import { type Clock, createLogger, DAY_MS, type Logger, systemClock } from '@agentmesh/common';
-import { ConfigIndex, type LoadedConfig } from '@agentmesh/config';
+import { connectBus, type RpcDispatcher, serveRpc } from '@cosmicwave/bus';
+import { type Clock, createLogger, DAY_MS, type Logger, systemClock } from '@cosmicwave/common';
+import { ConfigIndex, type LoadedConfig } from '@cosmicwave/config';
 import { createHubContext, type HubContext } from './context';
 import { NatsPorts } from './core/nats-ports';
 import { SqliteOutbox } from './core/outbox';
@@ -55,7 +55,7 @@ async function natsAdapters(nats: HubNats | null, options: HubOptions, logger: L
   const sys = options.callout
     ? await connectBus({
         servers: options.nats?.servers ?? [],
-        name: 'agentmesh-hub-sys',
+        name: 'cosmicwave-hub-sys',
         credentials: { nkeySeed: options.callout.sysSeed },
         logger,
       })
@@ -146,7 +146,7 @@ export async function createHub(options: HubOptions): Promise<Hub> {
     transaction: (fn) => db.transaction(fn),
     now: () => clock.now().getTime(),
     // A call made as a session proves it is there, like a heartbeat: live again, deliveries go.
-    // One without (`agentmesh timeline`) is no session; hello touches presence itself.
+    // One without (`cmw timeline`) is no session; hello touches presence itself.
     onCall: (caller, session) => {
       if (caller.kind !== 'agent' || !session) return;
       built.services.presence.touch(caller.id);

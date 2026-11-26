@@ -1,5 +1,5 @@
-import { MINUTE_MS } from '@agentmesh/common';
-import { ConfigIndex } from '@agentmesh/config';
+import { MINUTE_MS } from '@cosmicwave/common';
+import { ConfigIndex } from '@cosmicwave/config';
 import { describe, expect, it, vi } from 'vitest';
 import { leaveTeam } from '../../testing/harness';
 import { createBobDispatchHarness } from '../../testing/services';

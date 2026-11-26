@@ -27,7 +27,7 @@ same disk.
 
 ## Anti-goals
 
-- No secret, and no unencrypted byte of a backup, in the public AgentMesh repository, in a log,
+- No secret, and no unencrypted byte of a backup, in the public Cosmicwave repository, in a log,
   or in the backup repository.
 - No key on the server that can decrypt a backup.
 
@@ -47,7 +47,7 @@ writes can be inconsistent. `VACUUM INTO` already includes everything committed 
 **What a backup holds:** one `tar.gz`, encrypted with [age](https://age-encryption.org) to the
 admin's public key:
 - `hub.sqlite`, a `VACUUM INTO` snapshot taken while the hub keeps serving, the same way
-  `agentmesh-deploy` takes it. It must pass `PRAGMA quick_check` before it is shipped, so a broken
+  `cosmicwave-deploy` takes it. It must pass `PRAGMA quick_check` before it is shipped, so a broken
   snapshot never replaces a good copy.
 - The paths in `BACKUP_PATHS`, relative to the checkout. Default: `config deploy/.env
   deploy/secrets deploy/nats/nats.conf deploy/docker-compose.override.yml`.
@@ -67,17 +67,17 @@ the default, and the watch workflow must live on `main`. The last daily date is 
 service's state directory and written only after a successful push.
 
 **On the server** (same pattern as `deploy/auto-deploy/`):
-- `deploy/backup/agentmesh-backup.sh` → `/usr/local/sbin/agentmesh-backup` (root-owned). Actions:
+- `deploy/backup/cosmicwave-backup.sh` → `/usr/local/sbin/cosmicwave-backup` (root-owned). Actions:
   `run` (the timer's) and `status` (last success, from its state file).
-- `deploy/backup/install.sh` installs the script, the `agentmesh-backup.service` (oneshot, as the
+- `deploy/backup/install.sh` installs the script, the `cosmicwave-backup.service` (oneshot, as the
   user who runs docker compose) and `.timer` (hourly, `Persistent=true`, a small random delay),
-  writes `/etc/default/agentmesh-backup` once, and creates an ed25519 deploy key for the backup
+  writes `/etc/default/cosmicwave-backup` once, and creates an ed25519 deploy key for the backup
   repository, printing its public line. It needs `age` and `git` (apt).
-- Settings in `/etc/default/agentmesh-backup`: `AGENTMESH_DIR` (`/opt/agentmesh`),
+- Settings in `/etc/default/cosmicwave-backup`: `COSMICWAVE_DIR` (`/opt/cosmicwave`),
   `BACKUP_REMOTE` (required, an SSH git URL), `AGE_RECIPIENT` (required, an `age1…` public key),
-  `BACKUP_PATHS` (above), `BACKUP_SSH_KEY` (`~/.ssh/agentmesh-backup`).
+  `BACKUP_PATHS` (above), `BACKUP_SSH_KEY` (`~/.ssh/cosmicwave-backup`).
 - The snapshot uses its own temporary file name, so it cannot collide with a deploy's backup.
-- The snapshot code is a copy of `agentmesh-deploy`'s, with a comment pointing at it, plus the
+- The snapshot code is a copy of `cosmicwave-deploy`'s, with a comment pointing at it, plus the
   `quick_check`. Sharing one file would have changed the deploy key's install path for 15 lines.
 - `install.sh` pins GitHub's SSH host keys from `api.github.com/meta` (over HTTPS), next to the
   key, so the first push trusts no unseen host key.
@@ -111,7 +111,7 @@ server.
 - `docs/deploy.md`: a new "Off-site backups" section (setup and restore). It replaces the old
   "Backups" bullet. `docs/configuration.md`: the settings. `docs/security.md`: the notes above.
   ADR 0013.
-- Tests in `tests/deploy/`, following `agentmesh-deploy.test.ts`: the scripts parse; required
+- Tests in `tests/deploy/`, following `cosmicwave-deploy.test.ts`: the scripts parse; required
   settings are enforced before anything runs; with stub `docker` and `age` and a local bare
   repository as the remote, two runs on one day make one daily commit and replace the hourly one,
   and a run on the next day adds a second daily commit; a snapshot that fails its check pushes

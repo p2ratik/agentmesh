@@ -4,7 +4,7 @@
 # to `aws` (allowed to manage IAM and the instance's security groups; pick the account with
 # AWS_PROFILE) and to `gh` (admin of the repository), with key-based SSH to the server:
 #
-#   AWS_PROFILE=<profile> AWS_REGION=<region> REPO=acme/agentmesh INSTANCE=i-0123456789abcdef0 \
+#   AWS_PROFILE=<profile> AWS_REGION=<region> REPO=acme/cosmicwave INSTANCE=i-0123456789abcdef0 \
 #   DEPLOY_USER=ubuntu DEPLOY_HOST=mesh.example.com ./deploy/aws/github-deploy-setup.sh
 #
 # It sets up:
@@ -14,7 +14,7 @@
 #           GitHub's OIDC provider: no key exists. With AWS_AUTH=key, for accounts that may not use
 #           OIDC providers (AWS's free plan, or an organization's SCP), it is an IAM user whose
 #           access key goes into the environment's secrets; a re-run rotates the key.
-#   Server  /usr/local/sbin/agentmesh-deploy and a deploy key that can run nothing else
+#   Server  /usr/local/sbin/cosmicwave-deploy and a deploy key that can run nothing else
 #           (deploy/auto-deploy/install.sh).
 #   GitHub  the `production` environment (deploys from main only), its secrets, and the
 #           repository variables the workflows read. It removes the Azure ones, if any.
@@ -35,8 +35,8 @@ aws() { command aws "$@" | tr -d '\r'; }
 : "${DEPLOY_USER:=ubuntu}"
 : "${ENVIRONMENT:=production}"
 : "${AWS_AUTH:=oidc}"
-: "${IAM_NAME:=agentmesh-github-deploy}" # the role (oidc) or the user (key)
-: "${SG_NAME:=agentmesh-github-deploy}"
+: "${IAM_NAME:=cosmicwave-github-deploy}" # the role (oidc) or the user (key)
+: "${SG_NAME:=cosmicwave-github-deploy}"
 case $AWS_AUTH in oidc | key) ;; *) echo "AWS_AUTH must be oidc or key" >&2; exit 1 ;; esac
 # -4: a DNS64 resolver can hand out a NAT64 address that does not route.
 read -r -a SSH_CMD <<<"${SSH:-ssh} -4 -o BatchMode=yes"
@@ -88,7 +88,7 @@ DEPLOY_SG=$(aws ec2 describe-security-groups --output text --query 'SecurityGrou
   --filters "Name=group-name,Values=$SG_NAME" "Name=vpc-id,Values=$VPC")
 if [ -z "$DEPLOY_SG" ] || [ "$DEPLOY_SG" = None ]; then
   DEPLOY_SG=$(aws ec2 create-security-group --group-name "$SG_NAME" --vpc-id "$VPC" \
-    --description "AgentMesh GitHub deploy: SSH from the runner, only while a deploy runs" \
+    --description "Cosmicwave GitHub deploy: SSH from the runner, only while a deploy runs" \
     --query GroupId --output text)
 fi
 case ",$INSTANCE_SGS," in
@@ -126,7 +126,7 @@ if [ "$AWS_AUTH" = oidc ]; then
     aws iam update-assume-role-policy --role-name "$IAM_NAME" --policy-document "$TRUST"
   else
     aws iam create-role --role-name "$IAM_NAME" --assume-role-policy-document "$TRUST" \
-      --description "AgentMesh GitHub deploys of $REPO: opens SSH to the runner for one run" >/dev/null
+      --description "Cosmicwave GitHub deploys of $REPO: opens SSH to the runner for one run" >/dev/null
   fi
   aws iam put-role-policy --role-name "$IAM_NAME" --policy-name deploy-ssh-rule --policy-document "$POLICY"
   # A key left from an earlier AWS_AUTH=key setup would be a credential nobody uses.

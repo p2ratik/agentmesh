@@ -17,7 +17,7 @@ sessions. These are the fixes behind Aheen's lost request.
 
 **Tech Stack:**
 - Node 24 (`node:sqlite`), TypeScript 7, zod 4, vitest 5, Biome 2, pnpm 10.
-- The hub is in `apps/hub`, the wire contract in `packages/protocol`, the plugin in `plugins/agentmesh`.
+- The hub is in `apps/hub`, the wire contract in `packages/protocol`, the plugin in `plugins/cmw`.
 
 **Spec:** `docs/specs/2026-11-01-mesh-window-design.md`: §4 (reads), §5 "Tasks belong to the
 mesh window", §8 (security), §10 (constraints). Plans 2 (the mesh window) and 3 (the relay) come
@@ -37,15 +37,15 @@ later.
   (CLAUDE.md).
 - **Protocol fields are additive** with `.default(...)`, so old plugins keep parsing results.
 - **Version bump:** `packages/common/src/version.ts` plus the 9 workspace `package.json` files plus
-  `plugins/agentmesh/.claude-plugin/plugin.json`. `version.test.ts` pins them together.
-- **Plugin dist.** Rebuild `plugins/agentmesh/dist/*` with `pnpm --filter @agentmesh/plugin build`,
+  `plugins/cmw/.claude-plugin/plugin.json`. `version.test.ts` pins them together.
+- **Plugin dist.** Rebuild `plugins/cmw/dist/*` with `pnpm --filter @cosmicwave/plugin build`,
   and commit the dist.
 - **Windows dev box.**
   - `python3` is a stub, so use node.
   - Edit files with the editor tools, not bash heredocs.
 - **Integration tests skip silently without nats-server.** To run them:
   1. Start `C:\Users\USER\AppData\Local\Temp\claude\G--Projects-AgentMesh\01d905da-504d-4369-91a5-bb8bb09a37e4\scratchpad\nats-bin\nats-server-v2.15.1-windows-amd64\nats-server.exe -js -p 4333 -sd <scratch dir>`.
-  2. Run with `AGENTMESH_TEST_NATS_BIN=<that exe>` and `AGENTMESH_TEST_NATS=nats://127.0.0.1:4333`.
+  2. Run with `COSMICWAVE_TEST_NATS_BIN=<that exe>` and `COSMICWAVE_TEST_NATS=nats://127.0.0.1:4333`.
 
 ## Review Focus
 
@@ -316,12 +316,12 @@ later.
 ### Task 5: The plugin's inbox shows what is waiting, and the release
 
 **Files:**
-- Modify: `plugins/agentmesh/src/tools/messaging.ts` (the `inbox` tool, about lines 126-150)
-- Test: `plugins/agentmesh/src/tools/tools.test.ts` (next to the `inbox names the unread threads…`
+- Modify: `plugins/cmw/src/tools/messaging.ts` (the `inbox` tool, about lines 126-150)
+- Test: `plugins/cmw/src/tools/tools.test.ts` (next to the `inbox names the unread threads…`
   case)
 - Modify: `packages/common/src/version.ts`, the 9 workspace `package.json` files and
-  `plugins/agentmesh/.claude-plugin/plugin.json`: `0.4.3` becomes `0.4.4`
-- Modify: the `plugins/agentmesh/dist/*` rebuild
+  `plugins/cmw/.claude-plugin/plugin.json`: `0.4.3` becomes `0.4.4`
+- Modify: the `plugins/cmw/dist/*` rebuild
 
 **Interfaces:**
 - **Consumes:** `inbox.get`'s `waiting` and `paused` (Task 1 and Task 2).
@@ -334,13 +334,13 @@ later.
     with `'(The mesh is paused: nothing was marked read.)'`.
   - `'Inbox zero — nothing unread.'` appears only when there are no threads, no other sessions and
     `waiting === 0`.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src/tools`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src/tools`. Expected: FAIL.
 - [ ] **Step 3: Implement** the two lines, plus the empty check.
 - [ ] **Step 4: Bump the version and rebuild.**
   1. Set `0.4.4` in all 11 files.
-  2. Run `pnpm --filter @agentmesh/plugin build`, then `pnpm check`.
+  2. Run `pnpm --filter @cosmicwave/plugin build`, then `pnpm check`.
   3. Expected: PASS, including `version.test.ts`.
-  4. Check that `git status` shows the rebuilt `plugins/agentmesh/dist/` files.
+  4. Check that `git status` shows the rebuilt `plugins/cmw/dist/` files.
 - [ ] **Step 5: Commit** `"Plugin 0.4.4: inbox shows waiting team work and pause"`.
 
 ---

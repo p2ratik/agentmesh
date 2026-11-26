@@ -1,4 +1,4 @@
-import type { Clock } from '@agentmesh/common';
+import type { Clock } from '@cosmicwave/common';
 
 /**
  * Keeps refusal logs readable: plugins retry refused connects every few

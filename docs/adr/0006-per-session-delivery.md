@@ -40,7 +40,7 @@ The full evidence is in the [design](../specs/2026-10-21-session-routing-design.
     or as the longest-active session. A delivery to the thread's own owner claims nothing new.
 
   A claim never moves work an open session owns: the first owner keeps it, and an acting session
-  gets a note saying where replies go. Ownership moves only by `/agentmesh:take`, or is released
+  gets a note saying where replies go. Ownership moves only by `/cmw:take`, or is released
   when the owner deactivates or closes.
 - **Activation is a hub-sent check.** `session.check` makes the hub send the session a code over
   its session subject; the plugin pushes it into Claude Code, and `session.activate` takes it back

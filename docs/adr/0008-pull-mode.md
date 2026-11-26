@@ -5,11 +5,11 @@
 ## Context
 
 Claude Code shows a plugin's channel pushes only in sessions started with
-`--dangerously-load-development-channels plugin:agentmesh@agentmesh` (or `--channels` once the
+`--dangerously-load-development-channels plugin:cmw@cosmicwave` (or `--channels` once the
 plugin is allowlisted). The Claude Desktop app cannot pass that flag. In such a session
-`/agentmesh:activate` fails, because its test message never arrives. The session stays inactive,
+`/cmw:activate` fails, because its test message never arrives. The session stays inactive,
 and since task-22 an agent without an active session counts as offline, so work routes around
-it. People reported this as "AgentMesh does not work". Pushes cannot work without the flag.
+it. People reported this as "Cosmicwave does not work". Pushes cannot work without the flag.
 
 ## Decision
 

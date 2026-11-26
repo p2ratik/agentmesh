@@ -1,4 +1,4 @@
-import type { SessionDelivery } from '@agentmesh/protocol';
+import type { SessionDelivery } from '@cosmicwave/protocol';
 import type { Route } from './routing';
 
 /** The dispatcher's routes within one flush, and the `released` marker they carry. Pure. */

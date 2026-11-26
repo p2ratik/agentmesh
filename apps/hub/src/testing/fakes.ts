@@ -1,5 +1,5 @@
-import { newMessageId } from '@agentmesh/common';
-import type { ConfigIndex } from '@agentmesh/config';
+import { newMessageId } from '@cosmicwave/common';
+import type { ConfigIndex } from '@cosmicwave/config';
 import {
   type DeliveryClass,
   type MeshMessage,
@@ -9,7 +9,7 @@ import {
   type SessionDelivery,
   SessionRelay,
   type ThreadSummary,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type {
   CreateThreadInput,
   LeaseService,

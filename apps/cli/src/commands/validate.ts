@@ -1,4 +1,4 @@
-import { ConfigError, configWarnings, loadConfig } from '@agentmesh/config';
+import { ConfigError, configWarnings, loadConfig } from '@cosmicwave/config';
 import { parseCommandArgs } from '../args';
 import { type Command, configPathFrom } from '../context';
 import { meshFilePath } from '../lib/config-files';
@@ -12,7 +12,7 @@ import {
 export const validateCommand: Command = {
   name: 'validate',
   summary: 'Check mesh.yaml, workflows and rules; print what the hub will run with',
-  help: `Usage: agentmesh validate [--config <dir>]
+  help: `Usage: cmw validate [--config <dir>]
 
 Loads the config exactly like the hub (with your current environment) and
 reports every problem with its path. Exit code 1 when the config is invalid.

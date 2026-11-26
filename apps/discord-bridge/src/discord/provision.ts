@@ -1,5 +1,5 @@
-import type { Logger } from '@agentmesh/common';
-import type { DiscordConfig } from '@agentmesh/config';
+import type { Logger } from '@cosmicwave/common';
+import { DEFAULT_CATEGORY, type DiscordConfig, LEGACY_CATEGORY } from '@cosmicwave/config';
 import { type CategoryChannel, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import { ChannelDirectory } from './directory';
 
@@ -40,7 +40,7 @@ export async function provisionChannels(
       type: typeOf(wanted),
       parent: category,
       ...(wanted.topic ? { topic: wanted.topic } : {}),
-      reason: `AgentMesh ${purpose} channel`,
+      reason: `Cosmicwave ${purpose} channel`,
     });
     logger.info({ purpose, channel: channel.name }, 'created discord channel');
     byPurpose.set(purpose, channel.id);
@@ -48,12 +48,29 @@ export async function provisionChannels(
   return new ChannelDirectory(byPurpose);
 }
 
+/**
+ * The category to reuse: the wanted name, else (default name only) the old default. `cmw doctor`
+ * applies the same rule (apps/cli/src/setup/checks/discord.ts).
+ */
+export function pickCategory<T extends { name: string }>(
+  categories: Iterable<T>,
+  wanted: string,
+): T | undefined {
+  const all = [...categories];
+  return (
+    all.find((c) => c.name === wanted) ??
+    (wanted === DEFAULT_CATEGORY ? all.find((c) => c.name === LEGACY_CATEGORY) : undefined)
+  );
+}
+
 async function ensureCategory(guild: Guild, name: string): Promise<CategoryChannel> {
-  const found = guild.channels.cache.find(
-    (c: GuildBasedChannel): c is CategoryChannel =>
-      c.type === ChannelType.GuildCategory && c.name === name,
+  const found = pickCategory(
+    guild.channels.cache
+      .filter((c: GuildBasedChannel): c is CategoryChannel => c.type === ChannelType.GuildCategory)
+      .values(),
+    name,
   );
   return (
-    found ?? guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'AgentMesh' })
+    found ?? guild.channels.create({ name, type: ChannelType.GuildCategory, reason: 'Cosmicwave' })
   );
 }

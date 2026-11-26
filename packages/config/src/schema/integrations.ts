@@ -1,4 +1,4 @@
-import { ParticipantId } from '@agentmesh/protocol';
+import { ParticipantId } from '@cosmicwave/protocol';
 import { z } from 'zod';
 
 export const IngestAuth = z.discriminatedUnion('type', [
@@ -57,13 +57,17 @@ export const DiscordChannel = z.object({
   topic: z.string().optional(),
 });
 
+export const DEFAULT_CATEGORY = 'Cosmicwave';
+/** The default category name before the rename: reused while the category is the default. */
+export const LEGACY_CATEGORY = 'Agent Mesh';
+
 export const DiscordConfig = z.object({
   enabled: z.boolean().default(false),
   token: z.string().default(''),
   applicationId: z.string().default(''),
   guildId: z.string().default(''),
   provision: z
-    .object({ enabled: z.boolean().default(true), category: z.string().default('Agent Mesh') })
+    .object({ enabled: z.boolean().default(true), category: z.string().default(DEFAULT_CATEGORY) })
     .prefault({}),
   /** Keyed by purpose; `reviews` falls back to `tasks`, `alerts` to `events`. */
   channels: z.record(z.string(), DiscordChannel).default({

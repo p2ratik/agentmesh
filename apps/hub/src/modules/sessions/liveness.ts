@@ -1,4 +1,4 @@
-import { DAY_MS } from '@agentmesh/common';
+import { DAY_MS } from '@cosmicwave/common';
 import type { HubContext } from '../../context';
 import { recordHub } from '../observe/hub-event';
 import type { SessionRow, SessionsRepo } from './sessions.repo';

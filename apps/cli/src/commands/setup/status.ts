@@ -6,7 +6,7 @@ import { loadAnswers, readState, workspaceFrom } from '../../setup/workspace';
 export const setupStatusCommand: Command = {
   name: 'setup status',
   summary: 'Show which setup steps are done and what to run next',
-  help: 'Usage: agentmesh setup status --dir <workspace>',
+  help: 'Usage: cmw setup status --dir <workspace>',
   run(argv, ctx) {
     const { values } = parseCommandArgs(
       argv,

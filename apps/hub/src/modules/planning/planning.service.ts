@@ -1,11 +1,11 @@
-import { addMs, MeshError, MINUTE_MS, redactSecrets } from '@agentmesh/common';
+import { addMs, MeshError, MINUTE_MS, redactSecrets } from '@cosmicwave/common';
 import type {
   Plan,
   PlanContribution,
   PlanState,
   PlanTaskDraft,
   RpcParams,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, PlanningService } from '../../contracts';
 import { planKey } from '../../core/ids';

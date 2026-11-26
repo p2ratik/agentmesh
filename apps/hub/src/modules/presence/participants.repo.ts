@@ -1,4 +1,4 @@
-import type { ParticipantKind } from '@agentmesh/protocol';
+import type { ParticipantKind } from '@cosmicwave/protocol';
 import type { Db } from '../../db/database';
 
 export type DeclaredStatus = 'online' | 'busy' | 'away';

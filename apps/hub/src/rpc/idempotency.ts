@@ -1,4 +1,4 @@
-import type { Clock } from '@agentmesh/common';
+import type { Clock } from '@cosmicwave/common';
 import type { Db } from '../db/database';
 
 export type IdempotencyLookup =

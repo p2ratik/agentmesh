@@ -11,7 +11,7 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   // Workspace packages ship TypeScript sources; discord.js stays an npm dependency.
-  noExternal: [/^@agentmesh\//],
+  noExternal: [/^@cosmicwave\//],
   // Bundled CommonJS dependencies (e.g. nkeys) call require(); give the ESM bundle one.
   banner: {
     js: [

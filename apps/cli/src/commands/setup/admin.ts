@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { agentmeshDir, existingMesh, MeshError } from '@agentmesh/common';
+import { existingMesh, MeshError, meshHome } from '@cosmicwave/common';
 import { parseCommandArgs } from '../../args';
 import { type Command, cliOf } from '../../context';
 import { loadTopology } from '../../lib/config-files';
@@ -12,10 +12,10 @@ import { agentSeedFile, loadAnswers, markDone, workspaceFrom } from '../../setup
 
 export const setupAdminCommand: Command = {
   name: 'setup admin',
-  summary: "Save the admin's agent settings to ~/.agentmesh/agent.json on this machine",
-  help: `Usage: agentmesh setup admin --dir <workspace> [--replace]
+  summary: "Save the admin's agent settings to ~/.cosmicwave/agent.json on this machine",
+  help: `Usage: cmw setup admin --dir <workspace> [--replace]
 
-Writes ~/.agentmesh/agent.json for <admin>-agent with the seed setup render made, the
+Writes ~/.cosmicwave/agent.json for <admin>-agent with the seed setup render made, the
 hub's NATS URL and the mesh prefix, so the plugin connects as the admin's agent. It
 refuses to replace settings for another agent or hub unless --replace.`,
   run(argv, ctx) {
@@ -27,7 +27,7 @@ refuses to replace settings for another agent or hub unless --replace.`,
     const p = workspaceFrom(ctx, values.dir);
     const a = loadAnswers(p);
     const agentId = agentIdOf(a.admin.id);
-    const dir = agentmeshDir(ctx.homeDir);
+    const dir = meshHome(ctx.homeDir);
     const seedFile = agentSeedFile(ctx.homeDir, a.team.meshName, agentId);
     if (!existsSync(seedFile)) {
       throw new MeshError('not_found', `No seed at ${seedFile}. Run setup render first.`);
@@ -59,8 +59,8 @@ refuses to replace settings for another agent or hub unless --replace.`,
       "If the plugin's agent_id, nats_url or nkey_seed options are set, clear them in /plugin " +
       'and restart Claude Code: while they name another agent, the plugin ignores this file.';
     const lines = [
-      `Saved ${file} for ${agentId}. In Claude Code, call the AgentMesh connect tool, or ` +
-        'restart Claude Code with the channel flag. Then run /agentmesh:activate.',
+      `Saved ${file} for ${agentId}. In Claude Code, call the Cosmicwave connect tool, or ` +
+        'restart Claude Code with the channel flag. Then run /cmw:activate.',
       options,
     ];
     if (other) {

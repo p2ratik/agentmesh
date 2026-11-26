@@ -12,7 +12,7 @@ import { markDone, readState, workspacePaths } from '../../setup/workspace';
 
 /** A workspace holding only `setup-answers.json`, and the CLI run on it. */
 function workspace(answers: AnswersInput) {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-status-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-status-'));
   const out: string[] = [];
   const ctx: CliContext = {
     cwd,
@@ -54,7 +54,7 @@ describe('setup status', () => {
     expect(renderStatus(done('render', 'discord'), trial)).toMatch(/Next: run setup deploy$/);
     // Activation first: the proof's round trip needs an active session.
     expect(renderStatus(done('render', 'discord', 'deploy', 'admin'), trial)).toMatch(
-      /Next: run \/agentmesh:activate, then the proof \(doctor, peers, hello\), then setup invites$/,
+      /Next: run \/cmw:activate, then the proof \(doctor, peers, hello\), then setup invites$/,
     );
   });
 

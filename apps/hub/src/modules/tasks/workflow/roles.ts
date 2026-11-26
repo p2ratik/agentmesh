@@ -1,4 +1,4 @@
-import type { WorkflowRole } from '@agentmesh/config';
+import type { WorkflowRole } from '@cosmicwave/config';
 import type { Actor } from '../../../contracts';
 
 /** The hub itself (see `systemActor`): a service carrying the `system` role. */

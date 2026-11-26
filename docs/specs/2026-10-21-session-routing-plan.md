@@ -50,9 +50,9 @@ interfaces created here:
   `config/examples/mesh.yaml` and an entry in `docs/configuration.md`.
 - `@modelcontextprotocol/sdk` stays pinned at `1.32.1`. tsup keeps `removeNodeProtocol: false` and
   the `createRequire` banner.
-- The plugin version becomes `0.2.0` in `plugins/agentmesh/.claude-plugin/plugin.json`,
-  `plugins/agentmesh/package.json` and `plugins/agentmesh/src/server.ts` (`VERSION`). Rebuild and
-  commit `plugins/agentmesh/dist/server.js`.
+- The plugin version becomes `0.2.0` in `plugins/cmw/.claude-plugin/plugin.json`,
+  `plugins/cmw/package.json` and `plugins/cmw/src/server.ts` (`VERSION`). Rebuild and
+  commit `plugins/cmw/dist/server.js`.
 - The hub refuses `session.hello` from plugins older than `0.2.0`, with an update instruction. There
   is no compatibility mode (spec §10, my call).
 - Secrets never go into logs or tool output. Session descriptions go through `redactSecrets`.
@@ -414,11 +414,11 @@ export interface SessionsService {
   - Owned by another live or away session: keep it, and push this note into `call.notes`, exactly
     this copy:
     `"<thr-x> belongs to your session <id> (“<description or ‘no description’>”); its messages go
-    there. Run /agentmesh:take <thr-x> to move it here."`
+    there. Run /cmw:take <thr-x> to move it here."`
 - `session.hello`:
   - Refuse `clientVersion` below `0.2.0` with `invalid_request` and this copy:
-    `"This AgentMesh plugin (<v>) predates per-session delivery. Update it: claude plugin update
-    agentmesh@agentmesh, then restart Claude Code."`
+    `"This Cosmicwave plugin (<v>) predates per-session delivery. Update it: claude plugin update
+    cmw@cosmicwave, then restart Claude Code."`
   - Otherwise do `presence.touch`, then `sessions.open`, and return the existing result plus
     `sessionId` and `reclaimed` (thread keys).
 - `session.bye`:
@@ -452,7 +452,7 @@ export interface SessionsService {
     - `recordClaims` from s1 for `message.send` with result `{threadId:'thr-1'}` makes s1 the
       owner;
     - the same from s2 leaves `ownerOf` as s1, and `call.notes[0]` contains
-      `/agentmesh:take thr-1`.
+      `/cmw:take thr-1`.
   - `take moves ownership and reports the previous owner`.
   - `bye releases ownership; a reconnect reclaims what nobody took`. Concretely:
     - s1 owns thr-1 and thr-2, then closes;
@@ -635,7 +635,7 @@ export class SessionDispatcher implements DeliveryPort {
     leave them unread.
   - `packages/protocol/src/rpc/messaging.ts`: the `inbox.get` result gains
     `otherSessions: z.number().int().nonnegative().default(0)`.
-  - `plugins/agentmesh/src/tools/messaging.ts`: `inbox` appends `"(<n> unread thread(s) belong to
+  - `plugins/cmw/src/tools/messaging.ts`: `inbox` appends `"(<n> unread thread(s) belong to
     your other sessions)"` when n > 0.
   - The messaging deps get `ownerOf(threadId, agentId)`, wired from sessions in `modules.ts`.
 - Test: `apps/hub/src/modules/messaging/messaging.test.ts`.
@@ -700,23 +700,23 @@ export class SessionDispatcher implements DeliveryPort {
 **Files:**
 
 - Create:
-  - `plugins/agentmesh/src/inbox/session-inbox.ts` (`runSessionInbox`)
-  - `plugins/agentmesh/src/inbox/recent-ids.ts` (move `RecentIds` here)
-  - `plugins/agentmesh/src/inbox/session-inbox.test.ts`
-- Delete: `plugins/agentmesh/src/inbox/consumer.ts` and the `Coalescer` in `coalescer.ts`; the hub
+  - `plugins/cmw/src/inbox/session-inbox.ts` (`runSessionInbox`)
+  - `plugins/cmw/src/inbox/recent-ids.ts` (move `RecentIds` here)
+  - `plugins/cmw/src/inbox/session-inbox.test.ts`
+- Delete: `plugins/cmw/src/inbox/consumer.ts` and the `Coalescer` in `coalescer.ts`; the hub
   batches now.
 - Modify:
-  - `plugins/agentmesh/src/hub.ts`:
+  - `plugins/cmw/src/hub.ts`:
     - `sessionId: string | null`;
     - `call` passes `session` and collects notes;
     - add `takeNotes(): string[]`.
-  - `plugins/agentmesh/src/session.ts`:
+  - `plugins/cmw/src/session.ts`:
     - hello with `previousSessionId`;
     - start the session inbox;
     - re-hello on `expired`, or on an RPC error whose message starts with `Unknown or closed
       session`.
-  - `plugins/agentmesh/src/presence.ts`: the heartbeat body includes `session`.
-  - `plugins/agentmesh/src/inbox/inbox.test.ts`.
+  - `plugins/cmw/src/presence.ts`: the heartbeat body includes `session`.
+  - `plugins/cmw/src/inbox/inbox.test.ts`.
 
 **Interfaces:**
 
@@ -740,7 +740,7 @@ export function runSessionInbox(options: SessionInboxOptions): { stop(): void; r
   - `calls onExpired for an expiry notice`.
   - `ignores malformed payloads`: no reply and no throw.
   - In the `hub` tests: `takeNotes returns and clears notes from the last calls`.
-- [ ] **Step 2:** Run `pnpm vitest run plugins/agentmesh`. Expected: fail.
+- [ ] **Step 2:** Run `pnpm vitest run plugins/cmw`. Expected: fail.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run `pnpm check`. Expected: green.
 - [ ] **Step 5:** Commit `Plugin: one hub session per process; deliveries acked only once pushed`.
@@ -750,25 +750,25 @@ export function runSessionInbox(options: SessionInboxOptions): { stop(): void; r
 **Files:**
 
 - Create:
-  - `plugins/agentmesh/src/tools/sessions.ts` (tools `activate`, `deactivate`,
+  - `plugins/cmw/src/tools/sessions.ts` (tools `activate`, `deactivate`,
     `describe_session`, `take`)
-  - `plugins/agentmesh/src/tools/activation.ts` (`ActivationCheck`)
-  - `plugins/agentmesh/skills/activate/SKILL.md`
-  - `plugins/agentmesh/skills/deactivate/SKILL.md`
-  - `plugins/agentmesh/skills/take/SKILL.md`
+  - `plugins/cmw/src/tools/activation.ts` (`ActivationCheck`)
+  - `plugins/cmw/skills/activate/SKILL.md`
+  - `plugins/cmw/skills/deactivate/SKILL.md`
+  - `plugins/cmw/skills/take/SKILL.md`
 - Modify:
-  - `plugins/agentmesh/src/tools/types.ts`: `ToolDeps` gains `push(event: ChannelEvent):
+  - `plugins/cmw/src/tools/types.ts`: `ToolDeps` gains `push(event: ChannelEvent):
     Promise<void>` and `activation: ActivationCheck`.
-  - `plugins/agentmesh/src/tools/registry.ts`: add `sessionTools`, and append `hub.takeNotes()` to
+  - `plugins/cmw/src/tools/registry.ts`: add `sessionTools`, and append `hub.takeNotes()` to
     each result as a trailing block.
-  - `plugins/agentmesh/src/tools/messaging.ts`: `ask` gains `to_session` and `repo`, mapped to
+  - `plugins/cmw/src/tools/messaging.ts`: `ask` gains `to_session` and `repo`, mapped to
     `toSession`/`repo`.
-  - `plugins/agentmesh/src/tools/format.ts`: `formatPeers` prints each active session as
+  - `plugins/cmw/src/tools/format.ts`: `formatPeers` prints each active session as
     `    · <id> — <description> (<repo>@<branch>) owns <tasks>`.
-  - `plugins/agentmesh/src/main.ts`: build `ToolDeps` with `push` and `activation`.
-  - `plugins/agentmesh/src/instructions.ts`, with its test.
+  - `plugins/cmw/src/main.ts`: build `ToolDeps` with `push` and `activation`.
+  - `plugins/cmw/src/instructions.ts`, with its test.
   - Version `0.2.0` in the three places.
-  - `plugins/agentmesh/dist/server.js`, rebuilt.
+  - `plugins/cmw/dist/server.js`, rebuilt.
 
 **Interfaces:**
 
@@ -776,30 +776,30 @@ export function runSessionInbox(options: SessionInboxOptions): { stop(): void; r
   earlier one. `verify(code: string): boolean` accepts only the latest code, within 10 minutes.
 - Tool `activate`, input `{ code?: string; description?: string }`:
   - **No code:** call `issue()`, then push this event: content
-    ``AgentMesh activation check. Code: <CODE>. To finish, call activate(code: "<CODE>",
+    ``Cosmicwave activation check. Code: <CODE>. To finish, call activate(code: "<CODE>",
     description: "<one line: what this session is working on>").`` with meta `{ kind: 'system',
-    from: 'agentmesh' }`. Return:
+    from: 'cosmicwave' }`. Return:
     `"Sent a test message to this session. If it arrives, call activate again with its code and a
     one-line description. If nothing arrives within a few seconds, this session was started without
     the channel flag: restart it with claude --dangerously-load-development-channels
-    plugin:agentmesh@agentmesh."`
+    plugin:cmw@cosmicwave."`
   - **A code that verifies, with a description:** call `session.activate` and return
     `"This session is active on the mesh as “<description>”."`
   - **A wrong or stale code:** return an error.
   - **A good code without a description:** return an error asking for one.
   - Tool description: `Turn this session on for the mesh, only when your human asks
-    (/agentmesh:activate). Until then it receives nothing.`
+    (/cmw:activate). Until then it receives nothing.`
 - `deactivate`, `describe_session` (`description`) and `take` (`task_id` | `thread_id`) map to the
   RPCs.
 - Each `SKILL.md` has frontmatter `disable-model-invocation: true` and tells Claude which tool to
   call:
-  - `/agentmesh:activate`: call `activate`, wait for the code, call again with the code and a
+  - `/cmw:activate`: call `activate`, wait for the code, call again with the code and a
     one-line description written from the current conversation. Later, call `describe_session`
     whenever the session's focus changes.
-  - `/agentmesh:deactivate`.
-  - `/agentmesh:take <task or thread>`.
+  - `/cmw:deactivate`.
+  - `/cmw:take <task or thread>`.
 - The instructions gain this line, after the identity line:
-  `"This session receives mesh messages only after your human runs /agentmesh:activate; until then
+  `"This session receives mesh messages only after your human runs /cmw:activate; until then
   the tools still work and answers wait for this session."` The 4096-character test must still
   pass.
 
@@ -811,11 +811,11 @@ export function runSessionInbox(options: SessionInboxOptions): { stop(): void; r
   - `tool results end with hub notes`.
   - `ask passes to_session and repo`.
   - `peers prints active sessions`.
-  - `instructions.test.ts`: `mentions /agentmesh:activate and stays under 4096`.
-- [ ] **Step 2:** Run `pnpm vitest run plugins/agentmesh`. Expected: fail.
-- [ ] **Step 3:** Implement. Bump to `0.2.0`, then run `pnpm --filter agentmesh build`.
+  - `instructions.test.ts`: `mentions /cmw:activate and stays under 4096`.
+- [ ] **Step 2:** Run `pnpm vitest run plugins/cmw`. Expected: fail.
+- [ ] **Step 3:** Implement. Bump to `0.2.0`, then run `pnpm --filter cosmicwave build`.
 - [ ] **Step 4:** Run `pnpm check`. Expected: green. `git status` shows `dist/server.js` changed.
-- [ ] **Step 5:** Commit `Plugin 0.2.0: opt-in sessions (/agentmesh:activate), take, session
+- [ ] **Step 5:** Commit `Plugin 0.2.0: opt-in sessions (/cmw:activate), take, session
   picks`.
 
 ### Task 11: End to end over NATS
@@ -867,9 +867,9 @@ never stop another nats-server process.
   - `docs/protocol.md`: session subjects, envelope `session`/`notes`, session RPCs, the delivery
     request/ack, routing rules with their reasons.
   - `docs/security.md`: the threat note.
-  - `docs/getting-started.md`: start with the channel flag, then `/agentmesh:activate`.
+  - `docs/getting-started.md`: start with the channel flag, then `/cmw:activate`.
   - `docs/configuration.md`: done in Task 5; verify it.
-  - `plugins/agentmesh/README.md`.
+  - `plugins/cmw/README.md`.
   - `CLAUDE.md`, the "Working on this repo" bullets that mention the inbox consumer.
   - `docs/specs/2026-10-21-session-routing-design.md`: Status gets "Part A built (plan 1)".
 
@@ -904,7 +904,7 @@ never stop another nats-server process.
 - **Shared permissions.** Any process holding the agent's key can subscribe to every session of
   that agent; isolation between one person's sessions is not a goal.
 - **Who may activate.** Activation proves the channel works, not human intent. The tool
-  description and the user-only slash command are the guard. With the `mcp__plugin_agentmesh_mesh__*`
+  description and the user-only slash command are the guard. With the `mcp__plugin_cmw_mesh__*`
   allow rule, Claude could activate on its own.
 - **Descriptions** are redacted and team-visible.
 - **Ack replies** are permission-scoped to `{p}.ack.{agent}.>`, so one agent cannot ack another's

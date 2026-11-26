@@ -1,4 +1,4 @@
-import type { MeshMessage, MessageRefs, ParticipantRef, ThreadSummary } from '@agentmesh/protocol';
+import type { MeshMessage, MessageRefs, ParticipantRef, ThreadSummary } from '@cosmicwave/protocol';
 import type { ThreadRecord } from '../../contracts';
 import { optionalKey, threadKey } from '../../core/ids';
 import { fromJson } from '../../db/database';

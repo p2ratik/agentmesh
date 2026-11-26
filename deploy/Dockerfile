@@ -5,10 +5,10 @@ WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @agentmesh/hub --filter @agentmesh/discord-bridge build
+RUN pnpm --filter @cosmicwave/hub --filter @cosmicwave/discord-bridge build
 # Standalone folders: the package's dist plus its production node_modules.
-RUN pnpm --filter @agentmesh/hub deploy --prod --legacy /out/hub \
- && pnpm --filter @agentmesh/discord-bridge deploy --prod --legacy /out/discord-bridge
+RUN pnpm --filter @cosmicwave/hub deploy --prod --legacy /out/hub \
+ && pnpm --filter @cosmicwave/discord-bridge deploy --prod --legacy /out/discord-bridge
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
@@ -20,7 +20,7 @@ RUN mkdir -p /data && chown node:node /data
 FROM runtime AS hub
 COPY --from=build --chown=node:node /out/hub ./
 USER node
-ENV AGENTMESH_CONFIG=/config AGENTMESH_DATA_DIR=/data
+ENV COSMICWAVE_CONFIG=/config COSMICWAVE_DATA_DIR=/data
 EXPOSE 8787
 # /healthz is readiness: 503 until the hub's database, NATS and subscriptions all answer. While it
 # starts, Docker probes every 2 s (Engine 25+), so a new hub shows healthy within seconds.
@@ -31,5 +31,5 @@ CMD ["node", "dist/main.js"]
 FROM runtime AS discord-bridge
 COPY --from=build --chown=node:node /out/discord-bridge ./
 USER node
-ENV AGENTMESH_CONFIG=/config
+ENV COSMICWAVE_CONFIG=/config
 CMD ["node", "dist/main.js"]

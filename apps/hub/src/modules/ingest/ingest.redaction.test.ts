@@ -1,5 +1,5 @@
-import type { IngestSource } from '@agentmesh/config';
-import type { IngestEvent } from '@agentmesh/protocol';
+import type { IngestSource } from '@cosmicwave/config';
+import type { IngestEvent } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '../../contracts';
 import { internalId } from '../../core/ids';

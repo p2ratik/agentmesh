@@ -1,6 +1,6 @@
-import { connectOnce, RpcClient, refusedOrUnreachable } from '@agentmesh/bus';
-import { existingMesh, MeshError } from '@agentmesh/common';
-import { inboxPrefix } from '@agentmesh/protocol';
+import { connectOnce, RpcClient, refusedOrUnreachable } from '@cosmicwave/bus';
+import { existingMesh, MeshError } from '@cosmicwave/common';
+import { inboxPrefix } from '@cosmicwave/protocol';
 import { parseCommandArgs, usageError } from '../args';
 import type { AgentSettings, CliContext, Command, ObserveCall } from '../context';
 import { keyWords } from '../setup/checks/agent';
@@ -29,8 +29,7 @@ export const callTimeline: ObserveCall = async (s, params) => {
   }
 };
 
-const NOT_JOINED =
-  'No agent settings found: run /agentmesh:join or agentmesh agent-setup --write first.';
+const NOT_JOINED = 'No agent settings found: run /cmw:join or cmw agent-setup --write first.';
 
 function readSettings(ctx: CliContext): AgentSettings {
   const { agentId, natsUrl, nkeySeed, prefix = 'mesh' } = existingMesh(ctx.homeDir) ?? {};
@@ -62,12 +61,12 @@ function print(r: Awaited<ReturnType<ObserveCall>>, json: boolean, ctx: CliConte
 export const timelineCommand: Command = {
   name: 'timeline',
   summary: "Show the mesh's event timeline (operators only)",
-  help: `Usage: agentmesh timeline [--agent <id>] [--session <id>] [--thread thr-N] [--since 2h]
+  help: `Usage: cmw timeline [--agent <id>] [--session <id>] [--thread thr-N] [--since 2h]
                           [--until <time>] [--limit N] [--json]
 
 For this mesh's operators only (humans in observability.viewers); anyone else is refused.
-Reads ~/.agentmesh/agent.json, asks the hub and prints the timeline: ids, counts, outcomes and
-timings, never message contents. AGENTMESH_* environment overrides are ignored. --since and
+Reads ~/.cosmicwave/agent.json, asks the hub and prints the timeline: ids, counts, outcomes and
+timings, never message contents. COSMICWAVE_* environment overrides are ignored. --since and
 --until take an ISO time or a duration (30m, 2h, 1d). --limit is at most 1000.
 
 --json   one event per line (a note on stderr says when the hub cut it short)`,

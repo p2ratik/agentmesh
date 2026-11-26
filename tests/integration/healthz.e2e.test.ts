@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLogger } from '@agentmesh/common';
+import { createLogger } from '@cosmicwave/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
@@ -10,9 +10,9 @@ import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
 /**
  * `/healthz` is the deploy gate (docs/deploy.md#automatic-deploys): it must turn 503 when the
  * hub loses NATS, and 200 again once NATS is back. Runs its own nats-server, which it kills.
- * Needs AGENTMESH_TEST_NATS_BIN=<path to nats-server>.
+ * Needs COSMICWAVE_TEST_NATS_BIN=<path to nats-server>.
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 const NATS_PORT = 4900 + Math.floor(Date.now() % 90);
 const HTTP_PORT = 18_000 + Math.floor(Date.now() % 900);
 
@@ -33,7 +33,7 @@ async function until(status: number, timeoutMs = 15_000) {
 }
 
 describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub readiness at /healthz', () => {
-  const store = mkdtempSync(join(tmpdir(), 'agentmesh-healthz-'));
+  const store = mkdtempSync(join(tmpdir(), 'cosmicwave-healthz-'));
   const startNats = () =>
     spawn(NATS_BIN, ['-js', '-p', String(NATS_PORT), '-a', '127.0.0.1', '-sd', store], {
       stdio: 'ignore',

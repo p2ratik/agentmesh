@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { PeerInfo } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import type { PeerInfo } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { CallContext, ControlService, RpcHandlerMap } from '../../contracts';
 

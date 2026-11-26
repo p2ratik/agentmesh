@@ -1,4 +1,4 @@
-import { backoffDelay, type Logger, sleep } from '@agentmesh/common';
+import { backoffDelay, type Logger, sleep } from '@cosmicwave/common';
 import type { JetStreamClient, JsMsg } from '@nats-io/jetstream';
 
 /** What to do with a message after handling it. */

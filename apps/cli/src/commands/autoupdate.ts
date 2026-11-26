@@ -33,8 +33,8 @@ function readKnownMarketplaces(configDir: string): string | undefined {
 
 export const autoupdateCommand: Command = {
   name: 'autoupdate',
-  summary: "Turn Claude Code's automatic plugin updates on (or off) for AgentMesh",
-  help: `Usage: agentmesh autoupdate [--off] [--marketplace <name>]
+  summary: "Turn Claude Code's automatic plugin updates on (or off) for Cosmicwave",
+  help: `Usage: cmw autoupdate [--off] [--marketplace <name>]
 
 Sets extraKnownMarketplaces.<name>.autoUpdate in your own Claude Code settings.json
 ($CLAUDE_CONFIG_DIR, else ~/.claude), with the marketplace source Claude Code recorded when you

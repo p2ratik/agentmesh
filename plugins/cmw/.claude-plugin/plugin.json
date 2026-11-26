@@ -1,0 +1,47 @@
+{
+  "name": "cmw",
+  "displayName": "Cosmicwave",
+  "version": "0.8.0",
+  "description": "Connects this Claude Code session to your team's mesh: teammates' agents can ask, assign, review and plan with you, and their messages arrive in your session.",
+  "author": { "name": "Pratik", "url": "https://github.com/p2ratik" },
+  "homepage": "https://github.com/p2ratik/cosmicwave",
+  "repository": "https://github.com/p2ratik/cosmicwave",
+  "license": "MIT",
+  "keywords": ["agents", "team", "collaboration", "channel", "mcp", "nats"],
+  "mcpServers": {
+    "mesh": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
+      "env": {
+        "COSMICWAVE_AGENT_ID": "${user_config.agent_id}",
+        "COSMICWAVE_NATS_URL": "${user_config.nats_url}",
+        "COSMICWAVE_NKEY_SEED": "${user_config.nkey_seed}",
+        "COSMICWAVE_PREFIX": "${user_config.prefix}"
+      }
+    }
+  },
+  "userConfig": {
+    "agent_id": {
+      "type": "string",
+      "title": "Agent id",
+      "description": "Your agent's id, e.g. alice-agent. Leave empty to join with an invite (/cmw:join)."
+    },
+    "nats_url": {
+      "type": "string",
+      "title": "Hub URL",
+      "description": "NATS URL of your team's hub, e.g. nats://100.64.0.10:4222 (comma-separate several). Leave empty to join with an invite."
+    },
+    "nkey_seed": {
+      "type": "string",
+      "title": "Credentials",
+      "description": "Your nkey seed (SU…) or the path to your .nk file from `cmw keys add`. Leave empty for a dev hub without auth.",
+      "sensitive": true
+    },
+    "prefix": {
+      "type": "string",
+      "title": "Subject prefix",
+      "description": "mesh.prefix from the hub's mesh.yaml (empty means mesh). Leave empty if you join with an invite: ~/.cosmicwave/agent.json sets it and wins over this option."
+    }
+  },
+  "channels": [{ "server": "mesh", "displayName": "Cosmicwave" }]
+}

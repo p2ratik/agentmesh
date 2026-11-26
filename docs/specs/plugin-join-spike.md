@@ -9,7 +9,7 @@ start the plugin's MCP server, so an unenrolled laptop can be offered a `join` t
   and `prefix`, and the server starts while they are empty.
 - An unset option reaches the server as an empty string or the literal `${user_config.x}`
   placeholder. `resolveConfig` already treats both as unset, then falls back to
-  `~/.agentmesh/agent.json`.
+  `~/.cosmicwave/agent.json`.
 
 So 0.1.4 drops `required` from both options. With nothing configured anywhere, the server starts
 **unenrolled**: it offers only `join`, and its instructions explain the invite flow. Once `join`

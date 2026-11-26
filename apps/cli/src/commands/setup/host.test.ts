@@ -13,7 +13,7 @@ const OK: ProcessResult = { code: 0, stdout: '', stderr: '' };
 
 /** A workspace with `answers`, a fake `run` answering `result` and a fake resolver. */
 function harness(answers: AnswersInput, result = OK, resolves = true) {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-host-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-host-'));
   const p = workspacePaths(join(cwd, 'ws'));
   mkdirSync(p.root);
   writeFileSync(p.answers, JSON.stringify(answers));
@@ -58,7 +58,7 @@ describe('setup host', () => {
     expect(call?.input).toBe(
       renderHostScript({
         publicHost: 'mesh.acme.dev',
-        remoteDir: '/opt/agentmesh',
+        remoteDir: '/opt/cosmicwave',
         user: 'deploy',
       }),
     );
@@ -110,7 +110,7 @@ describe('setup host', () => {
     // Discord-token-shaped and fake; built at runtime so secret scanners skip it.
     const token = [`MTIz${'A'.repeat(22)}`, 'GaBcDe', 'F'.repeat(34)].join('.');
     const stderr = [
-      `failed to read /opt/agentmesh/deploy/.env: line 3: unterminated quoted value "${token}`,
+      `failed to read /opt/cosmicwave/deploy/.env: line 3: unterminated quoted value "${token}`,
       `unexpected character "\\"" in variable name "\\"DISCORD_BOT_TOKEN=${token}\\""`,
     ].join('\n');
     const t = harness(serverAnswers(), { code: 1, stdout: '', stderr });

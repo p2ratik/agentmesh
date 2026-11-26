@@ -1,4 +1,4 @@
-import { type ObservedEvent, RPC_METHODS } from '@agentmesh/protocol';
+import { type ObservedEvent, RPC_METHODS } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { createBobDispatchHarness } from '../../testing/services';
 import { fitTimeline, MAX_REPLY_BYTES } from './timeline';

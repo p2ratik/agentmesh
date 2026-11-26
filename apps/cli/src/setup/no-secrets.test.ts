@@ -39,7 +39,7 @@ function files(dirs: string[]): Map<string, string> {
 
 describe('setup secrets', () => {
   it('no step prints a secret, and only deploy/.env holds the token', async () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-no-secrets-'));
+    const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-no-secrets-'));
     const seen: string[] = [];
     // A failing command whose stderr echoes the token, as Docker Compose does for a bad .env.
     let failing = false;
@@ -79,7 +79,7 @@ describe('setup secrets', () => {
     expect(await step('setup', 'deploy')).toBe(1);
     failing = false;
     // The token pasted on the version line: deploy refuses it, upgrade replaces it.
-    updateEnvFile(p.envFile, { AGENTMESH_VERSION: TOKEN });
+    updateEnvFile(p.envFile, { COSMICWAVE_VERSION: TOKEN });
     expect(await step('setup', 'deploy')).toBe(1);
     for (const argv of [
       ['upgrade'],

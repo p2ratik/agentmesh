@@ -1,5 +1,5 @@
-import { type Logger, redactSecrets } from '@agentmesh/common';
-import type { ConfigIndex } from '@agentmesh/config';
+import { type Logger, redactSecrets } from '@cosmicwave/common';
+import type { ConfigIndex } from '@cosmicwave/config';
 import type { Message } from 'discord.js';
 import { authorize } from '../auth';
 import type { ThreadMirror } from '../discord/threads';

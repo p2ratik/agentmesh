@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createLogger, DAY_MS, type Logger } from '@agentmesh/common';
+import { createLogger, DAY_MS, type Logger } from '@cosmicwave/common';
 import { afterEach, describe, expect, it } from 'vitest';
 import { testTeamConfig } from '../../../testing/fixtures';
 import { createServiceHarness } from '../../../testing/services';

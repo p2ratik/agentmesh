@@ -1,4 +1,4 @@
-import { redactSecrets } from '@agentmesh/common';
+import { redactSecrets } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
 import { conditionHolds, lookup, type RuleContext, ruleMatches, typeMatches } from './rules/match';
 import { renderTemplate } from './rules/template';

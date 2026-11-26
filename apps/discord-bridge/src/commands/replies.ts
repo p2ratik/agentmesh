@@ -1,4 +1,4 @@
-import type { PeerInfo, Plan, RpcResult, Task, TaskDetail } from '@agentmesh/protocol';
+import type { PeerInfo, Plan, RpcResult, Task, TaskDetail } from '@cosmicwave/protocol';
 import { EXTERNAL, link, list, relativeTime, taskTitle } from '../render/format';
 
 /** Reply texts for slash commands. Pure. */

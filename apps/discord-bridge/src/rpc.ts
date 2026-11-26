@@ -1,5 +1,5 @@
-import type { RpcClient } from '@agentmesh/bus';
-import type { RpcMethodName, RpcParamsInput, RpcResult } from '@agentmesh/protocol';
+import type { RpcClient } from '@cosmicwave/bus';
+import type { RpcMethodName, RpcParamsInput, RpcResult } from '@cosmicwave/protocol';
 import { redactDeep } from './render/redact';
 
 /** The slice of the RPC client the bridge uses; lets tests pass a fake. */

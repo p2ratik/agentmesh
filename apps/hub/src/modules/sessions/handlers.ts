@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import type { HubContext } from '../../context';
 import type {
   CallContext,
@@ -68,9 +68,9 @@ export function sessionHandlers(
         ctx.logger.warn({ participant: agentId, clientVersion }, 'refused an outdated plugin');
         throw new MeshError(
           'invalid_request',
-          `This AgentMesh plugin (${clientVersion}) is older than this hub needs ` +
-            `(${MIN_CLIENT_VERSION}). Update it: ` +
-            'claude plugin update agentmesh@agentmesh, then restart Claude Code.',
+          `This plugin (${clientVersion}) is older than this hub needs (${MIN_CLIENT_VERSION}). ` +
+            'It has been renamed: remove it and install cmw@cosmicwave ' +
+            '(see docs/getting-started.md), then restart Claude Code.',
         );
       }
       presence.touch(agentId, { repo: params.repo, branch: params.branch });

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { sshProgram } from './remote';
 
 describe('sshProgram', () => {
-  const root = mkdtempSync(join(tmpdir(), 'agentmesh-systemroot-'));
+  const root = mkdtempSync(join(tmpdir(), 'cosmicwave-systemroot-'));
   const openssh = join(root, 'System32', 'OpenSSH');
   mkdirSync(openssh, { recursive: true });
   writeFileSync(join(openssh, 'ssh.exe'), '');

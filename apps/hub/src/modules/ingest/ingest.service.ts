@@ -1,6 +1,6 @@
-import { addMs, DAY_MS, MINUTE_MS } from '@agentmesh/common';
-import type { RuleConfig } from '@agentmesh/config';
-import type { IngestEvent, StoredIngestEvent } from '@agentmesh/protocol';
+import { addMs, DAY_MS, MINUTE_MS } from '@cosmicwave/common';
+import type { RuleConfig } from '@cosmicwave/config';
+import type { IngestEvent, StoredIngestEvent } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { IngestService } from '../../contracts';
 import { IngestRepo } from './events.repo';

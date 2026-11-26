@@ -1,4 +1,4 @@
-import type { DeliveryMode } from '@agentmesh/protocol';
+import type { DeliveryMode } from '@cosmicwave/protocol';
 import type { Db } from '../../db/database';
 
 export type SessionLiveness = 'live' | 'away' | 'closed';

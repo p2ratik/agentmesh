@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import { DAY_MS, HOUR_MS, MeshError, newMessageId, redactSecrets } from '@agentmesh/common';
+import { DAY_MS, HOUR_MS, MeshError, newMessageId, redactSecrets } from '@cosmicwave/common';
 import type {
   DeliveryClass,
   MeshMessage,
   ParticipantRef,
   ThreadSummary,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { ControlService, PostInput, PostResult, ThreadRecord } from '../../contracts';
 import { threadKey } from '../../core/ids';

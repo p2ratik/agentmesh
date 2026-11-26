@@ -1,4 +1,4 @@
-import { PARTICIPANT_ID_PATTERN, RESERVED_PARTICIPANT_IDS } from '@agentmesh/common';
+import { PARTICIPANT_ID_PATTERN, RESERVED_PARTICIPANT_IDS } from '@cosmicwave/common';
 import { z } from 'zod';
 
 export const IsoDate = z.string().min(1);

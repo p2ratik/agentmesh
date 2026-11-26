@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { RpcMethodName } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import type { RpcMethodName } from '@cosmicwave/protocol';
 import type { Actor } from '../contracts';
 
 /**
