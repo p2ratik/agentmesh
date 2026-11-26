@@ -1,5 +1,5 @@
-import { ConfigIndex, configFromObject } from '@agentmesh/config';
-import type { DomainEventData, MeshMessage, Plan, ThreadSummary } from '@agentmesh/protocol';
+import { ConfigIndex, configFromObject } from '@cosmicwave/config';
+import type { DomainEventData, MeshMessage, Plan, ThreadSummary } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { renderExternalReceived } from './external';
 import { threadTitle, webhookUsername } from './format';

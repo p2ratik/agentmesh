@@ -12,7 +12,7 @@ data/
 deploy/nats/nats.conf
 deploy/nats/tls/
 deploy/secrets/
-# Written on the server by agentmesh-deploy: the release images the stack runs.
+# Written on the server by cosmicwave-deploy: the release images the stack runs.
 deploy/docker-compose.override.yml
 *.creds
 *.nk
@@ -22,8 +22,8 @@ deploy/docker-compose.override.yml
 !/config/examples/
 
 # The Claude Code plugin ships its bundled server so laptops need no npm install.
-!plugins/agentmesh/dist/
+!plugins/cmw/dist/
 CLAUDE.local.md
 
-# The mesh window's git worktrees (agentmesh window init)
+# The mesh window's git worktrees (cmw window init)
 .claude/worktrees/

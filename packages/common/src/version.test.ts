@@ -15,10 +15,10 @@ describe('VERSION', () => {
         'packages/common',
         'packages/config',
         'packages/protocol',
-        'plugins/agentmesh',
+        'plugins/cmw',
         'tests',
       ].map((d) => `${d}/package.json`),
-      'plugins/agentmesh/.claude-plugin/plugin.json',
+      'plugins/cmw/.claude-plugin/plugin.json',
     ];
     for (const f of files) {
       expect(JSON.parse(readFileSync(join(root, f), 'utf8')).version, f).toBe(VERSION);

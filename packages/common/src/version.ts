@@ -1,7 +1,7 @@
-// Built-ins only: `@agentmesh/common/version` may be bundled where zod and pino are unwelcome.
+// Built-ins only: `@cosmicwave/common/version` may be bundled where zod and pino are unwelcome.
 
-/** The one AgentMesh version: every package.json, the plugin manifest and the plugin share it. */
-export const VERSION = '0.7.2';
+/** The one Cosmicwave version: every package.json, the plugin manifest and the plugin share it. */
+export const VERSION = '0.8.0';
 
 /** The first plugin whose mesh window takes a `relay` pointer for a private session. */
 export const RELAY_MIN_VERSION = '0.6.0';

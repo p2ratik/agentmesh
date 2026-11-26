@@ -1,6 +1,6 @@
-import { MeshError, redactSecrets } from '@agentmesh/common';
-import type { WorkflowConfig } from '@agentmesh/config';
-import { GitRef, type ReviewVerdict, type Task, type TaskDetail } from '@agentmesh/protocol';
+import { MeshError, redactSecrets } from '@cosmicwave/common';
+import type { WorkflowConfig } from '@cosmicwave/config';
+import { GitRef, type ReviewVerdict, type Task, type TaskDetail } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, TaskActInput, TaskCreateInput, TaskService } from '../../contracts';
 import { taskKey } from '../../core/ids';

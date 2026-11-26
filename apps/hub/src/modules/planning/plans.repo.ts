@@ -1,6 +1,6 @@
 import type { SQLInputValue } from 'node:sqlite';
-import { MeshError } from '@agentmesh/common';
-import type { PlanContribution, PlanRound, PlanState, PlanTaskDraft } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import type { PlanContribution, PlanRound, PlanState, PlanTaskDraft } from '@cosmicwave/protocol';
 import { planKey } from '../../core/ids';
 import { type Db, fromJson, toJson } from '../../db/database';
 

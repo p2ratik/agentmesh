@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;

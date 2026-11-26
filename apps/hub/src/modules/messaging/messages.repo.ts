@@ -1,4 +1,4 @@
-import type { MessageKind, ReplyStatus, Trust } from '@agentmesh/protocol';
+import type { MessageKind, ReplyStatus, Trust } from '@cosmicwave/protocol';
 import { type Db, fromJson } from '../../db/database';
 
 /** A stored message joined with its thread's subject. */

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { HOUR_MS, isValidParticipantId, MeshError, MINUTE_MS } from '@agentmesh/common';
-import { ConfigIndex, claimedByConfig, pendingInvitees, withMembers } from '@agentmesh/config';
+import { HOUR_MS, isValidParticipantId, MeshError, MINUTE_MS } from '@cosmicwave/common';
+import { ConfigIndex, claimedByConfig, pendingInvitees, withMembers } from '@cosmicwave/config';
 import {
   type CancelStatus,
   encodeInvite,
@@ -9,7 +9,7 @@ import {
   PublicNkey,
   type RpcParams,
   type RpcResult,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 import type { Actor, EnrollmentService, RedeemInput } from '../../contracts';
 import { EnrollmentRepo, type InviteRow } from './enrollment.repo';

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
-import { connectBus, RpcClient } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import { inboxPrefix } from '@agentmesh/protocol';
+import { connectBus, RpcClient } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import { inboxPrefix } from '@cosmicwave/protocol';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
@@ -10,9 +10,9 @@ import { type Agent, activate, PLUGIN, spawnAgent, untilConnected } from './supp
 /**
  * Per-session delivery for real (spec §3): NATS (no auth), the hub and the
  * bundled plugin over MCP stdio, several plugin processes per agent.
- * Needs AGENTMESH_TEST_NATS=nats://… with JetStream, and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS=nats://… with JetStream, and a built plugin.
  */
-const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
+const NATS = process.env.COSMICWAVE_TEST_NATS ?? '';
 const PREFIX = `ses${Date.now().toString(36)}`;
 const QUIET_MS = 3000;
 
@@ -135,7 +135,9 @@ describe.skipIf(!NATS || !existsSync(PLUGIN))('per-session delivery end to end',
       const rpc = new RpcClient(nc, PREFIX, 'alice-agent', 5000);
       await expect(rpc.call('session.hello', { clientVersion: '0.2.0' })).rejects.toMatchObject({
         code: 'invalid_request',
-        message: expect.stringContaining('claude plugin update'),
+        message: expect.stringContaining(
+          'It has been renamed: remove it and install cmw@cosmicwave',
+        ),
       });
     } finally {
       await nc.close();

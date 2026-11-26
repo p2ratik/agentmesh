@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { IngestSource } from '@agentmesh/config';
-import { IngestEvent } from '@agentmesh/protocol';
+import type { IngestSource } from '@cosmicwave/config';
+import { IngestEvent } from '@cosmicwave/protocol';
 import { type Headers, header } from './auth';
 
 /** The longest event type the mesh format accepts; raw sources get the same limit. */

@@ -1,4 +1,4 @@
-import type { RpcMethodName, RpcParams, RpcResult } from '@agentmesh/protocol';
+import type { RpcMethodName, RpcParams, RpcResult } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { RpcHandler } from '../../contracts';
 import { buildModules } from '../../runtime/modules';

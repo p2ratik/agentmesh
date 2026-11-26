@@ -8,7 +8,7 @@ export const setupInvitesCommand: Command = {
   name: 'setup invites',
   summary: 'Print the /mesh invite lines and the join note for teammates',
   help: [
-    'Usage: agentmesh setup invites --dir <workspace> [--marketplace <source>]',
+    'Usage: cmw setup invites --dir <workspace> [--marketplace <source>]',
     '',
     `--marketplace  where teammates install the plugin from (default ${DEFAULT_MARKETPLACE})`,
   ].join('\n'),

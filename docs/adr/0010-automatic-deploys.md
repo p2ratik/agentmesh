@@ -23,7 +23,7 @@ Constraints:
   by hand to redeploy or roll back to any released version.
 - **The server pulls images; it never builds.** It checks out the release tag, for the compose
   file. A gitignored `docker-compose.override.yml` points the hub and the bridge at
-  `<registry>/agentmesh-*:<version>`.
+  `<registry>/cosmicwave-*:<version>`.
 - **SSH stays closed except to the runner.** The job signs in to Azure through OIDC federation,
   with no stored credential. It adds an NSG rule for its own `/32` and removes it when it ends.
   The Azure identity's custom role covers rules on that one NSG and nothing else.

@@ -1,4 +1,4 @@
-import type { MemberRecord } from '@agentmesh/protocol';
+import type { MemberRecord } from '@cosmicwave/protocol';
 import type { MeshConfig } from './schema/mesh';
 
 export interface MergedTeam {

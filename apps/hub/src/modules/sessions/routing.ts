@@ -1,7 +1,7 @@
 /** Pure per-session delivery routing (spec §3). No I/O. */
 
-import { isAtLeast, RELAY_MIN_VERSION } from '@agentmesh/common/version';
-import type { ReleasedMarker } from '@agentmesh/protocol';
+import { isAtLeast, RELAY_MIN_VERSION } from '@cosmicwave/common/version';
+import type { ReleasedMarker } from '@cosmicwave/protocol';
 
 export interface RouteSession {
   id: string;

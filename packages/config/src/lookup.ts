@@ -1,4 +1,4 @@
-import type { ParticipantKind, ParticipantRef } from '@agentmesh/protocol';
+import type { ParticipantKind, ParticipantRef } from '@cosmicwave/protocol';
 import type { MeshConfig } from './schema/mesh';
 import type { PlanningTemplate } from './schema/planning';
 import type { AgentConfig, AreaConfig, HumanConfig, ServiceConfig } from './schema/team';

@@ -1,6 +1,6 @@
-import { redactSecrets, slugify } from '@agentmesh/common';
-import { type ConfigIndex, renderBranchName } from '@agentmesh/config';
-import type { TaskReview } from '@agentmesh/protocol';
+import { redactSecrets, slugify } from '@cosmicwave/common';
+import { type ConfigIndex, renderBranchName } from '@cosmicwave/config';
+import type { TaskReview } from '@cosmicwave/protocol';
 import { taskKey } from '../../core/ids';
 import type { TaskRecord } from './repo';
 import type { NextAction } from './types';

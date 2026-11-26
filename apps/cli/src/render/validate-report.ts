@@ -1,4 +1,4 @@
-import { type ConfigIssue, type LoadedConfig, pendingInvitees } from '@agentmesh/config';
+import { type ConfigIssue, type LoadedConfig, pendingInvitees } from '@cosmicwave/config';
 
 const ids = (items: ReadonlyArray<{ id: string }>): string =>
   items.length === 0 ? '0' : `${items.length} (${items.map((i) => i.id).join(', ')})`;

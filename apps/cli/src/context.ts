@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
-import type { RpcParamsInput, RpcResult } from '@agentmesh/protocol';
+import type { RpcParamsInput, RpcResult } from '@cosmicwave/protocol';
 import type { RunProcess } from './lib/process';
 import type { ConnectNats } from './setup/checks/agent';
 import type { CheckResult } from './setup/checks/result';
@@ -36,7 +36,7 @@ export interface CliContext {
   cli?: string;
 }
 
-/** The saved laptop settings (~/.agentmesh/agent.json); nkeySeed is the seed file path. */
+/** The saved laptop settings (~/.cosmicwave/agent.json); nkeySeed is the seed file path. */
 export interface AgentSettings {
   agentId: string;
   natsUrl: string;
@@ -49,7 +49,7 @@ export type ObserveCall = (
   params: RpcParamsInput<'observe.timeline'>,
 ) => Promise<RpcResult<'observe.timeline'>>;
 
-/** One `agentmesh` subcommand. `name` may have two words (`keys add`). */
+/** One `cmw` subcommand. `name` may have two words (`keys add`). */
 export interface Command {
   name: string;
   summary: string;
@@ -62,7 +62,7 @@ export interface Command {
  * dist/cli.js, which is on no PATH, or `pnpm mesh` for the TypeScript source in the repo.
  */
 export function cliCommand(script: string | undefined): string {
-  if (!script) return 'agentmesh';
+  if (!script) return 'cmw';
   return script.endsWith('.js') ? `node "${script}"` : 'pnpm mesh';
 }
 
@@ -81,13 +81,13 @@ export function processContext(): CliContext {
 }
 
 /** How to run this CLI in a printed hint. */
-export const cliOf = (ctx: CliContext): string => ctx.cli ?? 'agentmesh';
+export const cliOf = (ctx: CliContext): string => ctx.cli ?? 'cmw';
 
 export function resolveFrom(ctx: CliContext, path: string): string {
   return isAbsolute(path) ? path : resolve(ctx.cwd, path);
 }
 
-/** The config directory: `--config`, else `$AGENTMESH_CONFIG`, else the current directory. */
+/** The config directory: `--config`, else `$COSMICWAVE_CONFIG`, else the current directory. */
 export function configPathFrom(ctx: CliContext, flag: string | undefined): string {
-  return resolveFrom(ctx, flag ?? ctx.env.AGENTMESH_CONFIG ?? '.');
+  return resolveFrom(ctx, flag ?? ctx.env.COSMICWAVE_CONFIG ?? '.');
 }

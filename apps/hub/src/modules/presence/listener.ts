@@ -1,7 +1,7 @@
-import type { NatsConnection } from '@agentmesh/bus';
-import type { Logger } from '@agentmesh/common';
-import type { ConfigIndex } from '@agentmesh/config';
-import { GitRef, parseTokenAfter, SessionId, subjects } from '@agentmesh/protocol';
+import type { NatsConnection } from '@cosmicwave/bus';
+import type { Logger } from '@cosmicwave/common';
+import type { ConfigIndex } from '@cosmicwave/config';
+import { GitRef, parseTokenAfter, SessionId, subjects } from '@cosmicwave/protocol';
 import { z } from 'zod';
 import type { PresenceService } from '../../contracts';
 

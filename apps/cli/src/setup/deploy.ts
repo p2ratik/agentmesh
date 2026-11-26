@@ -1,11 +1,16 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError, redactSecrets, VERSION } from '@agentmesh/common';
-import { loadConfig } from '@agentmesh/config';
+import { isAtLeast, MeshError, redactSecrets, VERSION } from '@cosmicwave/common';
+import { loadConfig } from '@cosmicwave/config';
 import { type CliContext, cliOf } from '../context';
 import { runProcess } from '../lib/process';
 import type { SetupAnswers } from './answers';
-import { DEFAULT_IMAGE_REGISTRY, IMAGE_REGISTRY, IMAGE_TAG } from './defaults';
+import {
+  DEFAULT_IMAGE_REGISTRY,
+  FIRST_RENAMED_VERSION,
+  IMAGE_REGISTRY,
+  IMAGE_TAG,
+} from './defaults';
 import { readEnvFile } from './env-file';
 import { runChecked, SSH_OPTIONS, sshProgram } from './remote';
 import { markDone, readState, type StepName, type WorkspacePaths } from './workspace';
@@ -16,6 +21,20 @@ import { markDone, readState, type StepName, type WorkspacePaths } from './works
  * keeps a container whose image and compose settings did not change.
  */
 const UP = ['up', '-d', '--force-recreate'];
+
+/**
+ * Refuses to start the stack on empty volumes. Before the rename the compose project was called
+ * agentmesh, so a server that ran then keeps its data in agentmesh_hub-data; the compose file now
+ * says `name: cosmicwave`, and without COMPOSE_PROJECT_NAME=agentmesh in deploy/.env the hub would
+ * start on new, empty volumes. It only reads, and an unreadable compose file refuses too. One line
+ * and no apostrophe: it is sent over ssh inside a `&&` chain. Keep it the same as
+ * `refuse_orphaned_volumes` in deploy/auto-deploy/cosmicwave-deploy.sh.
+ */
+export const VOLUME_GUARD =
+  'if docker volume inspect agentmesh_hub-data >/dev/null 2>&1 && ' +
+  '[ "$(docker compose config 2>/dev/null | sed -n "s/^name: //p" | head -n 1)" != agentmesh ]; then ' +
+  'echo "This server keeps its data in Docker volumes named agentmesh_*. Add COMPOSE_PROJECT_NAME=agentmesh to deploy/.env and deploy again. Nothing was started." >&2; ' +
+  'exit 1; fi';
 
 /**
  * What `setup deploy` runs on the server before and after copying. `prepare` takes back
@@ -41,7 +60,7 @@ export function remoteCommands(dir: string): { prepare: string; finish: string }
       `rm -rf ${dir}/config && mv ${dir}/config.new ${dir}/config && ` +
       `chmod 600 ${dir}/deploy/.env && chmod 644 ${dir}/deploy/nats/nats.conf && ` +
       `sudo chown 1000:1000 ${seeds} && sudo chmod 600 ${seeds} && ` +
-      `cd ${dir}/deploy && docker compose --profile discord pull && ` +
+      `cd ${dir}/deploy && ${VOLUME_GUARD} && docker compose --profile discord pull && ` +
       `docker compose --profile discord ${UP.join(' ')}`,
   };
 }
@@ -70,28 +89,44 @@ function requireSeeds(p: WorkspacePaths, mode: SetupAnswers['hosting']['mode']):
 export const isImageVersion = (value: string): boolean =>
   IMAGE_TAG.test(value) && redactSecrets(value) === value;
 
+/** A version below the first under the new image names (`0.7.2`, `0.7.2-rc.1`); a tag it cannot
+ * order, such as one an admin built and pushed, is left to the registry. */
+const beforeRename = (version: string): boolean => {
+  const dotted = /^\d+(\.\d+)*/.exec(version)?.[0];
+  return dotted !== undefined && !isAtLeast(dotted, FIRST_RENAMED_VERSION);
+};
+
 /**
  * The image settings from .env, checked before they are used or printed. An error names the
  * setting, never its value: that may be the bot token, pasted on the wrong line.
  */
 function imageOf(ctx: CliContext, env: Map<string, string>) {
-  const registry = env.get('AGENTMESH_IMAGE_REGISTRY') ?? '';
-  const version = env.get('AGENTMESH_VERSION') ?? '';
+  const registry = env.get('COSMICWAVE_IMAGE_REGISTRY') ?? '';
+  const version = env.get('COSMICWAVE_VERSION') ?? '';
   if (!IMAGE_REGISTRY.test(registry) || redactSecrets(registry) !== registry) {
     throw new MeshError(
       'conflict',
-      'AGENTMESH_IMAGE_REGISTRY in deploy/.env is not an image registry such as ' +
+      'COSMICWAVE_IMAGE_REGISTRY in deploy/.env is not an image registry such as ' +
         `${DEFAULT_IMAGE_REGISTRY}. Correct it in the file and run again.`,
     );
   }
   if (!isImageVersion(version)) {
     throw new MeshError(
       'conflict',
-      `AGENTMESH_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it ` +
+      `COSMICWAVE_VERSION in deploy/.env is not an image version such as ${VERSION}. Set it ` +
         `with \`${cliOf(ctx)} upgrade --dir <workspace> --to <version>\`.`,
     );
   }
-  return { registry, version, image: `${registry}/agentmesh-hub:${version}` };
+  // A workspace converted from before the rename keeps its old pin until `upgrade` moves it.
+  if (beforeRename(version)) {
+    throw new MeshError(
+      'invalid_transition',
+      `COSMICWAVE_VERSION in deploy/.env is ${version}, but images under the new names start at ` +
+        `${FIRST_RENAMED_VERSION}. Run \`${cliOf(ctx)} upgrade --dir <workspace>\` first: it moves ` +
+        `the pin to ${VERSION} and deploys. Nothing was copied or started.`,
+    );
+  }
+  return { registry, version, image: `${registry}/cosmicwave-hub:${version}` };
 }
 
 /** Runs a step that pulls the images; its failure gains a line naming the image. */
@@ -122,7 +157,7 @@ export async function deployWorkspace(
   requireSeeds(p, hosting.mode);
   // Checked, so a failed pull can print them.
   const { registry, version, image } = imageOf(ctx, env);
-  const hint = `Check that ${image} exists (AGENTMESH_IMAGE_REGISTRY=${registry}, AGENTMESH_VERSION=${version}).`;
+  const hint = `Check that ${image} exists (COSMICWAVE_IMAGE_REGISTRY=${registry}, COSMICWAVE_VERSION=${version}).`;
   const run = ctx.run ?? runProcess;
 
   if (hosting.mode === 'trial') {

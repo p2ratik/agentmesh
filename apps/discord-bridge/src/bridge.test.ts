@@ -1,5 +1,5 @@
-import { createLogger } from '@agentmesh/common';
-import { ConfigIndex, configFromObject } from '@agentmesh/config';
+import { createLogger } from '@cosmicwave/common';
+import { ConfigIndex, configFromObject } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import { suggest } from './commands/autocomplete';
 import {

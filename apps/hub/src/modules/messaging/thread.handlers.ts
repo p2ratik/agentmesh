@@ -1,5 +1,5 @@
-import { MeshError } from '@agentmesh/common';
-import type { ReadMessage } from '@agentmesh/protocol';
+import { MeshError } from '@cosmicwave/common';
+import type { ReadMessage } from '@cosmicwave/protocol';
 import type { Actor, CallContext, RpcHandlerMap } from '../../contracts';
 import { internalId } from '../../core/ids';
 import { peekInbox, readInbox } from './inbox';

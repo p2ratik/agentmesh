@@ -1,4 +1,4 @@
-import type { DomainEvent, SessionDelivery } from '@agentmesh/protocol';
+import type { DomainEvent, SessionDelivery } from '@cosmicwave/protocol';
 
 /** What a delivery handed over, and the database writes that go with it. */
 export interface DeliveryReceipt {

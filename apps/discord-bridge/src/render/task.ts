@@ -1,4 +1,4 @@
-import type { DomainEventData, Task } from '@agentmesh/protocol';
+import type { DomainEventData, Task } from '@cosmicwave/protocol';
 import { link, list, oneLine, taskTitle } from './format';
 import type { PostIntent } from './intents';
 

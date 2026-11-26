@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { MeshError, redactSecrets } from '@agentmesh/common';
+import { MeshError, redactSecrets } from '@cosmicwave/common';
 import type { CliContext } from '../context';
 import type { ProcessResult, RunProcess } from '../lib/process';
 

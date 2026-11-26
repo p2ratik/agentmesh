@@ -1,4 +1,4 @@
-import type { PlanTaskDraft } from '@agentmesh/protocol';
+import type { PlanTaskDraft } from '@cosmicwave/protocol';
 
 export interface DraftCheck {
   /** Drafts in dependency order (dependencies first), with invalid assignees dropped. */

@@ -26,7 +26,7 @@ import type {
   ThreadKind,
   ThreadSummary,
   Trust,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { SessionsService, ThreadOwner } from './sessions.contracts';
 
 /** The sessions module's and the outbox's contracts have their own files, to keep this one small. */

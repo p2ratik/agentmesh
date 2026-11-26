@@ -1,5 +1,5 @@
-import { MINUTE_MS } from '@agentmesh/common';
-import type { LoadedConfig } from '@agentmesh/config';
+import { MINUTE_MS } from '@cosmicwave/common';
+import type { LoadedConfig } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '../../contracts';
 import { testTeamConfig } from '../../testing/fixtures';

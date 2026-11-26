@@ -13,7 +13,7 @@ Adding a member meant several manual steps:
 - the admin re-renders `nats.conf`, reloads NATS and restarts the hub.
 
 That works for one trusted team but not for a product, and every hand-off of a seed is a chance to
-leak it. The roadmap (CLAUDE.md) asks for `/mesh invite` → `/agentmesh:join <code>` with no YAML
+leak it. The roadmap (CLAUDE.md) asks for `/mesh invite` → `/cmw:join <code>` with no YAML
 edit, no restart, and a key that never leaves the member's laptop.
 
 ## Decision
@@ -70,9 +70,9 @@ edit, no restart, and a key that never leaves the member's laptop.
 
 1. **Update the hub** to a build with migration 003 (the registry). It runs on start and keeps
    existing data.
-2. **Generate the callout keys:** `agentmesh keys add hub-issuer|hub-xkey|hub-sys --config config
+2. **Generate the callout keys:** `cmw keys add hub-issuer|hub-xkey|hub-sys --config config
    --secrets deploy/secrets`. Set `enrollment.natsUrl` to the public `tls://host:4222`.
-3. **Render the config:** `agentmesh nats-config --config config --tls --auth-callout`. Existing
+3. **Render the config:** `cmw nats-config --config config --tls --auth-callout`. Existing
    mesh.yaml agents keep their keys; the callout admits them.
 4. **Copy the files to the VM:** `config/`, `deploy/nats/nats.conf` and the three new seeds. Never
    copy `deploy/.env`. Edit it on the VM for the public TLS endpoint instead (`NATS_BIND`,
@@ -91,7 +91,7 @@ edit, no restart, and a key that never leaves the member's laptop.
    - On start the hub provisions fresh streams in `APP`.
    - Agents on plugin 0.1.7 or later reconnect on their own within about 20 s. Older plugins
      may give up after the callout refuses them twice during the restart, so update every
-     member's plugin first (`claude plugin update agentmesh@agentmesh`) or have them restart
+     member's plugin first (`claude plugin update cmw@cosmicwave`) or have them restart
      Claude Code afterwards.
    - Check that the hub's log shows no seed errors and that an existing agent reconnects.
    - Then run `/mesh resume`.

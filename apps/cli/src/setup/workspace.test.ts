@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { serverAnswers } from './testing';
 import { loadAnswers, markDone, readState, workspacePaths, writeRendered } from './workspace';
 
-const tempWorkspace = () => workspacePaths(mkdtempSync(join(tmpdir(), 'agentmesh-ws-')));
+const tempWorkspace = () => workspacePaths(mkdtempSync(join(tmpdir(), 'cosmicwave-ws-')));
 
 describe('workspacePaths', () => {
   it('lays out config/ and deploy/ under the root', () => {

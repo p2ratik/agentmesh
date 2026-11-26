@@ -1,4 +1,4 @@
-import type { PlanContribution, PlanRound } from '@agentmesh/protocol';
+import type { PlanContribution, PlanRound } from '@cosmicwave/protocol';
 
 export interface QuorumInput {
   participants: readonly string[];

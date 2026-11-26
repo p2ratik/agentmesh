@@ -1,13 +1,13 @@
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLogger } from '@agentmesh/common';
-import { VERSION } from '@agentmesh/common/version';
-import { MESH_WINDOW_ENV } from '@agentmesh/common/window';
+import { createLogger } from '@cosmicwave/common';
+import { VERSION } from '@cosmicwave/common/version';
+import { MESH_WINDOW_ENV } from '@cosmicwave/common/window';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
-import { writeGuardStamp } from '../../plugins/agentmesh/src/window/guard-stamp';
+import { writeGuardStamp } from '../../plugins/cmw/src/window/guard-stamp';
 import {
   type Agent,
   activate,
@@ -22,9 +22,9 @@ import {
  * The mesh window for real (ADR 0009): NATS (no auth), the hub and the bundled plugin over MCP
  * stdio. A window is a plugin process with the marker in its environment and the matching policy
  * in its home; the guard's stamp is written here, as dist/guard.js would on the activate call.
- * Needs AGENTMESH_TEST_NATS=nats://… with JetStream, and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS=nats://… with JetStream, and a built plugin.
  */
-const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
+const NATS = process.env.COSMICWAVE_TEST_NATS ?? '';
 const PREFIX = `win${Date.now().toString(36)}`;
 const QUIET_MS = 3000;
 

@@ -2,9 +2,9 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { connectBus, RpcClient } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import { inboxPrefix } from '@agentmesh/protocol';
+import { connectBus, RpcClient } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import { inboxPrefix } from '@cosmicwave/protocol';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { connect, type NatsConnection, nkeyAuthenticator } from '@nats-io/transport-node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -16,9 +16,9 @@ import { callAsSession } from './support';
 
 /**
  * The hub's auth callout against a real nats-server in account mode: agents
- * are admitted only by the hub (task-9). Needs AGENTMESH_TEST_NATS_BIN.
+ * are admitted only by the hub (task-9). Needs COSMICWAVE_TEST_NATS_BIN.
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 const PORT = 5500 + Math.floor(Date.now() % 400);
 const URL = `nats://127.0.0.1:${PORT}`;
 const PREFIX = 'hubcallout';
@@ -116,7 +116,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
   };
 
   beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'agentmesh-hub-callout-'));
+    dir = mkdtempSync(join(tmpdir(), 'cosmicwave-hub-callout-'));
     server = startServer();
     await startHub();
   }, 30_000);
@@ -209,7 +209,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('hub auth callout', () => {
     await startHub();
     const nc = await connectBus({
       servers: [URL],
-      name: 'agentmesh-plugin:alice-agent',
+      name: 'cosmicwave-plugin:alice-agent',
       inboxPrefix: inboxPrefix('alice-agent'),
       credentials: { nkeySeed: seedOf(k.alice) },
     });

@@ -1,5 +1,5 @@
-import { MeshError, redactSecrets } from '@agentmesh/common';
-import type { DeliveryClass, MessageRefs, RpcParams } from '@agentmesh/protocol';
+import { MeshError, redactSecrets } from '@cosmicwave/common';
+import type { DeliveryClass, MessageRefs, RpcParams } from '@cosmicwave/protocol';
 import type { Actor, PostInput, PostResult, RpcHandlerMap } from '../../contracts';
 import { internalId, taskKey } from '../../core/ids';
 import { firstLine } from './mappers';

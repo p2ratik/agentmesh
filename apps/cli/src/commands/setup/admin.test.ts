@@ -9,7 +9,7 @@ import { readState, workspacePaths } from '../../setup/workspace';
 
 /** A workspace with its answers, rendered unless `render` is false (then no seed exists). */
 async function workspace(answers: AnswersInput, render = true) {
-  const cwd = mkdtempSync(join(tmpdir(), 'agentmesh-setup-admin-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'cosmicwave-setup-admin-'));
   const out: string[] = [];
   const err: string[] = [];
   const ctx: CliContext = {
@@ -25,7 +25,7 @@ async function workspace(answers: AnswersInput, render = true) {
   writeFileSync(p.answers, JSON.stringify(answers));
   if (render) expect(await run('setup', 'render', '--dir', p.root)).toBe(0);
   out.length = 0;
-  const agentFile = join(ctx.homeDir, '.agentmesh', 'agent.json');
+  const agentFile = join(ctx.homeDir, '.cosmicwave', 'agent.json');
   const saved = () => JSON.parse(readFileSync(agentFile, 'utf8')) as Record<string, string>;
   return { p, ctx, out, err, run, agentFile, saved };
 }
@@ -37,12 +37,12 @@ describe('setup admin', () => {
     const saved = w.saved();
     expect(saved.agentId).toBe('riya-agent');
     expect(saved.natsUrl).toBe('tls://mesh.acme.dev:4222');
-    expect(saved.nkeySeed).toBe(join(w.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'));
+    expect(saved.nkeySeed).toBe(join(w.ctx.homeDir, '.cosmicwave', 'acme-riya-agent.nk'));
     expect(saved.prefix).toBe('mesh');
     if (process.platform !== 'win32') expect(statSync(w.agentFile).mode & 0o777).toBe(0o600);
     const output = w.out.join('\n');
     expect(output).toContain(`Saved ${w.agentFile} for riya-agent.`);
-    expect(output).toContain('call the AgentMesh connect tool');
+    expect(output).toContain('call the Cosmicwave connect tool');
     // Options that name another agent win over agent.json (the plugin's fileApplies).
     expect(output).toContain(
       "If the plugin's agent_id, nats_url or nkey_seed options are set, clear them in /plugin " +
@@ -57,7 +57,7 @@ describe('setup admin', () => {
 
   it('refuses another mesh without --replace', async () => {
     const w = await workspace(serverAnswers());
-    mkdirSync(join(w.ctx.homeDir, '.agentmesh'), { recursive: true });
+    mkdirSync(join(w.ctx.homeDir, '.cosmicwave'), { recursive: true });
     const other = `${JSON.stringify({ agentId: 'pratik-agent', natsUrl: 'nats://other:4222' })}\n`;
     writeFileSync(w.agentFile, other);
 
@@ -80,7 +80,7 @@ describe('setup admin', () => {
   it('missing seed points at setup render', async () => {
     const w = await workspace(serverAnswers(), false);
     expect(await w.run('setup', 'admin', '--dir', w.p.root)).toBe(1);
-    expect(w.err.join('\n')).toContain(join('.agentmesh', 'acme-riya-agent.nk'));
+    expect(w.err.join('\n')).toContain(join('.cosmicwave', 'acme-riya-agent.nk'));
     expect(w.err.join('\n')).toContain('setup render');
     expect(readState(w.p).done.admin).toBeUndefined();
   });
@@ -88,11 +88,11 @@ describe('setup admin', () => {
   it('points a trial at this machine and prints the test agent setup', async () => {
     const w = await workspace(trialAnswers());
     // The plugin's bundled CLI is on no PATH: the hint names how this one was started.
-    const cli = 'node "/plugins/agentmesh/0.4.0/dist/cli.js"';
+    const cli = 'node "/plugins/cmw/0.4.0/dist/cli.js"';
     w.ctx.cli = cli;
     expect(await w.run('setup', 'admin', '--dir', w.p.root)).toBe(0);
     expect(w.saved().natsUrl).toBe('nats://127.0.0.1:4222');
-    const seed = join(w.ctx.homeDir, '.agentmesh', 'acme-riya-test-agent.nk');
+    const seed = join(w.ctx.homeDir, '.cosmicwave', 'acme-riya-test-agent.nk');
     const hint = [
       'agent-setup',
       'riya-test-agent',

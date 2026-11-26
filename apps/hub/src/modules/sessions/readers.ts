@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import type { SessionsService, ThreadOwner } from '../../contracts';
 
 /**

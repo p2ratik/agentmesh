@@ -1,5 +1,5 @@
 import { type ParseArgsOptionsConfig, parseArgs } from 'node:util';
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 
 /** A usage mistake: the CLI prints it with a hint and exits with code 2. */
 export const usageError = (message: string): MeshError => new MeshError('invalid_request', message);

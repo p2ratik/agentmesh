@@ -1,4 +1,4 @@
-import type { ErrorPayload } from '@agentmesh/common';
+import type { ErrorPayload } from '@cosmicwave/common';
 import { z } from 'zod';
 
 export const PROTOCOL_VERSION = 1;

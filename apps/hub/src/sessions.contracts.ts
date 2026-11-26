@@ -7,7 +7,7 @@ import type {
   SessionDelivery,
   SessionSummary,
   SessionView,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { CallContext } from './contracts';
 import type { RelayTarget } from './modules/sessions/relay';
 import type { Route } from './modules/sessions/routing';

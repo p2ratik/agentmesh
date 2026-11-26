@@ -33,16 +33,16 @@ importers:
 
   apps/cli:
     dependencies:
-      '@agentmesh/bus':
+      '@cosmicwave/bus':
         specifier: workspace:*
         version: link:../../packages/bus
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@agentmesh/config':
+      '@cosmicwave/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@nats-io/nkeys':
@@ -57,16 +57,16 @@ importers:
 
   apps/discord-bridge:
     dependencies:
-      '@agentmesh/bus':
+      '@cosmicwave/bus':
         specifier: workspace:*
         version: link:../../packages/bus
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@agentmesh/config':
+      '@cosmicwave/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       discord.js:
@@ -78,16 +78,16 @@ importers:
 
   apps/hub:
     dependencies:
-      '@agentmesh/bus':
+      '@cosmicwave/bus':
         specifier: workspace:*
         version: link:../../packages/bus
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@agentmesh/config':
+      '@cosmicwave/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@nats-io/nkeys':
@@ -99,13 +99,13 @@ importers:
 
   packages/bus:
     dependencies:
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../common
-      '@agentmesh/config':
+      '@cosmicwave/config':
         specifier: workspace:*
         version: link:../config
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@nats-io/jetstream':
@@ -126,10 +126,10 @@ importers:
 
   packages/config:
     dependencies:
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../common
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../protocol
       yaml:
@@ -141,25 +141,25 @@ importers:
 
   packages/protocol:
     dependencies:
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../common
       zod:
         specifier: 4.6.7
         version: 4.6.7
 
-  plugins/agentmesh:
+  plugins/cmw:
     dependencies:
-      '@agentmesh/bus':
+      '@cosmicwave/bus':
         specifier: workspace:*
         version: link:../../packages/bus
-      '@agentmesh/cli':
+      '@cosmicwave/cli':
         specifier: workspace:*
         version: link:../../apps/cli
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../../packages/common
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@modelcontextprotocol/sdk':
@@ -171,13 +171,13 @@ importers:
 
   tests:
     dependencies:
-      '@agentmesh/bus':
+      '@cosmicwave/bus':
         specifier: workspace:*
         version: link:../packages/bus
-      '@agentmesh/common':
+      '@cosmicwave/common':
         specifier: workspace:*
         version: link:../packages/common
-      '@agentmesh/protocol':
+      '@cosmicwave/protocol':
         specifier: workspace:*
         version: link:../packages/protocol
       '@modelcontextprotocol/sdk':

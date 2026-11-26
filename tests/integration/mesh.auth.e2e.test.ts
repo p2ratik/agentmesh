@@ -2,9 +2,9 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { connectBus, natsUsersFromConfig, RpcClient } from '@agentmesh/bus';
-import { createLogger } from '@agentmesh/common';
-import { inboxPrefix } from '@agentmesh/protocol';
+import { connectBus, natsUsersFromConfig, RpcClient } from '@cosmicwave/bus';
+import { createLogger } from '@cosmicwave/common';
+import { inboxPrefix } from '@cosmicwave/protocol';
 import { createUser } from '@nats-io/nkeys';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { renderNatsConfig } from '../../apps/cli/src/render/nats-config';
@@ -14,11 +14,11 @@ import { type Agent, activate, callAsSession, PLUGIN, spawnAgent, untilConnected
 
 /**
  * The production security model, for real: nats-server runs the config that
- * `agentmesh nats-config` renders, every process authenticates with its own
+ * `cmw nats-config` renders, every process authenticates with its own
  * nkey, and each agent may only act as itself.
- * Needs AGENTMESH_TEST_NATS_BIN=<path to nats-server> and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS_BIN=<path to nats-server> and a built plugin.
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 const PORT = 4400 + Math.floor(Date.now() % 500);
 const URL = `nats://127.0.0.1:${PORT}`;
 const PREFIX = 'authe2e';
@@ -60,7 +60,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN) || !existsSync(PLUGIN))(
     const agents: Agent[] = [];
 
     beforeAll(async () => {
-      const dir = mkdtempSync(join(tmpdir(), 'agentmesh-auth-'));
+      const dir = mkdtempSync(join(tmpdir(), 'cosmicwave-auth-'));
       const conf = renderNatsConfig({
         meshName: 'auth-e2e',
         prefix: PREFIX,

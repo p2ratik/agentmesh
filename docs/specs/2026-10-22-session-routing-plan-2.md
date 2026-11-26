@@ -34,8 +34,8 @@ interfaces:
 - `SessionDispatcher` (`apps/hub/src/modules/sessions/dispatcher.ts`) and `DeliveryReceipt` /
   `DeliveryPort` (`apps/hub/src/ports.ts`);
 - the outbox (`apps/hub/src/core/outbox.ts`) and `PostInput` (`apps/hub/src/contracts.ts`);
-- the plugin's `runSessionInbox` (`plugins/agentmesh/src/inbox/session-inbox.ts`), per-call notes
-  in `callTool` (`plugins/agentmesh/src/tools/registry.ts`), and the RPC response `notes`.
+- the plugin's `runSessionInbox` (`plugins/cmw/src/inbox/session-inbox.ts`), per-call notes
+  in `callTool` (`plugins/cmw/src/tools/registry.ts`), and the RPC response `notes`.
 
 **Rulings carried into this plan:**
 
@@ -67,9 +67,9 @@ interfaces:
   entry in `docs/configuration.md`.
 - `@modelcontextprotocol/sdk` stays pinned at `1.32.1`. tsup keeps `removeNodeProtocol: false` and
   the `createRequire` banner.
-- Plugin version `0.3.0` goes in `plugins/agentmesh/.claude-plugin/plugin.json`,
-  `plugins/agentmesh/package.json` and `plugins/agentmesh/src/server.ts` (`VERSION`). Rebuild and
-  commit `plugins/agentmesh/dist/server.js`. The hub's minimum client version becomes `0.3.0`.
+- Plugin version `0.3.0` goes in `plugins/cmw/.claude-plugin/plugin.json`,
+  `plugins/cmw/package.json` and `plugins/cmw/src/server.ts` (`VERSION`). Rebuild and
+  commit `plugins/cmw/dist/server.js`. The hub's minimum client version becomes `0.3.0`.
 - Modules talk through their services and the outbox, never through each other's tables. Messaging
   owns `messages.status_for`; the outbox owns `deliveries`.
 - Secrets never go into logs or tool output. FYI lines are built from message bodies the hub has
@@ -362,17 +362,17 @@ content.
 **Files:**
 
 - Create:
-  - `plugins/agentmesh/src/inbox/fyi.ts`: `FyiBuffer` plus pure formatting.
-  - `plugins/agentmesh/src/inbox/fyi.test.ts`.
+  - `plugins/cmw/src/inbox/fyi.ts`: `FyiBuffer` plus pure formatting.
+  - `plugins/cmw/src/inbox/fyi.test.ts`.
 - Modify:
-  - `plugins/agentmesh/src/inbox/session-inbox.ts`
-  - `plugins/agentmesh/src/inbox/render.ts`: the action event gets an FYI footer.
-  - `plugins/agentmesh/src/tools/registry.ts`: append FYIs to each tool result.
-  - `plugins/agentmesh/src/tools/messaging.ts`: `inbox` sections.
-  - `plugins/agentmesh/src/main.ts` / `session.ts`: wiring.
+  - `plugins/cmw/src/inbox/session-inbox.ts`
+  - `plugins/cmw/src/inbox/render.ts`: the action event gets an FYI footer.
+  - `plugins/cmw/src/tools/registry.ts`: append FYIs to each tool result.
+  - `plugins/cmw/src/tools/messaging.ts`: `inbox` sections.
+  - `plugins/cmw/src/main.ts` / `session.ts`: wiring.
   - Version `0.3.0` in the three places, and the hub's minimum version in
     `apps/hub/src/modules/sessions/handlers.ts`.
-  - `plugins/agentmesh/dist/server.js`: rebuilt.
+  - `plugins/cmw/dist/server.js`: rebuilt.
 
 **Interfaces:**
 
@@ -411,9 +411,9 @@ content.
     - `tool results end with buffered FYIs, which are then reported seen`;
     - `inbox shows Needs you before FYI`;
   - in `instructions.test.ts`: the new line, still under 4096.
-- [ ] **Step 2:** Run `pnpm vitest run plugins/agentmesh`. Expect FAIL.
+- [ ] **Step 2:** Run `pnpm vitest run plugins/cmw`. Expect FAIL.
 - [ ] **Step 3:** Implement. Bump to `0.3.0` and the hub minimum to `0.3.0`, then run
-  `pnpm --filter agentmesh build`.
+  `pnpm --filter cosmicwave build`.
 - [ ] **Step 4:** Run `pnpm check`. Expect it green. The dist is rebuilt.
 - [ ] **Step 5:** Commit `Plugin 0.3.0: status rides along (FYI), split inbox`.
 
@@ -422,8 +422,8 @@ content.
 **Files:**
 
 - Modify:
-  - `plugins/agentmesh/src/tools/sessions.ts` and `session.ts`, plus the `ToolDeps` wiring
-  - `plugins/agentmesh/src/hub.ts`
+  - `plugins/cmw/src/tools/sessions.ts` and `session.ts`, plus the `ToolDeps` wiring
+  - `plugins/cmw/src/hub.ts`
   - `apps/hub/src/modules/sessions/handlers.ts`: the `session.check` failure copy
   - `apps/hub/src/modules/messaging/inbox.ts` and `thread.handlers.ts`, plus a sessions-side helper
   - `docs/configuration.md`
@@ -469,7 +469,7 @@ content.
 - Modify: `tests/integration/support.ts` only if a helper is needed.
 
 **Setup:** start your own nats-server (`-js`) on a free port with a new data directory, and set
-`AGENTMESH_TEST_NATS` and `AGENTMESH_TEST_NATS_BIN`. The binary is in the session scratchpad
+`COSMICWAVE_TEST_NATS` and `COSMICWAVE_TEST_NATS_BIN`. The binary is in the session scratchpad
 (`…\scratchpad\nats-bin-rebase\nats-server-v2.15.1-windows-amd64\nats-server.exe`); extract
 `…\scratchpad\nats\nats.zip` if it's missing. Stop only what you start.
 
@@ -500,7 +500,7 @@ content.
   - `docs/events-and-hermes.md` and `docs/configuration.md`: rule `class`.
   - `docs/adr/0006-per-session-delivery.md`: a short "Plan 2" note on classes and the per-thread
     window.
-  - `plugins/agentmesh/README.md`: FYI behaviour and inbox sections.
+  - `plugins/cmw/README.md`: FYI behaviour and inbox sections.
   - `docs/deploy.md`: upgrading to 0.3.0 (hub minimum; restart sessions).
   - `CLAUDE.md`: the channel-push bullet.
   - The design doc's status line: "Part B built (plan 2)".

@@ -1,5 +1,5 @@
-import { ConfigIndex, configFromObject } from '@agentmesh/config';
-import type { DomainEvent, Plan } from '@agentmesh/protocol';
+import { ConfigIndex, configFromObject } from '@cosmicwave/config';
+import type { DomainEvent, Plan } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { PostIntent } from '../render/intents';
 import { routeEvent } from './route';

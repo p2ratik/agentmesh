@@ -29,4 +29,4 @@ jobs:
           AGE=$(( $(date +%s) - $(date -d "$WHEN" +%s) ))
           echo "The newest hourly backup is $((AGE / 60)) minutes old ($WHEN)."
           [ "$AGE" -le $((MAX_AGE_HOURS * 3600)) ] ||
-            { echo "::error::No backup for over $MAX_AGE_HOURS hours. Check the hub server: agentmesh-backup status, journalctl -u agentmesh-backup."; exit 1; }
+            { echo "::error::No backup for over $MAX_AGE_HOURS hours. Check the hub server: cosmicwave-backup status, journalctl -u cosmicwave-backup."; exit 1; }

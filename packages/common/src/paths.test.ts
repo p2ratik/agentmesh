@@ -4,7 +4,7 @@ import { expandHome } from './paths';
 
 describe('expandHome', () => {
   it('expands only a leading ~ segment', () => {
-    expect(expandHome('~/.agentmesh/a.nk', '/home/x')).toBe(join('/home/x', '.agentmesh/a.nk'));
+    expect(expandHome('~/.cosmicwave/a.nk', '/home/x')).toBe(join('/home/x', '.cosmicwave/a.nk'));
     expect(expandHome('~\\keys\\a.nk', 'C:\\Users\\x')).toBe(join('C:\\Users\\x', 'keys\\a.nk'));
     expect(expandHome('~', '/home/x')).toBe('/home/x');
     expect(expandHome('~bob/a.nk', '/home/x')).toBe('~bob/a.nk');

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import type { NatsConnection } from '@agentmesh/bus';
-import type { Logger } from '@agentmesh/common';
+import type { NatsConnection } from '@cosmicwave/bus';
+import type { Logger } from '@cosmicwave/common';
 import {
   MAX_DELIVERY_MESSAGES,
   type RelayAnswer,
@@ -9,7 +9,7 @@ import {
   type SessionInbound,
   type SessionRelay,
   subjects,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import type { SessionTransport } from './dispatcher';
 
 /** NATS's default max_payload, for before the server's INFO arrives. */

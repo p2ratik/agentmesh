@@ -3,12 +3,12 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Every teammate gets one marked, guarded session that takes the team's work (the mesh
-window), started in any folder by a one-time `/agentmesh:window` and a daily launcher, doing every
+window), started in any folder by a one-time `/cmw:window` and a daily launcher, doing every
 piece of work in its own worktree, and asking its human before it runs a branch it didn't write.
 
 **Architecture:**
 - **Marked and preferred.** The launcher sets a random-token marker. The plugin reports
-  `meshWindow` in hello when the token matches `~/.agentmesh/mesh-window.json`, and the hub's pure
+  `meshWindow` in hello when the token matches `~/.cosmicwave/mesh-window.json`, and the hub's pure
   router prefers a ready mesh window right after the sender's pick, ahead of the repo rule.
 - **Two layers of enforcement, both Claude Code's own.** The launcher's `--settings` file carries
   the allow rules for routine work. A plugin `PreToolUse` hook (`dist/guard.js`, built-ins only)
@@ -18,7 +18,7 @@ piece of work in its own worktree, and asking its human before it runs a branch 
   sessions, once at startup, when nothing listens. The activation result repeats the rules, and the
   skill has a section for each kind of session.
 - The file format the CLI writes and the plugin reads lives in one built-ins-only module,
-  `@agentmesh/common/window`.
+  `@cosmicwave/common/window`.
 
 **Tech Stack:**
 - Node 24, TypeScript 7, zod 4 (not in the hook or the guard), vitest 5, Biome 2, pnpm 10, tsup.
@@ -27,7 +27,7 @@ piece of work in its own worktree, and asking its human before it runs a branch 
 **Spec:** `docs/specs/2026-11-01-mesh-window-design.md`: §3, §6, the plan-2 parts of §7, §8, §10,
 §11, §12 decisions 1–5, and §13 "The worktree guard (plan 2)", "Routing and settings (plan 2)" and
 the overstated claims. **Out of scope (plan 3):** the relay, `localKey`, `host`, the nudge,
-`AGENTMESH_RELAY`, the `SendMessage` guard, and §13 "The relay (plan 3)".
+`COSMICWAVE_RELAY`, the `SendMessage` guard, and §13 "The relay (plan 3)".
 
 **Where to work:**
 - The worktree `G:\Projects\AgentMesh-meshwindow`, on branch `agent/pratik/mesh-window`, from
@@ -39,10 +39,10 @@ the overstated claims. **Out of scope (plan 3):** the relay, `localKey`, `host`,
 Builder-level calls this plan makes. Each says what it costs if it's wrong.
 
 - **Ruling: one shared format module.** `packages/common/src/window.ts` is exported as
-  `@agentmesh/common/window` and imports only `node:*`. The CLI writes the files and the plugin
+  `@cosmicwave/common/window` and imports only `node:*`. The CLI writes the files and the plugin
   (server, hook, guard) reads them, and zod stays out of `dist/hook.js` and `dist/guard.js`.
   *Cost if wrong:* a second export path in `common`.
-- **Ruling: the files.** All live in `~/.agentmesh/`:
+- **Ruling: the files.** All live in `~/.cosmicwave/`:
   - `mesh-window.json`, the policy: version, agent, token, own-branch prefix, integration branch,
     test commands;
   - `mesh-window.settings.json`;
@@ -50,9 +50,9 @@ Builder-level calls this plan makes. Each says what it costs if it's wrong.
     elsewhere;
   - an empty folder, `empty-git-hooks/`.
 
-  The spec said `.sh`. Without the extension, the spec's own daily line `~/.agentmesh/mesh-window`
+  The spec said `.sh`. Without the extension, the spec's own daily line `~/.cosmicwave/mesh-window`
   works on macOS and Linux. *Cost if wrong:* doc wording only.
-- **Ruling: the marker.** It is `AGENTMESH_MESH_WINDOW=<32 hex>`, set both by the launcher script
+- **Ruling: the marker.** It is `COSMICWAVE_MESH_WINDOW=<32 hex>`, set both by the launcher script
   and by the settings file's `env`.
   - The guard is on whenever the variable is non-empty.
   - The plugin reports `meshWindow` only when the value equals the policy's token **and** the
@@ -60,7 +60,7 @@ Builder-level calls this plan makes. Each says what it costs if it's wrong.
 
   *Cost if wrong:* a repo that sets the variable turns the guard on in a private session. That is
   visible and harmless (its edits are refused).
-- **Ruling: one mesh window per laptop user**, keyed by `~/.agentmesh` like `agent.json`. A second
+- **Ruling: one mesh window per laptop user**, keyed by `~/.cosmicwave` like `agent.json`. A second
   Claude account (a test agent) can't run its own window at the same time. *Cost:* Pratik's live
   test uses one window plus private sessions.
 - **Ruling: re-running `window init` keeps a valid token**, so a running window stays verified
@@ -155,7 +155,7 @@ Builder-level calls this plan makes. Each says what it costs if it's wrong.
 - **Ruling: the session-start hint.**
   - It goes in `systemMessage`. hooks.md's JSON-output table defines it as "Warning message shown
     to the user", and the SessionStart section doesn't discard it.
-  - It shows only on an enrolled laptop: `~/.agentmesh/agent.json` exists, or
+  - It shows only on an enrolled laptop: `~/.cosmicwave/agent.json` exists, or
     `CLAUDE_PLUGIN_OPTION_AGENT_ID` is set (plugins-reference.md says options are exported to hook
     processes).
 - **Ruling: the heartbeat.**
@@ -229,7 +229,7 @@ Task 12, with a fallback:
   pass after every task. `sessions.service.ts` is at 288/300: add at most 4 lines to it.
 - **Built-ins only.** These import only `node:*`, each other, and type-only imports:
   - `packages/common/src/window.ts`;
-  - `plugins/agentmesh/src/hook.ts`, `src/guard.ts`, `src/guard/**`;
+  - `plugins/cmw/src/hook.ts`, `src/guard.ts`, `src/guard/**`;
   - `src/window/{rules,heartbeat,session-start,guard-stamp}.ts`;
   - `src/pull/state.ts`.
 - **Environment.** Only the entry and composition points read `process.env`: `main.ts`,
@@ -243,13 +243,13 @@ Task 12, with a fallback:
 - **Copy.** Strings in quotes in this plan are exact copy, and tests pin them.
 - **Version bump and dist rebuild only in Task 12.**
   - The bump touches `packages/common/src/version.ts`, the 9 workspace `package.json` files and
-    `plugins/agentmesh/.claude-plugin/plugin.json`: 0.4.4 becomes 0.5.0.
-  - Rebuild with `pnpm --filter @agentmesh/plugin build`.
+    `plugins/cmw/.claude-plugin/plugin.json`: 0.4.4 becomes 0.5.0.
+  - Rebuild with `pnpm --filter @cosmicwave/plugin build`.
 - **Windows dev box.** `python3` is a stub, so use node. Edit files with the editor tools, not bash
   heredocs. Tests that check file modes run only off Windows, like the existing ones.
 - **Integration tests skip silently without nats-server.** To run them:
   1. Start `C:\Users\USER\AppData\Local\Temp\claude\G--Projects-AgentMesh\01d905da-504d-4369-91a5-bb8bb09a37e4\scratchpad\nats-bin\nats-server-v2.15.1-windows-amd64\nats-server.exe -js -p 4333 -sd <scratch dir>`.
-  2. Run with `AGENTMESH_TEST_NATS_BIN=<that exe>` and `AGENTMESH_TEST_NATS=nats://127.0.0.1:4333`.
+  2. Run with `COSMICWAVE_TEST_NATS_BIN=<that exe>` and `COSMICWAVE_TEST_NATS=nats://127.0.0.1:4333`.
 - **Commits.** End every commit message with
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
@@ -260,7 +260,7 @@ Task 12, with a fallback:
    in Task 7.
 2. **A checkout path with spaces** (`C:/Users/John Smith/opzami/web`): edits pass, and
    `cd "<path>" && pnpm check` is recognized. Tests in Tasks 7 and 8.
-3. **Re-running `/agentmesh:window` while the window runs:** the token is kept, so the running
+3. **Re-running `/cmw:window` while the window runs:** the token is kept, so the running
    window stays verified. Test in Task 4.
 4. **A Write call whose content is several MB:** the guard reads all of it and decides, with no
    truncation and no hang. Test in Task 9.
@@ -277,16 +277,16 @@ Task 12, with a fallback:
 - Modify: `packages/common/package.json` (`exports` gains `"./window": "./src/window.ts"`)
 
 **Interfaces:**
-- **Produces** (`@agentmesh/common/window`, built-ins only):
+- **Produces** (`@cosmicwave/common/window`, built-ins only):
   - **Constants:**
-    - `MESH_WINDOW_ENV = 'AGENTMESH_MESH_WINDOW'`
-    - `MESH_WINDOW_HINT_ENV = 'AGENTMESH_MESH_WINDOW_HINT'`
-    - `CHANNEL_FLAG = '--dangerously-load-development-channels plugin:agentmesh@agentmesh'`
+    - `MESH_WINDOW_ENV = 'COSMICWAVE_MESH_WINDOW'`
+    - `MESH_WINDOW_HINT_ENV = 'COSMICWAVE_MESH_WINDOW_HINT'`
+    - `CHANNEL_FLAG = '--dangerously-load-development-channels plugin:cmw@cosmicwave'`
     - `` RESTART = `claude ${CHANNEL_FLAG}` ``
-    - `LAUNCH_PROMPT: string | null = '/agentmesh:activate mesh window'`
-    - `LAUNCHER_DISPLAY = '~/.agentmesh/mesh-window'`
+    - `LAUNCH_PROMPT: string | null = '/cmw:activate mesh window'`
+    - `LAUNCHER_DISPLAY = '~/.cosmicwave/mesh-window'`
   - `interface WindowFiles { dir: string; policy: string; settings: string; launcher: string; emptyHooks: string }`.
-    `windowFiles(home: string, platform: NodeJS.Platform): WindowFiles` joins `home/.agentmesh/`
+    `windowFiles(home: string, platform: NodeJS.Platform): WindowFiles` joins `home/.cosmicwave/`
     with `mesh-window.json`, `mesh-window.settings.json`, `mesh-window.cmd` (win32) or
     `mesh-window` (elsewhere), and `empty-git-hooks`.
   - `interface WindowPolicy { version: 1; agentId: string; token: string; ownBranchPrefix: string | null; integrationBranch: string; testCommands: string[] }`.
@@ -328,7 +328,7 @@ Task 12, with a fallback:
     - the right token with no file gives `marked`.
   - `it('names the launcher by platform')`: `windowFiles('/h', 'win32').launcher` ends with
     `mesh-window.cmd`, and `windowFiles('/h', 'linux').launcher` ends with
-    `join('.agentmesh', 'mesh-window')`.
+    `join('.cosmicwave', 'mesh-window')`.
 - [ ] **Step 3: Run** `pnpm vitest run packages/common`. Expected: FAIL (module missing).
 - [ ] **Step 4: Implement** `window.ts` and the export. `readMarker` uses `readFileSync` in a
   try/catch.
@@ -356,7 +356,7 @@ Task 12, with a fallback:
 **Interfaces:**
 - **Produces:**
   - **Hello params:** `meshWindow: z.boolean().optional()`, doc comment "Started by the mesh window
-    launcher (AGENTMESH_MESH_WINDOW matched): routing prefers it for team work."
+    launcher (COSMICWAVE_MESH_WINDOW matched): routing prefers it for team work."
   - **`SessionSummary`** gains `meshWindow: z.boolean().default(false)`.
   - **Migration:** `MIGRATION_007 = "ALTER TABLE sessions ADD COLUMN mesh_window INTEGER NOT NULL DEFAULT 0 CHECK (mesh_window IN (0, 1));"`.
   - **Repo and service:** `SessionRow.mesh_window: number`. `NewSession.meshWindow?: boolean`.
@@ -415,16 +415,16 @@ Task 12, with a fallback:
 ### Task 3: The plugin's mesh window session: hello flag, activation, instructions
 
 **Files:**
-- Create: `plugins/agentmesh/src/window/context.ts`
-- Create: `plugins/agentmesh/src/window/rules.ts`, `plugins/agentmesh/src/window/rules.test.ts`
-- Create: `plugins/agentmesh/src/tools/window.test.ts`
-- Modify: `plugins/agentmesh/src/session.ts` (`Session.window`; the hello param in `register`)
-- Modify: `plugins/agentmesh/src/main.ts` (`toolDeps`, instructions input)
-- Modify: `plugins/agentmesh/src/tools/types.ts` (`ToolDeps.window`), `plugins/agentmesh/src/tools/fake-hub.ts`
-- Modify: `plugins/agentmesh/src/tools/sessions.ts` (`activate`; `RESTART` now from `@agentmesh/common/window`)
-- Modify: `plugins/agentmesh/src/instructions.ts`, `plugins/agentmesh/src/instructions.test.ts`
-- Modify: `plugins/agentmesh/src/tools/format.ts`, `plugins/agentmesh/src/tools/format.test.ts`
-- Modify: `plugins/agentmesh/skills/activate/SKILL.md`
+- Create: `plugins/cmw/src/window/context.ts`
+- Create: `plugins/cmw/src/window/rules.ts`, `plugins/cmw/src/window/rules.test.ts`
+- Create: `plugins/cmw/src/tools/window.test.ts`
+- Modify: `plugins/cmw/src/session.ts` (`Session.window`; the hello param in `register`)
+- Modify: `plugins/cmw/src/main.ts` (`toolDeps`, instructions input)
+- Modify: `plugins/cmw/src/tools/types.ts` (`ToolDeps.window`), `plugins/cmw/src/tools/fake-hub.ts`
+- Modify: `plugins/cmw/src/tools/sessions.ts` (`activate`; `RESTART` now from `@cosmicwave/common/window`)
+- Modify: `plugins/cmw/src/instructions.ts`, `plugins/cmw/src/instructions.test.ts`
+- Modify: `plugins/cmw/src/tools/format.ts`, `plugins/cmw/src/tools/format.test.ts`
+- Modify: `plugins/cmw/skills/activate/SKILL.md`
 
 **Interfaces:**
 - **Consumes:** Task 1 (`readMarker`, `WindowPolicy`, `RESTART`) and Task 2 (the hello
@@ -442,7 +442,7 @@ Task 12, with a fallback:
 - [ ] **Step 1: Write the failing tests**
   - `rules.test.ts`: `it('gives the mesh window its rules')`. `windowRules(policy)` contains each
     of these lines, with `bob-agent` and `agents` filled in:
-    - `"AgentMesh: this session is bob-agent's mesh window. It takes the team's work: tasks, reviews and teammates' questions."`
+    - `"Cosmicwave: this session is bob-agent's mesh window. It takes the team's work: tasks, reviews and teammates' questions."`
     - `"- One task at a time, in order. Answer teammates' questions between steps."`
     - `"- Every piece of work gets its own worktree in the repo's checkout under this folder: cd to the checkout, run git fetch origin, then git worktree add .claude/worktrees/mesh-<task>-<slug> -b <suggested branch> origin/agents. Edits anywhere else are refused."`
     - `"- Never clone a repo. If its checkout isn't in this folder, ask your human for the path."`
@@ -455,42 +455,42 @@ Task 12, with a fallback:
     - `it('activating an ordinary session warns that team work will come here')`: unmarked, code
       plus `description: 'web client'`. The text is exactly
       `'This session is active on the mesh as “web client”. ' + NOT_WINDOW`, where
-      `NOT_WINDOW = "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /agentmesh:deactivate and set up a mesh window with /agentmesh:window."`.
+      `NOT_WINDOW = "This isn't your mesh window; team work will come here while no mesh window is running. Your human can turn it off with /cmw:deactivate and set up a mesh window with /cmw:window."`.
       A pull activation also ends with `NOT_WINDOW`.
     - `it('the mesh window never activates pull-only')`: verified, `{ pull: true, description: 'x' }`.
       The result has `isError`, the text equals `PULL_REFUSED`, and no hub call is made.
-      `PULL_REFUSED = "This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ~/.agentmesh/mesh-window."`.
+      `PULL_REFUSED = "This is your mesh window: it never runs pull-only. Call activate again with no arguments to send a new test message; if none arrives, the window was started without the channel flag, so tell your human to restart it with ~/.cosmicwave/mesh-window."`.
     - `it('a marker that does not match the launcher refuses')`: state `marked`. The result has
       `isError`, the text equals
-      `"AGENTMESH_MESH_WINDOW is set, but it doesn't match ~/.agentmesh/mesh-window.json for alice-agent, so this session can't be your mesh window. Start it with ~/.agentmesh/mesh-window, or run /agentmesh:window again."`,
+      `"COSMICWAVE_MESH_WINDOW is set, but it doesn't match ~/.cosmicwave/mesh-window.json for alice-agent, so this session can't be your mesh window. Start it with ~/.cosmicwave/mesh-window, or run /cmw:window again."`,
       and no hub call is made.
     - `it('the mesh window activates and repeats its rules')`: verified, a code and
       `description: 'mesh window'`. The text equals
       `` `This session is active on the mesh as “mesh window”. It is your mesh window.\n\n${windowRules(policy)}` ``.
   - `instructions.test.ts`, changed on purpose:
     - the second paragraph is now
-      `"This session receives mesh messages only after your human runs /agentmesh:activate. Team work belongs in your mesh window (/agentmesh:window sets one up); until then the tools still work and answers wait for this session."`;
+      `"This session receives mesh messages only after your human runs /cmw:activate. Team work belongs in your mesh window (/cmw:window sets one up); until then the tools still work and answers wait for this session."`;
     - with `meshWindow: true` it is
-      `"This session is your mesh window: after your human runs /agentmesh:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only."`;
+      `"This session is your mesh window: after your human runs /cmw:activate it takes your team's work. Its rules arrive at session start and with activation; never activate it pull-only."`;
     - the unread line is
       `"2 mesh thread(s) have unread messages; your mesh window takes team work, and this session reads only its own threads."`,
       or for the window `"2 mesh thread(s) have unread messages; call inbox once this session is active."`;
     - all stay ≤4096.
   - `format.test.ts`: a session summary with `meshWindow: true` and description `'mesh window'`
     renders `'    · s-aaaaaaaaaaaa — mesh window [mesh window]'`.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
   - The marker checks in `activate` run before any hub call.
   - `RESTART` moves to the common module. `sessions.ts` keeps its current texts otherwise.
   - The activate skill gains one line: "In your mesh window, never use `pull: true`: if no test
     message arrives, call `activate` again with no arguments, and if it still doesn't arrive, tell
-    the user to restart the window with `~/.agentmesh/mesh-window`."
+    the user to restart the window with `~/.cosmicwave/mesh-window`."
 - [ ] **Step 4: Run** `pnpm check`. Expected: PASS.
 - [ ] **Step 5: Commit** `"Plugin: the mesh window reports itself, refuses pull and repeats its rules; other sessions warn"`.
 
 ---
 
-### Task 4: `agentmesh window init` writes the launcher and its settings
+### Task 4: `cmw window init` writes the launcher and its settings
 
 **Files:**
 - Create: `apps/cli/src/commands/window.ts`, `apps/cli/src/commands/window.test.ts`
@@ -513,7 +513,7 @@ Task 12, with a fallback:
     ```json
     {
       "env": {
-        "AGENTMESH_MESH_WINDOW": "<token>",
+        "COSMICWAVE_MESH_WINDOW": "<token>",
         "GIT_CONFIG_COUNT": "3",
         "GIT_CONFIG_KEY_0": "core.hooksPath", "GIT_CONFIG_VALUE_0": "<files.emptyHooks>",
         "GIT_CONFIG_KEY_1": "core.fsmonitor", "GIT_CONFIG_VALUE_1": "false",
@@ -546,7 +546,7 @@ Task 12, with a fallback:
       1. `@echo off`
       2. `setlocal`
       3. `set "NoDefaultCurrentDirectoryInExePath=1"`
-      4. `set "AGENTMESH_MESH_WINDOW=<token>"`
+      4. `set "COSMICWAVE_MESH_WINDOW=<token>"`
       5. `if not "%~1"=="" cd /d "%~1" || exit /b 1`
       6. `call "<claude>" <CHANNEL_FLAG> -n "<name>" --permission-mode default --settings "<settings>" "<LAUNCH_PROMPT>"`
          — `call` is required (controller ruling, Task 4 review): without it, an npm-installed `claude.cmd`
@@ -555,7 +555,7 @@ Task 12, with a fallback:
          `call`'s second expansion is safe.
     - **Elsewhere**, LF, lines:
       1. `#!/bin/sh`
-      2. `export AGENTMESH_MESH_WINDOW='<token>'`
+      2. `export COSMICWAVE_MESH_WINDOW='<token>'`
       3. `if [ -n "$1" ]; then cd -- "$1" || exit 1; fi`
       4. `exec '<claude>' <CHANNEL_FLAG> -n '<name>' --permission-mode default --settings '<settings>' '<LAUNCH_PROMPT>'`
     - When `LAUNCH_PROMPT` is null, the last argument is left out.
@@ -577,7 +577,7 @@ Task 12, with a fallback:
     2 on a usage error, or 1 when `claude` isn't on PATH.
 - **Output lines** (exact), in this order:
   1. `Wrote your mesh window for <agent>: <launcher>, <settings> and <policy>.`
-  2. `Start it each day in your team's folder: ~/.agentmesh/mesh-window "<dir>"`
+  2. `Start it each day in your team's folder: ~/.cosmicwave/mesh-window "<dir>"`
   3. Only on a re-run that kept the token:
      `A mesh window that is already running keeps working; restart it to load the new settings.`
   4. Only for a null prefix:
@@ -600,7 +600,7 @@ Task 12, with a fallback:
     - `windowSettings` deep-equals the shape above for `home='/home/bob'`,
       token `'0123456789abcdef0123456789abcdef'` and `['pnpm check']`;
     - `launcherScript` equals the exact win32 and linux texts above;
-    - `bakeable('C:/Users/R&D/.agentmesh/x', 'win32')`, `'C:/a%b'`, `'C:/a"b'` and
+    - `bakeable('C:/Users/R&D/.cosmicwave/x', 'win32')`, `'C:/a%b'`, `'C:/a"b'` and
       `('/home/o\'b', 'linux')` are each `false`;
     - `sessionName('a'.repeat(63)).length` is `64`.
   - `commands/window.test.ts`, with a temp home, a temp bin holding `claude` (or `claude.cmd` on
@@ -629,15 +629,15 @@ Task 12, with a fallback:
   run" in the commit body and Task 12 hands them to Pratik):
   1. Run the launcher in a scratch folder (`window init --dir <scratch>` with a scratch home is
      fine). Accept the development-channel prompt.
-     - Expected: `/agentmesh:activate mesh window` runs as the first prompt.
+     - Expected: `/cmw:activate mesh window` runs as the first prompt.
      - **Fallback:** set `LAUNCH_PROMPT = null` in Task 1's module and add the output line
-       `Then type /agentmesh:activate mesh window in the window.`
+       `Then type /cmw:activate mesh window in the window.`
   2. In that window, have Claude create `.claude/worktrees/mesh-x` with `git worktree add` and edit
      a file there.
      - Expected: no prompt (the allow rule matches on Windows, and the `.claude/` exemption covers
        a git-made worktree).
      - **Fallback:** edits prompt, which is safe; record it in `docs/security.md` and the README.
-  3. From PowerShell, `~/.agentmesh/mesh-window C:\scratch` starts the window.
+  3. From PowerShell, `~/.cosmicwave/mesh-window C:\scratch` starts the window.
      - **Fallback:** print the `& "<absolute launcher>" "<dir>"` form on win32.
   4. Copy any harmless `.exe` (for example `whoami.exe`) to `<scratch>\node.exe` and start the
      window there.
@@ -647,14 +647,14 @@ Task 12, with a fallback:
 
 ---
 
-### Task 5: `/agentmesh:window`, and every "activate each session" text
+### Task 5: `/cmw:window`, and every "activate each session" text
 
 **Files:**
-- Create: `plugins/agentmesh/skills/window/SKILL.md`
-- Create: `plugins/agentmesh/src/window-skill.test.ts`
-- Modify: `plugins/agentmesh/src/join/tool.ts` (the joined text), `plugins/agentmesh/src/join/join.test.ts`
-- Modify: `plugins/agentmesh/commands/join.md`
-- Modify: `plugins/agentmesh/skills/setup/SKILL.md` (the handover after the proof)
+- Create: `plugins/cmw/skills/window/SKILL.md`
+- Create: `plugins/cmw/src/window-skill.test.ts`
+- Modify: `plugins/cmw/src/join/tool.ts` (the joined text), `plugins/cmw/src/join/join.test.ts`
+- Modify: `plugins/cmw/commands/join.md`
+- Modify: `plugins/cmw/skills/setup/SKILL.md` (the handover after the proof)
 - Modify: `apps/cli/src/setup/render/invites.ts`, `apps/cli/src/setup/render/invites.test.ts`
 
 **Interfaces:**
@@ -666,19 +666,19 @@ Task 12, with a fallback:
     - every `node "…" …` call in the skill matches
       `/^node "\$\{CLAUDE_PLUGIN_ROOT\}\/dist\/cli\.js" window init /`;
     - the skill contains `Never run the launcher yourself`.
-  - `join.test.ts`: the joined text contains `/agentmesh:window` and `~/.agentmesh/mesh-window`.
+  - `join.test.ts`: the joined text contains `/cmw:window` and `~/.cosmicwave/mesh-window`.
   - `invites.test.ts`: step 8 is
-    ``'8. Run `/agentmesh:window`, then start your mesh window each day with `~/.agentmesh/mesh-window` in your team\'s folder.'``.
-    The old `'8. Run `/agentmesh:activate`.'` expectation is replaced on purpose.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh apps/cli/src/setup`. Expected: FAIL.
+    ``'8. Run `/cmw:window`, then start your mesh window each day with `~/.cosmicwave/mesh-window` in your team\'s folder.'``.
+    The old `'8. Run `/cmw:activate`.'` expectation is replaced on purpose.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw apps/cli/src/setup`. Expected: FAIL.
 - [ ] **Step 3: Write the skill and the texts.**
   - The window skill is user-only, with argument hint `"[team folder]"`.
-    1. From this session's AgentMesh instructions, take:
+    1. From this session's Cosmicwave instructions, take:
        - the agent (`You are <agent>`);
        - the owner (`working for <owner>`, else the agent);
        - the integration branch and branch template (the `Git:` line).
 
-       If they are missing, the laptop hasn't joined: stop and point to `/agentmesh:join`.
+       If they are missing, the laptop hasn't joined: stop and point to `/cmw:join`.
     2. Ask for the team folder (default `$ARGUMENTS`, else the current folder). Recommend the
        folder that holds the team's repos.
     3. Ask for the exact test command lines. Explain that they run without a prompt on the window's
@@ -687,7 +687,7 @@ Task 12, with a fallback:
        and show its output.
     5. Tell the user how to start the window daily in a terminal. They confirm the development
        channel, and it activates itself; if it doesn't, they type
-       `/agentmesh:activate mesh window`.
+       `/cmw:activate mesh window`.
     6. Tell them to deactivate other sessions they had activated, and to turn off any inbox poll
        (Claude Desktop).
 
@@ -695,25 +695,25 @@ Task 12, with a fallback:
     add permission rules."
   - **The joined text.** Replace "The mesh tools are live now; call inbox. Restart Claude Code with
     the channel flag later…" with:
-    `The mesh tools are live now. Team work goes to a mesh window: offer your human /agentmesh:window to set one up; they then start it each day with ~/.agentmesh/mesh-window in their team's folder. This session stays private unless they activate it.`
+    `The mesh tools are live now. Team work goes to a mesh window: offer your human /cmw:window to set one up; they then start it each day with ~/.cosmicwave/mesh-window in their team's folder. This session stays private unless they activate it.`
     `commands/join.md` gets the same offer after the auto-update question.
   - **The setup skill, after step 7's checklist:** "This session holds the workspace's secrets, so
-    it must not take team work. Ask the admin to run `/agentmesh:deactivate` here, then offer
-    `/agentmesh:window`, and start the mesh window in the team's folder, not in this workspace."
+    it must not take team work. Ask the admin to run `/cmw:deactivate` here, then offer
+    `/cmw:window`, and start the mesh window in the team's folder, not in this workspace."
     `setup-skill.test.ts` must stay green (no new `node` calls).
 - [ ] **Step 4: Run** `pnpm check`. Expected: PASS.
-- [ ] **Step 5: Commit** `"Plugin: /agentmesh:window, offered after join and setup"`.
+- [ ] **Step 5: Commit** `"Plugin: /cmw:window, offered after join and setup"`.
 
 ---
 
 ### Task 6: Session start: the window's rules, and "is anything listening?"
 
 **Files:**
-- Create: `plugins/agentmesh/src/window/heartbeat.ts`, `plugins/agentmesh/src/window/heartbeat.test.ts`
-- Create: `plugins/agentmesh/src/window/session-start.ts`, `plugins/agentmesh/src/window/session-start.test.ts`
-- Modify: `plugins/agentmesh/src/pull/watcher.ts`, `plugins/agentmesh/src/pull/watcher.test.ts`
-- Modify: `plugins/agentmesh/src/session.ts` (watcher deps; `recheck` refreshes the watcher)
-- Modify: `plugins/agentmesh/src/hook.ts`
+- Create: `plugins/cmw/src/window/heartbeat.ts`, `plugins/cmw/src/window/heartbeat.test.ts`
+- Create: `plugins/cmw/src/window/session-start.ts`, `plugins/cmw/src/window/session-start.test.ts`
+- Modify: `plugins/cmw/src/pull/watcher.ts`, `plugins/cmw/src/pull/watcher.test.ts`
+- Modify: `plugins/cmw/src/session.ts` (watcher deps; `recheck` refreshes the watcher)
+- Modify: `plugins/cmw/src/hook.ts`
 
 **Interfaces:**
 - **Consumes:** `windowRules` (Task 3); `readMarker`, `windowFiles` and the env names (Task 1);
@@ -730,15 +730,15 @@ Task 12, with a fallback:
     - Otherwise it removes the file.
   - `interface SessionStartInput { source: string | undefined; marked: boolean; policy: WindowPolicy | null; enrolled: boolean; hintOff: boolean; listening: boolean; launcherExists: boolean }`.
   - `sessionStartOutput(i): { additionalContext: string | null; systemMessage: string | null }`.
-  - `HINT_START = "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Start it with ~/.agentmesh/mesh-window in your team's folder. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)"`.
-  - `HINT_SETUP = "No AgentMesh mesh window is running for this account, so teammates' requests will wait. Run /agentmesh:window to set one up. (AGENTMESH_MESH_WINDOW_HINT=off in settings.json env hides this line.)"`.
+  - `HINT_START = "No Cosmicwave mesh window is running for this account, so teammates' requests will wait. Start it with ~/.cosmicwave/mesh-window in your team's folder. (COSMICWAVE_MESH_WINDOW_HINT=off in settings.json env hides this line.)"`.
+  - `HINT_SETUP = "No Cosmicwave mesh window is running for this account, so teammates' requests will wait. Run /cmw:window to set one up. (COSMICWAVE_MESH_WINDOW_HINT=off in settings.json env hides this line.)"`.
   - **`hook.ts`:**
     - For SessionStart, it prints `{ systemMessage?, hookSpecificOutput: { hookEventName, additionalContext? } }`.
       `additionalContext` is the pull announcement and the rules, joined by `\n`.
     - Values:
-      - `marked` is `!!env.AGENTMESH_MESH_WINDOW`;
-      - `enrolled` is `existsSync(~/.agentmesh/agent.json) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID`;
-      - `hintOff` is `env.AGENTMESH_MESH_WINDOW_HINT === 'off'`;
+      - `marked` is `!!env.COSMICWAVE_MESH_WINDOW`;
+      - `enrolled` is `existsSync(~/.cosmicwave/agent.json) || !!env.CLAUDE_PLUGIN_OPTION_AGENT_ID`;
+      - `hintOff` is `env.COSMICWAVE_MESH_WINDOW_HINT === 'off'`;
       - `listening` is `anyFresh` over the `push-*` files in `pullStateDirs(env, home)[0]`.
     - It prints nothing when there is nothing to say.
 
@@ -758,7 +758,7 @@ Task 12, with a fallback:
       (`meshWindow: false`, no hub call). Clearing `lastDescription` and refreshing removes it.
     - `it('writes no heartbeat while it waits for its re-check')`: `renewedFrom` is set, so there is
       no file.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src/window plugins/agentmesh/src/pull`.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src/window plugins/cmw/src/pull`.
   Expected: FAIL.
 - [ ] **Step 3: Implement.**
   - In `hook.ts`, generalize `readStates` into `readJsonFiles(dir, filter)`.
@@ -776,7 +776,7 @@ Task 12, with a fallback:
 ### Task 7: The worktree guard's path check
 
 **Files:**
-- Create: `plugins/agentmesh/src/guard/paths.ts`, `plugins/agentmesh/src/guard/paths.test.ts`
+- Create: `plugins/cmw/src/guard/paths.ts`, `plugins/cmw/src/guard/paths.test.ts`
 
 **Interfaces:**
 - **Produces** (built-ins only):
@@ -800,14 +800,14 @@ Task 12, with a fallback:
        realpath of `<root>/.git`.
     7. `branch` comes from `gitDir/HEAD` `ref: refs/heads/<b>`, else null.
   - **`editTarget`** additionally requires the path to be strictly inside `root`, no `.git` segment
-    after `root`, and nothing inside the realpath of `<home>/.agentmesh`.
+    after `root`, and nothing inside the realpath of `<home>/.cosmicwave`.
   - **Refusal details** (exact):
     - `'the path is not absolute'`
     - `'device, UNC and stream paths are refused'`
     - `'not inside .claude/worktrees/mesh-*'`
     - `'not a registered git worktree'`
     - `'.git is off limits'`
-    - `'~/.agentmesh is off limits'`
+    - `'~/.cosmicwave is off limits'`
 
 - [ ] **Step 1: Write the failing tests** (`paths.test.ts`).
   - The helper `mesh(repo, name, branch)` builds the layout git writes (checked against
@@ -832,11 +832,11 @@ Task 12, with a fallback:
       `symlinkSync(target, link, 'junction')`, elsewhere `'dir'`. The link inside `mesh-a` points
       at `<repo>/src`, and the target goes through it.
     - `it('refuses .git inside a worktree')`: `<wt>/.git` and `<wt>/sub/.git/hooks/pre-commit`.
-    - `it('refuses ~/.agentmesh')`.
+    - `it('refuses ~/.cosmicwave')`.
     - `it.runIf(win32)('refuses device, UNC and stream paths')`: `\\\\?\\C:\\x\\a.ts`,
       `\\\\.\\pipe\\x`, `\\\\server\\share\\a.ts` and `C:\\r\\a.ts:evil`.
     - `it('refuses a relative path')`.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src/guard`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src/guard`. Expected: FAIL.
 - [ ] **Step 3: Implement** `paths.ts`.
 - [ ] **Step 4: Run** `pnpm check`. Expected: PASS.
 - [ ] **Step 5: Commit** `"Plugin: the worktree guard resolves paths and accepts only registered mesh worktrees"`.
@@ -846,7 +846,7 @@ Task 12, with a fallback:
 ### Task 8: The worktree guard's command check, and the test policy
 
 **Files:**
-- Create: `plugins/agentmesh/src/guard/commands.ts`, `plugins/agentmesh/src/guard/commands.test.ts`
+- Create: `plugins/cmw/src/guard/commands.ts`, `plugins/cmw/src/guard/commands.test.ts`
 
 **Interfaces:**
 - **Consumes:** `WindowPolicy` (Task 1) and `MeshWorktree` (Task 7).
@@ -876,7 +876,7 @@ Task 12, with a fallback:
 
       In a foreign or unplaceable worktree they ask the generic reason.
   - **Ask reasons** (exact):
-    - no policy: `"mesh window: ~/.agentmesh/mesh-window.json is missing or invalid, so every command needs your human's approval"`;
+    - no policy: `"mesh window: ~/.cosmicwave/mesh-window.json is missing or invalid, so every command needs your human's approval"`;
     - a test outside a worktree: `"mesh window: run tests inside a task worktree (cd <worktree> && <test>)"`;
     - a foreign test: `` `mesh window: ${branch ?? 'a detached checkout'} isn't your branch, so running its tests needs your human's approval` ``;
     - everything else: `"mesh window: this command isn't on the window's list, so your human decides"`.
@@ -947,7 +947,7 @@ Task 12, with a fallback:
     - `git status\nrm -rf /`
   - `it('asks for every command without a policy')`: `git status` with `policy: null` gives the
     no-policy reason.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src/guard`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src/guard`. Expected: FAIL.
 - [ ] **Step 3: Implement** `commands.ts` as whole-string regexes built once from the policy. Test
   commands are compared by string equality, never by pattern.
 - [ ] **Step 4: Run** `pnpm check`. Expected: PASS.
@@ -958,21 +958,21 @@ Task 12, with a fallback:
 ### Task 9: The guard runs: `dist/guard.js`, fail-closed, and activation needs it
 
 **Files:**
-- Create: `plugins/agentmesh/src/guard.ts` (entry)
-- Create: `plugins/agentmesh/src/guard/decide.ts`, `plugins/agentmesh/src/guard/decide.test.ts`
-- Create: `plugins/agentmesh/src/guard/io.ts`, `plugins/agentmesh/src/guard/io.test.ts`
-- Create: `plugins/agentmesh/src/window/guard-stamp.ts`, `plugins/agentmesh/src/window/guard-stamp.test.ts`
-- Create: `plugins/agentmesh/src/guard.entry.test.ts`
-- Create: `plugins/agentmesh/src/hooks.test.ts`
-- Modify: `plugins/agentmesh/hooks/hooks.json`
-- Modify: `plugins/agentmesh/tsup.config.ts` (`entry` gains `guard: 'src/guard.ts'`; update the comment)
-- Modify: `plugins/agentmesh/src/tools/sessions.ts` (`activate`), `plugins/agentmesh/src/tools/window.test.ts`
+- Create: `plugins/cmw/src/guard.ts` (entry)
+- Create: `plugins/cmw/src/guard/decide.ts`, `plugins/cmw/src/guard/decide.test.ts`
+- Create: `plugins/cmw/src/guard/io.ts`, `plugins/cmw/src/guard/io.test.ts`
+- Create: `plugins/cmw/src/window/guard-stamp.ts`, `plugins/cmw/src/window/guard-stamp.test.ts`
+- Create: `plugins/cmw/src/guard.entry.test.ts`
+- Create: `plugins/cmw/src/hooks.test.ts`
+- Modify: `plugins/cmw/hooks/hooks.json`
+- Modify: `plugins/cmw/tsup.config.ts` (`entry` gains `guard: 'src/guard.ts'`; update the comment)
+- Modify: `plugins/cmw/src/tools/sessions.ts` (`activate`), `plugins/cmw/src/tools/window.test.ts`
 
 **Interfaces:**
 - **Consumes:** Task 7 (`editTarget`, `meshWorktreeOf`), Task 8 (`classifyCommand`) and Task 1
   (`readMarker`, `MESH_WINDOW_ENV`).
 - **Produces:**
-  - **Constants:** `ACTIVATE_TOOL = 'mcp__plugin_agentmesh_mesh__activate'`;
+  - **Constants:** `ACTIVATE_TOOL = 'mcp__plugin_cmw_mesh__activate'`;
     `FILE_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']`.
   - `interface GuardContext { marked: boolean; policy: WindowPolicy | null; home: string; platform: NodeJS.Platform }`.
   - `type GuardDecision = { kind: 'pass' } | { kind: 'stamp' } | { kind: 'deny'; reason: string } | { kind: 'ask'; reason: string }`.
@@ -1000,7 +1000,7 @@ Task 12, with a fallback:
     `writeGuardStamp(dir: string, now: Date): void` (mkdir 700, write-then-rename 600),
     `guardAlive(dir: string, now: number): boolean`.
   - **`guard.ts`:**
-    1. `marked` is `!!process.env.AGENTMESH_MESH_WINDOW`.
+    1. `marked` is `!!process.env.COSMICWAVE_MESH_WINDOW`.
     2. `readAll(stdin, marked ? null : 1000)`.
     3. Unmarked: exit 0.
     4. Marked: the policy is `readMarker(...).policy`. It decides, writes the stamp into
@@ -1009,7 +1009,7 @@ Task 12, with a fallback:
   - **`hooks.json`** gains `PreToolUse` with two groups:
     - matcher `Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|EnterWorktree`:
       `{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/dist/guard.js"], "timeout": 10, "onFailure": "block" }`;
-    - matcher `mcp__plugin_agentmesh_mesh__activate`: the same command, with no `onFailure`.
+    - matcher `mcp__plugin_cmw_mesh__activate`: the same command, with no `onFailure`.
 
     The description mentions the guard.
   - **`activate` in a marked session** refuses before any hub call when
@@ -1037,7 +1037,7 @@ Task 12, with a fallback:
     - `hookOutput` for each kind equals the shapes above.
   - `guard-stamp.test.ts`: `guardAlive` is true after `writeGuardStamp(dir, now)`; false at
     `now + 121_000`, with no file, and with a corrupt file.
-  - `guard.entry.test.ts`: spawn `process.execPath` with `['--import', 'tsx', 'plugins/agentmesh/src/guard.ts']`
+  - `guard.entry.test.ts`: spawn `process.execPath` with `['--import', 'tsx', 'plugins/cmw/src/guard.ts']`
     from the repo root, `input` and `env`:
     - unmarked, an Edit of `C:/x.ts`: exit `0`, empty stdout;
     - marked, the same: exit `2`, stderr starts with `mesh window: work only inside a task worktree`;
@@ -1048,7 +1048,7 @@ Task 12, with a fallback:
   - `tools/window.test.ts`: `it('the mesh window refuses to activate while the guard is down')`
     (verified, no stamp, so `isError` with the text above and no hub call), and the Task 3
     verified cases now write a fresh stamp into `deps.window.dataDir` first.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src`. Expected: FAIL.
 - [ ] **Step 3: Implement.** If `tsx` can't load the entry in the spawn test on this box, say so in
   the commit, drop that file, and rely on Task 12's smoke against `dist/guard.js`.
 - [ ] **Step 4: Run** `pnpm check`. Expected: PASS.
@@ -1064,11 +1064,11 @@ Task 12, with a fallback:
 ### Task 10: Reviews, checkouts and the skill's sections
 
 **Files:**
-- Create: `plugins/agentmesh/src/window/checkouts.ts`, `plugins/agentmesh/src/window/checkouts.test.ts`
-- Create: `plugins/agentmesh/src/tools/task-get.test.ts`
-- Modify: `plugins/agentmesh/src/tools/tasks.ts` (`task_get`)
-- Modify: `plugins/agentmesh/src/window/rules.ts`, `plugins/agentmesh/src/window/rules.test.ts`
-- Modify: `plugins/agentmesh/skills/mesh-collaboration/SKILL.md`
+- Create: `plugins/cmw/src/window/checkouts.ts`, `plugins/cmw/src/window/checkouts.test.ts`
+- Create: `plugins/cmw/src/tools/task-get.test.ts`
+- Modify: `plugins/cmw/src/tools/tasks.ts` (`task_get`)
+- Modify: `plugins/cmw/src/window/rules.ts`, `plugins/cmw/src/window/rules.test.ts`
+- Modify: `plugins/cmw/skills/mesh-collaboration/SKILL.md`
 
 **Interfaces:**
 - **Consumes:** `parseRemote` (`src/git.ts`) and `ToolDeps.window` (Task 3).
@@ -1102,7 +1102,7 @@ Task 12, with a fallback:
     - an unmarked session's output is unchanged (no `checkout:`);
     - a task with `repo: null` ends with the no-repo line.
   - `rules.test.ts`: the three new lines, with `agent/bob/`.
-- [ ] **Step 2: Run** `pnpm vitest run plugins/agentmesh/src`. Expected: FAIL.
+- [ ] **Step 2: Run** `pnpm vitest run plugins/cmw/src`. Expected: FAIL.
 - [ ] **Step 3: Implement**, then add a section to the skill after "Tasks", "## Which session you
   are" (about 20 lines):
   - **Your mesh window** follows its session-start rules: one task at a time, each in its own
@@ -1133,7 +1133,7 @@ Task 12, with a fallback:
 - Modify: `docs/configuration.md`
 - Modify: `docs/getting-started.md`
 - Modify: `docs/deploy.md`
-- Modify: `plugins/agentmesh/README.md`, `README.md`
+- Modify: `plugins/cmw/README.md`, `README.md`
 - Modify: `CLAUDE.md`
 - Modify: `docs/specs/2026-11-01-mesh-window-design.md` (the status line)
 
@@ -1167,7 +1167,7 @@ Task 12, with a fallback:
     - Others' branches ask, and the author's agent is told.
     - On the window's own branches tests run unprompted. The residual risk is restated: they "read
       **and write** as you, including persistence in `.git/hooks` (shared by every worktree),
-      `~/.agentmesh/` and the guard itself, and switching the guard off".
+      `~/.cosmicwave/` and the guard itself, and switching the guard off".
   - **The corrected claims:**
     - "Bash writes prompt": not for allow-listed test commands;
     - "the window can't loosen its own rules": only Claude's own edits are stopped;
@@ -1175,7 +1175,7 @@ Task 12, with a fallback:
       task, and injection can make it act within its permissions. It can't approve prompts.
   - **Tampering:**
     - the settings file is Claude Code–protected as a `--settings` file, and the guard denies
-      `~/.agentmesh/`;
+      `~/.cosmicwave/`;
     - `disableAllHooks: false`;
     - bypass and auto mode are disabled;
     - the token.
@@ -1199,29 +1199,29 @@ Task 12, with a fallback:
     - Routing gains rule 3 "The agent's mesh window" (`mesh window`), and the list is renumbered;
     - the `; skipped inactive …` suffix.
   - **`configuration.md`:** a short "## Laptop (plugin)" section. Plugin options and env knobs are
-    in the plugin README: `AGENTMESH_MESH_WINDOW` (set only by the launcher) and
-    `AGENTMESH_MESH_WINDOW_HINT=off`. The files are listed there too.
+    in the plugin README: `COSMICWAVE_MESH_WINDOW` (set only by the launcher) and
+    `COSMICWAVE_MESH_WINDOW_HINT=off`. The files are listed there too.
   - **`getting-started.md`:** a "### Your mesh window" section after "Join with an invite". It
     covers:
-    - setting it up with `/agentmesh:window`;
+    - setting it up with `/cmw:window`;
     - the daily start;
     - what it does without asking and what prompts;
     - private sessions;
     - Desktop users (Aheen): start the window in a terminal and turn off the inbox poll;
     - adding `.claude/worktrees/` to each repo's `.gitignore`.
 
-    It replaces "Then run `/agentmesh:activate` in each session…".
+    It replaces "Then run `/cmw:activate` in each session…".
   - **`deploy.md`:** the upgrade notes (about line 438) point to the mesh window.
   - **The plugin README:**
     - "## Your mesh window" replaces most of "## Activate a session", which keeps the private and
       take notes;
-    - `/agentmesh:window`;
+    - `/cmw:window`;
     - the hint knob;
     - the guard hook and its per-call cost;
     - Claude Code 2.1.295+.
-  - **The root README:** `/agentmesh:window` in the commands table.
+  - **The root README:** `/cmw:window` in the commands table.
   - **`CLAUDE.md`:**
-    - Status: the plugin gains `/agentmesh:window`, the guard and `dist/guard.js`;
+    - Status: the plugin gains `/cmw:window`, the guard and `dist/guard.js`;
     - the layout line `src/{inbox,tools,join,window,guard}/`;
     - a gotcha: `onFailure` needs 2.1.295.
   - **The design doc:** "Status: Plans 1 and 2 built".
@@ -1234,22 +1234,22 @@ Task 12, with a fallback:
 
 **Files:**
 - Modify: `packages/common/src/version.ts`, the 9 workspace `package.json` files and
-  `plugins/agentmesh/.claude-plugin/plugin.json`: `0.4.4` becomes `0.5.0`
+  `plugins/cmw/.claude-plugin/plugin.json`: `0.4.4` becomes `0.5.0`
 - Modify: `tests/integration/support.ts`
   - `spawnAgent` takes `extraEnv?: Record<string, string>`.
-  - It strips `AGENTMESH_MESH_WINDOW` and `AGENTMESH_MESH_WINDOW_HINT` from the inherited
+  - It strips `COSMICWAVE_MESH_WINDOW` and `COSMICWAVE_MESH_WINDOW_HINT` from the inherited
     environment.
   - It sets `CLAUDE_PLUGIN_DATA` to a fresh temp dir unless one is given.
   - `activate` returns the final result text.
 - Create: `tests/integration/mesh-window.e2e.test.ts`
-- Modify: the rebuilt `plugins/agentmesh/dist/{server,cli,hook,guard}.js`
+- Modify: the rebuilt `plugins/cmw/dist/{server,cli,hook,guard}.js`
 
 - [ ] **Step 1: Write the e2e test** (`mesh-window.e2e.test.ts`, in the style of
   `sessions.e2e.test.ts`):
   - `it('team work goes to the mesh window, not the session activated first')`:
     1. Activate plain `bob-agent` session `b1`.
-    2. Spawn `b2` with a temp `home` holding `.agentmesh/mesh-window.json` (bob-agent, token `T`),
-       `extraEnv: { AGENTMESH_MESH_WINDOW: T, CLAUDE_PLUGIN_DATA: d }`, and a fresh
+    2. Spawn `b2` with a temp `home` holding `.cosmicwave/mesh-window.json` (bob-agent, token `T`),
+       `extraEnv: { COSMICWAVE_MESH_WINDOW: T, CLAUDE_PLUGIN_DATA: d }`, and a fresh
        `writeGuardStamp(d, new Date())`.
     3. Activate `b2`. Its text contains `It is your mesh window.`
     4. Alice asks bob. `b2` receives it, and `b1.events` stays `[]` after `quiet()`.
@@ -1258,15 +1258,15 @@ Task 12, with a fallback:
     rejects with `worktree guard did not run`.
 - [ ] **Step 2: Bump and rebuild.**
   1. Set `0.5.0` in all 11 files.
-  2. Run `pnpm --filter @agentmesh/plugin build`.
-  3. Check that `plugins/agentmesh/dist/guard.js` exists.
-  4. Run `node -e "for (const f of ['hook','guard']) { const t = require('fs').readFileSync('plugins/agentmesh/dist/'+f+'.js','utf8'); if (/ZodError|from 'zod'/.test(t)) throw new Error(f+' bundles zod'); }"`.
+  2. Run `pnpm --filter @cosmicwave/plugin build`.
+  3. Check that `plugins/cmw/dist/guard.js` exists.
+  4. Run `node -e "for (const f of ['hook','guard']) { const t = require('fs').readFileSync('plugins/cmw/dist/'+f+'.js','utf8'); if (/ZodError|from 'zod'/.test(t)) throw new Error(f+' bundles zod'); }"`.
      Expected: no output.
 - [ ] **Step 3: Smoke the built guard.** Pipe
   `{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"C:/x.ts"},"cwd":"C:/"}`
-  into `node plugins/agentmesh/dist/guard.js`:
+  into `node plugins/cmw/dist/guard.js`:
   - with no marker: exit `0`, no output;
-  - with `AGENTMESH_MESH_WINDOW=x`: exit `2`, stderr `mesh window: work only inside a task worktree (not inside .claude/worktrees/mesh-*)`.
+  - with `COSMICWAVE_MESH_WINDOW=x`: exit `2`, stderr `mesh window: work only inside a task worktree (not inside .claude/worktrees/mesh-*)`.
 - [ ] **Step 4: Verify everything.**
   1. Run `pnpm check`. Expected: PASS, including `version.test.ts`.
   2. Run every integration test with nats-server, as described in the Global Constraints. Expected:
@@ -1288,6 +1288,6 @@ Task 12, with a fallback:
 
 Added after the plan was complete. `window init` also writes `claude-mesh`, a forwarder to the launcher, next to the `claude` it found
 when that folder is under the home folder and holds no `claude-mesh` it didn't write, else to
-`~/.agentmesh/bin` with a printed PATH line. Every start text says `claude-mesh`. On Windows it is a
+`~/.cosmicwave/bin` with a printed PATH line. Every start text says `claude-mesh`. On Windows it is a
 `claude-mesh.cmd` plus a `claude-mesh` sh script, because Git Bash finds no `.cmd` by its bare
 name. Commit: "Launcher: claude-mesh starts the mesh window from any folder".

@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { natsUsersFromConfig } from '@agentmesh/bus';
+import { natsUsersFromConfig } from '@cosmicwave/bus';
 import { createAccount, createCurve, createUser, type KeyPair } from '@nats-io/nkeys';
 import { connect, type NatsConnection, nkeyAuthenticator } from '@nats-io/transport-node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -10,12 +10,12 @@ import { renderNatsConfig } from '../../apps/cli/src/render/nats-config';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
 
 /**
- * The account-mode config `agentmesh nats-config --auth-callout` renders, run
+ * The account-mode config `cmw nats-config --auth-callout` renders, run
  * by a real nats-server with no callout service: static users connect with
  * their own permissions only, and agents are refused (fail closed).
- * Needs AGENTMESH_TEST_NATS_BIN=<path to nats-server>.
+ * Needs COSMICWAVE_TEST_NATS_BIN=<path to nats-server>.
  */
-const NATS_BIN = process.env.AGENTMESH_TEST_NATS_BIN ?? '';
+const NATS_BIN = process.env.COSMICWAVE_TEST_NATS_BIN ?? '';
 const PORT = 4900 + Math.floor(Date.now() % 500);
 const URL = `nats://127.0.0.1:${PORT}`;
 const PREFIX = 'callout';
@@ -63,7 +63,7 @@ describe.skipIf(!NATS_BIN || !existsSync(NATS_BIN))('auth-callout NATS config', 
   }
 
   beforeAll(async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'agentmesh-callout-'));
+    const dir = mkdtempSync(join(tmpdir(), 'cosmicwave-callout-'));
     const conf = renderNatsConfig({
       meshName: 'callout-e2e',
       prefix: PREFIX,

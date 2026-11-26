@@ -1,4 +1,4 @@
-export { isAtLeast } from '@agentmesh/common/version';
+export { isAtLeast } from '@cosmicwave/common/version';
 
 /**
  * Older plugins cannot take per-session delivery (before 0.2.0) or report the

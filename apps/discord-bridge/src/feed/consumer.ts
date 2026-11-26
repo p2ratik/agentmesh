@@ -1,7 +1,7 @@
-import { type Disposition, type JetStreamClient, type JsMsg, runConsumer } from '@agentmesh/bus';
-import type { Logger } from '@agentmesh/common';
-import type { ConfigIndex } from '@agentmesh/config';
-import { consumerNames, DomainEvent, streamNames } from '@agentmesh/protocol';
+import { type Disposition, type JetStreamClient, type JsMsg, runConsumer } from '@cosmicwave/bus';
+import type { Logger } from '@cosmicwave/common';
+import type { ConfigIndex } from '@cosmicwave/config';
+import { consumerNames, DomainEvent, streamNames } from '@cosmicwave/protocol';
 import type { EchoGuard } from '../echo';
 import { type Executor, isPermanentDiscordError } from './executor';
 import { routeEvent } from './route';

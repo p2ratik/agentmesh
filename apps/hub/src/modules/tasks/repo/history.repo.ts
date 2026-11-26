@@ -1,4 +1,4 @@
-import type { TaskHistoryEntry } from '@agentmesh/protocol';
+import type { TaskHistoryEntry } from '@cosmicwave/protocol';
 import type { Db } from '../../../db/database';
 
 /** Append-only audit trail of task transitions (`task_history`). */

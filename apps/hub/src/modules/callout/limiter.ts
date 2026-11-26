@@ -1,4 +1,4 @@
-import { type Clock, MINUTE_MS } from '@agentmesh/common';
+import { type Clock, MINUTE_MS } from '@cosmicwave/common';
 
 /**
  * Counts failures per key (an invite id, a client IP) in fixed one-minute

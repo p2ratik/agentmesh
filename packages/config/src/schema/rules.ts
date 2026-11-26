@@ -1,4 +1,4 @@
-import { DeliveryClass, Priority, Severity } from '@agentmesh/protocol';
+import { DeliveryClass, Priority, Severity } from '@cosmicwave/protocol';
 import { z } from 'zod';
 
 /** A condition on one value inside the event (`payload.branch`, `severity`, …). */

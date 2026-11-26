@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { MINUTE_MS } from '@agentmesh/common';
+import { MINUTE_MS } from '@cosmicwave/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { closeServer, startIngestServer } from './http/server';
 import { GITHUB_SECRET, setup } from './ingest.fixture';

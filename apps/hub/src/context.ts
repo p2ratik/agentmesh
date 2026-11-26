@@ -1,5 +1,5 @@
-import type { Clock, Logger } from '@agentmesh/common';
-import type { ConfigIndex, LoadedConfig } from '@agentmesh/config';
+import type { Clock, Logger } from '@cosmicwave/common';
+import type { ConfigIndex, LoadedConfig } from '@cosmicwave/config';
 import type { EventSink, Outbox } from './contracts';
 import type { Db } from './db/database';
 import { createEventSink } from './modules/observe/observe.service';

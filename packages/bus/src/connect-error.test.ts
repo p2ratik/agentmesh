@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { describe, expect, it } from 'vitest';
 import { refusedOrUnreachable } from './connect-error';
 

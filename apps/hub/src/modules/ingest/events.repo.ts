@@ -1,4 +1,4 @@
-import type { StoredIngestEvent } from '@agentmesh/protocol';
+import type { StoredIngestEvent } from '@cosmicwave/protocol';
 import { type Db, toJson } from '../../db/database';
 
 /** `ingest_events` (dedup + audit) and `rule_throttles`. */

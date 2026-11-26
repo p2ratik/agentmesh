@@ -1,5 +1,5 @@
-import type { RpcMethodName, RpcParams } from '@agentmesh/protocol';
-import { SESSION_ID_PATTERN } from '@agentmesh/protocol';
+import type { RpcMethodName, RpcParams } from '@cosmicwave/protocol';
+import { SESSION_ID_PATTERN } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import type { CallContext, RpcHandler } from '../../contracts';
 import { internalId } from '../../core/ids';
@@ -69,7 +69,7 @@ describe('sessions service', () => {
     expect(owner(t)).toBe(s1);
     expect(second.notes[0]).toBe(
       `thr-${t} belongs to your session ${s1} (“no description”); its messages go there. ` +
-        `Run /agentmesh:take thr-${t} to move it here.`,
+        `Run /cmw:take thr-${t} to move it here.`,
     );
   });
 
@@ -190,7 +190,7 @@ describe('sessions service', () => {
       rpc('session.hello', { clientVersion: '0.2.0' }, call(null)),
     ).rejects.toMatchObject({
       code: 'invalid_request',
-      message: expect.stringContaining('claude plugin update'),
+      message: expect.stringContaining('It has been renamed: remove it and install cmw@cosmicwave'),
     });
     ctx.loaded.config.relay.closedAskerEscalationMinutes = 7;
     const hello = await rpc('session.hello', { clientVersion: '0.3.0' }, call(null));

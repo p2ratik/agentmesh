@@ -1,4 +1,4 @@
-import type { ConfigIndex } from '@agentmesh/config';
+import type { ConfigIndex } from '@cosmicwave/config';
 import { authorize } from '../auth';
 import type { Enrolled } from '../team';
 import { isAdminCommand } from './definitions';

@@ -1,4 +1,4 @@
-# AgentMesh — design spec (v1)
+# Cosmicwave — design spec (v1)
 
 Date: 2026-10-16 · Status: approved for build · Supersedes the earlier planning note
 "Agent Mesh — Claude Code sessions talking to each other (local-first)".
@@ -47,7 +47,7 @@ GitHub API polling (Hermes covers that later), multi-tenant hosting.
  each laptop                                 hub VM (docker compose)
  ┌──────────────────────────┐                ┌───────────────────────────────────────────┐
  │ Claude Code session      │                │ nats (JetStream)                          │
- │  └─ agentmesh plugin     │◄── NATS ──────►│ hub  — auth context, routing, limits,     │
+ │  └─ cosmicwave plugin     │◄── NATS ──────►│ hub  — auth context, routing, limits,     │
  │     MCP stdio, channel   │  (tailnet)     │        threads, tasks, workflows, plans,  │
  └──────────────────────────┘                │        leases, rules, HTTP ingest, SQLite │
                                              │ discord-bridge — channels, slash cmds,    │
@@ -64,8 +64,8 @@ GitHub API polling (Hermes covers that later), multi-tenant hosting.
 - **`packages/common`** — errors, ids, clock, logger, retry.
 - **`apps/hub`** — the coordinator (sections 5–10).
 - **`apps/discord-bridge`** — Discord adapter (section 11).
-- **`apps/cli`** — `agentmesh` CLI: init, validate, add participants (nkeys), render NATS config.
-- **`plugins/agentmesh`** — the Claude Code channel plugin (section 12).
+- **`apps/cli`** — `cmw` CLI: init, validate, add participants (nkeys), render NATS config.
+- **`plugins/cmw`** — the Claude Code channel plugin (section 12).
 
 ## 4. Identity, trust and transport
 
@@ -74,7 +74,7 @@ humans (with Discord user ids and roles), agents (each owned by a human), servic
 ingest producers). The hub's NATS user is separate and not a participant.
 
 **Authentication** is NATS nkeys: each participant holds a private seed; `mesh.yaml` stores only
-public keys. `agentmesh nats-config` renders `nats.conf` with per-user subject permissions:
+public keys. `cmw nats-config` renders `nats.conf` with per-user subject permissions:
 
 | User | Publish | Subscribe |
 | --- | --- | --- |
@@ -247,7 +247,7 @@ Modules talk through services, never through each other's tables. Side effects g
 - MCP server over stdio (Node 24, bundled to one `dist/server.js`), capability
   `experimental['claude/channel']` and `tools`. Permission relay is **not** declared.
 - Config via plugin `userConfig` (agent id, NATS URL, nkey seed as sensitive) → env; falls back to
-  `~/.agentmesh/agent.json`.
+  `~/.cosmicwave/agent.json`.
 - On start: connect, `session.hello` (fetch team policy + git policy), heartbeat presence, then
   consume the durable inbox. Messages arriving together are coalesced per thread into one channel
   event; meta keys are snake_case identifiers (`thread_id`, `from`, `from_kind`, `kind`, `task_id`,
@@ -258,8 +258,8 @@ Modules talk through services, never through each other's tables. Side effects g
   `plan_start`, `plan_get`, `plan_contribute`, `plan_submit`, `lease`, `release`.
 - Ships a `mesh-collaboration` skill describing the team protocol (worktrees, branches, reviews,
   planning etiquette).
-- Users need `--dangerously-load-development-channels plugin:agentmesh@agentmesh` (or an org
-  `allowedChannelPlugins` entry) and an allow rule for `mcp__plugin_agentmesh_mesh__*`.
+- Users need `--dangerously-load-development-channels plugin:cmw@cosmicwave` (or an org
+  `allowedChannelPlugins` entry) and an allow rule for `mcp__plugin_cmw_mesh__*`.
 
 ## 13. Reliability
 
@@ -274,7 +274,7 @@ Modules talk through services, never through each other's tables. Side effects g
 ## 14. Configuration
 
 One directory: `mesh.yaml` + optional `workflows/*.yaml`, `rules/*.yaml`, `policy/*.md`.
-`${VAR}` / `${VAR:-default}` interpolation for secrets. `agentmesh validate` reports every issue
+`${VAR}` / `${VAR:-default}` interpolation for secrets. `cmw validate` reports every issue
 with its path. See `config/examples/`.
 
 ## 15. Testing
@@ -283,7 +283,7 @@ with its path. See `config/examples/`.
   selection, rule matching/templating, planning round logic (manual clock), plugin rendering and
   coalescing, Discord rendering/chunking, RPC router auth.
 - Hub services are tested against in-memory SQLite and fake ports.
-- Integration (opt-in, needs `AGENTMESH_TEST_NATS`): hub + real NATS + two simulated agents.
+- Integration (opt-in, needs `COSMICWAVE_TEST_NATS`): hub + real NATS + two simulated agents.
 
 ## 16. Code standards
 

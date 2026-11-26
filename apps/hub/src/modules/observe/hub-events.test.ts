@@ -1,5 +1,5 @@
-import { createLogger, ManualClock, MeshError } from '@agentmesh/common';
-import { HubEvent } from '@agentmesh/protocol';
+import { createLogger, ManualClock, MeshError } from '@cosmicwave/common';
+import { HubEvent } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { createHub } from '../../app';
 import { MemoryPorts } from '../../ports';

@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 
 /** Relative paths of every file under `dir`, sorted, with forward slashes. */
 export function listFiles(dir: string): string[] {

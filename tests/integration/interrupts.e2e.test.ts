@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { createLogger } from '@agentmesh/common';
+import { createLogger } from '@cosmicwave/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
@@ -9,9 +9,9 @@ import { type Agent, activate, PLUGIN, spawnAgent } from './support';
  * What interrupts an agent, for real (spec §4 Part B): NATS (no auth), the hub
  * and the bundled plugin over MCP stdio. Action items are pushed; status items
  * ride along on the next tool result or push; nobody hears an echo of its own call.
- * Needs AGENTMESH_TEST_NATS=nats://… with JetStream, and a built plugin.
+ * Needs COSMICWAVE_TEST_NATS=nats://… with JetStream, and a built plugin.
  */
-const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
+const NATS = process.env.COSMICWAVE_TEST_NATS ?? '';
 const PREFIX = `int${Date.now().toString(36)}`;
 const QUIET_MS = 3000;
 

@@ -1,5 +1,5 @@
-import type { ReasonCode } from '@agentmesh/protocol';
-import { decodeInvite, type MemberRecord } from '@agentmesh/protocol';
+import type { ReasonCode } from '@cosmicwave/protocol';
+import { decodeInvite, type MemberRecord } from '@cosmicwave/protocol';
 import type { RedeemInput } from '../../contracts';
 import { type Claims, signedNonce } from './jwt';
 import type { FailureLimiter } from './limiter';

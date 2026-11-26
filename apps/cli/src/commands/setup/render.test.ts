@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadConfig } from '@agentmesh/config';
+import { loadConfig } from '@cosmicwave/config';
 import { describe, expect, it } from 'vitest';
 import { listKeyHolders, setHumanDiscordId } from '../../lib/mesh-document';
 import { readEnvFile, updateEnvFile } from '../../setup/env-file';
@@ -25,7 +25,7 @@ function snapshot(dir: string): Record<string, string> {
 
 const seeds = (p: ReturnType<typeof workspacePaths>, home: string) => ({
   ...snapshot(p.secretsDir),
-  ...snapshot(join(home, '.agentmesh')),
+  ...snapshot(join(home, '.cosmicwave')),
 });
 
 const hubKey = (text: string) => listKeyHolders(text).find((k) => k.id === 'hub')?.nkey;
@@ -38,18 +38,18 @@ describe('setup render', () => {
     for (const id of ['hub', 'discord-bridge', 'hub-issuer', 'hub-xkey', 'hub-sys']) {
       expect(existsSync(join(p.secretsDir, `${id}.nk`))).toBe(true);
     }
-    expect(existsSync(join(h.ctx.homeDir, '.agentmesh', 'acme-riya-agent.nk'))).toBe(true);
+    expect(existsSync(join(h.ctx.homeDir, '.cosmicwave', 'acme-riya-agent.nk'))).toBe(true);
     const conf = readFileSync(p.natsConf, 'utf8');
     expect(conf).toContain('tls {');
     expect(conf).toContain('auth_callout');
     const { config } = loadConfig(p.configDir, { env: DISCORD_ENV });
     expect(config.hub.authCallout?.issuer).toMatch(/^A/);
     expect(readFileSync(p.envFile, 'utf8')).toContain('NATS_PUBLIC_HOST=mesh.acme.dev');
-    expect(readFileSync(p.claudeMd, 'utf8')).toContain('# AgentMesh workspace');
+    expect(readFileSync(p.claudeMd, 'utf8')).toContain('# Cosmicwave workspace');
     if (process.platform !== 'win32') {
       const mode = (f: string) => statSync(f).mode & 0o777;
       expect(mode(p.envFile)).toBe(0o600);
-      const keys = [p.secretsDir, join(h.ctx.homeDir, '.agentmesh')].flatMap((d) =>
+      const keys = [p.secretsDir, join(h.ctx.homeDir, '.cosmicwave')].flatMap((d) =>
         readdirSync(d)
           .filter((f) => f.endsWith('.nk'))
           .map((f) => join(d, f)),
@@ -75,7 +75,7 @@ describe('setup render', () => {
     );
     expect(agents.map((a) => a.id)).toEqual(['riya-agent', 'riya-test-agent']);
     for (const agent of agents) expect(conf).toContain(agent.nkey as string);
-    expect(existsSync(join(h.ctx.homeDir, '.agentmesh', 'acme-riya-test-agent.nk'))).toBe(true);
+    expect(existsSync(join(h.ctx.homeDir, '.cosmicwave', 'acme-riya-test-agent.nk'))).toBe(true);
     expect(existsSync(join(p.secretsDir, 'hub.nk'))).toBe(true);
     expect(existsSync(join(p.secretsDir, 'discord-bridge.nk'))).toBe(true);
     expect(existsSync(join(p.secretsDir, 'hub-issuer.nk'))).toBe(false);
@@ -146,7 +146,7 @@ describe('setup render', () => {
     const after = readEnvFile(p.envFile);
     expect(after.get('NATS_BIND')).toBe('0.0.0.0');
     expect(after.get('NATS_PUBLIC_HOST')).toBe('mesh.acme.dev');
-    for (const key of ['DISCORD_BOT_TOKEN', 'AGENTMESH_IMAGE_REGISTRY', 'AGENTMESH_VERSION']) {
+    for (const key of ['DISCORD_BOT_TOKEN', 'COSMICWAVE_IMAGE_REGISTRY', 'COSMICWAVE_VERSION']) {
       expect(after.get(key)).toBe(env.get(key));
     }
     const line = h.out
@@ -154,7 +154,7 @@ describe('setup render', () => {
       ?.split('\n')
       .find((l) => l.includes('.env'));
     expect(line).toMatch(
-      /^\s+differs\s+deploy.\.env \(set NATS_BIND, NATS_PUBLIC_HOST; kept; edit AGENTMESH_IMAGE_REGISTRY by hand\)$/,
+      /^\s+differs\s+deploy.\.env \(set NATS_BIND, NATS_PUBLIC_HOST; kept; edit COSMICWAVE_IMAGE_REGISTRY by hand\)$/,
     );
     expect(line).not.toMatch(/DISCORD|VERSION|0\.0\.0\.0|mesh\.acme\.dev|127\.0\.0\.1|ghcr|tok/);
   });
@@ -211,7 +211,7 @@ describe('setup render', () => {
     const registry = 'registry.example.com:5000/team';
     expect(await h.run('setup', 'render', '--dir', p.root, '--registry', registry)).toBe(0);
     expect(readFileSync(p.envFile, 'utf8').split('\n')).toContain(
-      `AGENTMESH_IMAGE_REGISTRY=${registry}`,
+      `COSMICWAVE_IMAGE_REGISTRY=${registry}`,
     );
   });
 });

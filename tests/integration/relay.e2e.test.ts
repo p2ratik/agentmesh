@@ -1,17 +1,17 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLogger } from '@agentmesh/common';
-import { VERSION } from '@agentmesh/common/version';
-import { MESH_WINDOW_ENV } from '@agentmesh/common/window';
+import { createLogger } from '@cosmicwave/common';
+import { VERSION } from '@cosmicwave/common/version';
+import { MESH_WINDOW_ENV } from '@cosmicwave/common/window';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createHub, type Hub } from '../../apps/hub/src/app';
 import { internalId } from '../../apps/hub/src/core/ids';
 import { testTeamConfig } from '../../apps/hub/src/testing/fixtures';
-import { forwardFile } from '../../plugins/agentmesh/src/relay/forward-record';
-import { readLocalSessions } from '../../plugins/agentmesh/src/relay/local-session';
-import { pointerText } from '../../plugins/agentmesh/src/relay/pointer';
-import { writeGuardStamp } from '../../plugins/agentmesh/src/window/guard-stamp';
+import { forwardFile } from '../../plugins/cmw/src/relay/forward-record';
+import { readLocalSessions } from '../../plugins/cmw/src/relay/local-session';
+import { pointerText } from '../../plugins/cmw/src/relay/pointer';
+import { writeGuardStamp } from '../../plugins/cmw/src/window/guard-stamp';
 import {
   type Agent,
   activate,
@@ -26,10 +26,10 @@ import {
  * Plan 3 for real: NATS (no auth), the hub and the bundled plugin over MCP stdio. Bob's private
  * session and his mesh window share one home and one plugin data folder, as on one laptop; their
  * messaging addresses are fake, since nothing here sends to them. The relay runs on Windows only,
- * so elsewhere the window must stay quiet. Needs AGENTMESH_TEST_NATS=nats://… with JetStream, and
+ * so elsewhere the window must stay quiet. Needs COSMICWAVE_TEST_NATS=nats://… with JetStream, and
  * a built plugin.
  */
-const NATS = process.env.AGENTMESH_TEST_NATS ?? '';
+const NATS = process.env.COSMICWAVE_TEST_NATS ?? '';
 const PREFIX = `rel${Date.now().toString(36)}`;
 const QUIET_MS = 3000;
 const PRIVATE_HEX = '1'.repeat(32);

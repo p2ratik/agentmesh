@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 import { type Document, isMap, isSeq, parseDocument } from 'yaml';
 
 /** Who can hold a NATS nkey: agents, services, the hub's own user and its auth-callout keys. */

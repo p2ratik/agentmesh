@@ -1,4 +1,4 @@
-import type { ThreadKind } from '@agentmesh/protocol';
+import type { ThreadKind } from '@cosmicwave/protocol';
 import type { ThreadRecord } from '../../contracts';
 import type { Db } from '../../db/database';
 

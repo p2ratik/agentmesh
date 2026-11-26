@@ -1,4 +1,4 @@
-import type { RpcMethodName } from '@agentmesh/protocol';
+import type { RpcMethodName } from '@cosmicwave/protocol';
 import type { CallContext } from '../../contracts';
 import { claimsWhenInactive, claimTargets } from './claims';
 import { claimedThread, claimThread } from './ownership';

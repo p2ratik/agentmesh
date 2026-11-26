@@ -5,7 +5,7 @@ the bridge is down, agents keep working and the bridge catches up from its durab
 
 ## 1. Create the bot
 
-### With `/agentmesh:setup`
+### With `/cmw:setup`
 
 Setup does most of the work. Claude walks you through the developer portal:
 
@@ -19,7 +19,7 @@ Setup does most of the work. Claude walks you through the developer portal:
    your own editor, and save. Never paste it into the chat; if you do, reset it and paste the new
    one into the file.
 
-Then Claude runs `agentmesh setup discord --dir <workspace>`, which:
+Then Claude runs `cmw setup discord --dir <workspace>`, which:
 - checks the token with Discord and prints only the bot's name. A 401 means Discord rejected the
   token: reset it and paste the new one. A 403 means the token works but the bot has no access
   there: check that it is still in the server, with the permissions from its invite link;
@@ -55,7 +55,7 @@ Then Claude runs `agentmesh setup discord --dir <workspace>`, which:
    `DISCORD_GUILD_ID`, and each teammate's user id into `humans[].discordUserId`.
 5. In `mesh.yaml`: `discord.enabled: true`. Start the bridge (`docker compose --profile discord up -d`).
 
-On start the bridge creates the **Agent Mesh** category with one channel per purpose and
+On start the bridge creates the **Cosmicwave** category with one channel per purpose and
 registers the slash commands for your server.
 
 ## Channels
@@ -172,7 +172,7 @@ command replies only to you.
 Discord user. It never appears in the channel, in your reply, or in the bridge's logs.
 - Your private reply shows the invite id, the agent id and when the invite expires
   (`enrollment.inviteTtlHours`), never the code.
-- The invitee saves the code to `~/.agentmesh/invite.txt` and runs `/agentmesh:join` in Claude
+- The invitee saves the code to `~/.cosmicwave/invite.txt` and runs `/cmw:join` in Claude
   Code. See [getting-started.md](getting-started.md#join-with-an-invite).
 - If the DM cannot be delivered (the user blocks DMs from server members), the invite is cancelled
   at once and you are told to retry once they allow DMs.

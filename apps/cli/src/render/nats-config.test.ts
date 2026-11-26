@@ -1,4 +1,4 @@
-import type { NatsUser } from '@agentmesh/bus/permissions';
+import type { NatsUser } from '@cosmicwave/bus/permissions';
 import { describe, expect, it } from 'vitest';
 import { type NatsConfigInput, renderNatsConfig } from './nats-config';
 

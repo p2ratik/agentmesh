@@ -1,5 +1,5 @@
-import type { NatsConnection } from '@agentmesh/bus';
-import { type Logger, MINUTE_MS } from '@agentmesh/common';
+import type { NatsConnection } from '@cosmicwave/bus';
+import { type Logger, MINUTE_MS } from '@cosmicwave/common';
 import { createAccount, createCurve, createServer, createUser, type KeyPair } from '@nats-io/nkeys';
 import { describe, expect, it } from 'vitest';
 import type { EnrollmentService } from '../../contracts';

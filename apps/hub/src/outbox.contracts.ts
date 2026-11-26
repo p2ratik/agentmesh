@@ -4,7 +4,7 @@ import type {
   DomainEventData,
   DomainEventType,
   MeshMessage,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 
 /**
  * Transactional outbox: services write deliveries/events inside the same DB

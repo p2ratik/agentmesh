@@ -1,4 +1,4 @@
-import type { WorkflowConfig, WorkflowRole, WorkflowTransition } from '@agentmesh/config';
+import type { WorkflowConfig, WorkflowRole, WorkflowTransition } from '@cosmicwave/config';
 
 /**
  * Pure state-machine queries over a configured workflow. No I/O; everything the

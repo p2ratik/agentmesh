@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { HubEvent } from '@agentmesh/protocol';
+import type { HubEvent } from '@cosmicwave/protocol';
 import type { HubContext } from '../../context';
 
 type Omitted = 'id' | 'at' | 'source' | 'session';

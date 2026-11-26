@@ -1,5 +1,5 @@
-import { createLogger, MeshError } from '@agentmesh/common';
-import { ConfigIndex, configFromObject } from '@agentmesh/config';
+import { createLogger, MeshError } from '@cosmicwave/common';
+import { ConfigIndex, configFromObject } from '@cosmicwave/config';
 import type { Interaction } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { planButtonId } from '../custom-ids';

@@ -1,5 +1,5 @@
-import { createLogger, ManualClock } from '@agentmesh/common';
-import { ConfigIndex, type LoadedConfig } from '@agentmesh/config';
+import { createLogger, ManualClock } from '@cosmicwave/common';
+import { ConfigIndex, type LoadedConfig } from '@cosmicwave/config';
 import { createHubContext, type HubContext } from '../context';
 import { SqliteOutbox } from '../core/outbox';
 import { Db } from '../db/database';

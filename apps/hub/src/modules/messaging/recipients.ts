@@ -1,4 +1,4 @@
-import { MeshError } from '@agentmesh/common';
+import { MeshError } from '@cosmicwave/common';
 
 export const ALL_AGENTS = '@all';
 export const ONLINE_AGENTS = '@online';

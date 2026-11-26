@@ -1,4 +1,4 @@
-import type { ConfigIndex } from '@agentmesh/config';
+import type { ConfigIndex } from '@cosmicwave/config';
 import type {
   DomainEventData,
   MeshMessage,
@@ -6,7 +6,7 @@ import type {
   ReplyStatus,
   ThreadKind,
   ThreadSummary,
-} from '@agentmesh/protocol';
+} from '@cosmicwave/protocol';
 import { avatarFor } from './avatars';
 import { EXTERNAL, link, oneLine, threadTitle, truncate, webhookUsername } from './format';
 import type { PostIntent, ThreadTarget } from './intents';

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type HubEvent, RPC_METHODS } from '@agentmesh/protocol';
+import { type HubEvent, RPC_METHODS } from '@cosmicwave/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import { testTeamConfig } from '../../testing/fixtures';
 import { createTestHarness } from '../../testing/harness';

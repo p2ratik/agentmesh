@@ -1,4 +1,4 @@
-import { PREFIX_PATTERN } from '@agentmesh/protocol';
+import { PREFIX_PATTERN } from '@cosmicwave/protocol';
 import { z } from 'zod';
 import { DiscordConfig, IngestConfig } from './integrations';
 import { PlanningConfig } from './planning';
@@ -36,14 +36,14 @@ export const MeshConfigSchema = z.object({
   hub: z
     .object({
       serviceId: z.string().default('hub'),
-      /** Public nkey of the hub's NATS user (see `agentmesh keys add hub`). */
+      /** Public nkey of the hub's NATS user (see `cmw keys add hub`). */
       nkey: z
         .string()
         .regex(/^U[A-Z2-7]{55}$/)
         .optional(),
       /**
-       * Public keys for NATS auth-callout mode (`agentmesh nats-config --auth-callout`);
-       * generate each with `agentmesh keys add <hub>-issuer|-xkey|-sys`.
+       * Public keys for NATS auth-callout mode (`cmw nats-config --auth-callout`);
+       * generate each with `cmw keys add <hub>-issuer|-xkey|-sys`.
        */
       authCallout: z
         .object({

@@ -5,8 +5,7 @@ import { type SetupState, STEPS, type StepName } from '../workspace';
 const BEFORE_RENDER = 'confirm the answers (setup render --dry-run), then run setup render';
 const BEFORE_RERENDER = `${BEFORE_RENDER} --force (the hosting changed)`;
 /** The round trip needs an active session, so activation comes before the proof. */
-const AFTER_ADMIN =
-  'run /agentmesh:activate, then the proof (doctor, peers, hello), then setup invites';
+const AFTER_ADMIN = 'run /cmw:activate, then the proof (doctor, peers, hello), then setup invites';
 
 const skipper = (answers: SetupAnswers | null) => (step: StepName) =>
   answers?.hosting.mode === 'trial' && step === 'host';
@@ -41,7 +40,7 @@ export function renderStatus(state: SetupState, answers: SetupAnswers | null): s
       ? ` on ${answers.hosting.publicHost}`
       : ' (trial on this machine)';
   return [
-    `AgentMesh setup${answers ? ` for ${answers.team.name}` : ''}${where}`,
+    `Cosmicwave setup${answers ? ` for ${answers.team.name}` : ''}${where}`,
     ...lines,
     `Next: ${todo}`,
   ].join('\n');

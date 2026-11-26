@@ -6,7 +6,7 @@ import { scaffold } from '../lib/scaffold';
 export const initCommand: Command = {
   name: 'init',
   summary: 'Scaffold a mesh config directory from the examples',
-  help: `Usage: agentmesh init [dir] [--force]
+  help: `Usage: cmw init [dir] [--force]
 
 Copies config/examples (mesh.yaml, workflows/, rules/, policy/) into <dir>
 (default: ./config). Refuses to overwrite existing files unless --force.`,
@@ -25,9 +25,9 @@ Copies config/examples (mesh.yaml, workflows/, rules/, policy/) into <dir>
         '',
         'Next:',
         '  1. Edit mesh.yaml: your humans (Discord user ids), agents, areas and git policy.',
-        `  2. agentmesh validate --config ${target}`,
-        `  3. agentmesh keys add hub --config ${target}   (then one per agent and service)`,
-        `  4. agentmesh nats-config --config ${target}`,
+        `  2. cmw validate --config ${target}`,
+        `  3. cmw keys add hub --config ${target}   (then one per agent and service)`,
+        `  4. cmw nats-config --config ${target}`,
       ].join('\n'),
     );
     return 0;

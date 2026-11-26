@@ -1,4 +1,4 @@
-import type { DomainEventData, Task } from '@agentmesh/protocol';
+import type { DomainEventData, Task } from '@cosmicwave/protocol';
 import { describe, expect, it } from 'vitest';
 import { MESSAGE_LIMIT } from '../discord/chunk';
 import { NOTICE_TEXT_LIMIT, renderNotice } from './control';

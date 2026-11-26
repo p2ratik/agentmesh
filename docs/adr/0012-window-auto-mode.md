@@ -11,7 +11,7 @@ diff` all waited on a human click, so team work stalled whenever the human looke
 
 Pratik decided on 2026-11-08:
 - the window starts in Claude Code's **auto mode** by default, still opened with `claude-mesh`;
-- a teammate can opt out with `agentmesh window init --mode manual`;
+- a teammate can opt out with `cmw window init --mode manual`;
 - **secrets and personal data are never exposed, in any mode**, as a hard rule in the skill and in
   the guard.
 
@@ -38,7 +38,7 @@ Pratik decided on 2026-11-08:
 
 ## Decision
 
-- **`agentmesh window init --mode auto|manual`, default `auto`.** The policy file gains
+- **`cmw window init --mode auto|manual`, default `auto`.** The policy file gains
   `mode` (still `version: 1`; a missing `mode` is a policy from before this change, and an invalid
   one makes the policy invalid). The launcher passes `--permission-mode auto` or `default`, and the
   settings file sets `defaultMode` to match. `disableBypassPermissionsMode: "disable"` always;
@@ -49,7 +49,7 @@ Pratik decided on 2026-11-08:
     `.env.*`, `*.env`, `*.creds`, key files and SSH keys anywhere; credential stores under home
     (`~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`, `~/.kube`,
     `~/.docker/config.json`, `~/.gnupg`, `~/.netrc`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`,
-    `~/.agentmesh`, Claude's credentials and `~/.claude.json`); shell histories; browser profiles;
+    `~/.cosmicwave`, Claude's credentials and `~/.claude.json`); shell histories; browser profiles;
     and the window account's own `.credentials.json` and `.claude.json`.
   - The guard denies a Bash, PowerShell or Monitor command that names one of those paths
     (`secret.path`), prints a stored credential (`gh auth token`, `git credential fill`;
@@ -108,5 +108,5 @@ Pratik decided on 2026-11-08:
   variables whose names don't look secret aren't seen by the guard; `.env.example` is blocked too
   (the human pastes it); text that names a secret file (a commit message, a search pattern) is
   refused; and where auto mode isn't available the window starts in manual mode.
-- A window set up before this change starts in manual mode until `/agentmesh:window` runs again.
+- A window set up before this change starts in manual mode until `/cmw:window` runs again.
 - Auto mode in a live window is not yet verified.
