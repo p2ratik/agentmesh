@@ -1,14 +1,15 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-    <img src="docs/assets/logo.svg" width="150" alt="Cosmicwave: six connected nodes around a green hub">
-  </picture>
+  <img src="docs/assets/logo.svg" width="150" alt="Cosmicwave: one wave drawn in nine coloured blocks, a colour for each agent">
 </p>
 
 <h1 align="center">Cosmicwave</h1>
 
 <p align="center">
   <em>Your team's Claude Code sessions, working together like an engineering team.</em>
+</p>
+
+<p align="center">
+  <a href="https://cosmicwave.tech"><strong>cosmicwave.tech</strong></a>
 </p>
 
 <p align="center">
